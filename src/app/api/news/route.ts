@@ -1,146 +1,200 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import Parser from "rss-parser";
 import OpenAI from "openai";
 import { RSS_FEEDS } from "@/lib/rss-feeds";
-import type { RawArticle, SummaryResponse } from "@/lib/types";
+import { getSystemPrompt, getServerMessages } from "@/lib/prompts";
+import type { Lang } from "@/lib/i18n";
+import type { RawArticle, ArticleSummary, SummaryResponse, AIAnalysis } from "@/lib/types";
 
-const parser = new Parser({ timeout: 10000 });
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const rssParser = new Parser({ timeout: 10_000 });
+const FETCH_TIMEOUT_MS = 8_000;
+const MAX_ARTICLES = 80;
+const PREVIEW_LIMIT = 10;
+const SNIPPET_MAX = 400;
 
-function parseDate(dateStr: string | undefined): number {
+function toTimestamp(dateStr: string | undefined): number {
   if (!dateStr) return 0;
-  const d = new Date(dateStr);
-  return isNaN(d.getTime()) ? 0 : d.getTime();
+  const ms = new Date(dateStr).getTime();
+  return Number.isNaN(ms) ? 0 : ms;
 }
 
-export async function GET(request: NextRequest) {
-  const hoursParam = request.nextUrl.searchParams.get("hours");
-  const hours = Math.min(48, Math.max(1, parseInt(hoursParam || "24", 10) || 24));
-  const since = Date.now() - hours * 60 * 60 * 1000;
+function buildPeriod(since: number): SummaryResponse["period"] {
+  return {
+    from: new Date(since).toISOString(),
+    to: new Date().toISOString(),
+  };
+}
 
-  const rawArticles: RawArticle[] = [];
+function isValidApiKey(key: string | undefined): key is string {
+  return !!key && key.trim() !== "" && key !== "sk-your-key-here";
+}
 
-  await Promise.all(
+// ── RSS fetching ──────────────────────────────────────────────────────
+
+async function fetchAllFeeds(since: number): Promise<{
+  articles: RawArticle[];
+  feedsOk: number;
+  feedsFailed: number;
+}> {
+  const articles: RawArticle[] = [];
+
+  const results = await Promise.allSettled(
     RSS_FEEDS.map(async (feed) => {
-      try {
-        const feedXml = await fetch(feed.url, {
-          headers: { "User-Agent": "NewsRead-RSS-Reader/1.0" },
-          signal: AbortSignal.timeout(8000),
-        }).then((r) => r.text());
-        const parsed = await parser.parseString(feedXml);
-        for (const item of parsed.items || []) {
-          const pubDate = item.pubDate || item.isoDate;
-          const ts = parseDate(pubDate);
-          if (ts >= since) {
-            rawArticles.push({
-              title: item.title || "",
-              link: item.link || "",
-              pubDate: pubDate || new Date().toISOString(),
-              content: item.content,
-              contentSnippet: item.contentSnippet,
-              source: feed.name,
-            });
-          }
+      const xml = await fetch(feed.url, {
+        headers: { "User-Agent": "NewsRead/1.0" },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      }).then((r) => r.text());
+
+      const parsed = await rssParser.parseString(xml);
+
+      for (const item of parsed.items ?? []) {
+        const pubDate = item.pubDate ?? item.isoDate ?? "";
+        if (toTimestamp(pubDate) >= since) {
+          articles.push({
+            title: item.title ?? "",
+            link: item.link ?? "",
+            pubDate: pubDate || new Date().toISOString(),
+            content: item.content ?? "",
+            contentSnippet: item.contentSnippet ?? "",
+            source: feed.name,
+          });
         }
-      } catch {
-        // skip failed feeds
       }
     })
   );
 
-  // sort by date desc
-  rawArticles.sort((a, b) => parseDate(b.pubDate) - parseDate(a.pubDate));
-  const toSend = rawArticles.slice(0, 80).map((a) => ({
+  const feedsOk = results.filter((r) => r.status === "fulfilled").length;
+  const feedsFailed = results.length - feedsOk;
+
+  articles.sort((a, b) => toTimestamp(b.pubDate) - toTimestamp(a.pubDate));
+
+  return { articles, feedsOk, feedsFailed };
+}
+
+// ── AI analysis ───────────────────────────────────────────────────────
+
+function toAnalysisPayload(articles: RawArticle[]): ArticleSummary[] {
+  return articles.slice(0, MAX_ARTICLES).map((a) => ({
     title: a.title,
     link: a.link,
     source: a.source,
-    pubDate: a.pubDate || "",
-    snippet: (a.contentSnippet || a.content || "").slice(0, 400),
+    pubDate: a.pubDate,
+    snippet: (a.contentSnippet || a.content).slice(0, SNIPPET_MAX),
   }));
-
-  if (toSend.length === 0) {
-    return Response.json({
-      summary: "Aucun article trouvé pour la période sélectionnée.",
-      articles: [],
-      period: {
-        from: new Date(since).toISOString(),
-        to: new Date().toISOString(),
-      },
-    } satisfies SummaryResponse);
-  }
-
-  const systemPrompt = `Tu es un assistant qui analyse des titres et extraits d'articles de presse.
-Ta tâche : identifier UNIQUEMENT les articles qui concernent le conflit ou les tensions entre d'une part USA/Israël et d'autre part l'Iran (ou acteurs liés : Hezbollah, Houthis, etc.).
-Pour chaque article pertinent, fournis un très court résumé (1 phrase). À la fin, rédige un résumé global de 2 à 4 phrases sur l'actualité de ce conflit sur la période.
-Réponds en JSON valide avec cette structure exacte :
-{
-  "relevant": [ { "index": 0, "snippet": "résumé une phrase" }, ... ],
-  "globalSummary": "résumé global 2-4 phrases"
 }
-Les "index" correspondent à l'index (à partir de 0) des articles dans la liste fournie. Ne mets que les articles vraiment liés au conflit USA/Israël vs Iran.`;
 
-  const userContent =
-    "Liste des articles (index, title, source, snippet) :\n" +
-    toSend
-      .map(
-        (a, i) =>
-          `[${i}] ${a.title} | ${a.source} | ${(a.pubDate || "").slice(0, 10)} | ${a.snippet.slice(0, 200)}`
-      )
-      .join("\n");
+function formatArticleList(items: ArticleSummary[]): string {
+  return items
+    .map((a, i) =>
+      `[${i}] ${a.title} | ${a.source} | ${a.pubDate.slice(0, 10)} | ${a.snippet.slice(0, 200)}`
+    )
+    .join("\n");
+}
 
-  let summary = "Impossible de générer le résumé.";
-  const relevantIndexes = new Map<number, string>();
+interface RelevantEntry {
+  snippet: string;
+  title?: string;
+}
 
-  if (process.env.OPENAI_API_KEY) {
-    try {
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userContent },
-        ],
-        response_format: { type: "json_object" },
-      });
-      const text = completion.choices[0]?.message?.content;
-      if (text) {
-        const parsed = JSON.parse(text) as {
-          relevant?: Array<{ index: number; snippet: string }>;
-          globalSummary?: string;
-        };
-        if (parsed.globalSummary) summary = parsed.globalSummary;
-        for (const r of parsed.relevant || []) {
-          relevantIndexes.set(r.index, r.snippet);
-        }
-      }
-    } catch (e) {
-      summary = "Erreur lors de l’appel à l’IA. Vérifiez OPENAI_API_KEY.";
-    }
-  } else {
-    summary = "Configurez OPENAI_API_KEY pour activer le résumé par IA.";
+async function analyzeWithAI(
+  items: ArticleSummary[],
+  lang: Lang,
+  apiKey: string,
+): Promise<{ summary: string; relevant: Map<number, RelevantEntry> }> {
+  const msg = getServerMessages(lang);
+  const openai = new OpenAI({ apiKey });
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      { role: "system", content: getSystemPrompt(lang) },
+      { role: "user", content: `Article list:\n${formatArticleList(items)}` },
+    ],
+    response_format: { type: "json_object" },
+  });
+
+  const raw = completion.choices[0]?.message?.content;
+  if (!raw) return { summary: msg.fallback, relevant: new Map() };
+
+  const parsed: AIAnalysis = JSON.parse(raw);
+  const relevant = new Map<number, RelevantEntry>();
+  for (const r of parsed.relevant ?? []) {
+    relevant.set(r.index, { snippet: r.snippet, title: r.title });
   }
 
-  const articles = toSend
-    .map((a, i) =>
-      relevantIndexes.has(i)
-        ? {
-            title: a.title,
-            link: a.link,
-            source: a.source,
-            pubDate: a.pubDate,
-            snippet: relevantIndexes.get(i) ?? a.snippet,
-          }
-        : null
-    )
-    .filter((a): a is NonNullable<typeof a> => a !== null);
-
-  const response: SummaryResponse = {
-    summary,
-    articles,
-    period: {
-      from: new Date(since).toISOString(),
-      to: new Date().toISOString(),
-    },
+  return {
+    summary: parsed.globalSummary || msg.fallback,
+    relevant,
   };
+}
 
-  return Response.json(response);
+// ── Route handler ─────────────────────────────────────────────────────
+
+export async function GET(request: NextRequest) {
+  try {
+    const params = request.nextUrl.searchParams;
+    const lang: Lang = params.get("lang") === "fr" ? "fr" : "en";
+    const hours = Math.min(48, Math.max(1, parseInt(params.get("hours") ?? "24", 10) || 24));
+    const since = Date.now() - hours * 3_600_000;
+    const msg = getServerMessages(lang);
+
+    const { articles: rawArticles, feedsOk, feedsFailed } = await fetchAllFeeds(since);
+    const items = toAnalysisPayload(rawArticles);
+
+    if (items.length === 0) {
+      return NextResponse.json({
+        summary: feedsFailed > 0
+          ? msg.noArticlesFeedError(feedsOk, feedsFailed)
+          : msg.noArticles,
+        articles: [],
+        period: buildPeriod(since),
+      } satisfies SummaryResponse);
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY;
+
+    if (!isValidApiKey(apiKey)) {
+      return NextResponse.json({
+        summary: msg.noApiKey(items.length, feedsOk),
+        articles: items.slice(0, PREVIEW_LIMIT).map((a) => ({
+          ...a,
+          snippet: a.snippet.slice(0, 200),
+        })),
+        period: buildPeriod(since),
+      } satisfies SummaryResponse);
+    }
+
+    let summary: string;
+    let relevant: Map<number, RelevantEntry>;
+
+    try {
+      ({ summary, relevant } = await analyzeWithAI(items, lang, apiKey));
+    } catch {
+      summary = msg.aiError;
+      relevant = new Map();
+    }
+
+    const filteredArticles: ArticleSummary[] = items
+      .map((a, i) => {
+        const entry = relevant.get(i);
+        if (!entry) return null;
+        return {
+          ...a,
+          title: entry.title || a.title,
+          snippet: entry.snippet,
+        };
+      })
+      .filter((a): a is ArticleSummary => a !== null);
+
+    return NextResponse.json({
+      summary,
+      articles: filteredArticles,
+      period: buildPeriod(since),
+    } satisfies SummaryResponse);
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Server error" },
+      { status: 500 },
+    );
+  }
 }

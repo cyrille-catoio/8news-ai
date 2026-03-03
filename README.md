@@ -21,7 +21,13 @@ cp .env.example .env
 npm run dev
 ```
 
-Ouvrir [http://localhost:3000](http://localhost:3000).
+Ouvrir **http://127.0.0.1:3000** (ou http://localhost:3000) dans le navigateur.
+
+### Si « This page isn’t working » s’affiche
+
+1. **Arrêter tout serveur déjà lancé** : dans le terminal où tourne `npm run dev`, faire Ctrl+C.
+2. **Relancer** : `npm run dev`, puis ouvrir **http://127.0.0.1:3000**.
+3. Si le port 3000 est occupé, Next indiquera un autre port (ex. 3001) : utiliser l’URL affichée dans le terminal.
 
 ## Utilisation
 

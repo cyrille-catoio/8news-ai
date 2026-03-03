@@ -2,22 +2,15 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "NewsRead — Conflit USA/Israël vs Iran",
-  description: "Résumé des dernières actualités sur le conflit USA/Israël vs Iran, issues de 10 flux RSS et filtrées par IA.",
+  title: "8news.ai — USA/Israel vs Iran Conflict",
+  description:
+    "8news.ai — AI-powered summary of the latest news on the USA/Israel vs Iran conflict, aggregated from 10 RSS feeds.",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr">
-      <body className="antialiased font-sans"
-      style={{ fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif' }}
-      >
-        {children}
-      </body>
+    <html lang="en">
+      <body>{children}</body>
     </html>
   );
 }

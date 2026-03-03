@@ -370,6 +370,10 @@ export default function Home() {
       </div>
 
       {showSettings && <SettingsModal lang={lang} onClose={() => setShowSettings(false)} />}
+
+      <footer style={{ position: "fixed", bottom: 8, right: 12, color: color.textDim, fontSize: 11 }}>
+        v1.0
+      </footer>
     </div>
   );
 }

@@ -2,8 +2,8 @@ export type Lang = "en" | "fr";
 
 const strings = {
   appName: {
-    en: "8news.ai",
-    fr: "8news.ai",
+    en: "8news",
+    fr: "8news",
   },
   conflictTitle: {
     en: "USA / Israel vs Iran Conflict",

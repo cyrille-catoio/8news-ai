@@ -10,7 +10,8 @@ export const color = {
   goldLight: "#e6c84e",
   text: "#f5f5f5",
   textSecondary: "#ddd",
-  textMuted: "#888",
+  textMuted: "#999",
+  articleSnippet: "#b0b0b0",
   textDim: "#666",
   textLabel: "#aaa",
   errorBg: "rgba(200,50,50,0.1)",
@@ -24,7 +25,7 @@ export const font = {
 
 export const sectionHeading: CSSProperties = {
   color: color.gold,
-  fontSize: 12,
+  fontSize: 13,
   fontWeight: 600,
   textTransform: "uppercase",
   letterSpacing: "0.1em",

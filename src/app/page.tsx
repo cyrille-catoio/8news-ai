@@ -23,7 +23,7 @@ const PERIODS = [
 function LangToggle({ lang, onChange }: { lang: Lang; onChange: (l: Lang) => void }) {
   const btn = (value: Lang, label: string, isLeft: boolean): CSSProperties => ({
     padding: "5px 12px",
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: 600,
     border: "none",
     borderLeft: isLeft ? "none" : `1px solid ${color.gold}`,
@@ -76,12 +76,12 @@ function PeriodButton({
       onClick={onClick}
       disabled={disabled}
       style={{
-        padding: "8px 18px",
+        padding: "9px 20px",
         borderRadius: 8,
         border: `1px solid ${active ? color.gold : color.borderLight}`,
         background: active ? color.gold : "#141414",
         color: active ? "#000" : "#ccc",
-        fontSize: 14,
+        fontSize: 15,
         fontWeight: 500,
         cursor: disabled ? "wait" : "pointer",
         transition: "all 0.15s",
@@ -100,13 +100,13 @@ function ArticleCard({ article, locale }: { article: ArticleSummary; locale: str
       rel="noopener noreferrer"
       style={{ ...card, display: "block", textDecoration: "none", color: "inherit" }}
     >
-      <span style={{ color: color.text, fontWeight: 500, fontSize: 15 }}>
+      <span style={{ color: color.text, fontWeight: 500, fontSize: 17 }}>
         {article.title}
       </span>
-      <p style={{ color: color.textMuted, fontSize: 13, marginTop: 6, lineHeight: 1.5 }}>
+      <p style={{ color: color.articleSnippet, fontSize: 14, marginTop: 6, lineHeight: 1.5 }}>
         {article.snippet}
       </p>
-      <p style={{ color: color.gold, fontSize: 12, marginTop: 8 }}>
+      <p style={{ color: color.gold, fontSize: 13, marginTop: 8 }}>
         {article.source} · {article.pubDate ? new Date(article.pubDate).toLocaleString(locale) : ""}
       </p>
     </a>
@@ -142,7 +142,7 @@ function SettingsModal({ lang, onClose }: { lang: Lang; onClose: () => void }) {
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <h3 style={{ color: color.gold, fontSize: 16, fontWeight: 600, margin: 0 }}>
+          <h3 style={{ color: color.gold, fontSize: 18, fontWeight: 600, margin: 0 }}>
             {t("settingsTitle", lang)}
           </h3>
           <button
@@ -153,7 +153,7 @@ function SettingsModal({ lang, onClose }: { lang: Lang; onClose: () => void }) {
               border: `1px solid ${color.borderLight}`,
               background: "transparent",
               color: color.textMuted,
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: 500,
               cursor: "pointer",
             }}
@@ -177,10 +177,10 @@ function SettingsModal({ lang, onClose }: { lang: Lang; onClose: () => void }) {
                   gap: 12,
                 }}
               >
-                <span style={{ color: color.text, fontSize: 14, fontWeight: 500 }}>
+                <span style={{ color: color.text, fontSize: 15, fontWeight: 500 }}>
                   {feed.name}
                 </span>
-                <span style={{ color: color.textDim, fontSize: 12, flexShrink: 0 }}>
+                <span style={{ color: color.textDim, fontSize: 13, flexShrink: 0 }}>
                   {domain}
                 </span>
               </li>
@@ -196,10 +196,10 @@ function SummaryBox({ data, locale, lang }: { data: SummaryResponse; locale: str
   return (
     <div style={{ ...card, borderRadius: 12, padding: 20, marginBottom: 28 }}>
       <h2 style={sectionHeading}>{t("summary", lang)}</h2>
-      <p style={{ color: color.textSecondary, lineHeight: 1.6, whiteSpace: "pre-wrap", margin: 0 }}>
+      <p style={{ color: color.textSecondary, lineHeight: 1.6, whiteSpace: "pre-wrap", margin: 0, fontSize: 15 }}>
         {data.summary}
       </p>
-      <p style={{ color: color.textDim, fontSize: 12, marginTop: 12 }}>
+      <p style={{ color: color.textDim, fontSize: 13, marginTop: 12 }}>
         {new Date(data.period.from).toLocaleString(locale)} → {new Date(data.period.to).toLocaleString(locale)}
       </p>
     </div>
@@ -293,20 +293,20 @@ export default function Home() {
             </button>
           </div>
 
-          <h1 style={{ color: color.gold, fontSize: 28, fontWeight: 600, margin: 0, letterSpacing: "-0.02em", paddingRight: 180 }}>
+          <h1 style={{ color: color.gold, fontSize: 31, fontWeight: 600, margin: 0, letterSpacing: "-0.02em", paddingRight: 180 }}>
             {t("appName", lang)}
           </h1>
-          <h2 style={{ color: color.text, fontSize: 18, fontWeight: 500, margin: "6px 0 0", paddingRight: 180 }}>
+          <h2 style={{ color: color.text, fontSize: 20, fontWeight: 500, margin: "6px 0 0", paddingRight: 180 }}>
             {t("conflictTitle", lang)}
           </h2>
-          <p style={{ color: color.textMuted, fontSize: 14, marginTop: 8 }}>
+          <p style={{ color: color.textMuted, fontSize: 15, marginTop: 8 }}>
             {t("subtitle", lang)}
           </p>
         </header>
 
         {/* ── Period selector ────────────────────────────────── */}
         <section style={{ marginBottom: 32 }}>
-          <p style={{ color: color.textLabel, fontSize: 13, fontWeight: 500, marginBottom: 10 }}>
+          <p style={{ color: color.textLabel, fontSize: 14, fontWeight: 500, marginBottom: 10 }}>
             {t("selectPeriod", lang)}
           </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -324,7 +324,7 @@ export default function Home() {
 
         {/* ── Loading ────────────────────────────────────────── */}
         {loading && (
-          <div style={{ color: color.gold, padding: "32px 0", display: "flex", alignItems: "center", gap: 10, fontSize: 14 }}>
+          <div style={{ color: color.gold, padding: "32px 0", display: "flex", alignItems: "center", gap: 10, fontSize: 15 }}>
             <Spinner />
             {t("loading", lang)}
           </div>
@@ -332,7 +332,7 @@ export default function Home() {
 
         {/* ── Error ──────────────────────────────────────────── */}
         {error && (
-          <div style={{ background: color.errorBg, border: `1px solid ${color.errorBorder}`, borderRadius: 8, padding: "12px 16px", color: color.errorText, fontSize: 14 }}>
+          <div style={{ background: color.errorBg, border: `1px solid ${color.errorBorder}`, borderRadius: 8, padding: "12px 16px", color: color.errorText, fontSize: 15 }}>
             {error}
           </div>
         )}
@@ -354,7 +354,7 @@ export default function Home() {
             )}
 
             {data.articles.length === 0 && (
-              <p style={{ color: color.textDim, fontSize: 14 }}>
+              <p style={{ color: color.textDim, fontSize: 15 }}>
                 {t("noArticles", lang)}
               </p>
             )}
@@ -363,7 +363,7 @@ export default function Home() {
 
         {/* ── Empty state ────────────────────────────────────── */}
         {!loading && !data && !error && (
-          <p style={{ color: color.textDim, padding: "32px 0", fontSize: 14 }}>
+          <p style={{ color: color.textDim, padding: "32px 0", fontSize: 15 }}>
             {t("initialMessage", lang)}
           </p>
         )}
@@ -371,8 +371,8 @@ export default function Home() {
 
       {showSettings && <SettingsModal lang={lang} onClose={() => setShowSettings(false)} />}
 
-      <footer style={{ position: "fixed", bottom: 8, right: 12, color: color.textDim, fontSize: 11 }}>
-        v1.0
+      <footer style={{ position: "fixed", bottom: 8, right: 12, color: color.textDim, fontSize: 12 }}>
+        v1.1
       </footer>
     </div>
   );

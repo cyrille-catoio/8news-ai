@@ -134,7 +134,7 @@ export async function GET(request: NextRequest) {
   try {
     const params = request.nextUrl.searchParams;
     const lang: Lang = params.get("lang") === "fr" ? "fr" : "en";
-    const hours = Math.min(48, Math.max(1, parseInt(params.get("hours") ?? "24", 10) || 24));
+    const hours = Math.min(48, Math.max(0.25, parseFloat(params.get("hours") ?? "24") || 24));
     const since = Date.now() - hours * 3_600_000;
     const msg = getServerMessages(lang);
 

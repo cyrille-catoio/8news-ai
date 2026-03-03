@@ -4,10 +4,13 @@ import { type CSSProperties, useState } from "react";
 import type { SummaryResponse, ArticleSummary } from "@/lib/types";
 import { t, dateLocale, type Lang } from "@/lib/i18n";
 import { color, font, sectionHeading, card } from "@/lib/theme";
+import { RSS_FEEDS } from "@/lib/rss-feeds";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
 const PERIODS = [
+  { label: "15 m", hours: 0.25 },
+  { label: "30 m", hours: 0.5 },
   { label: "1 h",  hours: 1 },
   { label: "6 h",  hours: 6 },
   { label: "12 h", hours: 12 },
@@ -110,6 +113,85 @@ function ArticleCard({ article, locale }: { article: ArticleSummary; locale: str
   );
 }
 
+function SettingsModal({ lang, onClose }: { lang: Lang; onClose: () => void }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.7)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 100,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#141414",
+          border: `1px solid ${color.border}`,
+          borderRadius: 12,
+          padding: "24px 28px",
+          width: "100%",
+          maxWidth: 480,
+          maxHeight: "80vh",
+          overflowY: "auto",
+          margin: 16,
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <h3 style={{ color: color.gold, fontSize: 16, fontWeight: 600, margin: 0 }}>
+            {t("settingsTitle", lang)}
+          </h3>
+          <button
+            onClick={onClose}
+            style={{
+              padding: "4px 12px",
+              borderRadius: 6,
+              border: `1px solid ${color.borderLight}`,
+              background: "transparent",
+              color: color.textMuted,
+              fontSize: 12,
+              fontWeight: 500,
+              cursor: "pointer",
+            }}
+          >
+            {t("settingsClose", lang)}
+          </button>
+        </div>
+
+        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+          {RSS_FEEDS.map((feed) => {
+            const domain = new URL(feed.url).hostname.replace("www.", "");
+            return (
+              <li
+                key={feed.url}
+                style={{
+                  padding: "10px 0",
+                  borderBottom: `1px solid ${color.border}`,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 12,
+                }}
+              >
+                <span style={{ color: color.text, fontSize: 14, fontWeight: 500 }}>
+                  {feed.name}
+                </span>
+                <span style={{ color: color.textDim, fontSize: 12, flexShrink: 0 }}>
+                  {domain}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 function SummaryBox({ data, locale, lang }: { data: SummaryResponse; locale: string; lang: Lang }) {
   return (
     <div style={{ ...card, borderRadius: 12, padding: 20, marginBottom: 28 }}>
@@ -132,6 +214,7 @@ export default function Home() {
   const [data, setData] = useState<SummaryResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
 
   const locale = dateLocale(lang);
 
@@ -168,23 +251,45 @@ export default function Home() {
 
         {/* ── Header ─────────────────────────────────────────── */}
         <header style={{ borderBottom: `1px solid ${color.border}`, paddingBottom: 24, marginBottom: 32, position: "relative" }}>
-          <div style={{ position: "absolute", top: 0, right: 0, display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ position: "absolute", top: 0, right: 0, display: "flex", alignItems: "center", gap: 8 }}>
             <LangToggle lang={lang} onChange={setLang} />
             <button
-              onClick={handleReset}
+              onClick={() => setShowSettings(true)}
+              aria-label={t("settings", lang)}
               style={{
-                padding: "5px 12px",
-                borderRadius: 6,
-                border: `1px solid ${color.borderLight}`,
+                padding: 4,
+                border: "none",
                 background: "transparent",
                 color: color.textMuted,
-                fontSize: 12,
-                fontWeight: 500,
                 cursor: "pointer",
-                transition: "all 0.15s",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
               }}
             >
-              {t("reset", lang)}
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </button>
+            <button
+              onClick={handleReset}
+              aria-label={t("reset", lang)}
+              style={{
+                padding: 4,
+                border: "none",
+                background: "transparent",
+                color: color.textMuted,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
             </button>
           </div>
 
@@ -263,6 +368,8 @@ export default function Home() {
           </p>
         )}
       </div>
+
+      {showSettings && <SettingsModal lang={lang} onClose={() => setShowSettings(false)} />}
     </div>
   );
 }

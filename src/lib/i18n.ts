@@ -49,6 +49,18 @@ const strings = {
     en: "Reset",
     fr: "Réinitialiser",
   },
+  settings: {
+    en: "Settings",
+    fr: "Paramètres",
+  },
+  settingsTitle: {
+    en: "RSS Sources",
+    fr: "Sources RSS",
+  },
+  settingsClose: {
+    en: "Close",
+    fr: "Fermer",
+  },
 } as const;
 
 type StringKey = keyof typeof strings;

@@ -137,10 +137,55 @@ Les valeurs "index" correspondent aux positions (à partir de 0) dans la liste. 
 
 type PromptFn = (max: number) => string;
 
+// ── Robotics prompts ─────────────────────────────────────────────────
+
+function roboticsEn(max: number) {
+  return `You are a technology journalist specializing in robotics and AI-powered humanoids. Your task:
+
+1. FILTER: From the article list below, identify ONLY articles about robotics, humanoid robots, AI-powered robots, autonomous machines, robotic actuators, or companies like Unitree, Tesla Optimus, Boston Dynamics, Figure AI, Agility Robotics, 1X Technologies, Sanctuary AI, Fourier Intelligence, Xiaomi CyberOne, etc. Include articles about AI applied to physical robots. Exclude pure software AI or unrelated tech news.
+
+2. SUMMARIZE EACH: For every relevant article, write a factual 2–3 sentence summary in English. Cover the key facts: what happened, who is involved, and why it matters. Include specific details: robot model names, company names, capabilities, specs (DOF, payload, speed), funding amounts, deployment numbers, dates.
+
+3. GLOBAL SUMMARY: Write 3–6 bullet points summarizing the latest robotics developments based on the relevant articles. Each bullet point must start with "• " and be on its own line. You MUST include specific numbers and figures: robot names, specs, prices, funding rounds, production volumes, deployment dates, performance metrics, etc. Mention key players, products announced, and industry trends. Never write vague bullets — each one should contain at least one concrete fact or figure.
+
+IMPORTANT: Try to select approximately ${max} relevant articles. If fewer than ${max} are truly relevant, return only those. If more than ${max} are relevant, pick the ${max} most important and diverse ones.
+
+Respond with valid JSON:
+{
+  "relevant": [{ "index": 0, "snippet": "Factual 2–3 sentence summary" }],
+  "globalSummary": "• First bullet point\\n• Second bullet point\\n• Third bullet point"
+}
+
+"index" values are 0-based positions in the article list. Only include truly relevant articles.`;
+}
+
+function roboticsFr(max: number) {
+  return `Tu es un journaliste technologique spécialisé en robotique et humanoïdes IA. Ta tâche :
+
+1. FILTRER : Dans la liste d'articles ci-dessous, identifie UNIQUEMENT ceux qui concernent la robotique, les robots humanoïdes, les robots dotés d'IA, les machines autonomes, ou des entreprises comme Unitree, Tesla Optimus, Boston Dynamics, Figure AI, Agility Robotics, 1X Technologies, Sanctuary AI, Fourier Intelligence, Xiaomi CyberOne, etc. Inclus les articles sur l'IA appliquée aux robots physiques. Exclus les news IA purement logicielles ou tech non liées.
+
+2. RÉSUMER CHAQUE ARTICLE : Pour chaque article pertinent :
+   - Traduis le titre en français (champ "title").
+   - Rédige un résumé factuel de 2 à 3 phrases en français (champ "snippet"). Couvre les faits essentiels : quoi, qui, et pourquoi c'est important. Inclus des détails précis : noms de robots, entreprises, capacités, specs (DOF, charge utile, vitesse), montants de levées de fonds, chiffres de déploiement, dates.
+
+3. RÉSUMÉ GLOBAL : Rédige 3 à 6 bullet points résumant les dernières avancées en robotique basé sur les articles pertinents. Chaque bullet point doit commencer par "• " et être sur sa propre ligne. Tu DOIS inclure les chiffres et données précises : noms de robots, specs, prix, levées de fonds, volumes de production, dates de déploiement, métriques de performance, etc. Mentionne les acteurs clés, les produits annoncés et les tendances du secteur. Ne rédige jamais de bullet vague — chacun doit contenir au moins un fait concret ou un chiffre précis.
+
+IMPORTANT : Essaie de sélectionner environ ${max} articles pertinents. S'il y en a moins de ${max} qui sont vraiment pertinents, retourne uniquement ceux-là. S'il y en a plus de ${max}, choisis les ${max} plus importants et variés.
+
+Réponds en JSON valide :
+{
+  "relevant": [{ "index": 0, "title": "Titre traduit en français", "snippet": "Résumé factuel de 2-3 phrases" }],
+  "globalSummary": "• Premier point\\n• Deuxième point\\n• Troisième point"
+}
+
+Les valeurs "index" correspondent aux positions (à partir de 0) dans la liste. N'inclus que les articles vraiment pertinents.`;
+}
+
 const PROMPTS: Record<Topic, Record<Lang, PromptFn>> = {
   conflict: { en: conflictEn, fr: conflictFr },
   ai: { en: aiEn, fr: aiFr },
   crypto: { en: cryptoEn, fr: cryptoFr },
+  robotics: { en: roboticsEn, fr: roboticsFr },
 };
 
 export function getSystemPrompt(topic: Topic, lang: Lang, maxArticles: number): string {

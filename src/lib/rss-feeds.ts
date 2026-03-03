@@ -44,10 +44,24 @@ const CRYPTO_FEEDS: readonly Feed[] = [
   { name: "The Daily Hodl",    url: "https://dailyhodl.com/feed/" },
 ];
 
+const ROBOTICS_FEEDS: readonly Feed[] = [
+  { name: "IEEE Spectrum Robotics", url: "https://spectrum.ieee.org/feeds/topic/robotics" },
+  { name: "The Robot Report",       url: "https://www.therobotreport.com/feed/" },
+  { name: "TechCrunch Robotics",    url: "https://techcrunch.com/category/robotics/feed/" },
+  { name: "Robotics & Automation",  url: "https://www.robotics.org/content/rss/robotics-blog.xml" },
+  { name: "New Atlas Robotics",     url: "https://newatlas.com/robotics/rss/" },
+  { name: "The Verge AI",           url: "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml" },
+  { name: "Ars Technica",           url: "https://feeds.arstechnica.com/arstechnica/technology-lab" },
+  { name: "Wired AI",               url: "https://www.wired.com/feed/tag/ai/latest/rss" },
+  { name: "VentureBeat AI",         url: "https://venturebeat.com/category/ai/feed/" },
+  { name: "MIT Tech Review",        url: "https://www.technologyreview.com/feed/" },
+];
+
 const FEEDS_BY_TOPIC: Record<Topic, readonly Feed[]> = {
   conflict: CONFLICT_FEEDS,
   ai: AI_FEEDS,
   crypto: CRYPTO_FEEDS,
+  robotics: ROBOTICS_FEEDS,
 };
 
 export function getFeedsForTopic(topic: Topic): readonly Feed[] {

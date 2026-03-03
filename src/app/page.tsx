@@ -20,10 +20,11 @@ const PERIODS = [
   { label: "7 d",  hours: 168 },
 ] as const;
 
-const TOPICS: { value: Topic; labelKey: "topicConflict" | "topicAi" | "topicCrypto" }[] = [
+const TOPICS: { value: Topic; labelKey: "topicConflict" | "topicAi" | "topicCrypto" | "topicRobotics" }[] = [
   { value: "conflict", labelKey: "topicConflict" },
   { value: "ai", labelKey: "topicAi" },
   { value: "crypto", labelKey: "topicCrypto" },
+  { value: "robotics", labelKey: "topicRobotics" },
 ];
 
 // ── Sub-components ────────────────────────────────────────────────────
@@ -310,7 +311,9 @@ export default function Home() {
     ? "noArticlesConflict"
     : topic === "ai"
       ? "noArticlesAi"
-      : "noArticlesCrypto";
+      : topic === "crypto"
+        ? "noArticlesCrypto"
+        : "noArticlesRobotics";
 
   async function fetchNews(hours: number) {
     setSelected(hours);
@@ -498,7 +501,7 @@ export default function Home() {
       {showSettings && <SettingsModal topic={topic} lang={lang} onClose={() => setShowSettings(false)} />}
 
       <footer style={{ position: "fixed", bottom: 8, right: 12, color: color.textDim, fontSize: 12 }}>
-        v1.3
+        v1.4
       </footer>
     </div>
   );

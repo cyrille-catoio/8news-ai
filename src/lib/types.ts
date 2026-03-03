@@ -1,3 +1,5 @@
+export type Topic = "conflict" | "ai";
+
 export interface RawArticle {
   title: string;
   link: string;

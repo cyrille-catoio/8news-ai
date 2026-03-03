@@ -1,10 +1,10 @@
 "use client";
 
-import { type CSSProperties, useState } from "react";
-import type { SummaryResponse, ArticleSummary } from "@/lib/types";
+import { type CSSProperties, useState, useEffect, useCallback } from "react";
+import type { SummaryResponse, ArticleSummary, Topic } from "@/lib/types";
 import { t, dateLocale, type Lang } from "@/lib/i18n";
 import { color, font, sectionHeading, card } from "@/lib/theme";
-import { RSS_FEEDS } from "@/lib/rss-feeds";
+import { getFeedsForTopic } from "@/lib/rss-feeds";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
@@ -16,12 +16,19 @@ const PERIODS = [
   { label: "12 h", hours: 12 },
   { label: "24 h", hours: 24 },
   { label: "48 h", hours: 48 },
+  { label: "3 d",  hours: 72 },
+  { label: "7 d",  hours: 168 },
 ] as const;
+
+const TOPICS: { value: Topic; labelKey: "topicConflict" | "topicAi" }[] = [
+  { value: "conflict", labelKey: "topicConflict" },
+  { value: "ai", labelKey: "topicAi" },
+];
 
 // ── Sub-components ────────────────────────────────────────────────────
 
 function LangToggle({ lang, onChange }: { lang: Lang; onChange: (l: Lang) => void }) {
-  const btn = (value: Lang, label: string, isLeft: boolean): CSSProperties => ({
+  const btn = (value: Lang, isLeft: boolean): CSSProperties => ({
     padding: "5px 12px",
     fontSize: 13,
     fontWeight: 600,
@@ -35,8 +42,48 @@ function LangToggle({ lang, onChange }: { lang: Lang; onChange: (l: Lang) => voi
 
   return (
     <div style={{ display: "flex", borderRadius: 6, overflow: "hidden", border: `1px solid ${color.gold}` }}>
-      <button onClick={() => onChange("en")} style={btn("en", "EN", true)}>EN</button>
-      <button onClick={() => onChange("fr")} style={btn("fr", "FR", false)}>FR</button>
+      <button onClick={() => onChange("en")} style={btn("en", true)}>EN</button>
+      <button onClick={() => onChange("fr")} style={btn("fr", false)}>FR</button>
+    </div>
+  );
+}
+
+function TopicToggle({
+  topic,
+  lang,
+  disabled,
+  onChange,
+}: {
+  topic: Topic;
+  lang: Lang;
+  disabled: boolean;
+  onChange: (t: Topic) => void;
+}) {
+  const btn = (value: Topic, isLeft: boolean): CSSProperties => ({
+    padding: "8px 18px",
+    fontSize: 14,
+    fontWeight: 600,
+    border: "none",
+    borderLeft: isLeft ? "none" : `1px solid ${color.gold}`,
+    cursor: disabled ? "wait" : "pointer",
+    background: topic === value ? color.gold : "transparent",
+    color: topic === value ? "#000" : color.gold,
+    transition: "all 0.15s",
+    opacity: disabled ? 0.6 : 1,
+  });
+
+  return (
+    <div style={{ display: "flex", borderRadius: 8, overflow: "hidden", border: `1px solid ${color.gold}` }}>
+      {TOPICS.map(({ value, labelKey }, i) => (
+        <button
+          key={value}
+          onClick={() => onChange(value)}
+          disabled={disabled}
+          style={btn(value, i === 0)}
+        >
+          {t(labelKey, lang)}
+        </button>
+      ))}
     </div>
   );
 }
@@ -113,7 +160,9 @@ function ArticleCard({ article, locale }: { article: ArticleSummary; locale: str
   );
 }
 
-function SettingsModal({ lang, onClose }: { lang: Lang; onClose: () => void }) {
+function SettingsModal({ topic, lang, onClose }: { topic: Topic; lang: Lang; onClose: () => void }) {
+  const feeds = getFeedsForTopic(topic);
+
   return (
     <div
       onClick={onClose}
@@ -163,7 +212,7 @@ function SettingsModal({ lang, onClose }: { lang: Lang; onClose: () => void }) {
         </div>
 
         <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-          {RSS_FEEDS.map((feed) => {
+          {feeds.map((feed) => {
             const domain = new URL(feed.url).hostname.replace("www.", "");
             return (
               <li
@@ -193,12 +242,40 @@ function SettingsModal({ lang, onClose }: { lang: Lang; onClose: () => void }) {
 }
 
 function SummaryBox({ data, locale, lang }: { data: SummaryResponse; locale: string; lang: Lang }) {
+  const bullets = data.summary
+    .split("\n")
+    .map((line) => line.replace(/^•\s*/, "").trim())
+    .filter(Boolean);
+
+  const isBulletList = bullets.length > 1;
+
   return (
     <div style={{ ...card, borderRadius: 12, padding: 20, marginBottom: 28 }}>
       <h2 style={sectionHeading}>{t("summary", lang)}</h2>
-      <p style={{ color: color.textSecondary, lineHeight: 1.6, whiteSpace: "pre-wrap", margin: 0, fontSize: 15 }}>
-        {data.summary}
-      </p>
+      {isBulletList ? (
+        <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none" }}>
+          {bullets.map((bullet, i) => (
+            <li
+              key={i}
+              style={{
+                color: color.textSecondary,
+                lineHeight: 1.6,
+                fontSize: 15,
+                padding: "4px 0",
+                display: "flex",
+                gap: 8,
+              }}
+            >
+              <span style={{ color: color.gold, flexShrink: 0 }}>•</span>
+              <span>{bullet}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p style={{ color: color.textSecondary, lineHeight: 1.6, whiteSpace: "pre-wrap", margin: 0, fontSize: 15 }}>
+          {data.summary}
+        </p>
+      )}
       <p style={{ color: color.textDim, fontSize: 13, marginTop: 12 }}>
         {new Date(data.period.from).toLocaleString(locale)} → {new Date(data.period.to).toLocaleString(locale)}
       </p>
@@ -210,6 +287,17 @@ function SummaryBox({ data, locale, lang }: { data: SummaryResponse; locale: str
 
 export default function Home() {
   const [lang, setLang] = useState<Lang>("en");
+  const [topic, setTopic] = useState<Topic>("conflict");
+  const [maxArticles, setMaxArticles] = useState(() => {
+    if (typeof document === "undefined") return 8;
+    const match = document.cookie.match(/(?:^|; )maxArticles=(\d+)/);
+    return match ? Math.min(30, Math.max(3, Number(match[1]))) : 8;
+  });
+
+  const updateMaxArticles = useCallback((value: number) => {
+    setMaxArticles(value);
+    document.cookie = `maxArticles=${value};max-age=${365 * 86400};path=/;SameSite=Lax`;
+  }, []);
   const [selected, setSelected] = useState<number | null>(null);
   const [data, setData] = useState<SummaryResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -217,6 +305,8 @@ export default function Home() {
   const [showSettings, setShowSettings] = useState(false);
 
   const locale = dateLocale(lang);
+  const topicTitleKey = topic === "conflict" ? "conflictTitle" : "aiTitle";
+  const noArticlesKey = topic === "conflict" ? "noArticlesConflict" : "noArticlesAi";
 
   async function fetchNews(hours: number) {
     setSelected(hours);
@@ -225,7 +315,7 @@ export default function Home() {
     setData(null);
 
     try {
-      const res = await fetch(`/api/news?hours=${hours}&lang=${lang}`);
+      const res = await fetch(`/api/news?hours=${hours}&lang=${lang}&topic=${topic}&count=${maxArticles}`);
       if (!res.ok) throw new Error(await res.text().catch(() => "") || `HTTP ${res.status}`);
       setData(await res.json());
     } catch (e) {
@@ -238,6 +328,14 @@ export default function Home() {
     }
   }
 
+  function handleTopicChange(newTopic: Topic) {
+    if (newTopic === topic) return;
+    setTopic(newTopic);
+    setSelected(null);
+    setData(null);
+    setError(null);
+  }
+
   function handleReset() {
     setSelected(null);
     setData(null);
@@ -247,7 +345,7 @@ export default function Home() {
 
   return (
     <div style={{ minHeight: "100vh", background: color.bg, color: color.text, fontFamily: font.base }}>
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "40px 20px" }}>
+      <div style={{ maxWidth: 830, margin: "0 auto", padding: "40px 20px" }}>
 
         {/* ── Header ─────────────────────────────────────────── */}
         <header style={{ borderBottom: `1px solid ${color.border}`, paddingBottom: 24, marginBottom: 32, position: "relative" }}>
@@ -296,16 +394,18 @@ export default function Home() {
           <h1 style={{ color: color.gold, fontSize: 31, fontWeight: 600, margin: 0, letterSpacing: "-0.02em", paddingRight: 180 }}>
             {t("appName", lang)}
           </h1>
-          <h2 style={{ color: color.text, fontSize: 20, fontWeight: 500, margin: "6px 0 0", paddingRight: 180 }}>
-            {t("conflictTitle", lang)}
-          </h2>
           <p style={{ color: color.textMuted, fontSize: 15, marginTop: 8 }}>
             {t("subtitle", lang)}
           </p>
         </header>
 
+        {/* ── Topic selector ──────────────────────────────────── */}
+        <section style={{ marginBottom: 24 }}>
+          <TopicToggle topic={topic} lang={lang} disabled={loading} onChange={handleTopicChange} />
+        </section>
+
         {/* ── Period selector ────────────────────────────────── */}
-        <section style={{ marginBottom: 32 }}>
+        <section style={{ marginBottom: 24 }}>
           <p style={{ color: color.textLabel, fontSize: 14, fontWeight: 500, marginBottom: 10 }}>
             {t("selectPeriod", lang)}
           </p>
@@ -319,6 +419,28 @@ export default function Home() {
                 onClick={() => fetchNews(hours)}
               />
             ))}
+          </div>
+        </section>
+
+        {/* ── Article count slider ────────────────────────────── */}
+        <section style={{ marginBottom: 32 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <label style={{ color: color.textLabel, fontSize: 14, fontWeight: 500, whiteSpace: "nowrap" }}>
+              {t("maxArticles", lang)}
+            </label>
+            <input
+              type="range"
+              min={3}
+              max={30}
+              step={1}
+              value={maxArticles}
+              onChange={(e) => updateMaxArticles(Number(e.target.value))}
+              disabled={loading}
+              style={{ flex: 1, accentColor: color.gold, cursor: loading ? "wait" : "pointer" }}
+            />
+            <span style={{ color: color.gold, fontSize: 15, fontWeight: 600, minWidth: 28, textAlign: "center" }}>
+              {maxArticles}
+            </span>
           </div>
         </section>
 
@@ -355,7 +477,7 @@ export default function Home() {
 
             {data.articles.length === 0 && (
               <p style={{ color: color.textDim, fontSize: 15 }}>
-                {t("noArticles", lang)}
+                {t(noArticlesKey, lang)}
               </p>
             )}
           </div>
@@ -369,10 +491,10 @@ export default function Home() {
         )}
       </div>
 
-      {showSettings && <SettingsModal lang={lang} onClose={() => setShowSettings(false)} />}
+      {showSettings && <SettingsModal topic={topic} lang={lang} onClose={() => setShowSettings(false)} />}
 
       <footer style={{ position: "fixed", bottom: 8, right: 12, color: color.textDim, fontSize: 12 }}>
-        v1.1
+        v1.2
       </footer>
     </div>
   );

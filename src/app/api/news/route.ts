@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import Parser from "rss-parser";
 import OpenAI from "openai";
-import { RSS_FEEDS } from "@/lib/rss-feeds";
+import { getFeedsForTopic, type Feed } from "@/lib/rss-feeds";
 import { getSystemPrompt, getServerMessages } from "@/lib/prompts";
 import type { Lang } from "@/lib/i18n";
-import type { RawArticle, ArticleSummary, SummaryResponse, AIAnalysis } from "@/lib/types";
+import type { RawArticle, ArticleSummary, SummaryResponse, AIAnalysis, Topic } from "@/lib/types";
 
 const rssParser = new Parser({ timeout: 10_000 });
 const FETCH_TIMEOUT_MS = 8_000;
@@ -29,9 +29,21 @@ function isValidApiKey(key: string | undefined): key is string {
   return !!key && key.trim() !== "" && key !== "sk-your-key-here";
 }
 
+const HTML_ENTITIES: Record<string, string> = {
+  "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"',
+  "&apos;": "'", "&nbsp;": " ",
+};
+
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&(amp|lt|gt|quot|apos|nbsp);/g, (match) => HTML_ENTITIES[match] ?? match);
+}
+
 // ── RSS fetching ──────────────────────────────────────────────────────
 
-async function fetchAllFeeds(since: number): Promise<{
+async function fetchAllFeeds(feeds: readonly Feed[], since: number): Promise<{
   articles: RawArticle[];
   feedsOk: number;
   feedsFailed: number;
@@ -39,7 +51,7 @@ async function fetchAllFeeds(since: number): Promise<{
   const articles: RawArticle[] = [];
 
   const results = await Promise.allSettled(
-    RSS_FEEDS.map(async (feed) => {
+    feeds.map(async (feed) => {
       const xml = await fetch(feed.url, {
         headers: { "User-Agent": "NewsRead/1.0" },
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
@@ -51,11 +63,11 @@ async function fetchAllFeeds(since: number): Promise<{
         const pubDate = item.pubDate ?? item.isoDate ?? "";
         if (toTimestamp(pubDate) >= since) {
           articles.push({
-            title: item.title ?? "",
+            title: decodeHtmlEntities(item.title ?? ""),
             link: item.link ?? "",
             pubDate: pubDate || new Date().toISOString(),
-            content: item.content ?? "",
-            contentSnippet: item.contentSnippet ?? "",
+            content: decodeHtmlEntities(item.content ?? ""),
+            contentSnippet: decodeHtmlEntities(item.contentSnippet ?? ""),
             source: feed.name,
           });
         }
@@ -98,8 +110,10 @@ interface RelevantEntry {
 
 async function analyzeWithAI(
   items: ArticleSummary[],
+  topic: Topic,
   lang: Lang,
   apiKey: string,
+  maxArticles: number,
 ): Promise<{ summary: string; relevant: Map<number, RelevantEntry> }> {
   const msg = getServerMessages(lang);
   const openai = new OpenAI({ apiKey });
@@ -107,7 +121,7 @@ async function analyzeWithAI(
   const completion = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
-      { role: "system", content: getSystemPrompt(lang) },
+      { role: "system", content: getSystemPrompt(topic, lang, maxArticles) },
       { role: "user", content: `Article list:\n${formatArticleList(items)}` },
     ],
     response_format: { type: "json_object" },
@@ -134,11 +148,14 @@ export async function GET(request: NextRequest) {
   try {
     const params = request.nextUrl.searchParams;
     const lang: Lang = params.get("lang") === "fr" ? "fr" : "en";
-    const hours = Math.min(48, Math.max(0.25, parseFloat(params.get("hours") ?? "24") || 24));
+    const topic: Topic = params.get("topic") === "ai" ? "ai" : "conflict";
+    const maxArticles = Math.min(30, Math.max(3, parseInt(params.get("count") ?? "10", 10) || 10));
+    const hours = Math.min(168, Math.max(0.25, parseFloat(params.get("hours") ?? "24") || 24));
     const since = Date.now() - hours * 3_600_000;
     const msg = getServerMessages(lang);
 
-    const { articles: rawArticles, feedsOk, feedsFailed } = await fetchAllFeeds(since);
+    const feeds = getFeedsForTopic(topic);
+    const { articles: rawArticles, feedsOk, feedsFailed } = await fetchAllFeeds(feeds, since);
     const items = toAnalysisPayload(rawArticles);
 
     if (items.length === 0) {
@@ -168,7 +185,7 @@ export async function GET(request: NextRequest) {
     let relevant: Map<number, RelevantEntry>;
 
     try {
-      ({ summary, relevant } = await analyzeWithAI(items, lang, apiKey));
+      ({ summary, relevant } = await analyzeWithAI(items, topic, lang, apiKey, maxArticles));
     } catch {
       summary = msg.aiError;
       relevant = new Map();

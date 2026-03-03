@@ -1,9 +1,11 @@
+import type { Topic } from "./types";
+
 export interface Feed {
   name: string;
   url: string;
 }
 
-export const RSS_FEEDS: readonly Feed[] = [
+const CONFLICT_FEEDS: readonly Feed[] = [
   { name: "BBC News",        url: "https://feeds.bbci.co.uk/news/world/rss.xml" },
   { name: "CNN",             url: "https://rss.cnn.com/rss/cnn_topstories.rss" },
   { name: "Al Jazeera",      url: "https://www.aljazeera.com/xml/rss/all.xml" },
@@ -15,3 +17,25 @@ export const RSS_FEEDS: readonly Feed[] = [
   { name: "NPR News",        url: "https://feeds.npr.org/1001/rss.xml" },
   { name: "ABC News",        url: "https://abcnews.go.com/abcnews/internationalheadlines" },
 ];
+
+const AI_FEEDS: readonly Feed[] = [
+  { name: "TechCrunch AI",     url: "https://techcrunch.com/category/artificial-intelligence/feed/" },
+  { name: "The Verge AI",      url: "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml" },
+  { name: "Wired AI",          url: "https://www.wired.com/feed/tag/ai/latest/rss" },
+  { name: "Ars Technica",      url: "https://feeds.arstechnica.com/arstechnica/technology-lab" },
+  { name: "VentureBeat AI",    url: "https://venturebeat.com/category/ai/feed/" },
+  { name: "MIT Tech Review",   url: "https://www.technologyreview.com/feed/" },
+  { name: "The Register AI",   url: "https://www.theregister.com/software/ai_ml/headlines.atom" },
+  { name: "AI News",           url: "https://www.artificialintelligence-news.com/feed/" },
+  { name: "Google AI Blog",    url: "https://blog.google/technology/ai/rss/" },
+  { name: "IEEE Spectrum AI",  url: "https://spectrum.ieee.org/feeds/topic/artificial-intelligence" },
+];
+
+const FEEDS_BY_TOPIC: Record<Topic, readonly Feed[]> = {
+  conflict: CONFLICT_FEEDS,
+  ai: AI_FEEDS,
+};
+
+export function getFeedsForTopic(topic: Topic): readonly Feed[] {
+  return FEEDS_BY_TOPIC[topic];
+}

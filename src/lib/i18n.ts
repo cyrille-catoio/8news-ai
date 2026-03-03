@@ -5,13 +5,25 @@ const strings = {
     en: "8news",
     fr: "8news",
   },
+  topicConflict: {
+    en: "USA / Israel vs Iran",
+    fr: "USA / Israël vs Iran",
+  },
+  topicAi: {
+    en: "AI News",
+    fr: "Nouveautés IA",
+  },
   conflictTitle: {
     en: "USA / Israel vs Iran Conflict",
     fr: "Conflit USA / Israël vs Iran",
   },
+  aiTitle: {
+    en: "AI & Machine Learning News",
+    fr: "Nouveautés Intelligence Artificielle",
+  },
   subtitle: {
-    en: "AI-powered summary of the latest news from 10 RSS feeds.",
-    fr: "Résumé des dernières actualités issues de 10 flux RSS, filtrées par IA.",
+    en: "AI-powered summary of the latest news.",
+    fr: "Résumé des dernières actualités, analysées par IA.",
   },
   selectPeriod: {
     en: "Select a time period:",
@@ -37,13 +49,17 @@ const strings = {
     en: "Relevant articles",
     fr: "Articles retenus",
   },
-  noArticles: {
+  noArticlesConflict: {
     en: "No articles related to the USA/Israel vs Iran conflict found for this time period.",
     fr: "Aucun article lié au conflit USA/Israël vs Iran sur cette période.",
   },
+  noArticlesAi: {
+    en: "No AI-related articles found for this time period.",
+    fr: "Aucun article lié à l'IA sur cette période.",
+  },
   initialMessage: {
-    en: "Click a time period button above to fetch the latest news and display the AI summary.",
-    fr: "Cliquez sur un bouton de période pour charger les actualités et afficher le résumé IA.",
+    en: "Select a topic and click a time period button to fetch the latest news.",
+    fr: "Sélectionnez un sujet et cliquez sur une période pour charger les actualités.",
   },
   reset: {
     en: "Reset",
@@ -60,6 +76,10 @@ const strings = {
   settingsClose: {
     en: "Close",
     fr: "Fermer",
+  },
+  maxArticles: {
+    en: "Max articles:",
+    fr: "Nb articles max :",
   },
 } as const;
 

@@ -23,11 +23,23 @@ export default function Home() {
     setError(null);
     try {
       const res = await fetch(`/api/news?hours=${h}`);
-      if (!res.ok) throw new Error("Erreur réseau");
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Erreur ${res.status}`);
+      }
       const json: SummaryResponse = await res.json();
       setData(json);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur inconnue");
+      const msg = e instanceof Error ? e.message : "Erreur inconnue";
+      const isConnectionFailed =
+        msg === "Failed to fetch" ||
+        msg.includes("NetworkError") ||
+        msg.includes("Load failed");
+      setError(
+        isConnectionFailed
+          ? "Connexion impossible. Vérifiez que le serveur tourne (npm run dev) et ouvrez http://localhost:3000"
+          : msg
+      );
       setData(null);
     } finally {
       setLoading(false);

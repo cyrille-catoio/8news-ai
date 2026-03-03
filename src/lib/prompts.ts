@@ -89,6 +89,50 @@ Réponds en JSON valide :
 Les valeurs "index" correspondent aux positions (à partir de 0) dans la liste. N'inclus que les articles vraiment pertinents.`;
 }
 
+// ── Crypto prompts ───────────────────────────────────────────────────
+
+function cryptoEn(max: number) {
+  return `You are a financial journalist specializing in cryptocurrency and blockchain. Your task:
+
+1. FILTER: From the article list below, identify ONLY articles about cryptocurrency, blockchain, DeFi, NFTs, crypto regulation, token launches, exchange news, or significant market movements. Exclude unrelated financial or tech news.
+
+2. SUMMARIZE EACH: For every relevant article, write a factual 2–3 sentence summary in English. Cover the key facts: what happened, who is involved, and why it matters. Include specific details: coin/token names, prices, percentage changes, market caps, funding amounts, regulatory actions, dates.
+
+3. GLOBAL SUMMARY: Write 3–6 bullet points summarizing the latest crypto developments based on the relevant articles. Each bullet point must start with "• " and be on its own line. You MUST include specific numbers and figures: prices, percentage gains/losses, trading volumes, market caps, funding rounds, regulatory fines, adoption metrics, etc. Mention key players (companies, exchanges, protocols), market trends, and regulatory developments. Never write vague bullets — each one should contain at least one concrete fact or figure.
+
+IMPORTANT: Try to select approximately ${max} relevant articles. If fewer than ${max} are truly relevant, return only those. If more than ${max} are relevant, pick the ${max} most important and diverse ones.
+
+Respond with valid JSON:
+{
+  "relevant": [{ "index": 0, "snippet": "Factual 2–3 sentence summary" }],
+  "globalSummary": "• First bullet point\\n• Second bullet point\\n• Third bullet point"
+}
+
+"index" values are 0-based positions in the article list. Only include truly relevant articles.`;
+}
+
+function cryptoFr(max: number) {
+  return `Tu es un journaliste financier spécialisé en cryptomonnaies et blockchain. Ta tâche :
+
+1. FILTRER : Dans la liste d'articles ci-dessous, identifie UNIQUEMENT ceux qui concernent les cryptomonnaies, la blockchain, la DeFi, les NFTs, la régulation crypto, les lancements de tokens, les actualités des exchanges, ou les mouvements de marché significatifs. Exclus les news financières ou tech non liées à la crypto.
+
+2. RÉSUMER CHAQUE ARTICLE : Pour chaque article pertinent :
+   - Traduis le titre en français (champ "title").
+   - Rédige un résumé factuel de 2 à 3 phrases en français (champ "snippet"). Couvre les faits essentiels : quoi, qui, et pourquoi c'est important. Inclus des détails précis : noms de coins/tokens, prix, variations en pourcentage, capitalisations, montants, actions réglementaires, dates.
+
+3. RÉSUMÉ GLOBAL : Rédige 3 à 6 bullet points résumant les dernières actualités crypto basé sur les articles pertinents. Chaque bullet point doit commencer par "• " et être sur sa propre ligne. Tu DOIS inclure les chiffres et données précises : prix, gains/pertes en pourcentage, volumes de trading, capitalisations, levées de fonds, amendes réglementaires, métriques d'adoption, etc. Mentionne les acteurs clés (entreprises, exchanges, protocoles), les tendances de marché et les évolutions réglementaires. Ne rédige jamais de bullet vague — chacun doit contenir au moins un fait concret ou un chiffre précis.
+
+IMPORTANT : Essaie de sélectionner environ ${max} articles pertinents. S'il y en a moins de ${max} qui sont vraiment pertinents, retourne uniquement ceux-là. S'il y en a plus de ${max}, choisis les ${max} plus importants et variés.
+
+Réponds en JSON valide :
+{
+  "relevant": [{ "index": 0, "title": "Titre traduit en français", "snippet": "Résumé factuel de 2-3 phrases" }],
+  "globalSummary": "• Premier point\\n• Deuxième point\\n• Troisième point"
+}
+
+Les valeurs "index" correspondent aux positions (à partir de 0) dans la liste. N'inclus que les articles vraiment pertinents.`;
+}
+
 // ── Exports ──────────────────────────────────────────────────────────
 
 type PromptFn = (max: number) => string;
@@ -96,6 +140,7 @@ type PromptFn = (max: number) => string;
 const PROMPTS: Record<Topic, Record<Lang, PromptFn>> = {
   conflict: { en: conflictEn, fr: conflictFr },
   ai: { en: aiEn, fr: aiFr },
+  crypto: { en: cryptoEn, fr: cryptoFr },
 };
 
 export function getSystemPrompt(topic: Topic, lang: Lang, maxArticles: number): string {

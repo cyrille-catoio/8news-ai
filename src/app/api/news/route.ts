@@ -148,7 +148,8 @@ export async function GET(request: NextRequest) {
   try {
     const params = request.nextUrl.searchParams;
     const lang: Lang = params.get("lang") === "fr" ? "fr" : "en";
-    const topic: Topic = params.get("topic") === "ai" ? "ai" : "conflict";
+    const rawTopic = params.get("topic");
+    const topic: Topic = rawTopic === "ai" ? "ai" : rawTopic === "crypto" ? "crypto" : "conflict";
     const maxArticles = Math.min(30, Math.max(3, parseInt(params.get("count") ?? "10", 10) || 10));
     const hours = Math.min(168, Math.max(0.25, parseFloat(params.get("hours") ?? "24") || 24));
     const since = Date.now() - hours * 3_600_000;

@@ -31,9 +31,23 @@ const AI_FEEDS: readonly Feed[] = [
   { name: "IEEE Spectrum AI",  url: "https://spectrum.ieee.org/feeds/topic/artificial-intelligence" },
 ];
 
+const CRYPTO_FEEDS: readonly Feed[] = [
+  { name: "CoinDesk",          url: "https://www.coindesk.com/arc/outboundfeeds/rss/" },
+  { name: "Cointelegraph",     url: "https://cointelegraph.com/rss" },
+  { name: "The Block",         url: "https://www.theblock.co/rss.xml" },
+  { name: "Decrypt",           url: "https://decrypt.co/feed" },
+  { name: "Bitcoin Magazine",  url: "https://bitcoinmagazine.com/feed" },
+  { name: "CryptoSlate",       url: "https://cryptoslate.com/feed/" },
+  { name: "NewsBTC",           url: "https://www.newsbtc.com/feed/" },
+  { name: "U.Today",           url: "https://u.today/rss" },
+  { name: "Bitcoinist",        url: "https://bitcoinist.com/feed/" },
+  { name: "The Daily Hodl",    url: "https://dailyhodl.com/feed/" },
+];
+
 const FEEDS_BY_TOPIC: Record<Topic, readonly Feed[]> = {
   conflict: CONFLICT_FEEDS,
   ai: AI_FEEDS,
+  crypto: CRYPTO_FEEDS,
 };
 
 export function getFeedsForTopic(topic: Topic): readonly Feed[] {

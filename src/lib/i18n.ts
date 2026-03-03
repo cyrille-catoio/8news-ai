@@ -13,6 +13,10 @@ const strings = {
     en: "AI News",
     fr: "Nouveautés IA",
   },
+  topicCrypto: {
+    en: "Crypto News",
+    fr: "Crypto News",
+  },
   conflictTitle: {
     en: "USA / Israel vs Iran Conflict",
     fr: "Conflit USA / Israël vs Iran",
@@ -20,6 +24,10 @@ const strings = {
   aiTitle: {
     en: "AI & Machine Learning News",
     fr: "Nouveautés Intelligence Artificielle",
+  },
+  cryptoTitle: {
+    en: "Crypto & Blockchain News",
+    fr: "Actualités Crypto & Blockchain",
   },
   subtitle: {
     en: "AI-powered summary of the latest news.",
@@ -56,6 +64,10 @@ const strings = {
   noArticlesAi: {
     en: "No AI-related articles found for this time period.",
     fr: "Aucun article lié à l'IA sur cette période.",
+  },
+  noArticlesCrypto: {
+    en: "No crypto-related articles found for this time period.",
+    fr: "Aucun article lié à la crypto sur cette période.",
   },
   initialMessage: {
     en: "Select a topic and click a time period button to fetch the latest news.",

@@ -10,12 +10,12 @@ const strings = {
     fr: "USA / Israël vs Iran",
   },
   topicAi: {
-    en: "AI News",
-    fr: "Nouveautés IA",
+    en: "AI",
+    fr: "IA",
   },
   topicCrypto: {
-    en: "Crypto News",
-    fr: "Crypto News",
+    en: "Crypto",
+    fr: "Crypto",
   },
   topicRobotics: {
     en: "Robotics",

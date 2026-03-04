@@ -136,8 +136,14 @@ async function analyzeWithAI(
     relevant.set(r.index, { snippet: r.snippet, title: r.title });
   }
 
+  const globalSummary = Array.isArray(parsed.globalSummary)
+    ? parsed.globalSummary.join("\n")
+    : typeof parsed.globalSummary === "string"
+      ? parsed.globalSummary
+      : msg.fallback;
+
   return {
-    summary: parsed.globalSummary || msg.fallback,
+    summary: globalSummary || msg.fallback,
     relevant,
   };
 }

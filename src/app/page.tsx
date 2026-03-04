@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, useState, useEffect, useCallback } from "react";
+import { type CSSProperties, useState, useEffect, useCallback, useRef } from "react";
 import type { SummaryResponse, ArticleSummary, Topic } from "@/lib/types";
 import { t, dateLocale, type Lang } from "@/lib/i18n";
 import { color, font, sectionHeading, card } from "@/lib/theme";
@@ -12,6 +12,7 @@ const PERIODS = [
   { label: "15 m", hours: 0.25 },
   { label: "30 m", hours: 0.5 },
   { label: "1 h",  hours: 1 },
+  { label: "3 h",  hours: 3 },
   { label: "6 h",  hours: 6 },
   { label: "12 h", hours: 12 },
   { label: "24 h", hours: 24 },
@@ -244,7 +245,13 @@ function SettingsModal({ topic, lang, onClose }: { topic: Topic; lang: Lang; onC
 }
 
 function SummaryBox({ data, locale, lang }: { data: SummaryResponse; locale: string; lang: Lang }) {
-  const bullets = data.summary
+  const raw = Array.isArray(data.summary)
+    ? (data.summary as string[]).join("\n")
+    : typeof data.summary === "string"
+      ? data.summary
+      : String(data.summary ?? "");
+
+  const bullets = raw
     .split("\n")
     .map((line) => line.replace(/^•\s*/, "").trim())
     .filter(Boolean);
@@ -275,7 +282,7 @@ function SummaryBox({ data, locale, lang }: { data: SummaryResponse; locale: str
         </ul>
       ) : (
         <p style={{ color: color.textSecondary, lineHeight: 1.6, whiteSpace: "pre-wrap", margin: 0, fontSize: 15 }}>
-          {data.summary}
+          {raw}
         </p>
       )}
       <p style={{ color: color.textDim, fontSize: 13, marginTop: 12 }}>
@@ -303,6 +310,8 @@ export default function Home() {
   const [selected, setSelected] = useState<number | null>(null);
   const [data, setData] = useState<SummaryResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
 
@@ -315,11 +324,35 @@ export default function Home() {
         ? "noArticlesCrypto"
         : "noArticlesRobotics";
 
+  function startProgress() {
+    setProgress(0);
+    if (progressRef.current) clearInterval(progressRef.current);
+    let current = 0;
+    progressRef.current = setInterval(() => {
+      if (current < 70) {
+        current = Math.min(70, current + 3.5);
+      } else {
+        const remaining = 95 - current;
+        current = Math.min(95, current + Math.max(0.15, remaining * 0.04));
+      }
+      setProgress(Math.round(current));
+    }, 200);
+  }
+
+  function stopProgress() {
+    if (progressRef.current) {
+      clearInterval(progressRef.current);
+      progressRef.current = null;
+    }
+    setProgress(100);
+  }
+
   async function fetchNews(hours: number) {
     setSelected(hours);
     setLoading(true);
     setError(null);
     setData(null);
+    startProgress();
 
     try {
       const res = await fetch(`/api/news?hours=${hours}&lang=${lang}&topic=${topic}&count=${maxArticles}`);
@@ -331,6 +364,7 @@ export default function Home() {
         msg === "Failed to fetch" || msg.includes("NetworkError") || msg.includes("Load failed");
       setError(isNetworkError ? t("connectionError", lang) : msg);
     } finally {
+      stopProgress();
       setLoading(false);
     }
   }
@@ -453,9 +487,27 @@ export default function Home() {
 
         {/* ── Loading ────────────────────────────────────────── */}
         {loading && (
-          <div style={{ color: color.gold, padding: "32px 0", display: "flex", alignItems: "center", gap: 10, fontSize: 15 }}>
-            <Spinner />
-            {t("loading", lang)}
+          <div style={{ padding: "32px 0" }}>
+            <p style={{ fontSize: 15, color: color.gold, marginBottom: 12 }}>
+              {t("loading", lang)}
+            </p>
+            <div style={{ position: "relative", height: 6, borderRadius: 3, background: color.border, overflow: "hidden" }}>
+              <div
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  height: "100%",
+                  width: `${progress}%`,
+                  background: color.gold,
+                  borderRadius: 3,
+                  transition: "width 0.3s ease-out",
+                }}
+              />
+            </div>
+            <p style={{ color: color.textMuted, fontSize: 13, marginTop: 8, textAlign: "right" }}>
+              {progress}%
+            </p>
           </div>
         )}
 
@@ -501,7 +553,7 @@ export default function Home() {
       {showSettings && <SettingsModal topic={topic} lang={lang} onClose={() => setShowSettings(false)} />}
 
       <footer style={{ position: "fixed", bottom: 8, right: 12, color: color.textDim, fontSize: 12 }}>
-        v1.4
+        v1.5
       </footer>
     </div>
   );

@@ -50,9 +50,9 @@ Les valeurs "index" correspondent aux positions (à partir de 0) dans la liste. 
 function aiEn(max: number) {
   return `You are a technology journalist specializing in Artificial Intelligence. Your task:
 
-1. FILTER: From the article list below, identify ONLY articles about AI / machine learning breakthroughs, new AI models, AI products, AI regulation, AI industry news, or significant AI research. Exclude unrelated tech news.
+1. FILTER: From the article list below, identify ONLY articles about AI / machine learning breakthroughs, new AI models (GPT, Claude, Gemini, Llama, Mistral, etc.), AI coding tools (Cursor, Claude Code, GitHub Copilot, Codex, Windsurf, etc.), AI products, AI regulation, AI industry news, or significant AI research. Exclude unrelated tech news.
 
-2. SUMMARIZE EACH: For every relevant article, write a factual 2–3 sentence summary in English. Cover the key facts: what happened, who is involved, and why it matters. Include specific details: model names, company names, performance metrics, dates, funding amounts, user counts.
+2. SUMMARIZE EACH: For every relevant article, write a factual 2–3 sentence summary in English. Cover the key facts: what happened, who is involved, and why it matters. Include specific details: model names, tool names, company names, performance metrics, benchmark scores, dates, funding amounts, user counts.
 
 3. GLOBAL SUMMARY: Write 3–6 bullet points summarizing the latest AI developments based on the relevant articles. Each bullet point must start with "• " and be on its own line. You MUST include specific numbers and figures: model names, benchmark scores, parameter counts, funding amounts, release dates, adoption numbers, etc. Mention key players (companies, researchers), products launched, and industry trends. Never write vague bullets — each one should contain at least one concrete fact or figure.
 
@@ -70,11 +70,11 @@ Respond with valid JSON:
 function aiFr(max: number) {
   return `Tu es un journaliste technologique spécialisé en Intelligence Artificielle. Ta tâche :
 
-1. FILTRER : Dans la liste d'articles ci-dessous, identifie UNIQUEMENT ceux qui concernent l'IA / machine learning : percées, nouveaux modèles, produits IA, régulation de l'IA, actualités du secteur, ou recherches significatives. Exclus les news tech non liées à l'IA.
+1. FILTRER : Dans la liste d'articles ci-dessous, identifie UNIQUEMENT ceux qui concernent l'IA / machine learning : percées, nouveaux modèles (GPT, Claude, Gemini, Llama, Mistral, etc.), outils de code IA (Cursor, Claude Code, GitHub Copilot, Codex, Windsurf, etc.), produits IA, régulation de l'IA, actualités du secteur, ou recherches significatives. Exclus les news tech non liées à l'IA.
 
 2. RÉSUMER CHAQUE ARTICLE : Pour chaque article pertinent :
    - Traduis le titre en français (champ "title").
-   - Rédige un résumé factuel de 2 à 3 phrases en français (champ "snippet"). Couvre les faits essentiels : quoi, qui, et pourquoi c'est important. Inclus des détails précis : noms de modèles, entreprises, métriques, dates, montants.
+   - Rédige un résumé factuel de 2 à 3 phrases en français (champ "snippet"). Couvre les faits essentiels : quoi, qui, et pourquoi c'est important. Inclus des détails précis : noms de modèles, noms d'outils, entreprises, métriques, scores de benchmarks, dates, montants.
 
 3. RÉSUMÉ GLOBAL : Rédige 3 à 6 bullet points résumant les dernières avancées IA basé sur les articles pertinents. Chaque bullet point doit commencer par "• " et être sur sa propre ligne. Tu DOIS inclure les chiffres et données précises : noms de modèles, scores de benchmarks, nombre de paramètres, montants de levées de fonds, dates de sortie, chiffres d'adoption, etc. Mentionne les acteurs clés (entreprises, chercheurs), les produits lancés et les tendances du secteur. Ne rédige jamais de bullet vague — chacun doit contenir au moins un fait concret ou un chiffre précis.
 
@@ -94,9 +94,9 @@ Les valeurs "index" correspondent aux positions (à partir de 0) dans la liste. 
 function cryptoEn(max: number) {
   return `You are a financial journalist specializing in cryptocurrency and blockchain. Your task:
 
-1. FILTER: From the article list below, identify ONLY articles about cryptocurrency, blockchain, DeFi, NFTs, crypto regulation, token launches, exchange news, or significant market movements. Exclude unrelated financial or tech news.
+1. FILTER: From the article list below, identify ONLY articles about cryptocurrency, blockchain, DeFi, crypto regulation, exchange news, or significant market movements. Prioritize Bitcoin (BTC) news: price action, halving, ETFs, mining, Lightning Network, on-chain metrics, whale movements, institutional adoption. Also include major altcoin and DeFi news. Exclude unrelated financial or tech news.
 
-2. SUMMARIZE EACH: For every relevant article, write a factual 2–3 sentence summary in English. Cover the key facts: what happened, who is involved, and why it matters. Include specific details: coin/token names, prices, percentage changes, market caps, funding amounts, regulatory actions, dates.
+2. SUMMARIZE EACH: For every relevant article, write a factual 2–3 sentence summary in English. Cover the key facts: what happened, who is involved, and why it matters. Include specific details: BTC price, coin/token names, percentage changes, market caps, hash rates, funding amounts, regulatory actions, dates.
 
 3. GLOBAL SUMMARY: Write 3–6 bullet points summarizing the latest crypto developments based on the relevant articles. Each bullet point must start with "• " and be on its own line. You MUST include specific numbers and figures: prices, percentage gains/losses, trading volumes, market caps, funding rounds, regulatory fines, adoption metrics, etc. Mention key players (companies, exchanges, protocols), market trends, and regulatory developments. Never write vague bullets — each one should contain at least one concrete fact or figure.
 
@@ -114,11 +114,11 @@ Respond with valid JSON:
 function cryptoFr(max: number) {
   return `Tu es un journaliste financier spécialisé en cryptomonnaies et blockchain. Ta tâche :
 
-1. FILTRER : Dans la liste d'articles ci-dessous, identifie UNIQUEMENT ceux qui concernent les cryptomonnaies, la blockchain, la DeFi, les NFTs, la régulation crypto, les lancements de tokens, les actualités des exchanges, ou les mouvements de marché significatifs. Exclus les news financières ou tech non liées à la crypto.
+1. FILTRER : Dans la liste d'articles ci-dessous, identifie UNIQUEMENT ceux qui concernent les cryptomonnaies, la blockchain, la DeFi, la régulation crypto, les actualités des exchanges, ou les mouvements de marché significatifs. Priorise les news Bitcoin (BTC) : prix, halving, ETFs, minage, Lightning Network, métriques on-chain, mouvements de whales, adoption institutionnelle. Inclus aussi les news altcoins et DeFi majeures. Exclus les news financières ou tech non liées à la crypto.
 
 2. RÉSUMER CHAQUE ARTICLE : Pour chaque article pertinent :
    - Traduis le titre en français (champ "title").
-   - Rédige un résumé factuel de 2 à 3 phrases en français (champ "snippet"). Couvre les faits essentiels : quoi, qui, et pourquoi c'est important. Inclus des détails précis : noms de coins/tokens, prix, variations en pourcentage, capitalisations, montants, actions réglementaires, dates.
+   - Rédige un résumé factuel de 2 à 3 phrases en français (champ "snippet"). Couvre les faits essentiels : quoi, qui, et pourquoi c'est important. Inclus des détails précis : prix du BTC, noms de coins/tokens, variations en pourcentage, capitalisations, hash rates, montants, actions réglementaires, dates.
 
 3. RÉSUMÉ GLOBAL : Rédige 3 à 6 bullet points résumant les dernières actualités crypto basé sur les articles pertinents. Chaque bullet point doit commencer par "• " et être sur sa propre ligne. Tu DOIS inclure les chiffres et données précises : prix, gains/pertes en pourcentage, volumes de trading, capitalisations, levées de fonds, amendes réglementaires, métriques d'adoption, etc. Mentionne les acteurs clés (entreprises, exchanges, protocoles), les tendances de marché et les évolutions réglementaires. Ne rédige jamais de bullet vague — chacun doit contenir au moins un fait concret ou un chiffre précis.
 

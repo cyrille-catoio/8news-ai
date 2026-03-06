@@ -38,8 +38,8 @@ const strings = {
     fr: "Actualités Robotique & Humanoïdes IA",
   },
   subtitle: {
-    en: "AI-powered summary of the latest news.",
-    fr: "Résumé des dernières actualités, analysées par IA.",
+    en: "AI-powered summary of the latest news from multiple RSS feeds.",
+    fr: "Résumé des dernières actualités issues de multiples flux RSS, analysées par IA.",
   },
   selectPeriod: {
     en: "Select a time period:",

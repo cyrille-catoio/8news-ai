@@ -553,7 +553,7 @@ export default function Home() {
       {showSettings && <SettingsModal topic={topic} lang={lang} onClose={() => setShowSettings(false)} />}
 
       <footer style={{ position: "fixed", bottom: 8, right: 12, color: color.textDim, fontSize: 12 }}>
-        v1.5
+        v1.6
       </footer>
     </div>
   );

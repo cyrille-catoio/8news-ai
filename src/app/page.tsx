@@ -164,7 +164,15 @@ function ArticleCard({ article, locale }: { article: ArticleSummary; locale: str
 }
 
 function SettingsModal({ topic, lang, onClose }: { topic: Topic; lang: Lang; onClose: () => void }) {
-  const feeds = getFeedsForTopic(topic);
+  const [activeTab, setActiveTab] = useState<Topic>(topic);
+  const feeds = getFeedsForTopic(activeTab);
+
+  const TABS: { value: Topic; labelKey: "topicConflict" | "topicAi" | "topicCrypto" | "topicRobotics" }[] = [
+    { value: "conflict", labelKey: "topicConflict" },
+    { value: "ai", labelKey: "topicAi" },
+    { value: "crypto", labelKey: "topicCrypto" },
+    { value: "robotics", labelKey: "topicRobotics" },
+  ];
 
   return (
     <div
@@ -187,13 +195,14 @@ function SettingsModal({ topic, lang, onClose }: { topic: Topic; lang: Lang; onC
           borderRadius: 12,
           padding: "24px 28px",
           width: "100%",
-          maxWidth: 480,
+          maxWidth: 540,
           maxHeight: "80vh",
-          overflowY: "auto",
+          display: "flex",
+          flexDirection: "column",
           margin: 16,
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <h3 style={{ color: color.gold, fontSize: 18, fontWeight: 600, margin: 0 }}>
             {t("settingsTitle", lang)}
           </h3>
@@ -214,27 +223,58 @@ function SettingsModal({ topic, lang, onClose }: { topic: Topic; lang: Lang; onC
           </button>
         </div>
 
-        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+        <div style={{ display: "flex", gap: 0, marginBottom: 16, borderBottom: `1px solid ${color.border}` }}>
+          {TABS.map(({ value, labelKey }) => (
+            <button
+              key={value}
+              onClick={() => setActiveTab(value)}
+              style={{
+                padding: "8px 14px",
+                fontSize: 13,
+                fontWeight: 600,
+                border: "none",
+                borderBottom: activeTab === value ? `2px solid ${color.gold}` : "2px solid transparent",
+                background: "transparent",
+                color: activeTab === value ? color.gold : color.textMuted,
+                cursor: "pointer",
+                transition: "all 0.15s",
+              }}
+            >
+              {t(labelKey, lang)}
+            </button>
+          ))}
+        </div>
+
+        <p style={{ color: color.textDim, fontSize: 12, margin: "0 0 12px" }}>
+          {feeds.length} sources
+        </p>
+
+        <ul style={{ listStyle: "none", margin: 0, padding: 0, overflowY: "auto", flex: 1 }}>
           {feeds.map((feed) => {
             const domain = new URL(feed.url).hostname.replace("www.", "");
             return (
-              <li
-                key={feed.url}
-                style={{
-                  padding: "10px 0",
-                  borderBottom: `1px solid ${color.border}`,
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: 12,
-                }}
-              >
-                <span style={{ color: color.text, fontSize: 15, fontWeight: 500 }}>
-                  {feed.name}
-                </span>
-                <span style={{ color: color.textDim, fontSize: 13, flexShrink: 0 }}>
-                  {domain}
-                </span>
+              <li key={feed.url} style={{ borderBottom: `1px solid ${color.border}` }}>
+                <a
+                  href={feed.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    padding: "10px 0",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 12,
+                    textDecoration: "none",
+                    color: "inherit",
+                  }}
+                >
+                  <span style={{ color: color.text, fontSize: 15, fontWeight: 500 }}>
+                    {feed.name}
+                  </span>
+                  <span style={{ color: color.textDim, fontSize: 13, flexShrink: 0 }}>
+                    {domain} ↗
+                  </span>
+                </a>
               </li>
             );
           })}
@@ -432,8 +472,9 @@ export default function Home() {
             </button>
           </div>
 
-          <h1 style={{ color: color.gold, fontSize: 31, fontWeight: 600, margin: 0, letterSpacing: "-0.02em", paddingRight: 180 }}>
-            {t("appName", lang)}
+          <h1 style={{ fontSize: 31, fontWeight: 600, margin: 0, letterSpacing: "-0.02em", paddingRight: 180 }}>
+            <span style={{ color: color.gold }}>8</span>
+            <span style={{ color: "#e0e0e0" }}>news</span>
           </h1>
           <p style={{ color: color.textMuted, fontSize: 15, marginTop: 8 }}>
             {t("subtitle", lang)}
@@ -553,7 +594,7 @@ export default function Home() {
       {showSettings && <SettingsModal topic={topic} lang={lang} onClose={() => setShowSettings(false)} />}
 
       <footer style={{ position: "fixed", bottom: 8, right: 12, color: color.textDim, fontSize: 12 }}>
-        v1.6
+        v1.7
       </footer>
     </div>
   );

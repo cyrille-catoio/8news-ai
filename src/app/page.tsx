@@ -332,6 +332,62 @@ function SummaryBox({ data, locale, lang }: { data: SummaryResponse; locale: str
   );
 }
 
+function AllArticlesTab({ articles, locale }: { articles: ArticleSummary[]; locale: string }) {
+  const grouped = articles.reduce<Record<string, ArticleSummary[]>>((acc, art) => {
+    const key = art.source || "Unknown";
+    (acc[key] ??= []).push(art);
+    return acc;
+  }, {});
+
+  const sources = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
+
+  if (sources.length === 0) {
+    return <p style={{ color: color.textDim, fontSize: 15 }}>No articles found.</p>;
+  }
+
+  return (
+    <div>
+      {sources.map((source) => (
+        <div key={source} style={{ marginBottom: 28 }}>
+          <h3 style={{ color: color.gold, fontSize: 16, fontWeight: 600, marginBottom: 12, borderBottom: `1px solid ${color.border}`, paddingBottom: 8 }}>
+            {source} ({grouped[source].length})
+          </h3>
+          {grouped[source].map((art, i) => (
+            <a
+              key={`${art.link}-${i}`}
+              href={art.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: "block",
+                padding: "10px 14px",
+                marginBottom: 6,
+                borderRadius: 8,
+                background: color.surface,
+                textDecoration: "none",
+                color: "inherit",
+                transition: "background 0.15s",
+              }}
+            >
+              <span style={{ color: color.text, fontWeight: 500, fontSize: 15 }}>
+                {art.title}
+              </span>
+              {art.snippet && (
+                <p style={{ color: color.articleSnippet, fontSize: 13, marginTop: 4, lineHeight: 1.5 }}>
+                  {art.snippet}
+                </p>
+              )}
+              <p style={{ color: color.textDim, fontSize: 12, marginTop: 4 }}>
+                {art.pubDate ? new Date(art.pubDate).toLocaleString(locale) : ""}
+              </p>
+            </a>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -354,6 +410,7 @@ export default function Home() {
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [resultTab, setResultTab] = useState<"relevant" | "all">("relevant");
 
   const locale = dateLocale(lang);
   const noArticlesKey = topic === "conflict"
@@ -392,6 +449,7 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setData(null);
+    setResultTab("relevant");
     startProgress();
 
     try {
@@ -422,6 +480,7 @@ export default function Home() {
     setData(null);
     setError(null);
     setLoading(false);
+    setResultTab("relevant");
   }
 
   return (
@@ -564,21 +623,55 @@ export default function Home() {
           <div>
             <SummaryBox data={data} locale={locale} lang={lang} />
 
-            {data.articles.length > 0 && (
-              <div>
-                <h2 style={{ ...sectionHeading, marginBottom: 16 }}>
-                  {t("relevantArticles", lang)} ({data.articles.length})
-                </h2>
-                {data.articles.map((art, i) => (
-                  <ArticleCard key={`${art.link}-${i}`} article={art} locale={locale} />
-                ))}
-              </div>
+            {/* Tab bar */}
+            <div style={{ display: "flex", borderBottom: `1px solid ${color.border}`, marginBottom: 20, gap: 0 }}>
+              {(["relevant", "all"] as const).map((tab) => {
+                const active = resultTab === tab;
+                const label = tab === "relevant"
+                  ? `${t("relevantArticles", lang)} (${data.articles.length})`
+                  : `${t("allArticles", lang)} (${data.allArticles?.length ?? 0})`;
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => setResultTab(tab)}
+                    style={{
+                      padding: "10px 20px",
+                      fontSize: 15,
+                      fontWeight: 600,
+                      border: "none",
+                      borderBottom: active ? `2px solid ${color.gold}` : "2px solid transparent",
+                      background: "transparent",
+                      color: active ? color.gold : color.textMuted,
+                      cursor: "pointer",
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Relevant articles tab */}
+            {resultTab === "relevant" && (
+              <>
+                {data.articles.length > 0 ? (
+                  <div>
+                    {data.articles.map((art, i) => (
+                      <ArticleCard key={`${art.link}-${i}`} article={art} locale={locale} />
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ color: color.textDim, fontSize: 15 }}>
+                    {t(noArticlesKey, lang)}
+                  </p>
+                )}
+              </>
             )}
 
-            {data.articles.length === 0 && (
-              <p style={{ color: color.textDim, fontSize: 15 }}>
-                {t(noArticlesKey, lang)}
-              </p>
+            {/* All articles tab */}
+            {resultTab === "all" && (
+              <AllArticlesTab articles={data.allArticles ?? []} locale={locale} />
             )}
           </div>
         )}
@@ -594,7 +687,7 @@ export default function Home() {
       {showSettings && <SettingsModal topic={topic} lang={lang} onClose={() => setShowSettings(false)} />}
 
       <footer style={{ position: "fixed", bottom: 8, right: 12, color: color.textDim, fontSize: 12 }}>
-        v1.7
+        v1.9
       </footer>
     </div>
   );

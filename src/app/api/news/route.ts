@@ -165,12 +165,18 @@ export async function GET(request: NextRequest) {
     const { articles: rawArticles, feedsOk, feedsFailed } = await fetchAllFeeds(feeds, since);
     const items = toAnalysisPayload(rawArticles);
 
+    const allArticles: ArticleSummary[] = items.map((a) => ({
+      ...a,
+      snippet: a.snippet.slice(0, 300),
+    }));
+
     if (items.length === 0) {
       return NextResponse.json({
         summary: feedsFailed > 0
           ? msg.noArticlesFeedError(feedsOk, feedsFailed)
           : msg.noArticles,
         articles: [],
+        allArticles: [],
         period: buildPeriod(since),
       } satisfies SummaryResponse);
     }
@@ -184,6 +190,7 @@ export async function GET(request: NextRequest) {
           ...a,
           snippet: a.snippet.slice(0, 200),
         })),
+        allArticles,
         period: buildPeriod(since),
       } satisfies SummaryResponse);
     }
@@ -213,6 +220,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       summary,
       articles: filteredArticles,
+      allArticles,
       period: buildPeriod(since),
     } satisfies SummaryResponse);
   } catch (err) {

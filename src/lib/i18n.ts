@@ -65,6 +65,10 @@ const strings = {
     en: "Relevant articles",
     fr: "Articles retenus",
   },
+  allArticles: {
+    en: "All articles",
+    fr: "Tous les articles",
+  },
   noArticlesConflict: {
     en: "No articles related to the USA/Israel vs Iran conflict found for this time period.",
     fr: "Aucun article lié au conflit USA/Israël vs Iran sur cette période.",

@@ -20,6 +20,7 @@ export interface ArticleSummary {
 export interface SummaryResponse {
   summary: string;
   articles: ArticleSummary[];
+  allArticles: ArticleSummary[];
   period: {
     from: string;
     to: string;

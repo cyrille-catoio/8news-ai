@@ -455,9 +455,9 @@ export default function Home() {
   const [lang, setLang] = useState<Lang>("en");
   const [topic, setTopic] = useState<Topic>("conflict");
   const [maxArticles, setMaxArticles] = useState(() => {
-    if (typeof document === "undefined") return 8;
+    if (typeof document === "undefined") return 10;
     const match = document.cookie.match(/(?:^|; )maxArticles=(\d+)/);
-    return match ? Math.min(30, Math.max(3, Number(match[1]))) : 8;
+    return match ? Math.min(30, Math.max(3, Number(match[1]))) : 10;
   });
 
   const updateMaxArticles = useCallback((value: number) => {
@@ -734,7 +734,7 @@ export default function Home() {
       )}
 
       <footer style={{ position: "fixed", bottom: 8, right: 12, color: color.textDim, fontSize: 12 }}>
-        v2.0
+        v1.9.1
       </footer>
     </div>
   );

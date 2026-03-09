@@ -163,7 +163,19 @@ function ArticleCard({ article, locale }: { article: ArticleSummary; locale: str
   );
 }
 
-function SettingsModal({ topic, lang, onClose }: { topic: Topic; lang: Lang; onClose: () => void }) {
+function SettingsModal({
+  topic,
+  lang,
+  maxArticles,
+  onMaxArticlesChange,
+  onClose,
+}: {
+  topic: Topic;
+  lang: Lang;
+  maxArticles: number;
+  onMaxArticlesChange: (v: number) => void;
+  onClose: () => void;
+}) {
   const [activeTab, setActiveTab] = useState<Topic>(topic);
   const feeds = getFeedsForTopic(activeTab);
 
@@ -173,6 +185,24 @@ function SettingsModal({ topic, lang, onClose }: { topic: Topic; lang: Lang; onC
     { value: "crypto", labelKey: "topicCrypto" },
     { value: "robotics", labelKey: "topicRobotics" },
   ];
+
+  const sectionStyle: CSSProperties = {
+    background: color.surface,
+    border: `1px solid ${color.border}`,
+    borderRadius: 10,
+    padding: "16px 20px",
+    marginBottom: 16,
+  };
+
+  const sectionTitle: CSSProperties = {
+    color: color.gold,
+    fontSize: 12,
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    marginBottom: 14,
+    marginTop: 0,
+  };
 
   return (
     <div
@@ -195,14 +225,15 @@ function SettingsModal({ topic, lang, onClose }: { topic: Topic; lang: Lang; onC
           borderRadius: 12,
           padding: "24px 28px",
           width: "100%",
-          maxWidth: 540,
-          maxHeight: "80vh",
+          maxWidth: 560,
+          maxHeight: "85vh",
           display: "flex",
           flexDirection: "column",
           margin: 16,
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <h3 style={{ color: color.gold, fontSize: 18, fontWeight: 600, margin: 0 }}>
             {t("settingsTitle", lang)}
           </h3>
@@ -223,62 +254,92 @@ function SettingsModal({ topic, lang, onClose }: { topic: Topic; lang: Lang; onC
           </button>
         </div>
 
-        <div style={{ display: "flex", gap: 0, marginBottom: 16, borderBottom: `1px solid ${color.border}` }}>
-          {TABS.map(({ value, labelKey }) => (
-            <button
-              key={value}
-              onClick={() => setActiveTab(value)}
-              style={{
-                padding: "8px 14px",
-                fontSize: 13,
-                fontWeight: 600,
-                border: "none",
-                borderBottom: activeTab === value ? `2px solid ${color.gold}` : "2px solid transparent",
-                background: "transparent",
-                color: activeTab === value ? color.gold : color.textMuted,
-                cursor: "pointer",
-                transition: "all 0.15s",
-              }}
-            >
-              {t(labelKey, lang)}
-            </button>
-          ))}
-        </div>
+        <div style={{ overflowY: "auto", flex: 1 }}>
+          {/* ── Preferences section ──────────────────────── */}
+          <div style={sectionStyle}>
+            <h4 style={sectionTitle}>{t("preferencesSection", lang)}</h4>
 
-        <p style={{ color: color.textDim, fontSize: 12, margin: "0 0 12px" }}>
-          {feeds.length} sources
-        </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <label style={{ color: color.textLabel, fontSize: 14, fontWeight: 500, whiteSpace: "nowrap" }}>
+                {t("maxArticles", lang)}
+              </label>
+              <input
+                type="range"
+                min={3}
+                max={30}
+                step={1}
+                value={maxArticles}
+                onChange={(e) => onMaxArticlesChange(Number(e.target.value))}
+                style={{ flex: 1, accentColor: color.gold, cursor: "pointer" }}
+              />
+              <span style={{ color: color.gold, fontSize: 15, fontWeight: 600, minWidth: 28, textAlign: "center" }}>
+                {maxArticles}
+              </span>
+            </div>
+          </div>
 
-        <ul style={{ listStyle: "none", margin: 0, padding: 0, overflowY: "auto", flex: 1 }}>
-          {feeds.map((feed) => {
-            const domain = new URL(feed.url).hostname.replace("www.", "");
-            return (
-              <li key={feed.url} style={{ borderBottom: `1px solid ${color.border}` }}>
-                <a
-                  href={feed.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
+          {/* ── RSS Sources section ──────────────────────── */}
+          <div style={sectionStyle}>
+            <h4 style={sectionTitle}>{t("rssSourcesSection", lang)}</h4>
+
+            <div style={{ display: "flex", gap: 0, marginBottom: 12, borderBottom: `1px solid ${color.border}` }}>
+              {TABS.map(({ value, labelKey }) => (
+                <button
+                  key={value}
+                  onClick={() => setActiveTab(value)}
                   style={{
-                    padding: "10px 0",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: 12,
-                    textDecoration: "none",
-                    color: "inherit",
+                    padding: "7px 12px",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    border: "none",
+                    borderBottom: activeTab === value ? `2px solid ${color.gold}` : "2px solid transparent",
+                    background: "transparent",
+                    color: activeTab === value ? color.gold : color.textMuted,
+                    cursor: "pointer",
+                    transition: "all 0.15s",
                   }}
                 >
-                  <span style={{ color: color.text, fontSize: 15, fontWeight: 500 }}>
-                    {feed.name}
-                  </span>
-                  <span style={{ color: color.textDim, fontSize: 13, flexShrink: 0 }}>
-                    {domain} ↗
-                  </span>
-                </a>
-              </li>
-            );
-          })}
-        </ul>
+                  {t(labelKey, lang)}
+                </button>
+              ))}
+            </div>
+
+            <p style={{ color: color.textDim, fontSize: 12, margin: "0 0 8px" }}>
+              {feeds.length} sources
+            </p>
+
+            <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+              {feeds.map((feed) => {
+                const domain = new URL(feed.url).hostname.replace("www.", "");
+                return (
+                  <li key={feed.url} style={{ borderBottom: `1px solid ${color.border}` }}>
+                    <a
+                      href={feed.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        padding: "9px 0",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: 12,
+                        textDecoration: "none",
+                        color: "inherit",
+                      }}
+                    >
+                      <span style={{ color: color.text, fontSize: 14, fontWeight: 500 }}>
+                        {feed.name}
+                      </span>
+                      <span style={{ color: color.textDim, fontSize: 12, flexShrink: 0 }}>
+                        {domain} ↗
+                      </span>
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -563,28 +624,6 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ── Article count slider ────────────────────────────── */}
-        <section style={{ marginBottom: 32 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <label style={{ color: color.textLabel, fontSize: 14, fontWeight: 500, whiteSpace: "nowrap" }}>
-              {t("maxArticles", lang)}
-            </label>
-            <input
-              type="range"
-              min={3}
-              max={30}
-              step={1}
-              value={maxArticles}
-              onChange={(e) => updateMaxArticles(Number(e.target.value))}
-              disabled={loading}
-              style={{ flex: 1, accentColor: color.gold, cursor: loading ? "wait" : "pointer" }}
-            />
-            <span style={{ color: color.gold, fontSize: 15, fontWeight: 600, minWidth: 28, textAlign: "center" }}>
-              {maxArticles}
-            </span>
-          </div>
-        </section>
-
         {/* ── Loading ────────────────────────────────────────── */}
         {loading && (
           <div style={{ padding: "32px 0" }}>
@@ -684,10 +723,18 @@ export default function Home() {
         )}
       </div>
 
-      {showSettings && <SettingsModal topic={topic} lang={lang} onClose={() => setShowSettings(false)} />}
+      {showSettings && (
+        <SettingsModal
+          topic={topic}
+          lang={lang}
+          maxArticles={maxArticles}
+          onMaxArticlesChange={updateMaxArticles}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
 
       <footer style={{ position: "fixed", bottom: 8, right: 12, color: color.textDim, fontSize: 12 }}>
-        v1.9
+        v2.0
       </footer>
     </div>
   );

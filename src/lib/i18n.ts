@@ -38,8 +38,8 @@ const strings = {
     fr: "Actualités Robotique & Humanoïdes IA",
   },
   subtitle: {
-    en: "AI-powered summary of the latest news from multiple RSS feeds.",
-    fr: "Résumé des dernières actualités issues de multiples flux RSS, analysées par IA.",
+    en: "News powered by AI",
+    fr: "Actualités analysées par IA.",
   },
   selectPeriod: {
     en: "Select a time period:",
@@ -98,6 +98,14 @@ const strings = {
     fr: "Paramètres",
   },
   settingsTitle: {
+    en: "Settings",
+    fr: "Paramètres",
+  },
+  preferencesSection: {
+    en: "Preferences",
+    fr: "Préférences",
+  },
+  rssSourcesSection: {
     en: "RSS Sources",
     fr: "Sources RSS",
   },
@@ -106,8 +114,8 @@ const strings = {
     fr: "Fermer",
   },
   maxArticles: {
-    en: "Max articles:",
-    fr: "Nb articles max :",
+    en: "Max relevant articles:",
+    fr: "Nb articles max retenus:",
   },
 } as const;
 

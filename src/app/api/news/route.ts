@@ -4,7 +4,7 @@ import OpenAI from "openai";
 import { getFeedsForTopic, type Feed } from "@/lib/rss-feeds";
 import { getSystemPrompt, getServerMessages } from "@/lib/prompts";
 import type { Lang } from "@/lib/i18n";
-import type { RawArticle, ArticleSummary, SummaryResponse, AIAnalysis, Topic } from "@/lib/types";
+import type { RawArticle, ArticleSummary, SummaryBullet, SummaryResponse, AIAnalysis, Topic } from "@/lib/types";
 
 const rssParser = new Parser({ timeout: 10_000 });
 const FETCH_TIMEOUT_MS = 8_000;
@@ -114,7 +114,7 @@ async function analyzeWithAI(
   lang: Lang,
   apiKey: string,
   maxArticles: number,
-): Promise<{ summary: string; relevant: Map<number, RelevantEntry> }> {
+): Promise<{ summary: string; bullets: SummaryBullet[]; relevant: Map<number, RelevantEntry> }> {
   const msg = getServerMessages(lang);
   const openai = new OpenAI({ apiKey });
 
@@ -128,7 +128,7 @@ async function analyzeWithAI(
   });
 
   const raw = completion.choices[0]?.message?.content;
-  if (!raw) return { summary: msg.fallback, relevant: new Map() };
+  if (!raw) return { summary: msg.fallback, bullets: [], relevant: new Map() };
 
   const parsed: AIAnalysis = JSON.parse(raw);
   const relevant = new Map<number, RelevantEntry>();
@@ -136,14 +136,35 @@ async function analyzeWithAI(
     relevant.set(r.index, { snippet: r.snippet, title: r.title });
   }
 
-  const globalSummary = Array.isArray(parsed.globalSummary)
-    ? parsed.globalSummary.join("\n")
-    : typeof parsed.globalSummary === "string"
-      ? parsed.globalSummary
-      : msg.fallback;
+  let summaryText: string;
+  let bullets: SummaryBullet[] = [];
+
+  if (Array.isArray(parsed.globalSummary)) {
+    const arr = parsed.globalSummary as Array<{ text: string; refs?: number[] }>;
+    bullets = arr.map((b) => ({
+      text: (typeof b === "string" ? b : b.text ?? "").replace(/^•\s*/, "").trim(),
+      refs: (b.refs ?? [])
+        .filter((idx) => idx >= 0 && idx < items.length)
+        .map((idx) => ({
+          title: items[idx].title,
+          link: items[idx].link,
+          source: items[idx].source,
+        })),
+    })).filter((b) => b.text.length > 0);
+    summaryText = bullets.map((b) => `• ${b.text}`).join("\n");
+  } else {
+    const str = typeof parsed.globalSummary === "string" ? parsed.globalSummary : msg.fallback;
+    summaryText = str;
+    bullets = str
+      .split("\n")
+      .map((line) => line.replace(/^•\s*/, "").trim())
+      .filter(Boolean)
+      .map((text) => ({ text, refs: [] }));
+  }
 
   return {
-    summary: globalSummary || msg.fallback,
+    summary: summaryText || msg.fallback,
+    bullets,
     relevant,
   };
 }
@@ -175,6 +196,7 @@ export async function GET(request: NextRequest) {
         summary: feedsFailed > 0
           ? msg.noArticlesFeedError(feedsOk, feedsFailed)
           : msg.noArticles,
+        bullets: [],
         articles: [],
         allArticles: [],
         period: buildPeriod(since),
@@ -186,6 +208,7 @@ export async function GET(request: NextRequest) {
     if (!isValidApiKey(apiKey)) {
       return NextResponse.json({
         summary: msg.noApiKey(items.length, feedsOk),
+        bullets: [],
         articles: items.slice(0, PREVIEW_LIMIT).map((a) => ({
           ...a,
           snippet: a.snippet.slice(0, 200),
@@ -196,12 +219,14 @@ export async function GET(request: NextRequest) {
     }
 
     let summary: string;
+    let bullets: SummaryBullet[];
     let relevant: Map<number, RelevantEntry>;
 
     try {
-      ({ summary, relevant } = await analyzeWithAI(items, topic, lang, apiKey, maxArticles));
+      ({ summary, bullets, relevant } = await analyzeWithAI(items, topic, lang, apiKey, maxArticles));
     } catch {
       summary = msg.aiError;
+      bullets = [];
       relevant = new Map();
     }
 
@@ -219,6 +244,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       summary,
+      bullets,
       articles: filteredArticles,
       allArticles,
       period: buildPeriod(since),

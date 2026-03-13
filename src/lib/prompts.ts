@@ -17,10 +17,13 @@ IMPORTANT: Try to select approximately ${max} relevant articles. If fewer than $
 Respond with valid JSON:
 {
   "relevant": [{ "index": 0, "snippet": "Factual 2–3 sentence summary" }],
-  "globalSummary": "• First bullet point\\n• Second bullet point\\n• Third bullet point"
+  "globalSummary": [
+    { "text": "First bullet point with facts", "refs": [0, 3] },
+    { "text": "Second bullet point with facts", "refs": [1] }
+  ]
 }
 
-"index" values are 0-based positions in the article list. Only include truly relevant articles.`;
+"index" values are 0-based positions in the article list. "refs" in globalSummary are the indices of articles that support each bullet point. Only include truly relevant articles.`;
 }
 
 function conflictFr(max: number) {
@@ -39,10 +42,13 @@ IMPORTANT : Essaie de sélectionner environ ${max} articles pertinents. S'il y e
 Réponds en JSON valide :
 {
   "relevant": [{ "index": 0, "title": "Titre traduit en français", "snippet": "Résumé factuel de 2-3 phrases" }],
-  "globalSummary": "• Premier point\\n• Deuxième point\\n• Troisième point"
+  "globalSummary": [
+    { "text": "Premier point avec des faits", "refs": [0, 3] },
+    { "text": "Deuxième point avec des faits", "refs": [1] }
+  ]
 }
 
-Les valeurs "index" correspondent aux positions (à partir de 0) dans la liste. N'inclus que les articles vraiment pertinents.`;
+Les valeurs "index" correspondent aux positions (à partir de 0) dans la liste. "refs" dans globalSummary sont les indices des articles qui soutiennent chaque bullet point. N'inclus que les articles vraiment pertinents.`;
 }
 
 // ── AI News prompts ──────────────────────────────────────────────────
@@ -61,10 +67,13 @@ IMPORTANT: Try to select approximately ${max} relevant articles. If fewer than $
 Respond with valid JSON:
 {
   "relevant": [{ "index": 0, "snippet": "Factual 2–3 sentence summary" }],
-  "globalSummary": "• First bullet point\\n• Second bullet point\\n• Third bullet point"
+  "globalSummary": [
+    { "text": "First bullet point with facts", "refs": [0, 3] },
+    { "text": "Second bullet point with facts", "refs": [1] }
+  ]
 }
 
-"index" values are 0-based positions in the article list. Only include truly relevant articles.`;
+"index" values are 0-based positions in the article list. "refs" in globalSummary are the indices of articles that support each bullet point. Only include truly relevant articles.`;
 }
 
 function aiFr(max: number) {
@@ -83,10 +92,13 @@ IMPORTANT : Essaie de sélectionner environ ${max} articles pertinents. S'il y e
 Réponds en JSON valide :
 {
   "relevant": [{ "index": 0, "title": "Titre traduit en français", "snippet": "Résumé factuel de 2-3 phrases" }],
-  "globalSummary": "• Premier point\\n• Deuxième point\\n• Troisième point"
+  "globalSummary": [
+    { "text": "Premier point avec des faits", "refs": [0, 3] },
+    { "text": "Deuxième point avec des faits", "refs": [1] }
+  ]
 }
 
-Les valeurs "index" correspondent aux positions (à partir de 0) dans la liste. N'inclus que les articles vraiment pertinents.`;
+Les valeurs "index" correspondent aux positions (à partir de 0) dans la liste. "refs" dans globalSummary sont les indices des articles qui soutiennent chaque bullet point. N'inclus que les articles vraiment pertinents.`;
 }
 
 // ── Crypto prompts ───────────────────────────────────────────────────
@@ -105,10 +117,13 @@ IMPORTANT: Try to select approximately ${max} relevant articles. If fewer than $
 Respond with valid JSON:
 {
   "relevant": [{ "index": 0, "snippet": "Factual 2–3 sentence summary" }],
-  "globalSummary": "• First bullet point\\n• Second bullet point\\n• Third bullet point"
+  "globalSummary": [
+    { "text": "First bullet point with facts", "refs": [0, 3] },
+    { "text": "Second bullet point with facts", "refs": [1] }
+  ]
 }
 
-"index" values are 0-based positions in the article list. Only include truly relevant articles.`;
+"index" values are 0-based positions in the article list. "refs" in globalSummary are the indices of articles that support each bullet point. Only include truly relevant articles.`;
 }
 
 function cryptoFr(max: number) {
@@ -127,10 +142,13 @@ IMPORTANT : Essaie de sélectionner environ ${max} articles pertinents. S'il y e
 Réponds en JSON valide :
 {
   "relevant": [{ "index": 0, "title": "Titre traduit en français", "snippet": "Résumé factuel de 2-3 phrases" }],
-  "globalSummary": "• Premier point\\n• Deuxième point\\n• Troisième point"
+  "globalSummary": [
+    { "text": "Premier point avec des faits", "refs": [0, 3] },
+    { "text": "Deuxième point avec des faits", "refs": [1] }
+  ]
 }
 
-Les valeurs "index" correspondent aux positions (à partir de 0) dans la liste. N'inclus que les articles vraiment pertinents.`;
+Les valeurs "index" correspondent aux positions (à partir de 0) dans la liste. "refs" dans globalSummary sont les indices des articles qui soutiennent chaque bullet point. N'inclus que les articles vraiment pertinents.`;
 }
 
 // ── Exports ──────────────────────────────────────────────────────────
@@ -153,10 +171,13 @@ IMPORTANT: Try to select approximately ${max} relevant articles. If fewer than $
 Respond with valid JSON:
 {
   "relevant": [{ "index": 0, "snippet": "Factual 2–3 sentence summary" }],
-  "globalSummary": "• First bullet point\\n• Second bullet point\\n• Third bullet point"
+  "globalSummary": [
+    { "text": "First bullet point with facts", "refs": [0, 3] },
+    { "text": "Second bullet point with facts", "refs": [1] }
+  ]
 }
 
-"index" values are 0-based positions in the article list. Only include truly relevant articles.`;
+"index" values are 0-based positions in the article list. "refs" in globalSummary are the indices of articles that support each bullet point. Only include truly relevant articles.`;
 }
 
 function roboticsFr(max: number) {
@@ -175,10 +196,13 @@ IMPORTANT : Essaie de sélectionner environ ${max} articles pertinents. S'il y e
 Réponds en JSON valide :
 {
   "relevant": [{ "index": 0, "title": "Titre traduit en français", "snippet": "Résumé factuel de 2-3 phrases" }],
-  "globalSummary": "• Premier point\\n• Deuxième point\\n• Troisième point"
+  "globalSummary": [
+    { "text": "Premier point avec des faits", "refs": [0, 3] },
+    { "text": "Deuxième point avec des faits", "refs": [1] }
+  ]
 }
 
-Les valeurs "index" correspondent aux positions (à partir de 0) dans la liste. N'inclus que les articles vraiment pertinents.`;
+Les valeurs "index" correspondent aux positions (à partir de 0) dans la liste. "refs" dans globalSummary sont les indices des articles qui soutiennent chaque bullet point. N'inclus que les articles vraiment pertinents.`;
 }
 
 const PROMPTS: Record<Topic, Record<Lang, PromptFn>> = {

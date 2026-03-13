@@ -17,8 +17,14 @@ export interface ArticleSummary {
   snippet: string;
 }
 
+export interface SummaryBullet {
+  text: string;
+  refs: Array<{ title: string; link: string; source: string }>;
+}
+
 export interface SummaryResponse {
   summary: string;
+  bullets: SummaryBullet[];
   articles: ArticleSummary[];
   allArticles: ArticleSummary[];
   period: {
@@ -29,5 +35,5 @@ export interface SummaryResponse {
 
 export interface AIAnalysis {
   relevant: Array<{ index: number; snippet: string; title?: string }>;
-  globalSummary: string;
+  globalSummary: string | Array<{ text: string; refs: number[] }>;
 }

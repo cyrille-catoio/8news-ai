@@ -457,7 +457,7 @@ function AudioPlayer({ text }: { text: string }) {
   const isActive = state === "playing" || state === "paused";
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 14, flexWrap: "wrap" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "nowrap", flexShrink: 0 }}>
       <button onClick={() => skip(-15)} disabled={!isActive} style={{ ...btnBase, opacity: isActive ? 1 : 0.35 }}>
         -15s
       </button>
@@ -489,33 +489,35 @@ function AudioPlayer({ text }: { text: string }) {
         +15s
       </button>
 
-      {isActive && duration > 0 && (
-        <span style={{ color: color.textDim, fontSize: 12, marginLeft: 8 }}>
-          {formatTime(currentTime)} / {formatTime(duration)}
-        </span>
-      )}
+      <span style={{ color: isActive && duration > 0 ? color.textDim : "transparent", fontSize: 12, marginLeft: 4, minWidth: 72, textAlign: "center" }}>
+        {isActive && duration > 0 ? `${formatTime(currentTime)} / ${formatTime(duration)}` : "0:00 / 0:00"}
+      </span>
     </div>
   );
 }
 
+function RefIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: "middle", opacity: 0.6 }}>
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      <polyline points="15 3 21 3 21 9" />
+      <line x1="10" y1="14" x2="21" y2="3" />
+    </svg>
+  );
+}
+
 function SummaryBox({ data, locale, lang }: { data: SummaryResponse; locale: string; lang: Lang }) {
-  const raw = Array.isArray(data.summary)
-    ? (data.summary as string[]).join("\n")
-    : typeof data.summary === "string"
-      ? data.summary
-      : String(data.summary ?? "");
-
-  const bullets = raw
-    .split("\n")
-    .map((line) => line.replace(/^•\s*/, "").trim())
-    .filter(Boolean);
-
-  const isBulletList = bullets.length > 1;
+  const raw = typeof data.summary === "string" ? data.summary : String(data.summary ?? "");
+  const bullets = data.bullets ?? [];
+  const hasBullets = bullets.length > 0;
 
   return (
-    <div style={{ ...card, borderRadius: 12, padding: 20, marginBottom: 28 }}>
-      <h2 style={sectionHeading}>{t("summary", lang)}</h2>
-      {isBulletList ? (
+    <div style={{ ...card, borderRadius: 12, padding: 20, marginBottom: 28, position: "relative" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <h2 style={sectionHeading}>{t("summary", lang)}</h2>
+        {raw.trim().length > 0 && <AudioPlayer text={raw} />}
+      </div>
+      {hasBullets ? (
         <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none" }}>
           {bullets.map((bullet, i) => (
             <li
@@ -524,13 +526,39 @@ function SummaryBox({ data, locale, lang }: { data: SummaryResponse; locale: str
                 color: color.textSecondary,
                 lineHeight: 1.6,
                 fontSize: 15,
-                padding: "4px 0",
-                display: "flex",
-                gap: 8,
+                padding: "5px 0",
               }}
             >
-              <span style={{ color: color.gold, flexShrink: 0 }}>•</span>
-              <span>{bullet}</span>
+              <div style={{ display: "flex", gap: 8 }}>
+                <span style={{ color: color.gold, flexShrink: 0 }}>•</span>
+                <span>{bullet.text}</span>
+              </div>
+              {bullet.refs.length > 0 && (
+                <div style={{ display: "flex", gap: 10, marginTop: 4, marginLeft: 18, flexWrap: "wrap" }}>
+                  {bullet.refs.map((ref, j) => (
+                    <a
+                      key={j}
+                      href={ref.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={ref.title}
+                      style={{
+                        color: color.textDim,
+                        fontSize: 11,
+                        textDecoration: "none",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 3,
+                        transition: "color 0.15s",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = color.gold)}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = color.textDim)}
+                    >
+                      {ref.source} <RefIcon />
+                    </a>
+                  ))}
+                </div>
+              )}
             </li>
           ))}
         </ul>
@@ -542,7 +570,6 @@ function SummaryBox({ data, locale, lang }: { data: SummaryResponse; locale: str
       <p style={{ color: color.textDim, fontSize: 13, marginTop: 12 }}>
         {new Date(data.period.from).toLocaleString(locale)} → {new Date(data.period.to).toLocaleString(locale)}
       </p>
-      {raw.trim().length > 0 && <AudioPlayer text={raw} />}
     </div>
   );
 }
@@ -601,6 +628,23 @@ function AllArticlesTab({ articles, locale }: { articles: ArticleSummary[]; loca
       ))}
     </div>
   );
+}
+
+function playNotificationBeep() {
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    osc.type = "sine";
+    gain.gain.value = 0.08;
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.15);
+    osc.onended = () => ctx.close();
+  } catch { /* silent fail */ }
 }
 
 // ── Main page ─────────────────────────────────────────────────────────
@@ -671,6 +715,7 @@ export default function Home() {
       const res = await fetch(`/api/news?hours=${hours}&lang=${lang}&topic=${topic}&count=${maxArticles}`);
       if (!res.ok) throw new Error(await res.text().catch(() => "") || `HTTP ${res.status}`);
       setData(await res.json());
+      playNotificationBeep();
     } catch (e) {
       const msg = e instanceof Error ? e.message : t("unknownError", lang);
       const isNetworkError =
@@ -888,7 +933,7 @@ export default function Home() {
       )}
 
       <footer style={{ position: "fixed", bottom: 8, right: 12, color: color.textDim, fontSize: 12 }}>
-        v1.10.1
+        v1.11
       </footer>
     </div>
   );

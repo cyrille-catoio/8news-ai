@@ -91,6 +91,10 @@ function TopicToggle({
   );
 }
 
+const SpinKeyframes = () => (
+  <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+);
+
 function Spinner() {
   return (
     <>
@@ -105,7 +109,7 @@ function Spinner() {
           animation: "spin 1s linear infinite",
         }}
       />
-      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+      <SpinKeyframes />
     </>
   );
 }
@@ -376,7 +380,7 @@ function AudioPlayer({ text }: { text: string }) {
   }, [text, cleanup]);
 
   async function handlePlay() {
-    if (state === "paused" && audioRef.current) {
+    if (audioRef.current) {
       audioRef.current.play();
       setState("playing");
       return;
@@ -465,9 +469,12 @@ function AudioPlayer({ text }: { text: string }) {
       ) : (
         <button onClick={handlePlay} disabled={state === "loading"} style={{ ...btnBase, color: state === "loading" ? color.textDim : color.gold }}>
           {state === "loading" ? (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: "spin 1s linear infinite" }}>
-              <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
-            </svg>
+            <>
+              <SpinKeyframes />
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: "spin 1s linear infinite" }}>
+                <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
+              </svg>
+            </>
           ) : (
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21" /></svg>
           )}
@@ -881,7 +888,7 @@ export default function Home() {
       )}
 
       <footer style={{ position: "fixed", bottom: 8, right: 12, color: color.textDim, fontSize: 12 }}>
-        v1.10
+        v1.10.1
       </footer>
     </div>
   );

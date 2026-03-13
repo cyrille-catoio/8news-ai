@@ -345,6 +345,152 @@ function SettingsModal({
   );
 }
 
+function AudioPlayer({ text }: { text: string }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [state, setState] = useState<"idle" | "loading" | "playing" | "paused">("idle");
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const blobUrlRef = useRef<string | null>(null);
+
+  const cleanup = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.removeAttribute("src");
+      audioRef.current = null;
+    }
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current);
+      blobUrlRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return cleanup;
+  }, [cleanup]);
+
+  useEffect(() => {
+    cleanup();
+    setState("idle");
+    setCurrentTime(0);
+    setDuration(0);
+  }, [text, cleanup]);
+
+  async function handlePlay() {
+    if (state === "paused" && audioRef.current) {
+      audioRef.current.play();
+      setState("playing");
+      return;
+    }
+
+    setState("loading");
+    try {
+      const res = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) throw new Error("TTS failed");
+
+      const blob = await res.blob();
+      cleanup();
+      const url = URL.createObjectURL(blob);
+      blobUrlRef.current = url;
+
+      const audio = new Audio(url);
+      audioRef.current = audio;
+
+      audio.addEventListener("loadedmetadata", () => setDuration(audio.duration));
+      audio.addEventListener("timeupdate", () => setCurrentTime(audio.currentTime));
+      audio.addEventListener("ended", () => setState("idle"));
+
+      await audio.play();
+      setState("playing");
+    } catch {
+      setState("idle");
+    }
+  }
+
+  function handleStop() {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setState("idle");
+    setCurrentTime(0);
+  }
+
+  function handlePause() {
+    if (audioRef.current) audioRef.current.pause();
+    setState("paused");
+  }
+
+  function skip(seconds: number) {
+    if (!audioRef.current) return;
+    audioRef.current.currentTime = Math.max(0, Math.min(audioRef.current.duration || 0, audioRef.current.currentTime + seconds));
+  }
+
+  function formatTime(s: number) {
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec.toString().padStart(2, "0")}`;
+  }
+
+  const btnBase: CSSProperties = {
+    padding: "6px 10px",
+    border: "none",
+    borderRadius: 6,
+    background: "transparent",
+    color: color.textMuted,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transition: "color 0.15s",
+  };
+
+  const isActive = state === "playing" || state === "paused";
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 14, flexWrap: "wrap" }}>
+      <button onClick={() => skip(-15)} disabled={!isActive} style={{ ...btnBase, opacity: isActive ? 1 : 0.35 }}>
+        -15s
+      </button>
+
+      {state === "playing" ? (
+        <button onClick={handlePause} style={{ ...btnBase, color: color.gold }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
+        </button>
+      ) : (
+        <button onClick={handlePlay} disabled={state === "loading"} style={{ ...btnBase, color: state === "loading" ? color.textDim : color.gold }}>
+          {state === "loading" ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: "spin 1s linear infinite" }}>
+              <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21" /></svg>
+          )}
+        </button>
+      )}
+
+      <button onClick={handleStop} disabled={!isActive} style={{ ...btnBase, opacity: isActive ? 1 : 0.35 }}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2" /></svg>
+      </button>
+
+      <button onClick={() => skip(15)} disabled={!isActive} style={{ ...btnBase, opacity: isActive ? 1 : 0.35 }}>
+        +15s
+      </button>
+
+      {isActive && duration > 0 && (
+        <span style={{ color: color.textDim, fontSize: 12, marginLeft: 8 }}>
+          {formatTime(currentTime)} / {formatTime(duration)}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function SummaryBox({ data, locale, lang }: { data: SummaryResponse; locale: string; lang: Lang }) {
   const raw = Array.isArray(data.summary)
     ? (data.summary as string[]).join("\n")
@@ -389,6 +535,7 @@ function SummaryBox({ data, locale, lang }: { data: SummaryResponse; locale: str
       <p style={{ color: color.textDim, fontSize: 13, marginTop: 12 }}>
         {new Date(data.period.from).toLocaleString(locale)} → {new Date(data.period.to).toLocaleString(locale)}
       </p>
+      {raw.trim().length > 0 && <AudioPlayer text={raw} />}
     </div>
   );
 }
@@ -734,7 +881,7 @@ export default function Home() {
       )}
 
       <footer style={{ position: "fixed", bottom: 8, right: 12, color: color.textDim, fontSize: 12 }}>
-        v1.9.1
+        v1.10
       </footer>
     </div>
   );

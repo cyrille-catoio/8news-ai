@@ -4,3 +4,9 @@
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+[[redirects]]
+  from = "https://8news.netlify.app/*"
+  to = "https://8news.ai/:splat"
+  status = 301
+  force = true

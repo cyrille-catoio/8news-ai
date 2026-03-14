@@ -992,7 +992,7 @@ export default function Home() {
       )}
 
       <footer style={{ position: "fixed", bottom: 8, right: 12, color: color.textDim, fontSize: 12 }}>
-        v1.13
+        v1.14
       </footer>
     </div>
   );

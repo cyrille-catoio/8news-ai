@@ -8,9 +8,9 @@ import type { RawArticle, ArticleSummary, SummaryBullet, SummaryResponse, AIAnal
 
 const rssParser = new Parser({ timeout: 10_000 });
 const FETCH_TIMEOUT_MS = 8_000;
-const MAX_ARTICLES = 80;
+const MAX_ARTICLES = 200;
 const PREVIEW_LIMIT = 10;
-const SNIPPET_MAX = 400;
+const SNIPPET_MAX = 600;
 
 function toTimestamp(dateStr: string | undefined): number {
   if (!dateStr) return 0;
@@ -98,7 +98,7 @@ function toAnalysisPayload(articles: RawArticle[]): ArticleSummary[] {
 function formatArticleList(items: ArticleSummary[]): string {
   return items
     .map((a, i) =>
-      `[${i}] ${a.title} | ${a.source} | ${a.pubDate.slice(0, 10)} | ${a.snippet.slice(0, 200)}`
+      `[${i}] ${a.title} | ${a.source} | ${a.pubDate.slice(0, 10)} | ${a.snippet.slice(0, 500)}`
     )
     .join("\n");
 }

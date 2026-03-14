@@ -38,8 +38,8 @@ const strings = {
     fr: "Actualités Robotique & Humanoïdes IA",
   },
   subtitle: {
-    en: "News powered by AI",
-    fr: "Actualités analysées par IA.",
+    en: "AI that decodes the news",
+    fr: "L'IA qui décrypte l'actualité",
   },
   selectPeriod: {
     en: "Select a time period:",
@@ -86,8 +86,8 @@ const strings = {
     fr: "Aucun article lié à la robotique sur cette période.",
   },
   initialMessage: {
-    en: "Select a topic and click a time period button to fetch the latest news.",
-    fr: "Sélectionnez un sujet et cliquez sur une période pour charger les actualités.",
+    en: "Select a topic and click a time period button to analyse the latest news.",
+    fr: "Sélectionnez un sujet et cliquez sur une période pour analyser les actualités.",
   },
   reset: {
     en: "Reset",

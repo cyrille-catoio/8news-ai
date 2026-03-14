@@ -433,6 +433,13 @@ function AudioPlayer({ text }: { text: string }) {
     audioRef.current.currentTime = Math.max(0, Math.min(audioRef.current.duration || 0, audioRef.current.currentTime + seconds));
   }
 
+  function seekTo(e: React.MouseEvent<HTMLDivElement>) {
+    if (!audioRef.current || !duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    audioRef.current.currentTime = ratio * duration;
+  }
+
   function formatTime(s: number) {
     const m = Math.floor(s / 60);
     const sec = Math.floor(s % 60);
@@ -455,6 +462,8 @@ function AudioPlayer({ text }: { text: string }) {
   };
 
   const isActive = state === "playing" || state === "paused";
+
+  const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "nowrap", flexShrink: 0 }}>
@@ -489,7 +498,31 @@ function AudioPlayer({ text }: { text: string }) {
         +15s
       </button>
 
-      <span style={{ color: isActive && duration > 0 ? color.textDim : "transparent", fontSize: 12, marginLeft: 4, minWidth: 72, textAlign: "center" }}>
+      <div
+        onClick={isActive ? seekTo : undefined}
+        style={{
+          flex: "0 0 80px",
+          height: 4,
+          borderRadius: 2,
+          background: color.border,
+          marginLeft: 6,
+          cursor: isActive ? "pointer" : "default",
+          position: "relative",
+          opacity: isActive ? 1 : 0.3,
+        }}
+      >
+        <div
+          style={{
+            height: "100%",
+            borderRadius: 2,
+            background: color.gold,
+            width: `${pct}%`,
+            transition: "width 0.15s linear",
+          }}
+        />
+      </div>
+
+      <span style={{ color: isActive && duration > 0 ? color.textDim : "transparent", fontSize: 11, marginLeft: 4, minWidth: 72, textAlign: "center" }}>
         {isActive && duration > 0 ? `${formatTime(currentTime)} / ${formatTime(duration)}` : "0:00 / 0:00"}
       </span>
     </div>
@@ -506,8 +539,36 @@ function RefIcon() {
   );
 }
 
-function SummaryBox({ data, locale, lang }: { data: SummaryResponse; locale: string; lang: Lang }) {
+const TOPIC_TITLE_KEY: Record<Topic, "conflictTitle" | "aiTitle" | "cryptoTitle" | "roboticsTitle"> = {
+  conflict: "conflictTitle",
+  ai: "aiTitle",
+  crypto: "cryptoTitle",
+  robotics: "roboticsTitle",
+};
+
+function ttsIntro(hours: number, lang: Lang, topic: Topic): string {
+  const topicName = t(TOPIC_TITLE_KEY[topic], lang);
+  if (lang === "fr") {
+    const period =
+      hours < 1 ? `les ${Math.round(hours * 60)} dernières minutes`
+      : hours === 1 ? "la dernière heure"
+      : hours < 24 ? `les ${hours} dernières heures`
+      : hours === 24 ? "les dernières 24 heures"
+      : `les ${Math.round(hours / 24)} derniers jours`;
+    return `${topicName}. Voici l'actualité analysée pour ${period}.`;
+  }
+  const period =
+    hours < 1 ? `the last ${Math.round(hours * 60)} minutes`
+    : hours === 1 ? "the last hour"
+    : hours < 24 ? `the last ${hours} hours`
+    : hours === 24 ? "the last 24 hours"
+    : `the last ${Math.round(hours / 24)} days`;
+  return `${topicName}. Here is the news analyzed for ${period}.`;
+}
+
+function SummaryBox({ data, locale, lang, hours, topic }: { data: SummaryResponse; locale: string; lang: Lang; hours: number; topic: Topic }) {
   const raw = typeof data.summary === "string" ? data.summary : String(data.summary ?? "");
+  const ttsText = raw.trim().length > 0 ? `${ttsIntro(hours, lang, topic)} ${raw}` : "";
   const bullets = data.bullets ?? [];
   const hasBullets = bullets.length > 0;
 
@@ -515,7 +576,7 @@ function SummaryBox({ data, locale, lang }: { data: SummaryResponse; locale: str
     <div style={{ ...card, borderRadius: 12, padding: 20, marginBottom: 28, position: "relative" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <h2 style={sectionHeading}>{t("summary", lang)}</h2>
-        {raw.trim().length > 0 && <AudioPlayer text={raw} />}
+        {ttsText.length > 0 && <AudioPlayer text={ttsText} />}
       </div>
       {hasBullets ? (
         <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none" }}>
@@ -791,10 +852,11 @@ export default function Home() {
             </button>
           </div>
 
-          <h1 style={{ fontSize: 31, fontWeight: 600, margin: 0, letterSpacing: "-0.02em", paddingRight: 180 }}>
-            <span style={{ color: color.gold }}>8</span>
-            <span style={{ color: "#e0e0e0" }}>news</span>
-          </h1>
+          <img
+            src="/logo-8news.png"
+            alt="8news"
+            style={{ height: "clamp(32px, 5vw, 48px)", width: "auto", display: "block" }}
+          />
           <p style={{ color: color.textMuted, fontSize: 15, marginTop: 8 }}>
             {t("subtitle", lang)}
           </p>
@@ -807,9 +869,6 @@ export default function Home() {
 
         {/* ── Period selector ────────────────────────────────── */}
         <section style={{ marginBottom: 24 }}>
-          <p style={{ color: color.textLabel, fontSize: 14, fontWeight: 500, marginBottom: 10 }}>
-            {t("selectPeriod", lang)}
-          </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {PERIODS.map(({ label, hours }) => (
               <PeriodButton
@@ -859,7 +918,7 @@ export default function Home() {
         {/* ── Results ────────────────────────────────────────── */}
         {!loading && data && (
           <div>
-            <SummaryBox data={data} locale={locale} lang={lang} />
+            <SummaryBox data={data} locale={locale} lang={lang} hours={selected ?? 24} topic={topic} />
 
             {/* Tab bar */}
             <div style={{ display: "flex", borderBottom: `1px solid ${color.border}`, marginBottom: 20, gap: 0 }}>
@@ -933,7 +992,7 @@ export default function Home() {
       )}
 
       <footer style={{ position: "fixed", bottom: 8, right: 12, color: color.textDim, fontSize: 12 }}>
-        v1.11
+        v1.12
       </footer>
     </div>
   );

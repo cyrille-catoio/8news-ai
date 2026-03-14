@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 
 export const color = {
-  bg: "#0a0a0a",
+  bg: "#000000",
   surface: "#111",
   surfaceHover: "#191919",
   border: "#2a2a2a",

@@ -5,6 +5,7 @@ import type { SummaryResponse, ArticleSummary, Topic } from "@/lib/types";
 import { t, dateLocale, type Lang } from "@/lib/i18n";
 import { color, font, sectionHeading, card } from "@/lib/theme";
 import { getFeedsForTopic } from "@/lib/rss-feeds";
+import { getSystemPrompt } from "@/lib/prompts";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
@@ -344,6 +345,52 @@ function SettingsModal({
                 );
               })}
             </ul>
+          </div>
+
+          {/* ── AI Prompt section ──────────────────────── */}
+          <div style={sectionStyle}>
+            <h4 style={sectionTitle}>{t("aiPromptSection", lang)}</h4>
+
+            <div style={{ display: "flex", gap: 0, marginBottom: 12, borderBottom: `1px solid ${color.border}` }}>
+              {TABS.map(({ value, labelKey }) => (
+                <button
+                  key={value}
+                  onClick={() => setActiveTab(value)}
+                  style={{
+                    padding: "7px 12px",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    border: "none",
+                    borderBottom: activeTab === value ? `2px solid ${color.gold}` : "2px solid transparent",
+                    background: "transparent",
+                    color: activeTab === value ? color.gold : color.textMuted,
+                    cursor: "pointer",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {t(labelKey, lang)}
+                </button>
+              ))}
+            </div>
+
+            <pre
+              style={{
+                color: color.textDim,
+                fontSize: 12,
+                lineHeight: 1.6,
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+                margin: 0,
+                padding: "10px 12px",
+                background: "#0a0a0a",
+                borderRadius: 6,
+                border: `1px solid ${color.border}`,
+                maxHeight: 280,
+                overflowY: "auto",
+              }}
+            >
+              {getSystemPrompt(activeTab, lang, maxArticles)}
+            </pre>
           </div>
         </div>
       </div>
@@ -997,7 +1044,7 @@ export default function Home() {
       )}
 
       <footer style={{ position: "fixed", bottom: 8, right: 17, color: color.textDim, fontSize: 12 }}>
-        v1.15
+        v1.16
       </footer>
     </div>
   );

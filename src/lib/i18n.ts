@@ -121,6 +121,10 @@ const strings = {
     en: "RSS Sources",
     fr: "Sources RSS",
   },
+  aiPromptSection: {
+    en: "AI Prompt",
+    fr: "Prompt IA",
+  },
   settingsClose: {
     en: "Close",
     fr: "Fermer",

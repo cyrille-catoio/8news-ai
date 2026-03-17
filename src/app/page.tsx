@@ -22,12 +22,13 @@ const PERIODS = [
   { label: "7 d",  hours: 168 },
 ] as const;
 
-const TOPICS: { value: Topic; labelKey: "topicConflict" | "topicAi" | "topicRobotics" | "topicCrypto" | "topicBitcoin" }[] = [
+const TOPICS: { value: Topic; labelKey: "topicConflict" | "topicAi" | "topicRobotics" | "topicCrypto" | "topicBitcoin" | "topicVideogames" }[] = [
   { value: "conflict", labelKey: "topicConflict" },
   { value: "ai", labelKey: "topicAi" },
   { value: "robotics", labelKey: "topicRobotics" },
   { value: "crypto", labelKey: "topicCrypto" },
   { value: "bitcoin", labelKey: "topicBitcoin" },
+  { value: "videogames", labelKey: "topicVideogames" },
 ];
 
 // ── Sub-components ────────────────────────────────────────────────────
@@ -185,12 +186,13 @@ function SettingsModal({
   const [activeTab, setActiveTab] = useState<Topic>(topic);
   const feeds = getFeedsForTopic(activeTab);
 
-  const TABS: { value: Topic; labelKey: "topicConflict" | "topicAi" | "topicRobotics" | "topicCrypto" | "topicBitcoin" }[] = [
+  const TABS: { value: Topic; labelKey: "topicConflict" | "topicAi" | "topicRobotics" | "topicCrypto" | "topicBitcoin" | "topicVideogames" }[] = [
     { value: "conflict", labelKey: "topicConflict" },
     { value: "ai", labelKey: "topicAi" },
     { value: "robotics", labelKey: "topicRobotics" },
     { value: "crypto", labelKey: "topicCrypto" },
     { value: "bitcoin", labelKey: "topicBitcoin" },
+    { value: "videogames", labelKey: "topicVideogames" },
   ];
 
   const sectionStyle: CSSProperties = {
@@ -588,12 +590,13 @@ function RefIcon() {
   );
 }
 
-const TOPIC_TITLE_KEY: Record<Topic, "conflictTitle" | "aiTitle" | "cryptoTitle" | "roboticsTitle" | "bitcoinTitle"> = {
+const TOPIC_TITLE_KEY: Record<Topic, "conflictTitle" | "aiTitle" | "cryptoTitle" | "roboticsTitle" | "bitcoinTitle" | "videogamesTitle"> = {
   conflict: "conflictTitle",
   ai: "aiTitle",
   crypto: "cryptoTitle",
   robotics: "roboticsTitle",
   bitcoin: "bitcoinTitle",
+  videogames: "videogamesTitle",
 };
 
 function ttsIntro(hours: number, lang: Lang, topic: Topic): string {
@@ -791,7 +794,9 @@ export default function Home() {
         ? "noArticlesCrypto"
         : topic === "bitcoin"
           ? "noArticlesBitcoin"
-          : "noArticlesRobotics";
+          : topic === "videogames"
+            ? "noArticlesVideogames"
+            : "noArticlesRobotics";
 
   function startProgress() {
     setProgress(0);
@@ -1044,7 +1049,7 @@ export default function Home() {
       )}
 
       <footer style={{ position: "fixed", bottom: 8, right: 17, color: color.textDim, fontSize: 12 }}>
-        v1.16
+        v1.17
       </footer>
     </div>
   );

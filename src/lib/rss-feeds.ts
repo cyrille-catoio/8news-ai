@@ -120,12 +120,36 @@ const BITCOIN_FEEDS: readonly Feed[] = [
   { name: "Crypto Briefing",           url: "https://cryptobriefing.com/feed/" },
 ];
 
+const VIDEOGAMES_FEEDS: readonly Feed[] = [
+  { name: "IGN",                    url: "https://feeds.feedburner.com/ign/all" },
+  { name: "Kotaku",                 url: "https://kotaku.com/rss" },
+  { name: "GameSpot",               url: "https://www.gamespot.com/feeds/mashup/" },
+  { name: "PC Gamer",               url: "https://www.pcgamer.com/rss/" },
+  { name: "Eurogamer",              url: "https://www.eurogamer.net/feed" },
+  { name: "Polygon",                url: "https://www.polygon.com/rss/index.xml" },
+  { name: "Rock Paper Shotgun",     url: "https://www.rockpapershotgun.com/feed" },
+  { name: "VG247",                  url: "https://www.vg247.com/feed" },
+  { name: "GamesRadar+",            url: "https://www.gamesradar.com/rss/" },
+  { name: "Destructoid",            url: "https://www.destructoid.com/feed/" },
+  { name: "Nintendo Life",          url: "https://www.nintendolife.com/feeds/latest" },
+  { name: "Push Square",            url: "https://www.pushsquare.com/feeds/latest" },
+  { name: "Pure Xbox",              url: "https://www.purexbox.com/feeds/latest" },
+  { name: "The Verge Gaming",       url: "https://www.theverge.com/rss/games/index.xml" },
+  { name: "Ars Technica Gaming",    url: "https://feeds.arstechnica.com/arstechnica/gaming" },
+  { name: "GamesIndustry.biz",      url: "https://www.gamesindustry.biz/feed" },
+  { name: "Siliconera",             url: "https://www.siliconera.com/feed/" },
+  { name: "Dualshockers",           url: "https://www.dualshockers.com/feed/" },
+  { name: "Wired Gaming",           url: "https://www.wired.com/feed/tag/game-reviews/latest/rss" },
+  { name: "PCGamesN",               url: "https://www.pcgamesn.com/mainrss.xml" },
+];
+
 const FEEDS_BY_TOPIC: Record<Topic, readonly Feed[]> = {
   conflict: CONFLICT_FEEDS,
   ai: AI_FEEDS,
   crypto: CRYPTO_FEEDS,
   robotics: ROBOTICS_FEEDS,
   bitcoin: BITCOIN_FEEDS,
+  videogames: VIDEOGAMES_FEEDS,
 };
 
 export function getFeedsForTopic(topic: Topic): readonly Feed[] {

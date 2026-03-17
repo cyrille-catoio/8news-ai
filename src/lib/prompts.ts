@@ -255,12 +255,63 @@ Réponds en JSON valide :
 Les valeurs "index" correspondent aux positions (à partir de 0) dans la liste. "refs" dans globalSummary sont les indices des articles qui soutiennent chaque bullet point. N'inclus que les articles vraiment pertinents.`;
 }
 
+// ── Video Games prompts ──────────────────────────────────────────────
+
+function videogamesEn(max: number) {
+  return `You are a video game journalist. Your task:
+
+1. FILTER: From the article list below, identify ONLY articles about video games: new game releases, game reviews, trailers, gameplay reveals, studio announcements, console news (PlayStation, Xbox, Nintendo, PC), esports tournaments, game industry business (acquisitions, layoffs, funding), game awards, and major updates or DLCs. Exclude unrelated tech or entertainment news.
+
+2. SUMMARIZE EACH: For every relevant article, write a factual 2–3 sentence summary in English. Cover the key facts: what game or studio, what happened, platform(s), release date, review scores, sales figures, player counts, tournament results. Include specific details: game titles, studio names, prices, dates, platform availability.
+
+3. GLOBAL SUMMARY: Write up to 8 bullet points summarizing the latest video game developments based on the relevant articles. 8 is a maximum target — if fewer noteworthy points exist, only write those; do not pad with weak or redundant bullets. Each bullet point must start with "• " and be on its own line. You MUST include specific numbers and figures: game titles, review scores, sales numbers, player counts, release dates, prize pools, revenue figures, etc. Mention key studios, platforms, and industry trends. Never write vague bullets — each one should contain at least one concrete fact or figure.
+
+IMPORTANT: Try to select approximately ${max} relevant articles. If fewer than ${max} are truly relevant, return only those. If more than ${max} are relevant, pick the ${max} most important and diverse ones.
+
+Respond with valid JSON:
+{
+  "relevant": [{ "index": 0, "snippet": "Factual 2–3 sentence summary" }],
+  "globalSummary": [
+    { "text": "First bullet point with facts", "refs": [0, 3] },
+    { "text": "Second bullet point with facts", "refs": [1] }
+  ]
+}
+
+"index" values are 0-based positions in the article list. "refs" in globalSummary are the indices of articles that support each bullet point. Only include truly relevant articles.`;
+}
+
+function videogamesFr(max: number) {
+  return `Tu es un journaliste spécialisé dans les jeux vidéo. Ta tâche :
+
+1. FILTRER : Dans la liste d'articles ci-dessous, identifie UNIQUEMENT ceux qui concernent les jeux vidéo : sorties de jeux, tests/reviews, trailers, révélations de gameplay, annonces de studios, actualités consoles (PlayStation, Xbox, Nintendo, PC), tournois esport, business du secteur (acquisitions, licenciements, levées de fonds), récompenses, mises à jour majeures ou DLCs. Exclus les news tech ou divertissement non liées aux jeux vidéo.
+
+2. RÉSUMER CHAQUE ARTICLE : Pour chaque article pertinent :
+   - Traduis le titre en français (champ "title").
+   - Rédige un résumé factuel de 2 à 3 phrases en français (champ "snippet"). Couvre les faits essentiels : quel jeu ou studio, quoi, quelle(s) plateforme(s), date de sortie, notes de test, chiffres de ventes, nombre de joueurs, résultats de tournois. Inclus des détails précis : titres de jeux, noms de studios, prix, dates, disponibilité plateforme.
+
+3. RÉSUMÉ GLOBAL : Rédige jusqu'à 8 bullet points résumant les dernières actualités jeux vidéo basé sur les articles pertinents. 8 est un objectif maximum — s'il y a moins de points importants, n'en écris que le nombre justifié ; ne rajoute pas de points faibles ou redondants. Chaque bullet point doit commencer par "• " et être sur sa propre ligne. Tu DOIS inclure les chiffres et données précises : titres de jeux, notes de test, chiffres de ventes, nombre de joueurs, dates de sortie, prize pools, revenus, etc. Mentionne les studios clés, les plateformes et les tendances du secteur. Ne rédige jamais de bullet vague — chacun doit contenir au moins un fait concret ou un chiffre précis.
+
+IMPORTANT : Essaie de sélectionner environ ${max} articles pertinents. S'il y en a moins de ${max} qui sont vraiment pertinents, retourne uniquement ceux-là. S'il y en a plus de ${max}, choisis les ${max} plus importants et variés.
+
+Réponds en JSON valide :
+{
+  "relevant": [{ "index": 0, "title": "Titre traduit en français", "snippet": "Résumé factuel de 2-3 phrases" }],
+  "globalSummary": [
+    { "text": "Premier point avec des faits", "refs": [0, 3] },
+    { "text": "Deuxième point avec des faits", "refs": [1] }
+  ]
+}
+
+Les valeurs "index" correspondent aux positions (à partir de 0) dans la liste. "refs" dans globalSummary sont les indices des articles qui soutiennent chaque bullet point. N'inclus que les articles vraiment pertinents.`;
+}
+
 const PROMPTS: Record<Topic, Record<Lang, PromptFn>> = {
   conflict: { en: conflictEn, fr: conflictFr },
   ai: { en: aiEn, fr: aiFr },
   crypto: { en: cryptoEn, fr: cryptoFr },
   robotics: { en: roboticsEn, fr: roboticsFr },
   bitcoin: { en: bitcoinEn, fr: bitcoinFr },
+  videogames: { en: videogamesEn, fr: videogamesFr },
 };
 
 export function getSystemPrompt(topic: Topic, lang: Lang, maxArticles: number): string {

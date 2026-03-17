@@ -25,6 +25,10 @@ const strings = {
     en: "Bitcoin",
     fr: "Bitcoin",
   },
+  topicVideogames: {
+    en: "Video Games",
+    fr: "Jeux Vidéo",
+  },
   conflictTitle: {
     en: "USA / Israel vs Iran Conflict",
     fr: "Conflit USA / Israël vs Iran",
@@ -44,6 +48,10 @@ const strings = {
   bitcoinTitle: {
     en: "Bitcoin News",
     fr: "Actualités Bitcoin",
+  },
+  videogamesTitle: {
+    en: "Video Games News",
+    fr: "Actualités Jeux Vidéo",
   },
   subtitle: {
     en: "AI that decodes the news",
@@ -96,6 +104,10 @@ const strings = {
   noArticlesBitcoin: {
     en: "No Bitcoin-related articles found for this time period.",
     fr: "Aucun article lié au Bitcoin sur cette période.",
+  },
+  noArticlesVideogames: {
+    en: "No video game-related articles found for this time period.",
+    fr: "Aucun article lié aux jeux vidéo sur cette période.",
   },
   initialMessage: {
     en: "Select a topic and click a time period button to analyse the latest news.",

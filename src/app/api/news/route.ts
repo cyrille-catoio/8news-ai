@@ -176,7 +176,7 @@ export async function GET(request: NextRequest) {
     const params = request.nextUrl.searchParams;
     const lang: Lang = params.get("lang") === "fr" ? "fr" : "en";
     const rawTopic = params.get("topic");
-    const topic: Topic = rawTopic === "ai" ? "ai" : rawTopic === "crypto" ? "crypto" : rawTopic === "robotics" ? "robotics" : rawTopic === "bitcoin" ? "bitcoin" : "conflict";
+    const topic: Topic = rawTopic === "ai" ? "ai" : rawTopic === "crypto" ? "crypto" : rawTopic === "robotics" ? "robotics" : rawTopic === "bitcoin" ? "bitcoin" : rawTopic === "videogames" ? "videogames" : "conflict";
     const maxArticles = Math.min(30, Math.max(3, parseInt(params.get("count") ?? "10", 10) || 10));
     const hours = Math.min(168, Math.max(0.25, parseFloat(params.get("hours") ?? "24") || 24));
     const since = Date.now() - hours * 3_600_000;

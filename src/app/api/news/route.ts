@@ -6,8 +6,8 @@ import { getSystemPrompt, getServerMessages } from "@/lib/prompts";
 import type { Lang } from "@/lib/i18n";
 import type { RawArticle, ArticleSummary, SummaryBullet, SummaryResponse, AIAnalysis, Topic } from "@/lib/types";
 
-const rssParser = new Parser({ timeout: 10_000 });
-const FETCH_TIMEOUT_MS = 8_000;
+const rssParser = new Parser({ timeout: 5_000 });
+const FETCH_TIMEOUT_MS = 5_000;
 const MAX_ARTICLES = 200;
 const PREVIEW_LIMIT = 10;
 const SNIPPET_MAX = 600;
@@ -176,7 +176,7 @@ export async function GET(request: NextRequest) {
     const params = request.nextUrl.searchParams;
     const lang: Lang = params.get("lang") === "fr" ? "fr" : "en";
     const rawTopic = params.get("topic");
-    const topic: Topic = rawTopic === "ai" ? "ai" : rawTopic === "crypto" ? "crypto" : rawTopic === "robotics" ? "robotics" : "conflict";
+    const topic: Topic = rawTopic === "ai" ? "ai" : rawTopic === "crypto" ? "crypto" : rawTopic === "robotics" ? "robotics" : rawTopic === "bitcoin" ? "bitcoin" : "conflict";
     const maxArticles = Math.min(30, Math.max(3, parseInt(params.get("count") ?? "10", 10) || 10));
     const hours = Math.min(168, Math.max(0.25, parseFloat(params.get("hours") ?? "24") || 24));
     const since = Date.now() - hours * 3_600_000;

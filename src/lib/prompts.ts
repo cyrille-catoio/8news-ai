@@ -205,11 +205,62 @@ Réponds en JSON valide :
 Les valeurs "index" correspondent aux positions (à partir de 0) dans la liste. "refs" dans globalSummary sont les indices des articles qui soutiennent chaque bullet point. N'inclus que les articles vraiment pertinents.`;
 }
 
+// ── Bitcoin prompts ──────────────────────────────────────────────────
+
+function bitcoinEn(max: number) {
+  return `You are a financial journalist specializing exclusively in Bitcoin. Your task:
+
+1. FILTER: From the article list below, identify ONLY articles specifically about Bitcoin (BTC). Include: BTC price action, halving, ETFs (spot & futures), mining (hash rate, difficulty, energy), Lightning Network, on-chain metrics (UTXO, addresses, supply), whale movements, institutional adoption (MicroStrategy, BlackRock, Fidelity, etc.), Bitcoin regulation, self-custody, Bitcoin layer-2 solutions. EXCLUDE altcoins, DeFi, NFTs, and general crypto news not directly about Bitcoin.
+
+2. SUMMARIZE EACH: For every relevant article, write a factual 2–3 sentence summary in English. Cover the key facts: what happened, who is involved, and why it matters for Bitcoin. Include specific details: BTC price, percentage changes, hash rate, block height, ETF inflows/outflows, wallet addresses, amounts in BTC or USD, dates.
+
+3. GLOBAL SUMMARY: Write 3–6 bullet points summarizing the latest Bitcoin developments based on the relevant articles. Each bullet point must start with "• " and be on its own line. You MUST include specific numbers and figures: BTC price, percentage gains/losses, hash rate, ETF flows, mining difficulty, Lightning capacity, whale transactions, institutional holdings, etc. Never write vague bullets — each one should contain at least one concrete fact or figure.
+
+IMPORTANT: Try to select approximately ${max} relevant articles. If fewer than ${max} are truly relevant, return only those. If more than ${max} are relevant, pick the ${max} most important and diverse ones.
+
+Respond with valid JSON:
+{
+  "relevant": [{ "index": 0, "snippet": "Factual 2–3 sentence summary" }],
+  "globalSummary": [
+    { "text": "First bullet point with facts", "refs": [0, 3] },
+    { "text": "Second bullet point with facts", "refs": [1] }
+  ]
+}
+
+"index" values are 0-based positions in the article list. "refs" in globalSummary are the indices of articles that support each bullet point. Only include truly relevant articles.`;
+}
+
+function bitcoinFr(max: number) {
+  return `Tu es un journaliste financier spécialisé exclusivement dans le Bitcoin. Ta tâche :
+
+1. FILTRER : Dans la liste d'articles ci-dessous, identifie UNIQUEMENT ceux qui concernent spécifiquement le Bitcoin (BTC). Inclus : prix du BTC, halving, ETFs (spot & futures), minage (hash rate, difficulté, énergie), Lightning Network, métriques on-chain (UTXO, adresses, supply), mouvements de whales, adoption institutionnelle (MicroStrategy, BlackRock, Fidelity, etc.), régulation du Bitcoin, self-custody, solutions layer-2 Bitcoin. EXCLUS les altcoins, la DeFi, les NFTs et les news crypto générales non directement liées au Bitcoin.
+
+2. RÉSUMER CHAQUE ARTICLE : Pour chaque article pertinent :
+   - Traduis le titre en français (champ "title").
+   - Rédige un résumé factuel de 2 à 3 phrases en français (champ "snippet"). Couvre les faits essentiels : quoi, qui, et pourquoi c'est important pour le Bitcoin. Inclus des détails précis : prix du BTC, variations en pourcentage, hash rate, hauteur de bloc, flux ETF, adresses wallet, montants en BTC ou USD, dates.
+
+3. RÉSUMÉ GLOBAL : Rédige 3 à 6 bullet points résumant les dernières actualités Bitcoin basé sur les articles pertinents. Chaque bullet point doit commencer par "• " et être sur sa propre ligne. Tu DOIS inclure les chiffres et données précises : prix du BTC, gains/pertes en pourcentage, hash rate, flux ETF, difficulté de minage, capacité Lightning, transactions de whales, avoirs institutionnels, etc. Ne rédige jamais de bullet vague — chacun doit contenir au moins un fait concret ou un chiffre précis.
+
+IMPORTANT : Essaie de sélectionner environ ${max} articles pertinents. S'il y en a moins de ${max} qui sont vraiment pertinents, retourne uniquement ceux-là. S'il y en a plus de ${max}, choisis les ${max} plus importants et variés.
+
+Réponds en JSON valide :
+{
+  "relevant": [{ "index": 0, "title": "Titre traduit en français", "snippet": "Résumé factuel de 2-3 phrases" }],
+  "globalSummary": [
+    { "text": "Premier point avec des faits", "refs": [0, 3] },
+    { "text": "Deuxième point avec des faits", "refs": [1] }
+  ]
+}
+
+Les valeurs "index" correspondent aux positions (à partir de 0) dans la liste. "refs" dans globalSummary sont les indices des articles qui soutiennent chaque bullet point. N'inclus que les articles vraiment pertinents.`;
+}
+
 const PROMPTS: Record<Topic, Record<Lang, PromptFn>> = {
   conflict: { en: conflictEn, fr: conflictFr },
   ai: { en: aiEn, fr: aiFr },
   crypto: { en: cryptoEn, fr: cryptoFr },
   robotics: { en: roboticsEn, fr: roboticsFr },
+  bitcoin: { en: bitcoinEn, fr: bitcoinFr },
 };
 
 export function getSystemPrompt(topic: Topic, lang: Lang, maxArticles: number): string {

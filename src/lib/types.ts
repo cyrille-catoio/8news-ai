@@ -1,4 +1,4 @@
-export type Topic = "conflict" | "ai" | "crypto" | "robotics";
+export type Topic = "conflict" | "ai" | "crypto" | "robotics" | "bitcoin";
 
 export interface RawArticle {
   title: string;

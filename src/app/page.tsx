@@ -21,11 +21,12 @@ const PERIODS = [
   { label: "7 d",  hours: 168 },
 ] as const;
 
-const TOPICS: { value: Topic; labelKey: "topicConflict" | "topicAi" | "topicCrypto" | "topicRobotics" }[] = [
+const TOPICS: { value: Topic; labelKey: "topicConflict" | "topicAi" | "topicRobotics" | "topicCrypto" | "topicBitcoin" }[] = [
   { value: "conflict", labelKey: "topicConflict" },
   { value: "ai", labelKey: "topicAi" },
-  { value: "crypto", labelKey: "topicCrypto" },
   { value: "robotics", labelKey: "topicRobotics" },
+  { value: "crypto", labelKey: "topicCrypto" },
+  { value: "bitcoin", labelKey: "topicBitcoin" },
 ];
 
 // ── Sub-components ────────────────────────────────────────────────────
@@ -183,11 +184,12 @@ function SettingsModal({
   const [activeTab, setActiveTab] = useState<Topic>(topic);
   const feeds = getFeedsForTopic(activeTab);
 
-  const TABS: { value: Topic; labelKey: "topicConflict" | "topicAi" | "topicCrypto" | "topicRobotics" }[] = [
+  const TABS: { value: Topic; labelKey: "topicConflict" | "topicAi" | "topicRobotics" | "topicCrypto" | "topicBitcoin" }[] = [
     { value: "conflict", labelKey: "topicConflict" },
     { value: "ai", labelKey: "topicAi" },
-    { value: "crypto", labelKey: "topicCrypto" },
     { value: "robotics", labelKey: "topicRobotics" },
+    { value: "crypto", labelKey: "topicCrypto" },
+    { value: "bitcoin", labelKey: "topicBitcoin" },
   ];
 
   const sectionStyle: CSSProperties = {
@@ -539,11 +541,12 @@ function RefIcon() {
   );
 }
 
-const TOPIC_TITLE_KEY: Record<Topic, "conflictTitle" | "aiTitle" | "cryptoTitle" | "roboticsTitle"> = {
+const TOPIC_TITLE_KEY: Record<Topic, "conflictTitle" | "aiTitle" | "cryptoTitle" | "roboticsTitle" | "bitcoinTitle"> = {
   conflict: "conflictTitle",
   ai: "aiTitle",
   crypto: "cryptoTitle",
   robotics: "roboticsTitle",
+  bitcoin: "bitcoinTitle",
 };
 
 function ttsIntro(hours: number, lang: Lang, topic: Topic): string {
@@ -739,7 +742,9 @@ export default function Home() {
       ? "noArticlesAi"
       : topic === "crypto"
         ? "noArticlesCrypto"
-        : "noArticlesRobotics";
+        : topic === "bitcoin"
+          ? "noArticlesBitcoin"
+          : "noArticlesRobotics";
 
   function startProgress() {
     setProgress(0);
@@ -809,7 +814,7 @@ export default function Home() {
       <div style={{ maxWidth: 830, margin: "0 auto", padding: "40px 20px" }}>
 
         {/* ── Header ─────────────────────────────────────────── */}
-        <header style={{ borderBottom: `1px solid ${color.border}`, paddingBottom: 24, marginBottom: 32, position: "relative" }}>
+        <header style={{ paddingBottom: 12, marginBottom: 20, position: "relative" }}>
           <div style={{ position: "absolute", top: 0, right: 0, display: "flex", alignItems: "center", gap: 8 }}>
             <LangToggle lang={lang} onChange={setLang} />
             <button
@@ -991,8 +996,8 @@ export default function Home() {
         />
       )}
 
-      <footer style={{ position: "fixed", bottom: 8, right: 12, color: color.textDim, fontSize: 12 }}>
-        v1.14
+      <footer style={{ position: "fixed", bottom: 8, right: 17, color: color.textDim, fontSize: 12 }}>
+        v1.15
       </footer>
     </div>
   );

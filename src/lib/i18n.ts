@@ -6,8 +6,8 @@ const strings = {
     fr: "8news",
   },
   topicConflict: {
-    en: "USA / Israel vs Iran",
-    fr: "USA / Israël vs Iran",
+    en: "Iran War",
+    fr: "Iran War",
   },
   topicAi: {
     en: "AI",
@@ -20,6 +20,10 @@ const strings = {
   topicRobotics: {
     en: "Robotics",
     fr: "Robotique",
+  },
+  topicBitcoin: {
+    en: "Bitcoin",
+    fr: "Bitcoin",
   },
   conflictTitle: {
     en: "USA / Israel vs Iran Conflict",
@@ -36,6 +40,10 @@ const strings = {
   roboticsTitle: {
     en: "Robotics & AI Humanoids News",
     fr: "Actualités Robotique & Humanoïdes IA",
+  },
+  bitcoinTitle: {
+    en: "Bitcoin News",
+    fr: "Actualités Bitcoin",
   },
   subtitle: {
     en: "AI that decodes the news",
@@ -84,6 +92,10 @@ const strings = {
   noArticlesRobotics: {
     en: "No robotics-related articles found for this time period.",
     fr: "Aucun article lié à la robotique sur cette période.",
+  },
+  noArticlesBitcoin: {
+    en: "No Bitcoin-related articles found for this time period.",
+    fr: "Aucun article lié au Bitcoin sur cette période.",
   },
   initialMessage: {
     en: "Select a topic and click a time period button to analyse the latest news.",

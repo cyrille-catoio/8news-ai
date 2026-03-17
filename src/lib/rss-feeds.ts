@@ -97,11 +97,35 @@ const ROBOTICS_FEEDS: readonly Feed[] = [
   { name: "SCMP Tech",              url: "https://www.scmp.com/rss/5/feed" },
 ];
 
+const BITCOIN_FEEDS: readonly Feed[] = [
+  { name: "Bitcoin Magazine",          url: "https://bitcoinmagazine.com/.rss/full/" },
+  { name: "CoinDesk",                  url: "https://www.coindesk.com/arc/outboundfeeds/rss/?outputType=xml" },
+  { name: "Cointelegraph Bitcoin",     url: "https://cointelegraph.com/rss/tag/bitcoin" },
+  { name: "NewsBTC",                   url: "https://www.newsbtc.com/feed/" },
+  { name: "Bitcoinist",                url: "https://bitcoinist.com/feed/" },
+  { name: "Bitcoin.com News",          url: "https://news.bitcoin.com/feed/" },
+  { name: "Decrypt",                   url: "https://decrypt.co/feed" },
+  { name: "The Bitcoin Layer",         url: "https://thebitcoinlayer.substack.com/feed" },
+  { name: "CryptoNews Bitcoin",        url: "https://cryptonews.com/news/bitcoin-news/feed/" },
+  { name: "Blockworks",                url: "https://blockworks.co/feed" },
+  { name: "The Block",                 url: "https://www.theblock.co/rss.xml" },
+  { name: "AMBCrypto",                 url: "https://ambcrypto.com/feed/" },
+  { name: "WatcherGuru",               url: "https://watcher.guru/news/feed" },
+  { name: "CryptoPotato",              url: "https://cryptopotato.com/feed/" },
+  { name: "Coingape",                  url: "https://coingape.com/feed/" },
+  { name: "Bitcoin Insider",           url: "https://www.bitcoininsider.org/rss.xml" },
+  { name: "Protos",                    url: "https://protos.com/feed/" },
+  { name: "Unchained",                 url: "https://unchainedcrypto.com/feed/" },
+  { name: "Coinpedia",                 url: "https://coinpedia.org/feed/" },
+  { name: "Crypto Briefing",           url: "https://cryptobriefing.com/feed/" },
+];
+
 const FEEDS_BY_TOPIC: Record<Topic, readonly Feed[]> = {
   conflict: CONFLICT_FEEDS,
   ai: AI_FEEDS,
   crypto: CRYPTO_FEEDS,
   robotics: ROBOTICS_FEEDS,
+  bitcoin: BITCOIN_FEEDS,
 };
 
 export function getFeedsForTopic(topic: Topic): readonly Feed[] {

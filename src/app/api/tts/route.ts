@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     }
 
     const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey || apiKey.startsWith("sk-REPLACE")) {
+    if (!apiKey || apiKey.trim() === "" || apiKey === "sk-your-key-here") {
       return NextResponse.json({ error: "OpenAI API key not configured" }, { status: 500 });
     }
 

@@ -200,6 +200,8 @@ function SettingsModal({
   onClose: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<Topic>(topic);
+  const [rssOpen, setRssOpen] = useState(false);
+  const [promptOpen, setPromptOpen] = useState(false);
   const feeds = getFeedsForTopic(activeTab);
 
   const TABS: { value: Topic; labelKey: "topicConflict" | "topicAi" | "topicRobotics" | "topicCrypto" | "topicBitcoin" | "topicVideogames" | "topicAiengineering" }[] = [
@@ -304,112 +306,154 @@ function SettingsModal({
             </div>
           </div>
 
-          {/* ── RSS Sources section ──────────────────────── */}
+          {/* ── RSS Sources section (accordion) ──────────── */}
           <div style={sectionStyle}>
-            <h4 style={sectionTitle}>{t("rssSourcesSection", lang)}</h4>
-
-            <div style={{ display: "flex", gap: 0, marginBottom: 12, borderBottom: `1px solid ${color.border}` }}>
-              {TABS.map(({ value, labelKey }) => (
-                <button
-                  key={value}
-                  onClick={() => setActiveTab(value)}
-                  style={{
-                    padding: "7px 12px",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    border: "none",
-                    borderBottom: activeTab === value ? `2px solid ${color.gold}` : "2px solid transparent",
-                    background: "transparent",
-                    color: activeTab === value ? color.gold : color.textMuted,
-                    cursor: "pointer",
-                    transition: "all 0.15s",
-                  }}
-                >
-                  {t(labelKey, lang)}
-                </button>
-              ))}
-            </div>
-
-            <p style={{ color: color.textDim, fontSize: 12, margin: "0 0 8px" }}>
-              {feeds.length} sources
-            </p>
-
-            <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-              {feeds.map((feed) => {
-                const domain = new URL(feed.url).hostname.replace("www.", "");
-                return (
-                  <li key={feed.url} style={{ borderBottom: `1px solid ${color.border}` }}>
-                    <a
-                      href={feed.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        padding: "9px 0",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        gap: 12,
-                        textDecoration: "none",
-                        color: "inherit",
-                      }}
-                    >
-                      <span style={{ color: color.text, fontSize: 14, fontWeight: 500 }}>
-                        {feed.name}
-                      </span>
-                      <span style={{ color: color.textDim, fontSize: 12, flexShrink: 0 }}>
-                        {domain} ↗
-                      </span>
-                    </a>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-
-          {/* ── AI Prompt section ──────────────────────── */}
-          <div style={sectionStyle}>
-            <h4 style={sectionTitle}>{t("aiPromptSection", lang)}</h4>
-
-            <div style={{ display: "flex", gap: 0, marginBottom: 12, borderBottom: `1px solid ${color.border}` }}>
-              {TABS.map(({ value, labelKey }) => (
-                <button
-                  key={value}
-                  onClick={() => setActiveTab(value)}
-                  style={{
-                    padding: "7px 12px",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    border: "none",
-                    borderBottom: activeTab === value ? `2px solid ${color.gold}` : "2px solid transparent",
-                    background: "transparent",
-                    color: activeTab === value ? color.gold : color.textMuted,
-                    cursor: "pointer",
-                    transition: "all 0.15s",
-                  }}
-                >
-                  {t(labelKey, lang)}
-                </button>
-              ))}
-            </div>
-
-            <pre
+            <button
+              onClick={() => setRssOpen(!rssOpen)}
               style={{
-                color: color.textDim,
-                fontSize: 12,
-                lineHeight: 1.6,
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word",
-                margin: 0,
-                padding: "10px 12px",
-                background: "#0a0a0a",
-                borderRadius: 6,
-                border: `1px solid ${color.border}`,
-                maxHeight: 280,
-                overflowY: "auto",
+                ...sectionTitle,
+                background: "none",
+                border: "none",
+                padding: 0,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                width: "100%",
+                marginBottom: rssOpen ? 14 : 0,
               }}
             >
-              {getSystemPrompt(activeTab, lang, maxArticles)}
-            </pre>
+              {t("rssSourcesSection", lang)}
+              <span style={{ fontSize: 14, transition: "transform 0.2s", transform: rssOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▾</span>
+            </button>
+
+            {rssOpen && (
+              <>
+                <div style={{ display: "flex", gap: 0, marginBottom: 12, borderBottom: `1px solid ${color.border}`, flexWrap: "wrap" }}>
+                  {TABS.map(({ value, labelKey }) => (
+                    <button
+                      key={value}
+                      onClick={() => setActiveTab(value)}
+                      style={{
+                        padding: "7px 12px",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        border: "none",
+                        borderBottom: activeTab === value ? `2px solid ${color.gold}` : "2px solid transparent",
+                        background: "transparent",
+                        color: activeTab === value ? color.gold : color.textMuted,
+                        cursor: "pointer",
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      {t(labelKey, lang)}
+                    </button>
+                  ))}
+                </div>
+
+                <p style={{ color: color.textDim, fontSize: 12, margin: "0 0 8px" }}>
+                  {feeds.length} sources
+                </p>
+
+                <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                  {feeds.map((feed) => {
+                    const domain = new URL(feed.url).hostname.replace("www.", "");
+                    return (
+                      <li key={feed.url} style={{ borderBottom: `1px solid ${color.border}` }}>
+                        <a
+                          href={feed.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            padding: "9px 0",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            gap: 12,
+                            textDecoration: "none",
+                            color: "inherit",
+                          }}
+                        >
+                          <span style={{ color: color.text, fontSize: 14, fontWeight: 500 }}>
+                            {feed.name}
+                          </span>
+                          <span style={{ color: color.textDim, fontSize: 12, flexShrink: 0 }}>
+                            {domain} ↗
+                          </span>
+                        </a>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
+          </div>
+
+          {/* ── AI Prompt section (accordion) ─────────────── */}
+          <div style={sectionStyle}>
+            <button
+              onClick={() => setPromptOpen(!promptOpen)}
+              style={{
+                ...sectionTitle,
+                background: "none",
+                border: "none",
+                padding: 0,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                width: "100%",
+                marginBottom: promptOpen ? 14 : 0,
+              }}
+            >
+              {t("aiPromptSection", lang)}
+              <span style={{ fontSize: 14, transition: "transform 0.2s", transform: promptOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▾</span>
+            </button>
+
+            {promptOpen && (
+              <>
+                <div style={{ display: "flex", gap: 0, marginBottom: 12, borderBottom: `1px solid ${color.border}`, flexWrap: "wrap" }}>
+                  {TABS.map(({ value, labelKey }) => (
+                    <button
+                      key={value}
+                      onClick={() => setActiveTab(value)}
+                      style={{
+                        padding: "7px 12px",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        border: "none",
+                        borderBottom: activeTab === value ? `2px solid ${color.gold}` : "2px solid transparent",
+                        background: "transparent",
+                        color: activeTab === value ? color.gold : color.textMuted,
+                        cursor: "pointer",
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      {t(labelKey, lang)}
+                    </button>
+                  ))}
+                </div>
+
+                <pre
+                  style={{
+                    color: color.textDim,
+                    fontSize: 12,
+                    lineHeight: 1.6,
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                    margin: 0,
+                    padding: "10px 12px",
+                    background: "#0a0a0a",
+                    borderRadius: 6,
+                    border: `1px solid ${color.border}`,
+                    maxHeight: 280,
+                    overflowY: "auto",
+                  }}
+                >
+                  {getSystemPrompt(activeTab, lang, maxArticles)}
+                </pre>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -963,7 +1007,7 @@ export default function Home() {
           </div>
 
           <img
-            src="/logo-8news.png"
+            src="/logo-8news.svg"
             alt="8news"
             style={{ height: "clamp(32px, 5vw, 48px)", width: "auto", display: "block" }}
           />

@@ -65,32 +65,47 @@ function TopicToggle({
   disabled: boolean;
   onChange: (t: Topic) => void;
 }) {
-  const btn = (value: Topic, isLeft: boolean): CSSProperties => ({
-    padding: "8px 18px",
+  const btnStyle = (value: Topic): CSSProperties => ({
+    padding: "8px 0",
     fontSize: 14,
     fontWeight: 600,
-    border: "none",
-    borderLeft: isLeft ? "none" : `1px solid ${color.gold}`,
+    border: `1px solid ${color.gold}`,
     cursor: disabled ? "wait" : "pointer",
     background: topic === value ? color.gold : "transparent",
     color: topic === value ? "#000" : color.gold,
     transition: "all 0.15s",
     opacity: disabled ? 0.6 : 1,
+    borderRadius: 6,
+    textAlign: "center",
   });
 
   return (
-    <div style={{ display: "flex", borderRadius: 8, overflow: "hidden", border: `1px solid ${color.gold}` }}>
-      {TOPICS.map(({ value, labelKey }, i) => (
-        <button
-          key={value}
-          onClick={() => onChange(value)}
-          disabled={disabled}
-          style={btn(value, i === 0)}
-        >
-          {t(labelKey, lang)}
-        </button>
-      ))}
-    </div>
+    <>
+      <style>{`
+        .topic-grid {
+          display: grid;
+          gap: 6px;
+          grid-template-columns: repeat(${Math.min(TOPICS.length, 9)}, 1fr);
+        }
+        @media (max-width: 640px) {
+          .topic-grid {
+            grid-template-columns: repeat(${Math.min(TOPICS.length, 5)}, 1fr);
+          }
+        }
+      `}</style>
+      <div className="topic-grid">
+        {TOPICS.map(({ value, labelKey }) => (
+          <button
+            key={value}
+            onClick={() => onChange(value)}
+            disabled={disabled}
+            style={btnStyle(value)}
+          >
+            {t(labelKey, lang)}
+          </button>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -1049,7 +1064,7 @@ export default function Home() {
       )}
 
       <footer style={{ position: "fixed", bottom: 8, right: 17, color: color.textDim, fontSize: 12 }}>
-        v1.17
+        v1.18
       </footer>
     </div>
   );

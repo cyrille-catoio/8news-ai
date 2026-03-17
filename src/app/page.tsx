@@ -90,7 +90,7 @@ function TopicToggle({
         }
         @media (max-width: 640px) {
           .topic-grid {
-            grid-template-columns: repeat(${Math.min(TOPICS.length, 5)}, 1fr);
+            grid-template-columns: repeat(${Math.min(TOPICS.length, 4)}, 1fr);
           }
         }
       `}</style>
@@ -1102,7 +1102,7 @@ export default function Home() {
       )}
 
       <footer style={{ position: "fixed", bottom: 8, right: 17, color: color.textDim, fontSize: 12 }}>
-        v1.18
+        v1.19
       </footer>
     </div>
   );

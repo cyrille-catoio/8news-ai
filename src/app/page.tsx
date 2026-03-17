@@ -22,9 +22,10 @@ const PERIODS = [
   { label: "7 d",  hours: 168 },
 ] as const;
 
-const TOPICS: { value: Topic; labelKey: "topicConflict" | "topicAi" | "topicRobotics" | "topicCrypto" | "topicBitcoin" | "topicVideogames" }[] = [
+const TOPICS: { value: Topic; labelKey: "topicConflict" | "topicAi" | "topicRobotics" | "topicCrypto" | "topicBitcoin" | "topicVideogames" | "topicAiengineering" }[] = [
   { value: "conflict", labelKey: "topicConflict" },
   { value: "ai", labelKey: "topicAi" },
+  { value: "aiengineering", labelKey: "topicAiengineering" },
   { value: "robotics", labelKey: "topicRobotics" },
   { value: "crypto", labelKey: "topicCrypto" },
   { value: "bitcoin", labelKey: "topicBitcoin" },
@@ -201,9 +202,10 @@ function SettingsModal({
   const [activeTab, setActiveTab] = useState<Topic>(topic);
   const feeds = getFeedsForTopic(activeTab);
 
-  const TABS: { value: Topic; labelKey: "topicConflict" | "topicAi" | "topicRobotics" | "topicCrypto" | "topicBitcoin" | "topicVideogames" }[] = [
+  const TABS: { value: Topic; labelKey: "topicConflict" | "topicAi" | "topicRobotics" | "topicCrypto" | "topicBitcoin" | "topicVideogames" | "topicAiengineering" }[] = [
     { value: "conflict", labelKey: "topicConflict" },
     { value: "ai", labelKey: "topicAi" },
+    { value: "aiengineering", labelKey: "topicAiengineering" },
     { value: "robotics", labelKey: "topicRobotics" },
     { value: "crypto", labelKey: "topicCrypto" },
     { value: "bitcoin", labelKey: "topicBitcoin" },
@@ -605,13 +607,14 @@ function RefIcon() {
   );
 }
 
-const TOPIC_TITLE_KEY: Record<Topic, "conflictTitle" | "aiTitle" | "cryptoTitle" | "roboticsTitle" | "bitcoinTitle" | "videogamesTitle"> = {
+const TOPIC_TITLE_KEY: Record<Topic, "conflictTitle" | "aiTitle" | "cryptoTitle" | "roboticsTitle" | "bitcoinTitle" | "videogamesTitle" | "aiengineeringTitle"> = {
   conflict: "conflictTitle",
   ai: "aiTitle",
   crypto: "cryptoTitle",
   robotics: "roboticsTitle",
   bitcoin: "bitcoinTitle",
   videogames: "videogamesTitle",
+  aiengineering: "aiengineeringTitle",
 };
 
 function ttsIntro(hours: number, lang: Lang, topic: Topic): string {
@@ -759,20 +762,52 @@ function AllArticlesTab({ articles, locale }: { articles: ArticleSummary[]; loca
   );
 }
 
+let sharedAudioCtx: AudioContext | null = null;
+
+function unlockAudioContext() {
+  try {
+    if (!sharedAudioCtx || sharedAudioCtx.state === "closed") {
+      sharedAudioCtx = new AudioContext();
+    }
+    if (sharedAudioCtx.state === "suspended") {
+      sharedAudioCtx.resume();
+    }
+    const buf = sharedAudioCtx.createBuffer(1, 1, 22050);
+    const src = sharedAudioCtx.createBufferSource();
+    src.buffer = buf;
+    src.connect(sharedAudioCtx.destination);
+    src.start(0);
+  } catch { /* silent fail */ }
+}
+
 function playNotificationBeep() {
   try {
-    const ctx = new AudioContext();
-    const osc = ctx.createOscillator();
+    const ctx = sharedAudioCtx;
+    if (!ctx || ctx.state === "closed") return;
+    if (ctx.state === "suspended") ctx.resume();
+
+    const t0 = ctx.currentTime;
     const gain = ctx.createGain();
-    osc.connect(gain);
     gain.connect(ctx.destination);
-    osc.frequency.value = 880;
-    osc.type = "sine";
-    gain.gain.value = 0.08;
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.15);
-    osc.onended = () => ctx.close();
+
+    const osc1 = ctx.createOscillator();
+    osc1.frequency.value = 880;
+    osc1.type = "sine";
+    osc1.connect(gain);
+    osc1.start(t0);
+    osc1.stop(t0 + 0.12);
+
+    const osc2 = ctx.createOscillator();
+    osc2.frequency.value = 1050;
+    osc2.type = "sine";
+    osc2.connect(gain);
+    osc2.start(t0 + 0.18);
+    osc2.stop(t0 + 0.30);
+
+    gain.gain.setValueAtTime(0.08, t0);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.12);
+    gain.gain.setValueAtTime(0.08, t0 + 0.18);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.30);
   } catch { /* silent fail */ }
 }
 
@@ -811,7 +846,9 @@ export default function Home() {
           ? "noArticlesBitcoin"
           : topic === "videogames"
             ? "noArticlesVideogames"
-            : "noArticlesRobotics";
+            : topic === "aiengineering"
+              ? "noArticlesAiengineering"
+              : "noArticlesRobotics";
 
   function startProgress() {
     setProgress(0);
@@ -837,6 +874,7 @@ export default function Home() {
   }
 
   async function fetchNews(hours: number) {
+    unlockAudioContext();
     setSelected(hours);
     setLoading(true);
     setError(null);

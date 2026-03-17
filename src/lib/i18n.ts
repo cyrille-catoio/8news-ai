@@ -29,6 +29,10 @@ const strings = {
     en: "Video Games",
     fr: "Jeux Vidéo",
   },
+  topicAiengineering: {
+    en: "AI Engineering",
+    fr: "AI Engineering",
+  },
   conflictTitle: {
     en: "USA / Israel vs Iran Conflict",
     fr: "Conflit USA / Israël vs Iran",
@@ -52,6 +56,10 @@ const strings = {
   videogamesTitle: {
     en: "Video Games News",
     fr: "Actualités Jeux Vidéo",
+  },
+  aiengineeringTitle: {
+    en: "AI Engineering & Production Systems",
+    fr: "Ingénierie IA & Systèmes de Production",
   },
   subtitle: {
     en: "AI that decodes the news",
@@ -108,6 +116,10 @@ const strings = {
   noArticlesVideogames: {
     en: "No video game-related articles found for this time period.",
     fr: "Aucun article lié aux jeux vidéo sur cette période.",
+  },
+  noArticlesAiengineering: {
+    en: "No AI engineering articles found for this time period.",
+    fr: "Aucun article lié à l'ingénierie IA sur cette période.",
   },
   initialMessage: {
     en: "Select a topic and click a time period button to analyse the latest news.",

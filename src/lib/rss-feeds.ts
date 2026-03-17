@@ -143,6 +143,29 @@ const VIDEOGAMES_FEEDS: readonly Feed[] = [
   { name: "PCGamesN",               url: "https://www.pcgamesn.com/mainrss.xml" },
 ];
 
+const AI_ENGINEERING_FEEDS: readonly Feed[] = [
+  { name: "Latent Space",            url: "https://www.latent.space/feed" },
+  { name: "Simon Willison",          url: "https://simonwillison.net/atom/everything/" },
+  { name: "Eugene Yan",              url: "https://eugeneyan.com/rss/" },
+  { name: "Chip Huyen",              url: "https://huyenchip.com/feed.xml" },
+  { name: "Hamel Husain",            url: "https://hamel.dev/feed.xml" },
+  { name: "Lilian Weng",             url: "https://lilianweng.github.io/feed.xml" },
+  { name: "LangChain Blog",          url: "https://blog.langchain.dev/rss/" },
+  { name: "LlamaIndex Blog",         url: "https://www.llamaindex.ai/blog/rss.xml" },
+  { name: "Anthropic Blog",          url: "https://www.anthropic.com/rss" },
+  { name: "Hugging Face Blog",       url: "https://huggingface.co/blog/feed.xml" },
+  { name: "GitHub Blog",             url: "https://github.blog/feed/" },
+  { name: "Databricks Blog",         url: "https://www.databricks.com/blog/feed" },
+  { name: "W&B Fully Connected",     url: "https://wandb.ai/fully-connected/rss.xml" },
+  { name: "The Pragmatic Engineer",  url: "https://newsletter.pragmaticengineer.com/feed" },
+  { name: "InfoQ AI/ML",             url: "https://feed.infoq.com/ai-ml-data-eng/" },
+  { name: "Software Eng. Daily",     url: "https://softwareengineeringdaily.com/feed/" },
+  { name: "OpenAI Blog",             url: "https://openai.com/blog/rss.xml" },
+  { name: "Google AI Blog",          url: "https://blog.google/technology/ai/rss/" },
+  { name: "Vercel Blog",             url: "https://vercel.com/blog/rss.xml" },
+  { name: "The Batch (DeepLearning.AI)", url: "https://www.deeplearning.ai/the-batch/feed/" },
+];
+
 const FEEDS_BY_TOPIC: Record<Topic, readonly Feed[]> = {
   conflict: CONFLICT_FEEDS,
   ai: AI_FEEDS,
@@ -150,6 +173,7 @@ const FEEDS_BY_TOPIC: Record<Topic, readonly Feed[]> = {
   robotics: ROBOTICS_FEEDS,
   bitcoin: BITCOIN_FEEDS,
   videogames: VIDEOGAMES_FEEDS,
+  aiengineering: AI_ENGINEERING_FEEDS,
 };
 
 export function getFeedsForTopic(topic: Topic): readonly Feed[] {

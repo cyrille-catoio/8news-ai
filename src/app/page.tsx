@@ -92,6 +92,9 @@ function TopicToggle({
           .topic-grid {
             grid-template-columns: repeat(${Math.min(TOPICS.length, 4)}, 1fr);
           }
+          .topic-grid button {
+            font-size: 11px !important;
+          }
         }
       `}</style>
       <div className="topic-grid">
@@ -1007,7 +1010,7 @@ export default function Home() {
           </div>
 
           <img
-            src="/logo-8news.svg"
+            src="/logo-8news.png"
             alt="8news"
             style={{ height: "clamp(32px, 5vw, 48px)", width: "auto", display: "block" }}
           />
@@ -1146,7 +1149,7 @@ export default function Home() {
       )}
 
       <footer style={{ position: "fixed", bottom: 8, right: 17, color: color.textDim, fontSize: 12 }}>
-        v1.19
+        v1.21
       </footer>
     </div>
   );

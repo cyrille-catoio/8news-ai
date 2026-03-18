@@ -1,16 +1,20 @@
-import { createClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+let _clientPromise: Promise<SupabaseClient> | null = null;
 
-function getServerClient() {
-  if (!supabaseUrl || !serviceRoleKey) return null;
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false },
-  });
+function getServerClient(): Promise<SupabaseClient> | null {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return null;
+
+  if (!_clientPromise) {
+    _clientPromise = import("@supabase/supabase-js").then((mod) =>
+      mod.createClient(url, key, { auth: { persistSession: false } }),
+    );
+  }
+  return _clientPromise;
 }
 
-// TTL in minutes based on the requested time window
 function getCacheTtlMinutes(hours: number): number {
   if (hours <= 1) return 5;
   if (hours <= 6) return 15;
@@ -32,13 +36,14 @@ export async function getCachedResult(
   hours: number,
   maxArticles: number,
 ): Promise<CachedResponse | null> {
-  const supabase = getServerClient();
-  if (!supabase) return null;
-
-  const ttl = getCacheTtlMinutes(hours);
-  const cutoff = new Date(Date.now() - ttl * 60_000).toISOString();
+  const clientP = getServerClient();
+  if (!clientP) return null;
 
   try {
+    const supabase = await clientP;
+    const ttl = getCacheTtlMinutes(hours);
+    const cutoff = new Date(Date.now() - ttl * 60_000).toISOString();
+
     const { data, error } = await supabase
       .from("news_cache")
       .select("response")
@@ -52,7 +57,7 @@ export async function getCachedResult(
       .single();
 
     if (error || !data) return null;
-    return data.response as CachedResponse;
+    return (data as Record<string, unknown>).response as CachedResponse;
   } catch {
     return null;
   }
@@ -65,16 +70,17 @@ export async function setCachedResult(
   maxArticles: number,
   response: CachedResponse,
 ): Promise<void> {
-  const supabase = getServerClient();
-  if (!supabase) return;
+  const clientP = getServerClient();
+  if (!clientP) return;
 
   try {
+    const supabase = await clientP;
     await supabase.from("news_cache").insert({
       topic,
       lang,
       hours,
       max_articles: maxArticles,
-      response,
+      response: response as unknown,
     });
   } catch {
     // Cache write failure is non-critical
@@ -82,10 +88,11 @@ export async function setCachedResult(
 }
 
 export async function cleanExpiredCache(): Promise<void> {
-  const supabase = getServerClient();
-  if (!supabase) return;
+  const clientP = getServerClient();
+  if (!clientP) return;
 
   try {
+    const supabase = await clientP;
     const cutoff = new Date(Date.now() - 2 * 3_600_000).toISOString();
     await supabase.from("news_cache").delete().lt("created_at", cutoff);
   } catch {

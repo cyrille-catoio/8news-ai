@@ -693,7 +693,14 @@ function SummaryBox({ data, locale, lang, hours, topic }: { data: SummaryRespons
   return (
     <div style={{ ...card, borderRadius: 12, padding: 20, marginBottom: 28, position: "relative" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <h2 style={sectionHeading}>{t("summary", lang)}</h2>
+        <h2 style={sectionHeading}>
+          {t("summary", lang)}
+          {data.allArticles?.length > 0 && (
+            <span style={{ color: color.textMuted, fontWeight: 400, fontSize: 11, marginLeft: 8, textTransform: "none", letterSpacing: 0 }}>
+              ({data.allArticles.length} articles)
+            </span>
+          )}
+        </h2>
         {ttsText.length > 0 && <AudioPlayer text={ttsText} />}
       </div>
       {hasBullets ? (
@@ -1149,7 +1156,7 @@ export default function Home() {
       )}
 
       <footer style={{ position: "fixed", bottom: 8, right: 17, color: color.textDim, fontSize: 12 }}>
-        v1.22
+        v1.23
       </footer>
     </div>
   );

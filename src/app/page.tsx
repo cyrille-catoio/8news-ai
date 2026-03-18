@@ -9,7 +9,7 @@ import { getSystemPrompt } from "@/lib/prompts";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.26";
+const APP_VERSION = "1.27";
 const VERSION_CHECK_INTERVAL_MS = 60_000;
 
 const PERIODS = [
@@ -584,46 +584,51 @@ function AudioPlayer({ text }: { text: string }) {
   const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "nowrap", flexShrink: 0 }}>
-      <button onClick={() => skip(-15)} disabled={!isActive} style={{ ...btnBase, opacity: isActive ? 1 : 0.35 }}>
-        -15s
-      </button>
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+        {state === "playing" ? (
+          <button onClick={handlePause} style={{ ...btnBase, color: color.gold }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
+          </button>
+        ) : (
+          <button onClick={handlePlay} disabled={state === "loading"} style={{ ...btnBase, color: state === "loading" ? color.textDim : color.gold }}>
+            {state === "loading" ? (
+              <>
+                <SpinKeyframes />
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: "spin 1s linear infinite" }}>
+                  <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
+                </svg>
+              </>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21" /></svg>
+            )}
+          </button>
+        )}
 
-      {state === "playing" ? (
-        <button onClick={handlePause} style={{ ...btnBase, color: color.gold }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
+        <button onClick={handleStop} disabled={!isActive} style={{ ...btnBase, opacity: isActive ? 1 : 0.35 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2" /></svg>
         </button>
-      ) : (
-        <button onClick={handlePlay} disabled={state === "loading"} style={{ ...btnBase, color: state === "loading" ? color.textDim : color.gold }}>
-          {state === "loading" ? (
-            <>
-              <SpinKeyframes />
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: "spin 1s linear infinite" }}>
-                <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
-              </svg>
-            </>
-          ) : (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21" /></svg>
-          )}
+
+        <button onClick={() => skip(-15)} disabled={!isActive} style={{ ...btnBase, opacity: isActive ? 1 : 0.35 }}>
+          -15s
         </button>
-      )}
 
-      <button onClick={handleStop} disabled={!isActive} style={{ ...btnBase, opacity: isActive ? 1 : 0.35 }}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2" /></svg>
-      </button>
+        <button onClick={() => skip(15)} disabled={!isActive} style={{ ...btnBase, opacity: isActive ? 1 : 0.35 }}>
+          +15s
+        </button>
 
-      <button onClick={() => skip(15)} disabled={!isActive} style={{ ...btnBase, opacity: isActive ? 1 : 0.35 }}>
-        +15s
-      </button>
+        <span style={{ color: isActive && duration > 0 ? color.textDim : "transparent", fontSize: 11, marginLeft: 4, minWidth: 72, textAlign: "center" }}>
+          {isActive && duration > 0 ? `${formatTime(currentTime)} / ${formatTime(duration)}` : "0:00 / 0:00"}
+        </span>
+      </div>
 
       <div
         onClick={isActive ? seekTo : undefined}
         style={{
-          flex: "0 0 80px",
-          height: 4,
-          borderRadius: 2,
+          width: "100%",
+          height: 5,
+          borderRadius: 3,
           background: color.border,
-          marginLeft: 6,
           cursor: isActive ? "pointer" : "default",
           position: "relative",
           opacity: isActive ? 1 : 0.3,
@@ -632,17 +637,13 @@ function AudioPlayer({ text }: { text: string }) {
         <div
           style={{
             height: "100%",
-            borderRadius: 2,
+            borderRadius: 3,
             background: color.gold,
             width: `${pct}%`,
             transition: "width 0.15s linear",
           }}
         />
       </div>
-
-      <span style={{ color: isActive && duration > 0 ? color.textDim : "transparent", fontSize: 11, marginLeft: 4, minWidth: 72, textAlign: "center" }}>
-        {isActive && duration > 0 ? `${formatTime(currentTime)} / ${formatTime(duration)}` : "0:00 / 0:00"}
-      </span>
     </div>
   );
 }
@@ -695,17 +696,15 @@ function SummaryBox({ data, locale, lang, hours, topic }: { data: SummaryRespons
 
   return (
     <div style={{ ...card, borderRadius: 12, padding: 20, marginBottom: 28, position: "relative" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <h2 style={sectionHeading}>
-          {t("summary", lang)}
-          {data.allArticles?.length > 0 && (
-            <span style={{ color: color.textMuted, fontWeight: 400, fontSize: 11, marginLeft: 8, textTransform: "none", letterSpacing: 0 }}>
-              ({data.allArticles.length} articles)
-            </span>
-          )}
-        </h2>
-        {ttsText.length > 0 && <AudioPlayer text={ttsText} />}
-      </div>
+      <h2 style={sectionHeading}>
+        {t("summary", lang)}
+        {data.allArticles?.length > 0 && (
+          <span style={{ color: color.textMuted, fontWeight: 400, fontSize: 11, marginLeft: 8, textTransform: "none", letterSpacing: 0 }}>
+            ({data.allArticles.length} articles)
+          </span>
+        )}
+      </h2>
+      {ttsText.length > 0 && <div style={{ marginBottom: 12 }}><AudioPlayer text={ttsText} /></div>}
       {hasBullets ? (
         <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none" }}>
           {bullets.map((bullet, i) => (

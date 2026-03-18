@@ -7,8 +7,8 @@ import { getCachedResult, setCachedResult, cleanExpiredCache } from "@/lib/supab
 import type { Lang } from "@/lib/i18n";
 import type { RawArticle, ArticleSummary, SummaryBullet, SummaryResponse, AIAnalysis, Topic } from "@/lib/types";
 
-const rssParser = new Parser({ timeout: 4_000 });
-const FETCH_TIMEOUT_MS = 4_000;
+const rssParser = new Parser({ timeout: 2_000 });
+const FETCH_TIMEOUT_MS = 2_000;
 const MAX_ARTICLES = 200;
 const PREVIEW_LIMIT = 10;
 const SNIPPET_MAX = 600;

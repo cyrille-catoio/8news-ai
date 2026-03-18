@@ -3,6 +3,7 @@ import Parser from "rss-parser";
 import OpenAI from "openai";
 import { getFeedsForTopic, type Feed } from "@/lib/rss-feeds";
 import { getSystemPrompt, getServerMessages } from "@/lib/prompts";
+import { getCachedResult, setCachedResult, cleanExpiredCache } from "@/lib/supabase";
 import type { Lang } from "@/lib/i18n";
 import type { RawArticle, ArticleSummary, SummaryBullet, SummaryResponse, AIAnalysis, Topic } from "@/lib/types";
 
@@ -182,6 +183,15 @@ export async function GET(request: NextRequest) {
     const since = Date.now() - hours * 3_600_000;
     const msg = getServerMessages(lang);
 
+    // ── Cache check ──────────────────────────────────────────────────
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (isValidApiKey(apiKey)) {
+      const cached = await getCachedResult(topic, lang, hours, maxArticles);
+      if (cached) {
+        return NextResponse.json(cached satisfies SummaryResponse);
+      }
+    }
+
     const feeds = getFeedsForTopic(topic);
     const { articles: rawArticles, feedsOk, feedsFailed } = await fetchAllFeeds(feeds, since);
     const items = toAnalysisPayload(rawArticles);
@@ -202,8 +212,6 @@ export async function GET(request: NextRequest) {
         period: buildPeriod(since),
       } satisfies SummaryResponse);
     }
-
-    const apiKey = process.env.OPENAI_API_KEY;
 
     if (!isValidApiKey(apiKey)) {
       return NextResponse.json({
@@ -242,13 +250,21 @@ export async function GET(request: NextRequest) {
       })
       .filter((a): a is ArticleSummary => a !== null);
 
-    return NextResponse.json({
+    const result: SummaryResponse = {
       summary,
       bullets,
       articles: filteredArticles,
       allArticles,
       period: buildPeriod(since),
-    } satisfies SummaryResponse);
+    };
+
+    // ── Cache write (non-blocking) ──────────────────────────────────
+    if (filteredArticles.length > 0) {
+      setCachedResult(topic, lang, hours, maxArticles, result).catch(() => {});
+      if (Math.random() < 0.1) cleanExpiredCache().catch(() => {});
+    }
+
+    return NextResponse.json(result);
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Server error" },

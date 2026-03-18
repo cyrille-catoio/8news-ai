@@ -9,6 +9,9 @@ import { getSystemPrompt } from "@/lib/prompts";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
+const APP_VERSION = "1.24";
+const VERSION_CHECK_INTERVAL_MS = 60_000;
+
 const PERIODS = [
   { label: "15 m", hours: 0.25 },
   { label: "30 m", hours: 0.5 },
@@ -889,6 +892,21 @@ export default function Home() {
   const [showSettings, setShowSettings] = useState(false);
   const [resultTab, setResultTab] = useState<"relevant" | "all">("relevant");
 
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const res = await fetch(`/version.json?t=${Date.now()}`);
+        if (!res.ok) return;
+        const { version } = await res.json();
+        if (version && version !== APP_VERSION) {
+          window.location.reload();
+        }
+      } catch { /* ignore */ }
+    };
+    const id = setInterval(check, VERSION_CHECK_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, []);
+
   const locale = dateLocale(lang);
   const noArticlesKey = topic === "conflict"
     ? "noArticlesConflict"
@@ -1156,7 +1174,7 @@ export default function Home() {
       )}
 
       <footer style={{ position: "fixed", bottom: 8, right: 17, color: color.textDim, fontSize: 12 }}>
-        v1.23
+        v{APP_VERSION}
       </footer>
     </div>
   );

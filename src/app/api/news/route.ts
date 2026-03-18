@@ -7,11 +7,13 @@ import { getCachedResult, setCachedResult, cleanExpiredCache } from "@/lib/supab
 import type { Lang } from "@/lib/i18n";
 import type { RawArticle, ArticleSummary, SummaryBullet, SummaryResponse, AIAnalysis, Topic } from "@/lib/types";
 
-const rssParser = new Parser({ timeout: 10_000 });
-const FETCH_TIMEOUT_MS = 10_000;
+const rssParser = new Parser({ timeout: 4_000 });
+const FETCH_TIMEOUT_MS = 4_000;
 const MAX_ARTICLES = 200;
 const PREVIEW_LIMIT = 10;
 const SNIPPET_MAX = 600;
+
+export const maxDuration = 60;
 
 function toTimestamp(dateStr: string | undefined): number {
   if (!dateStr) return 0;
@@ -44,18 +46,26 @@ function decodeHtmlEntities(text: string): string {
 
 // ── RSS fetching ──────────────────────────────────────────────────────
 
+const RSS_PHASE_TIMEOUT_MS = 6_000;
+
 async function fetchAllFeeds(feeds: readonly Feed[], since: number): Promise<{
   articles: RawArticle[];
   feedsOk: number;
   feedsFailed: number;
 }> {
   const articles: RawArticle[] = [];
+  const globalAbort = new AbortController();
+
+  const rssPhaseTimer = setTimeout(() => globalAbort.abort(), RSS_PHASE_TIMEOUT_MS);
 
   const results = await Promise.allSettled(
     feeds.map(async (feed) => {
       const xml = await fetch(feed.url, {
         headers: { "User-Agent": "NewsRead/1.0" },
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        signal: AbortSignal.any([
+          AbortSignal.timeout(FETCH_TIMEOUT_MS),
+          globalAbort.signal,
+        ]),
       }).then((r) => r.text());
 
       const parsed = await rssParser.parseString(xml);
@@ -75,6 +85,8 @@ async function fetchAllFeeds(feeds: readonly Feed[], since: number): Promise<{
       }
     })
   );
+
+  clearTimeout(rssPhaseTimer);
 
   const feedsOk = results.filter((r) => r.status === "fulfilled").length;
   const feedsFailed = results.length - feedsOk;

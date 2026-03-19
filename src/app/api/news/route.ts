@@ -1,25 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import Parser from "rss-parser";
 import OpenAI from "openai";
-import { getFeedsForTopic, type Feed } from "@/lib/rss-feeds";
 import { getSystemPrompt, getServerMessages } from "@/lib/prompts";
-import { getCachedResult, setCachedResult, cleanExpiredCache } from "@/lib/supabase";
+import { getCachedResult, setCachedResult, cleanExpiredCache, getArticlesFromDb } from "@/lib/supabase";
 import type { Lang } from "@/lib/i18n";
-import type { RawArticle, ArticleSummary, SummaryBullet, SummaryResponse, AIAnalysis, Topic } from "@/lib/types";
+import type { ArticleSummary, SummaryBullet, SummaryResponse, AIAnalysis, Topic } from "@/lib/types";
 
-const rssParser = new Parser({ timeout: 1_500 });
-const FETCH_TIMEOUT_MS = 1_500;
 const MAX_ARTICLES = 200;
 const PREVIEW_LIMIT = 10;
 const SNIPPET_MAX = 600;
 
 export const maxDuration = 60;
-
-function toTimestamp(dateStr: string | undefined): number {
-  if (!dateStr) return 0;
-  const ms = new Date(dateStr).getTime();
-  return Number.isNaN(ms) ? 0 : ms;
-}
 
 function buildPeriod(since: number): SummaryResponse["period"] {
   return {
@@ -32,81 +22,22 @@ function isValidApiKey(key: string | undefined): key is string {
   return !!key && key.trim() !== "" && key !== "sk-your-key-here";
 }
 
-const HTML_ENTITIES: Record<string, string> = {
-  "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"',
-  "&apos;": "'", "&nbsp;": " ",
-};
+// ── Read articles from Supabase ──────────────────────────────────────
 
-function decodeHtmlEntities(text: string): string {
-  return text
-    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
-    .replace(/&(amp|lt|gt|quot|apos|nbsp);/g, (match) => HTML_ENTITIES[match] ?? match);
-}
+async function fetchArticlesFromDb(topic: Topic, since: number): Promise<ArticleSummary[]> {
+  const sinceISO = new Date(since).toISOString();
+  const rows = await getArticlesFromDb(topic, sinceISO, MAX_ARTICLES);
 
-// ── RSS fetching ──────────────────────────────────────────────────────
-
-const RSS_PHASE_TIMEOUT_MS = 6_000;
-
-async function fetchAllFeeds(feeds: readonly Feed[], since: number): Promise<{
-  articles: RawArticle[];
-  feedsOk: number;
-  feedsFailed: number;
-}> {
-  const articles: RawArticle[] = [];
-  const globalAbort = new AbortController();
-
-  const rssPhaseTimer = setTimeout(() => globalAbort.abort(), RSS_PHASE_TIMEOUT_MS);
-
-  const results = await Promise.allSettled(
-    feeds.map(async (feed) => {
-      const xml = await fetch(feed.url, {
-        headers: { "User-Agent": "NewsRead/1.0" },
-        signal: AbortSignal.any([
-          AbortSignal.timeout(FETCH_TIMEOUT_MS),
-          globalAbort.signal,
-        ]),
-      }).then((r) => r.text());
-
-      const parsed = await rssParser.parseString(xml);
-
-      for (const item of parsed.items ?? []) {
-        const pubDate = item.pubDate ?? item.isoDate ?? "";
-        if (toTimestamp(pubDate) >= since) {
-          articles.push({
-            title: decodeHtmlEntities(item.title ?? ""),
-            link: item.link ?? "",
-            pubDate: pubDate || new Date().toISOString(),
-            content: decodeHtmlEntities(item.content ?? ""),
-            contentSnippet: decodeHtmlEntities(item.contentSnippet ?? ""),
-            source: feed.name,
-          });
-        }
-      }
-    })
-  );
-
-  clearTimeout(rssPhaseTimer);
-
-  const feedsOk = results.filter((r) => r.status === "fulfilled").length;
-  const feedsFailed = results.length - feedsOk;
-
-  articles.sort((a, b) => toTimestamp(b.pubDate) - toTimestamp(a.pubDate));
-
-  return { articles, feedsOk, feedsFailed };
+  return rows.map((r) => ({
+    title: r.title,
+    link: r.link,
+    source: r.source,
+    pubDate: r.pub_date,
+    snippet: (r.snippet || r.content || "").slice(0, SNIPPET_MAX),
+  }));
 }
 
 // ── AI analysis ───────────────────────────────────────────────────────
-
-function toAnalysisPayload(articles: RawArticle[]): ArticleSummary[] {
-  return articles.slice(0, MAX_ARTICLES).map((a) => ({
-    title: a.title,
-    link: a.link,
-    source: a.source,
-    pubDate: a.pubDate,
-    snippet: (a.contentSnippet || a.content).slice(0, SNIPPET_MAX),
-  }));
-}
 
 function formatArticleList(items: ArticleSummary[]): string {
   return items
@@ -204,9 +135,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const feeds = getFeedsForTopic(topic);
-    const { articles: rawArticles, feedsOk, feedsFailed } = await fetchAllFeeds(feeds, since);
-    const items = toAnalysisPayload(rawArticles);
+    // ── Read articles from Supabase ──────────────────────────────────
+    const items = await fetchArticlesFromDb(topic, since);
 
     const allArticles: ArticleSummary[] = items.map((a) => ({
       ...a,
@@ -215,9 +145,7 @@ export async function GET(request: NextRequest) {
 
     if (items.length === 0) {
       return NextResponse.json({
-        summary: feedsFailed > 0
-          ? msg.noArticlesFeedError(feedsOk, feedsFailed)
-          : msg.noArticles,
+        summary: msg.noArticles,
         bullets: [],
         articles: [],
         allArticles: [],
@@ -227,7 +155,7 @@ export async function GET(request: NextRequest) {
 
     if (!isValidApiKey(apiKey)) {
       return NextResponse.json({
-        summary: msg.noApiKey(items.length, feedsOk),
+        summary: msg.noApiKey(items.length, 0),
         bullets: [],
         articles: items.slice(0, PREVIEW_LIMIT).map((a) => ({
           ...a,

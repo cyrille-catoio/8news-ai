@@ -99,3 +99,40 @@ export async function cleanExpiredCache(): Promise<void> {
     // Cleanup failure is non-critical
   }
 }
+
+// ── Articles from BDD ──────────────────────────────────────────────────
+
+export interface DbArticle {
+  topic: string;
+  source: string;
+  title: string;
+  link: string;
+  pub_date: string;
+  content: string | null;
+  snippet: string | null;
+}
+
+export async function getArticlesFromDb(
+  topic: string,
+  since: string,
+  limit: number,
+): Promise<DbArticle[]> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
+
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("articles")
+      .select("topic, source, title, link, pub_date, content, snippet")
+      .eq("topic", topic)
+      .gte("pub_date", since)
+      .order("pub_date", { ascending: false })
+      .limit(limit);
+
+    if (error || !data) return [];
+    return data as DbArticle[];
+  } catch {
+    return [];
+  }
+}

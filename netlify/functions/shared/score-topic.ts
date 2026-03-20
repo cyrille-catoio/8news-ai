@@ -4,7 +4,7 @@ import { getScoringPrompt } from "../../../src/lib/scoring-prompts";
 import type { Topic } from "../../../src/lib/types";
 
 const BATCH_SIZE = 50;
-const SCORE_WINDOW_HOURS = 48;
+const SCORE_WINDOW_HOURS = 168;
 
 interface DbRow {
   id: number;

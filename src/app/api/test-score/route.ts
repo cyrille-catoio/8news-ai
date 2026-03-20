@@ -8,7 +8,7 @@ export const maxDuration = 60;
 
 const VALID_TOPICS: Topic[] = ["conflict", "ai", "aiengineering", "robotics", "crypto", "bitcoin", "videogames"];
 const BATCH_SIZE = 50;
-const SCORE_WINDOW_HOURS = 48;
+const DEFAULT_HOURS = 168;
 const DEFAULT_LIMIT = 50;
 
 interface ScoreResult {
@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: `Invalid topic. Use one of: ${VALID_TOPICS.join(", ")}` }, { status: 400 });
   }
 
+  const hours = Math.max(1, parseInt(params.get("hours") ?? String(DEFAULT_HOURS), 10) || DEFAULT_HOURS);
   const limit = Math.min(200, Math.max(1, parseInt(params.get("limit") ?? String(DEFAULT_LIMIT), 10) || DEFAULT_LIMIT));
 
   const apiKey = process.env.OPENAI_API_KEY;
@@ -46,7 +47,13 @@ export async function GET(request: NextRequest) {
 
   const supabase = createClient(url, key, { auth: { persistSession: false } });
   const openai = new OpenAI({ apiKey });
-  const since = new Date(Date.now() - SCORE_WINDOW_HOURS * 3_600_000).toISOString();
+  const since = new Date(Date.now() - hours * 3_600_000).toISOString();
+
+  // Diagnostic: count total + unscored articles for this topic
+  const [{ count: totalCount }, { count: unscoredCount }] = await Promise.all([
+    supabase.from("articles").select("id", { count: "exact", head: true }).eq("topic", topicParam),
+    supabase.from("articles").select("id", { count: "exact", head: true }).eq("topic", topicParam).is("relevance_score", null),
+  ]);
 
   const { data: unscored, error: dbError } = await supabase
     .from("articles")
@@ -64,7 +71,18 @@ export async function GET(request: NextRequest) {
   const rows = (unscored ?? []) as { id: number; title: string; snippet: string | null; content: string | null }[];
 
   if (rows.length === 0) {
-    return NextResponse.json({ status: "ok", topic: topicParam, message: "No unscored articles", scored: 0 });
+    return NextResponse.json({
+      status: "ok",
+      topic: topicParam,
+      message: "No unscored articles in time window",
+      scored: 0,
+      debug: {
+        totalArticlesInDb: totalCount ?? 0,
+        totalUnscoredInDb: unscoredCount ?? 0,
+        windowHours: hours,
+        since,
+      },
+    });
   }
 
   let scored = 0;
@@ -121,6 +139,12 @@ export async function GET(request: NextRequest) {
     topic: topicParam,
     totalUnscored: rows.length,
     scored,
+    debug: {
+      totalArticlesInDb: totalCount ?? 0,
+      totalUnscoredInDb: unscoredCount ?? 0,
+      windowHours: hours,
+      since,
+    },
     errors: errors.length > 0 ? errors : undefined,
   });
 }

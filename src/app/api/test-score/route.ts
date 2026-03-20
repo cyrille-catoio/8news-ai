@@ -9,6 +9,7 @@ export const maxDuration = 60;
 const VALID_TOPICS: Topic[] = ["conflict", "ai", "aiengineering", "robotics", "crypto", "bitcoin", "videogames"];
 const BATCH_SIZE = 50;
 const SCORE_WINDOW_HOURS = 48;
+const DEFAULT_LIMIT = 50;
 
 interface ScoreResult {
   index: number;
@@ -29,6 +30,8 @@ export async function GET(request: NextRequest) {
   if (!topicParam || !VALID_TOPICS.includes(topicParam)) {
     return NextResponse.json({ error: `Invalid topic. Use one of: ${VALID_TOPICS.join(", ")}` }, { status: 400 });
   }
+
+  const limit = Math.min(200, Math.max(1, parseInt(params.get("limit") ?? String(DEFAULT_LIMIT), 10) || DEFAULT_LIMIT));
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey || apiKey === "sk-your-key-here") {
@@ -52,7 +55,7 @@ export async function GET(request: NextRequest) {
     .gte("pub_date", since)
     .is("relevance_score", null)
     .order("pub_date", { ascending: false })
-    .limit(200);
+    .limit(limit);
 
   if (dbError) {
     return NextResponse.json({ error: `DB error: ${dbError.message}` }, { status: 500 });
@@ -92,24 +95,22 @@ export async function GET(request: NextRequest) {
         ? parsed
         : parsed.scores ?? parsed.results ?? [];
 
-      for (const r of results) {
-        if (typeof r.index !== "number" || typeof r.score !== "number") continue;
-        if (r.index < 0 || r.index >= batch.length) continue;
+      const updates = results
+        .filter((r) => typeof r.index === "number" && typeof r.score === "number" && r.index >= 0 && r.index < batch.length)
+        .map((r) => {
+          const article = batch[r.index];
+          return supabase
+            .from("articles")
+            .update({
+              relevance_score: Math.min(10, Math.max(1, Math.round(r.score))),
+              score_reason: (r.reason || "").slice(0, 200),
+              scored_at: new Date().toISOString(),
+            })
+            .eq("id", article.id);
+        });
 
-        const article = batch[r.index];
-        const clampedScore = Math.min(10, Math.max(1, Math.round(r.score)));
-
-        await supabase
-          .from("articles")
-          .update({
-            relevance_score: clampedScore,
-            score_reason: (r.reason || "").slice(0, 200),
-            scored_at: new Date().toISOString(),
-          })
-          .eq("id", article.id);
-
-        scored++;
-      }
+      await Promise.all(updates);
+      scored += updates.length;
     } catch (err) {
       errors.push(err instanceof Error ? err.message : String(err));
     }

@@ -99,22 +99,22 @@ export async function scoreAndStoreTopic(topic: Topic): Promise<string> {
     try {
       const results = await scoreArticleBatch(batch, topic, openai);
 
-      for (const r of results) {
-        if (r.index < 0 || r.index >= batch.length) continue;
-        const article = batch[r.index];
-        const clampedScore = Math.min(10, Math.max(1, Math.round(r.score)));
+      const updates = results
+        .filter((r) => r.index >= 0 && r.index < batch.length)
+        .map((r) => {
+          const article = batch[r.index];
+          return supabase
+            .from("articles")
+            .update({
+              relevance_score: Math.min(10, Math.max(1, Math.round(r.score))),
+              score_reason: (r.reason || "").slice(0, 200),
+              scored_at: new Date().toISOString(),
+            })
+            .eq("id", article.id);
+        });
 
-        await supabase
-          .from("articles")
-          .update({
-            relevance_score: clampedScore,
-            score_reason: (r.reason || "").slice(0, 200),
-            scored_at: new Date().toISOString(),
-          })
-          .eq("id", article.id);
-
-        scored++;
-      }
+      await Promise.all(updates);
+      scored += updates.length;
     } catch (err) {
       console.error(`[${topic}] Scoring batch error:`, err instanceof Error ? err.message : err);
     }

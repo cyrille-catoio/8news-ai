@@ -86,7 +86,7 @@ export async function scoreAndStoreTopic(topic: Topic): Promise<string> {
     .gte("pub_date", since)
     .is("relevance_score", null)
     .order("pub_date", { ascending: false })
-    .limit(100);
+    .limit(200);
 
   if (error) {
     console.error(`[${topic}] DB error:`, error.message);

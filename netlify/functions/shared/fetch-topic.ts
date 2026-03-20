@@ -2,21 +2,11 @@ import Parser from "rss-parser";
 import { createClient } from "@supabase/supabase-js";
 import { getFeedsForTopic } from "../../../src/lib/rss-feeds";
 import { decodeHtmlEntities } from "../../../src/lib/html";
-import type { Topic } from "../../../src/lib/types";
+import type { Topic, ParsedArticle } from "../../../src/lib/types";
 
 const rssParser = new Parser({ timeout: 5_000 });
 const FETCH_TIMEOUT_MS = 5_000;
 const SNIPPET_MAX = 600;
-
-interface ParsedArticle {
-  topic: string;
-  source: string;
-  title: string;
-  link: string;
-  pub_date: string;
-  content: string;
-  snippet: string;
-}
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

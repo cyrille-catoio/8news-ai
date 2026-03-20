@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import { getSystemPrompt, getServerMessages } from "@/lib/prompts";
 import { getCachedResult, setCachedResult, cleanExpiredCache, getScoredArticles, getAllArticlesFromDb } from "@/lib/supabase";
 import type { Lang } from "@/lib/i18n";
+import { VALID_TOPICS } from "@/lib/types";
 import type { ArticleSummary, SummaryBullet, SummaryResponse, AIAnalysis, Topic } from "@/lib/types";
 
 const MAX_ARTICLES = 200;
@@ -127,8 +128,8 @@ export async function GET(request: NextRequest) {
   try {
     const params = request.nextUrl.searchParams;
     const lang: Lang = params.get("lang") === "fr" ? "fr" : "en";
-    const rawTopic = params.get("topic");
-    const topic: Topic = rawTopic === "ai" ? "ai" : rawTopic === "crypto" ? "crypto" : rawTopic === "robotics" ? "robotics" : rawTopic === "bitcoin" ? "bitcoin" : rawTopic === "videogames" ? "videogames" : rawTopic === "aiengineering" ? "aiengineering" : "conflict";
+    const rawTopic = params.get("topic") as Topic | null;
+    const topic: Topic = rawTopic && VALID_TOPICS.includes(rawTopic) ? rawTopic : "conflict";
     const maxArticles = Math.min(30, Math.max(3, parseInt(params.get("count") ?? "10", 10) || 10));
     const hours = Math.min(168, Math.max(0.25, parseFloat(params.get("hours") ?? "24") || 24));
     const since = Date.now() - hours * 3_600_000;

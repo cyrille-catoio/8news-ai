@@ -210,16 +210,6 @@ function SettingsModal({
   const [promptOpen, setPromptOpen] = useState(false);
   const feeds = getFeedsForTopic(activeTab);
 
-  const TABS: { value: Topic; labelKey: "topicConflict" | "topicAi" | "topicRobotics" | "topicCrypto" | "topicBitcoin" | "topicVideogames" | "topicAiengineering" }[] = [
-    { value: "conflict", labelKey: "topicConflict" },
-    { value: "ai", labelKey: "topicAi" },
-    { value: "aiengineering", labelKey: "topicAiengineering" },
-    { value: "robotics", labelKey: "topicRobotics" },
-    { value: "crypto", labelKey: "topicCrypto" },
-    { value: "bitcoin", labelKey: "topicBitcoin" },
-    { value: "videogames", labelKey: "topicVideogames" },
-  ];
-
   const sectionStyle: CSSProperties = {
     background: color.surface,
     border: `1px solid ${color.border}`,
@@ -336,7 +326,7 @@ function SettingsModal({
             {rssOpen && (
               <>
                 <div style={{ display: "flex", gap: 0, marginBottom: 12, borderBottom: `1px solid ${color.border}`, flexWrap: "wrap" }}>
-                  {TABS.map(({ value, labelKey }) => (
+                  {TOPICS.map(({ value, labelKey }) => (
                     <button
                       key={value}
                       onClick={() => setActiveTab(value)}
@@ -419,7 +409,7 @@ function SettingsModal({
             {promptOpen && (
               <>
                 <div style={{ display: "flex", gap: 0, marginBottom: 12, borderBottom: `1px solid ${color.border}`, flexWrap: "wrap" }}>
-                  {TABS.map(({ value, labelKey }) => (
+                  {TOPICS.map(({ value, labelKey }) => (
                     <button
                       key={value}
                       onClick={() => setActiveTab(value)}

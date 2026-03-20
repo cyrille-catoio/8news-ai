@@ -2,20 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
 import { getScoringPrompt } from "@/lib/scoring-prompts";
-import type { Topic } from "@/lib/types";
+import { VALID_TOPICS } from "@/lib/types";
+import type { Topic, ScoreResult } from "@/lib/types";
 
 export const maxDuration = 60;
 
-const VALID_TOPICS: Topic[] = ["conflict", "ai", "aiengineering", "robotics", "crypto", "bitcoin", "videogames"];
 const BATCH_SIZE = 50;
 const DEFAULT_HOURS = 168;
 const DEFAULT_LIMIT = 50;
-
-interface ScoreResult {
-  index: number;
-  score: number;
-  reason: string;
-}
 
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
@@ -33,6 +27,7 @@ export async function GET(request: NextRequest) {
 
   const hours = Math.max(1, parseInt(params.get("hours") ?? String(DEFAULT_HOURS), 10) || DEFAULT_HOURS);
   const limit = Math.min(200, Math.max(1, parseInt(params.get("limit") ?? String(DEFAULT_LIMIT), 10) || DEFAULT_LIMIT));
+  const showDebug = params.get("debug") === "1";
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey || apiKey === "sk-your-key-here") {
@@ -166,7 +161,7 @@ export async function GET(request: NextRequest) {
       windowHours: hours,
       since,
     },
-    aiDebug,
-    errors: errors.length > 0 ? errors : undefined,
+    ...(showDebug ? { aiDebug } : {}),
+    ...(errors.length > 0 ? { errors } : {}),
   });
 }

@@ -1,12 +1,21 @@
 export type Topic = "conflict" | "ai" | "crypto" | "robotics" | "bitcoin" | "videogames" | "aiengineering";
 
-export interface RawArticle {
+export const VALID_TOPICS: Topic[] = ["conflict", "ai", "aiengineering", "robotics", "crypto", "bitcoin", "videogames"];
+
+export interface ScoreResult {
+  index: number;
+  score: number;
+  reason: string;
+}
+
+export interface ParsedArticle {
+  topic: string;
+  source: string;
   title: string;
   link: string;
-  pubDate: string;
+  pub_date: string;
   content: string;
-  contentSnippet: string;
-  source: string;
+  snippet: string;
 }
 
 export interface ArticleSummary {

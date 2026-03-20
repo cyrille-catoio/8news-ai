@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import { getScoringPrompt } from "../../../src/lib/scoring-prompts";
-import type { Topic } from "../../../src/lib/types";
+import type { Topic, ScoreResult } from "../../../src/lib/types";
 
 const BATCH_SIZE = 50;
 const SCORE_WINDOW_HOURS = 168;
@@ -11,12 +11,6 @@ interface DbRow {
   title: string;
   snippet: string | null;
   content: string | null;
-}
-
-interface ScoreResult {
-  index: number;
-  score: number;
-  reason: string;
 }
 
 function getSupabase() {

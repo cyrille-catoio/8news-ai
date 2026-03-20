@@ -3,11 +3,10 @@ import Parser from "rss-parser";
 import { createClient } from "@supabase/supabase-js";
 import { getFeedsForTopic } from "@/lib/rss-feeds";
 import { decodeHtmlEntities } from "@/lib/html";
-import type { Topic } from "@/lib/types";
+import { VALID_TOPICS } from "@/lib/types";
+import type { Topic, ParsedArticle } from "@/lib/types";
 
 export const maxDuration = 60;
-
-const VALID_TOPICS: Topic[] = ["conflict", "ai", "aiengineering", "robotics", "crypto", "bitcoin", "videogames"];
 const rssParser = new Parser({ timeout: 5_000 });
 const FETCH_TIMEOUT_MS = 5_000;
 const SNIPPET_MAX = 600;
@@ -34,16 +33,6 @@ export async function GET(request: NextRequest) {
 
   const supabase = createClient(url, key, { auth: { persistSession: false } });
   const feeds = getFeedsForTopic(topicParam);
-
-  interface ParsedArticle {
-    topic: string;
-    source: string;
-    title: string;
-    link: string;
-    pub_date: string;
-    content: string;
-    snippet: string;
-  }
 
   const articles: ParsedArticle[] = [];
   let feedsOk = 0;

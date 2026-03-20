@@ -87,6 +87,7 @@ export async function GET(request: NextRequest) {
 
   let scored = 0;
   const errors: string[] = [];
+  const aiDebug: { rawKeys?: string[]; rawSample?: string; arrayLength?: number; filterPassed?: number }[] = [];
 
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
     const batch = rows.slice(i, i + BATCH_SIZE);
@@ -106,26 +107,44 @@ export async function GET(request: NextRequest) {
       });
 
       const raw = completion.choices[0]?.message?.content;
-      if (!raw) continue;
+      if (!raw) {
+        aiDebug.push({ rawSample: "null" });
+        continue;
+      }
 
       const parsed = JSON.parse(raw);
-      const results: ScoreResult[] = Array.isArray(parsed)
-        ? parsed
-        : parsed.scores ?? parsed.results ?? [];
+      const keys = Object.keys(parsed);
 
-      const updates = results
-        .filter((r) => typeof r.index === "number" && typeof r.score === "number" && r.index >= 0 && r.index < batch.length)
-        .map((r) => {
-          const article = batch[r.index];
-          return supabase
-            .from("articles")
-            .update({
-              relevance_score: Math.min(10, Math.max(1, Math.round(r.score))),
-              score_reason: (r.reason || "").slice(0, 200),
-              scored_at: new Date().toISOString(),
-            })
-            .eq("id", article.id);
-        });
+      let arr: ScoreResult[];
+      if (Array.isArray(parsed)) {
+        arr = parsed;
+      } else {
+        const found = keys.find((k) => Array.isArray(parsed[k]));
+        arr = found ? parsed[found] : [];
+      }
+
+      const results = arr.filter(
+        (r: ScoreResult) => typeof r.index === "number" && typeof r.score === "number" && r.index >= 0 && r.index < batch.length,
+      );
+
+      aiDebug.push({
+        rawKeys: keys,
+        rawSample: raw.slice(0, 300),
+        arrayLength: arr.length,
+        filterPassed: results.length,
+      });
+
+      const updates = results.map((r: ScoreResult) => {
+        const article = batch[r.index];
+        return supabase
+          .from("articles")
+          .update({
+            relevance_score: Math.min(10, Math.max(1, Math.round(r.score))),
+            score_reason: (r.reason || "").slice(0, 200),
+            scored_at: new Date().toISOString(),
+          })
+          .eq("id", article.id);
+      });
 
       await Promise.all(updates);
       scored += updates.length;
@@ -145,6 +164,7 @@ export async function GET(request: NextRequest) {
       windowHours: hours,
       since,
     },
+    aiDebug,
     errors: errors.length > 0 ? errors : undefined,
   });
 }

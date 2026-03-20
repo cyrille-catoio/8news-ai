@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { getSystemPrompt, getServerMessages } from "@/lib/prompts";
-import { getCachedResult, setCachedResult, cleanExpiredCache, getArticlesFromDb } from "@/lib/supabase";
+import { getCachedResult, setCachedResult, cleanExpiredCache, getScoredArticles, getAllArticlesFromDb } from "@/lib/supabase";
 import type { Lang } from "@/lib/i18n";
 import type { ArticleSummary, SummaryBullet, SummaryResponse, AIAnalysis, Topic } from "@/lib/types";
 
@@ -22,19 +22,27 @@ function isValidApiKey(key: string | undefined): key is string {
   return !!key && key.trim() !== "" && key !== "sk-your-key-here";
 }
 
+function getMinScore(hours: number): number {
+  if (hours <= 1) return 3;
+  if (hours <= 6) return 4;
+  if (hours <= 12) return 5;
+  if (hours <= 48) return 6;
+  return 7;
+}
+
 // ── Read articles from Supabase ──────────────────────────────────────
 
-async function fetchArticlesFromDb(topic: Topic, since: number): Promise<ArticleSummary[]> {
-  const sinceISO = new Date(since).toISOString();
-  const rows = await getArticlesFromDb(topic, sinceISO, MAX_ARTICLES);
-
-  return rows.map((r) => ({
+function toArticleSummary(
+  r: { title: string; link: string; source: string; pub_date: string; snippet: string | null; content: string | null },
+  maxSnippet: number,
+): ArticleSummary {
+  return {
     title: r.title,
     link: r.link,
     source: r.source,
     pubDate: r.pub_date,
-    snippet: (r.snippet || r.content || "").slice(0, SNIPPET_MAX),
-  }));
+    snippet: (r.snippet || r.content || "").slice(0, maxSnippet),
+  };
 }
 
 // ── AI analysis ───────────────────────────────────────────────────────
@@ -124,6 +132,7 @@ export async function GET(request: NextRequest) {
     const maxArticles = Math.min(30, Math.max(3, parseInt(params.get("count") ?? "10", 10) || 10));
     const hours = Math.min(168, Math.max(0.25, parseFloat(params.get("hours") ?? "24") || 24));
     const since = Date.now() - hours * 3_600_000;
+    const sinceISO = new Date(since).toISOString();
     const msg = getServerMessages(lang);
 
     // ── Cache check ──────────────────────────────────────────────────
@@ -135,20 +144,22 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // ── Read articles from Supabase ──────────────────────────────────
-    const items = await fetchArticlesFromDb(topic, since);
+    // ── Read scored + all articles from DB ───────────────────────────
+    const minScore = getMinScore(hours);
+    const [scoredRows, allRows] = await Promise.all([
+      getScoredArticles(topic, sinceISO, minScore, maxArticles * 2),
+      getAllArticlesFromDb(topic, sinceISO, MAX_ARTICLES),
+    ]);
 
-    const allArticles: ArticleSummary[] = items.map((a) => ({
-      ...a,
-      snippet: a.snippet.slice(0, 300),
-    }));
+    const items = scoredRows.map((r) => toArticleSummary(r, SNIPPET_MAX));
+    const allArticles = allRows.map((r) => toArticleSummary(r, 300));
 
     if (items.length === 0) {
       return NextResponse.json({
         summary: msg.noArticles,
         bullets: [],
         articles: [],
-        allArticles: [],
+        allArticles,
         period: buildPeriod(since),
       } satisfies SummaryResponse);
     }

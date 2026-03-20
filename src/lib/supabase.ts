@@ -103,6 +103,7 @@ export async function cleanExpiredCache(): Promise<void> {
 // ── Articles from BDD ──────────────────────────────────────────────────
 
 export interface DbArticle {
+  id: number;
   topic: string;
   source: string;
   title: string;
@@ -110,9 +111,38 @@ export interface DbArticle {
   pub_date: string;
   content: string | null;
   snippet: string | null;
+  relevance_score: number | null;
 }
 
-export async function getArticlesFromDb(
+export async function getScoredArticles(
+  topic: string,
+  since: string,
+  minScore: number,
+  limit: number,
+): Promise<DbArticle[]> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
+
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("articles")
+      .select("id, topic, source, title, link, pub_date, content, snippet, relevance_score")
+      .eq("topic", topic)
+      .gte("pub_date", since)
+      .gte("relevance_score", minScore)
+      .order("relevance_score", { ascending: false })
+      .order("pub_date", { ascending: false })
+      .limit(limit);
+
+    if (error || !data) return [];
+    return data as DbArticle[];
+  } catch {
+    return [];
+  }
+}
+
+export async function getAllArticlesFromDb(
   topic: string,
   since: string,
   limit: number,
@@ -124,7 +154,7 @@ export async function getArticlesFromDb(
     const supabase = await clientP;
     const { data, error } = await supabase
       .from("articles")
-      .select("topic, source, title, link, pub_date, content, snippet")
+      .select("id, topic, source, title, link, pub_date, content, snippet, relevance_score")
       .eq("topic", topic)
       .gte("pub_date", since)
       .order("pub_date", { ascending: false })
@@ -134,5 +164,54 @@ export async function getArticlesFromDb(
     return data as DbArticle[];
   } catch {
     return [];
+  }
+}
+
+export async function getUnscoredArticles(
+  topic: string,
+  since: string,
+  limit: number,
+): Promise<DbArticle[]> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
+
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("articles")
+      .select("id, topic, source, title, link, pub_date, content, snippet, relevance_score")
+      .eq("topic", topic)
+      .gte("pub_date", since)
+      .is("relevance_score", null)
+      .order("pub_date", { ascending: false })
+      .limit(limit);
+
+    if (error || !data) return [];
+    return data as DbArticle[];
+  } catch {
+    return [];
+  }
+}
+
+export async function updateArticleScore(
+  id: number,
+  score: number,
+  reason: string,
+): Promise<void> {
+  const clientP = getServerClient();
+  if (!clientP) return;
+
+  try {
+    const supabase = await clientP;
+    await supabase
+      .from("articles")
+      .update({
+        relevance_score: score,
+        score_reason: reason,
+        scored_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+  } catch {
+    // non-critical
   }
 }

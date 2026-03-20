@@ -55,8 +55,16 @@ async function scoreArticleBatch(
 
   try {
     const parsed = JSON.parse(raw);
-    const arr = Array.isArray(parsed) ? parsed : parsed.scores ?? parsed.results ?? [];
-    return (arr as ScoreResult[]).filter(
+    let arr: ScoreResult[];
+    if (Array.isArray(parsed)) {
+      arr = parsed;
+    } else if (typeof parsed.index === "number" && typeof parsed.score === "number") {
+      arr = [parsed as ScoreResult];
+    } else {
+      const key = Object.keys(parsed).find((k) => Array.isArray(parsed[k]));
+      arr = key ? parsed[key] : [];
+    }
+    return arr.filter(
       (r) => typeof r.index === "number" && typeof r.score === "number",
     );
   } catch {

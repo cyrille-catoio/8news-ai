@@ -118,6 +118,8 @@ export async function GET(request: NextRequest) {
       let arr: ScoreResult[];
       if (Array.isArray(parsed)) {
         arr = parsed;
+      } else if (typeof parsed.index === "number" && typeof parsed.score === "number") {
+        arr = [parsed as ScoreResult];
       } else {
         const found = keys.find((k) => Array.isArray(parsed[k]));
         arr = found ? parsed[found] : [];

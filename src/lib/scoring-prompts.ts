@@ -87,6 +87,6 @@ Rate each article's relevance and importance from 1 to 10 (integer).
 - Clickbait or vague opinion pieces without facts = max score 4.
 - Must include concrete data (names, numbers, dates) to score above 6.
 
-Respond ONLY with a JSON array, no markdown, no explanation:
-[{"index": 0, "score": 7, "reason": "New GPT-5 model announced with benchmarks"}, ...]`;
+Respond ONLY with a JSON object containing a "scores" array. No markdown, no explanation:
+{"scores": [{"index": 0, "score": 7, "reason": "New GPT-5 model announced with benchmarks"}, ...]}`;
 }

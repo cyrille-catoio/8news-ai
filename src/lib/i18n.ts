@@ -30,8 +30,8 @@ const strings = {
     fr: "Jeux Vidéo",
   },
   topicAiengineering: {
-    en: "AI Engineering",
-    fr: "AI Engineering",
+    en: "AI Eng.",
+    fr: "AI Eng.",
   },
   conflictTitle: {
     en: "USA / Israel vs Iran Conflict",

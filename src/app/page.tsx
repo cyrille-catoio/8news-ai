@@ -9,7 +9,7 @@ import { getSystemPrompt } from "@/lib/prompts";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.32";
+const APP_VERSION = "1.33";
 const VERSION_CHECK_INTERVAL_MS = 60_000;
 
 const PERIODS = [
@@ -94,10 +94,12 @@ function TopicToggle({
         }
         @media (max-width: 640px) {
           .topic-grid {
-            grid-template-columns: repeat(${Math.min(TOPICS.length, 4)}, 1fr);
+            grid-template-columns: repeat(4, 1fr);
+            gap: 5px;
           }
           .topic-grid button {
-            font-size: 11px !important;
+            font-size: 13px !important;
+            padding: 10px 2px !important;
           }
         }
       `}</style>

@@ -208,6 +208,7 @@ function SettingsModal({
   const [activeTab, setActiveTab] = useState<Topic>(topic);
   const [rssOpen, setRssOpen] = useState(false);
   const [promptOpen, setPromptOpen] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
   const feeds = getFeedsForTopic(activeTab);
 
   const sectionStyle: CSSProperties = {
@@ -283,9 +284,30 @@ function SettingsModal({
           <div style={sectionStyle}>
             <h4 style={sectionTitle}>{t("preferencesSection", lang)}</h4>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <label style={{ color: color.textLabel, fontSize: 14, fontWeight: 500, whiteSpace: "nowrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, position: "relative" }}>
+              <label style={{ color: color.textLabel, fontSize: 14, fontWeight: 500, whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }}>
                 {t("maxArticles", lang)}
+                <button
+                  onClick={() => setInfoOpen(!infoOpen)}
+                  style={{
+                    background: "none",
+                    border: `1.5px solid ${color.gold}`,
+                    borderRadius: "50%",
+                    width: 18,
+                    height: 18,
+                    color: color.gold,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    padding: 0,
+                    lineHeight: "16px",
+                    textAlign: "center",
+                    flexShrink: 0,
+                  }}
+                  aria-label="Info"
+                >
+                  i
+                </button>
               </label>
               <input
                 type="range"
@@ -299,6 +321,27 @@ function SettingsModal({
               <span style={{ color: color.gold, fontSize: 15, fontWeight: 600, minWidth: 28, textAlign: "center" }}>
                 {maxArticles}
               </span>
+              {infoOpen && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "calc(100% + 8px)",
+                    left: 0,
+                    right: 0,
+                    background: color.surface,
+                    border: `1px solid ${color.gold}`,
+                    borderRadius: 8,
+                    padding: "12px 14px",
+                    fontSize: 12,
+                    lineHeight: 1.5,
+                    color: color.text,
+                    zIndex: 10,
+                    boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+                  }}
+                >
+                  {t("maxArticlesInfo", lang)}
+                </div>
+              )}
             </div>
           </div>
 
@@ -489,8 +532,12 @@ function AudioPlayer({ text }: { text: string }) {
 
   async function handlePlay() {
     if (audioRef.current) {
-      audioRef.current.play();
-      setState("playing");
+      try {
+        await audioRef.current.play();
+        setState("playing");
+      } catch {
+        setState("idle");
+      }
       return;
     }
 
@@ -514,6 +561,12 @@ function AudioPlayer({ text }: { text: string }) {
       audio.addEventListener("loadedmetadata", () => setDuration(audio.duration));
       audio.addEventListener("timeupdate", () => setCurrentTime(audio.currentTime));
       audio.addEventListener("ended", () => setState("idle"));
+
+      await new Promise<void>((resolve, reject) => {
+        audio.addEventListener("canplaythrough", () => resolve(), { once: true });
+        audio.addEventListener("error", () => reject(new Error("Audio load error")), { once: true });
+        audio.load();
+      });
 
       await audio.play();
       setState("playing");

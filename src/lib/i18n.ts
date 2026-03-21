@@ -157,6 +157,10 @@ const strings = {
     en: "Max relevant articles:",
     fr: "Nb articles max retenus:",
   },
+  maxArticlesInfo: {
+    en: "Articles pre-scored hourly by AI (relevance 1-10) are filtered by minimum score based on the selected time window. 2x the max number of articles are sent to GPT-4o-mini, which generates a summary and selects the most relevant ones to display. Results are cached for 5-60 min depending on the time range.",
+    fr: "Les articles sont pré-scorés toutes les heures par l'IA (pertinence 1-10) puis filtrés par score minimum selon la fenêtre temporelle choisie. 2x le nombre max d'articles sont envoyés à GPT-4o-mini qui génère un résumé et sélectionne les plus pertinents à afficher. Les résultats sont mis en cache 5-60 min selon la plage horaire.",
+  },
 } as const;
 
 type StringKey = keyof typeof strings;

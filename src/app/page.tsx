@@ -9,7 +9,7 @@ import { getSystemPrompt } from "@/lib/prompts";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.30";
+const APP_VERSION = "1.31";
 const VERSION_CHECK_INTERVAL_MS = 60_000;
 
 const PERIODS = [
@@ -1215,7 +1215,7 @@ export default function Home() {
         />
       )}
 
-      <footer style={{ position: "fixed", bottom: 8, right: 17, color: color.textDim, fontSize: 12 }}>
+      <footer style={{ position: "fixed", bottom: 8, right: 27, color: color.textDim, fontSize: 12 }}>
         v{APP_VERSION}
       </footer>
     </div>

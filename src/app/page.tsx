@@ -9,7 +9,7 @@ import { getSystemPrompt } from "@/lib/prompts";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.33";
+const APP_VERSION = "1.34";
 const VERSION_CHECK_INTERVAL_MS = 60_000;
 
 const PERIODS = [

@@ -72,7 +72,7 @@ async function analyzeWithAI(
   const openai = new OpenAI({ apiKey });
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-4.1-nano",
     messages: [
       { role: "system", content: getSystemPrompt(topic, lang, maxArticles) },
       { role: "user", content: `Article list:\n${formatArticleList(items)}` },

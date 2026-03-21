@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
 
     try {
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4.1-nano",
         messages: [
           { role: "system", content: getScoringPrompt(topicParam) },
           { role: "user", content: articleList },

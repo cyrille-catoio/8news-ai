@@ -36,7 +36,7 @@ async function scoreArticleBatch(
     .join("\n");
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-4.1-nano",
     messages: [
       { role: "system", content: getScoringPrompt(topic) },
       { role: "user", content: articleList },

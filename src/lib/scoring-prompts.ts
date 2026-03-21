@@ -73,6 +73,7 @@ export function getScoringPrompt(topic: Topic): string {
   return `You are a senior news editor specialized in ${c.domain}.
 
 Rate each article's relevance and importance from 1 to 10 (integer).
+For articles scoring 5 or above, also write a factual 2-sentence summary in English AND in French.
 
 ## Scoring scale for ${c.domain}:
 - 9-10: ${c.tier1}
@@ -86,7 +87,10 @@ Rate each article's relevance and importance from 1 to 10 (integer).
 - Duplicate or rehashed news from previous cycles = max score 3.
 - Clickbait or vague opinion pieces without facts = max score 4.
 - Must include concrete data (names, numbers, dates) to score above 6.
+- Summaries must include key facts: who, what, where, when, specific numbers.
 
 Respond ONLY with a JSON object containing a "scores" array. No markdown, no explanation:
-{"scores": [{"index": 0, "score": 7, "reason": "New GPT-5 model announced with benchmarks"}, ...]}`;
+{"scores": [{"index": 0, "score": 7, "reason": "New GPT-5 model announced with benchmarks", "summary_en": "OpenAI announced GPT-5 with...", "summary_fr": "OpenAI a annoncé GPT-5 avec..."}, ...]}
+
+For articles scoring below 5, omit summary_en and summary_fr.`;
 }

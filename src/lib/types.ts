@@ -6,6 +6,8 @@ export interface ScoreResult {
   index: number;
   score: number;
   reason: string;
+  summary_en?: string;
+  summary_fr?: string;
 }
 
 export interface ParsedArticle {

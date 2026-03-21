@@ -34,15 +34,17 @@ function getMinScore(hours: number): number {
 // ── Read articles from Supabase ──────────────────────────────────────
 
 function toArticleSummary(
-  r: { title: string; link: string; source: string; pub_date: string; snippet: string | null; content: string | null },
+  r: { title: string; link: string; source: string; pub_date: string; snippet: string | null; content: string | null; snippet_en?: string | null; snippet_fr?: string | null },
   maxSnippet: number,
+  lang?: Lang,
 ): ArticleSummary {
+  const aiSnippet = lang === "fr" ? r.snippet_fr : r.snippet_en;
   return {
     title: r.title,
     link: r.link,
     source: r.source,
     pubDate: r.pub_date,
-    snippet: (r.snippet || r.content || "").slice(0, maxSnippet),
+    snippet: aiSnippet || (r.snippet || r.content || "").slice(0, maxSnippet),
   };
 }
 
@@ -51,7 +53,7 @@ function toArticleSummary(
 function formatArticleList(items: ArticleSummary[]): string {
   return items
     .map((a, i) =>
-      `[${i}] ${a.title} | ${a.source} | ${a.pubDate.slice(0, 10)} | ${a.snippet.slice(0, 500)}`
+      `[${i}] ${a.title} | ${a.source} | ${a.pubDate.slice(0, 10)} | ${a.snippet.slice(0, 300)}`
     )
     .join("\n");
 }
@@ -152,8 +154,8 @@ export async function GET(request: NextRequest) {
       getAllArticlesFromDb(topic, sinceISO, MAX_ARTICLES),
     ]);
 
-    const items = scoredRows.map((r) => toArticleSummary(r, SNIPPET_MAX));
-    const allArticles = allRows.map((r) => toArticleSummary(r, 300));
+    const items = scoredRows.map((r) => toArticleSummary(r, SNIPPET_MAX, lang));
+    const allArticles = allRows.map((r) => toArticleSummary(r, 300, lang));
 
     if (items.length === 0) {
       return NextResponse.json({

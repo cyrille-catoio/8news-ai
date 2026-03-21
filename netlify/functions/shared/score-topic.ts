@@ -105,13 +105,16 @@ export async function scoreAndStoreTopic(topic: Topic): Promise<string> {
         .filter((r) => r.index >= 0 && r.index < batch.length)
         .map((r) => {
           const article = batch[r.index];
+          const fields: Record<string, unknown> = {
+            relevance_score: Math.min(10, Math.max(1, Math.round(r.score))),
+            score_reason: (r.reason || "").slice(0, 200),
+            scored_at: new Date().toISOString(),
+          };
+          if (r.summary_en) fields.snippet_en = r.summary_en.slice(0, 500);
+          if (r.summary_fr) fields.snippet_fr = r.summary_fr.slice(0, 500);
           return supabase
             .from("articles")
-            .update({
-              relevance_score: Math.min(10, Math.max(1, Math.round(r.score))),
-              score_reason: (r.reason || "").slice(0, 200),
-              scored_at: new Date().toISOString(),
-            })
+            .update(fields)
             .eq("id", article.id);
         });
 

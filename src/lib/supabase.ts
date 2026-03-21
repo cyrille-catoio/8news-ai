@@ -111,6 +111,8 @@ export interface DbArticle {
   pub_date: string;
   content: string | null;
   snippet: string | null;
+  snippet_en: string | null;
+  snippet_fr: string | null;
   relevance_score: number | null;
 }
 
@@ -127,7 +129,7 @@ export async function getScoredArticles(
     const supabase = await clientP;
     const { data, error } = await supabase
       .from("articles")
-      .select("id, topic, source, title, link, pub_date, content, snippet, relevance_score")
+      .select("id, topic, source, title, link, pub_date, content, snippet, snippet_en, snippet_fr, relevance_score")
       .eq("topic", topic)
       .gte("pub_date", since)
       .gte("relevance_score", minScore)
@@ -154,7 +156,7 @@ export async function getAllArticlesFromDb(
     const supabase = await clientP;
     const { data, error } = await supabase
       .from("articles")
-      .select("id, topic, source, title, link, pub_date, content, snippet, relevance_score")
+      .select("id, topic, source, title, link, pub_date, content, snippet, snippet_en, snippet_fr, relevance_score")
       .eq("topic", topic)
       .gte("pub_date", since)
       .order("pub_date", { ascending: false })

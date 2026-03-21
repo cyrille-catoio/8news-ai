@@ -13,16 +13,17 @@ const APP_VERSION = "1.31";
 const VERSION_CHECK_INTERVAL_MS = 60_000;
 
 const PERIODS = [
-  { label: "15 m", hours: 0.25 },
-  { label: "30 m", hours: 0.5 },
-  { label: "1 h",  hours: 1 },
-  { label: "3 h",  hours: 3 },
-  { label: "6 h",  hours: 6 },
-  { label: "12 h", hours: 12 },
-  { label: "24 h", hours: 24 },
-  { label: "48 h", hours: 48 },
-  { label: "3 d",  hours: 72 },
-  { label: "7 d",  hours: 168 },
+  { label: "30 m",  hours: 0.5 },
+  { label: "1 h",   hours: 1 },
+  { label: "3 h",   hours: 3 },
+  { label: "6 h",   hours: 6 },
+  { label: "12 h",  hours: 12 },
+  { label: "24 h",  hours: 24 },
+  { label: "48 h",  hours: 48 },
+  { label: "3 d",   hours: 72 },
+  { label: "7 d",   hours: 168 },
+  { label: "14 d",  hours: 336 },
+  { label: "30 d",  hours: 720 },
 ] as const;
 
 const TOPICS: { value: Topic; labelKey: "topicConflict" | "topicAi" | "topicRobotics" | "topicCrypto" | "topicBitcoin" | "topicVideogames" | "topicAiengineering" }[] = [
@@ -155,7 +156,9 @@ function PeriodButton({
       onClick={onClick}
       disabled={disabled}
       style={{
-        padding: "9px 20px",
+        padding: "9px 0",
+        width: 64,
+        textAlign: "center",
         borderRadius: 8,
         border: `1px solid ${active ? color.gold : color.borderLight}`,
         background: active ? color.gold : "#141414",
@@ -1199,7 +1202,7 @@ export default function Home() {
 
         {/* ── Empty state ────────────────────────────────────── */}
         {!loading && !data && !error && (
-          <p style={{ color: color.textDim, padding: "32px 0", fontSize: 15 }}>
+          <p style={{ color: color.textDim, padding: "32px 0", fontSize: 15, textAlign: "center" }}>
             {t("initialMessage", lang)}
           </p>
         )}

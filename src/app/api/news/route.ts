@@ -34,11 +34,11 @@ function getMinScore(hours: number): number {
 // ── Read articles from Supabase ──────────────────────────────────────
 
 function toArticleSummary(
-  r: { title: string; link: string; source: string; pub_date: string; snippet: string | null; content: string | null; snippet_en?: string | null; snippet_fr?: string | null },
+  r: { title: string; link: string; source: string; pub_date: string; snippet: string | null; content: string | null; snippet_ai_en?: string | null; snippet_ai_fr?: string | null },
   maxSnippet: number,
   lang?: Lang,
 ): ArticleSummary {
-  const aiSnippet = lang === "fr" ? r.snippet_fr : r.snippet_en;
+  const aiSnippet = lang === "fr" ? r.snippet_ai_fr : r.snippet_ai_en;
   return {
     title: r.title,
     link: r.link,

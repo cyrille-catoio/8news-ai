@@ -9,7 +9,7 @@ import { getSystemPrompt } from "@/lib/prompts";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.31";
+const APP_VERSION = "1.32";
 const VERSION_CHECK_INTERVAL_MS = 60_000;
 
 const PERIODS = [
@@ -152,25 +152,42 @@ function PeriodButton({
   onClick: () => void;
 }) {
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        padding: "9px 0",
-        width: 64,
-        textAlign: "center",
-        borderRadius: 8,
-        border: `1px solid ${active ? color.gold : color.borderLight}`,
-        background: active ? color.gold : "#141414",
-        color: active ? "#000" : "#ccc",
-        fontSize: 15,
-        fontWeight: 500,
-        cursor: disabled ? "wait" : "pointer",
-        transition: "all 0.15s",
-      }}
-    >
-      {label}
-    </button>
+    <>
+      <style>{`
+        .period-btn {
+          padding: 9px 0;
+          width: 64px;
+          text-align: center;
+          border-radius: 8px;
+          font-size: 15px;
+          font-weight: 500;
+          transition: all 0.15s;
+        }
+        @media (max-width: 640px) {
+          .period-btn {
+            width: 52px;
+            padding: 7px 0;
+            font-size: 13px;
+          }
+          .period-grid {
+            gap: 6px !important;
+          }
+        }
+      `}</style>
+      <button
+        className="period-btn"
+        onClick={onClick}
+        disabled={disabled}
+        style={{
+          border: `1px solid ${active ? color.gold : color.borderLight}`,
+          background: active ? color.gold : "#141414",
+          color: active ? "#000" : "#ccc",
+          cursor: disabled ? "wait" : "pointer",
+        }}
+      >
+        {label}
+      </button>
+    </>
   );
 }
 
@@ -1096,7 +1113,7 @@ export default function Home() {
 
         {/* ── Period selector ────────────────────────────────── */}
         <section style={{ marginBottom: 24 }}>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div className="period-grid" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {PERIODS.map(({ label, hours }) => (
               <PeriodButton
                 key={hours}

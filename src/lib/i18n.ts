@@ -70,8 +70,8 @@ const strings = {
     fr: "Sélectionnez une période :",
   },
   loading: {
-    en: "Fetching RSS feeds and running AI analysis…",
-    fr: "Chargement des flux RSS et analyse par IA…",
+    en: "Reading articles and running AI analysis…",
+    fr: "Chargement des articles et analyse IA…",
   },
   connectionError: {
     en: "Unable to connect to the server.",

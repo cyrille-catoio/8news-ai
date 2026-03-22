@@ -9,7 +9,7 @@ import { getSystemPrompt } from "@/lib/prompts";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.35";
+const APP_VERSION = "1.36";
 const VERSION_CHECK_INTERVAL_MS = 60_000;
 
 const PERIODS = [
@@ -653,25 +653,25 @@ function AudioPlayer({ text }: { text: string }) {
       <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
         {state === "playing" ? (
           <button onClick={handlePause} style={{ ...btnBase, color: color.gold }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
           </button>
         ) : (
           <button onClick={handlePlay} disabled={state === "loading"} style={{ ...btnBase, color: state === "loading" ? color.textDim : color.gold }}>
             {state === "loading" ? (
               <>
                 <SpinKeyframes />
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: "spin 1s linear infinite" }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: "spin 1s linear infinite" }}>
                   <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
                 </svg>
               </>
             ) : (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21" /></svg>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21" /></svg>
             )}
           </button>
         )}
 
         <button onClick={handleStop} disabled={!isActive} style={{ ...btnBase, opacity: isActive ? 1 : 0.35 }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2" /></svg>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2" /></svg>
         </button>
 
         <button onClick={() => skip(-15)} disabled={!isActive} style={{ ...btnBase, opacity: isActive ? 1 : 0.35 }}>
@@ -991,11 +991,11 @@ export default function Home() {
     if (progressRef.current) clearInterval(progressRef.current);
     let current = 0;
     progressRef.current = setInterval(() => {
-      if (current < 70) {
-        current = Math.min(70, current + 3.5);
+      if (current < 90) {
+        current = Math.min(90, current + 3.5);
       } else {
-        const remaining = 95 - current;
-        current = Math.min(95, current + Math.max(0.15, remaining * 0.04));
+        const remaining = 99 - current;
+        current = Math.min(99, current + Math.max(0.1, remaining * 0.03));
       }
       setProgress(Math.round(current));
     }, 200);
@@ -1075,25 +1075,6 @@ export default function Home() {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="3" />
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-              </svg>
-            </button>
-            <button
-              onClick={handleReset}
-              aria-label={t("reset", lang)}
-              style={{
-                padding: 4,
-                border: "none",
-                background: "transparent",
-                color: color.textMuted,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="23 4 23 10 17 10" />
-                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
               </svg>
             </button>
           </div>

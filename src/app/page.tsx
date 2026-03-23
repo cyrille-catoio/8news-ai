@@ -9,7 +9,7 @@ import { getSystemPrompt } from "@/lib/prompts";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.36";
+const APP_VERSION = "1.38";
 const VERSION_CHECK_INTERVAL_MS = 60_000;
 
 const PERIODS = [
@@ -65,7 +65,7 @@ function TopicToggle({
   disabled,
   onChange,
 }: {
-  topic: Topic;
+  topic: Topic | null;
   lang: Lang;
   disabled: boolean;
   onChange: (t: Topic) => void;
@@ -184,7 +184,8 @@ function PeriodButton({
           border: `1px solid ${active ? color.gold : color.borderLight}`,
           background: active ? color.gold : "#141414",
           color: active ? "#000" : "#ccc",
-          cursor: disabled ? "wait" : "pointer",
+          cursor: disabled ? "default" : "pointer",
+          opacity: disabled ? 0.45 : 1,
         }}
       >
         {label}
@@ -555,6 +556,8 @@ function AudioPlayer({ text }: { text: string }) {
   async function handlePlay() {
     if (audioRef.current) {
       try {
+        audioRef.current.currentTime = audioRef.current.currentTime >= (audioRef.current.duration || 0) - 0.5
+          ? 0 : audioRef.current.currentTime;
         await audioRef.current.play();
         setState("playing");
       } catch {
@@ -577,16 +580,21 @@ function AudioPlayer({ text }: { text: string }) {
       const url = URL.createObjectURL(blob);
       blobUrlRef.current = url;
 
-      const audio = new Audio(url);
+      const audio = new Audio();
       audioRef.current = audio;
 
       audio.addEventListener("loadedmetadata", () => setDuration(audio.duration));
       audio.addEventListener("timeupdate", () => setCurrentTime(audio.currentTime));
-      audio.addEventListener("ended", () => setState("idle"));
+      audio.addEventListener("ended", () => {
+        if (audioRef.current) audioRef.current.currentTime = 0;
+        setCurrentTime(0);
+        setState("idle");
+      });
 
       await new Promise<void>((resolve, reject) => {
         audio.addEventListener("canplaythrough", () => resolve(), { once: true });
         audio.addEventListener("error", () => reject(new Error("Audio load error")), { once: true });
+        audio.src = url;
         audio.load();
       });
 
@@ -936,7 +944,7 @@ function playNotificationBeep() {
 
 export default function Home() {
   const [lang, setLang] = useState<Lang>("en");
-  const [topic, setTopic] = useState<Topic>("conflict");
+  const [topic, setTopic] = useState<Topic | null>(null);
   const [maxArticles, setMaxArticles] = useState(() => {
     if (typeof document === "undefined") return 10;
     const match = document.cookie.match(/(?:^|; )maxArticles=(\d+)/);
@@ -972,19 +980,20 @@ export default function Home() {
   }, []);
 
   const locale = dateLocale(lang);
-  const noArticlesKey = topic === "conflict"
-    ? "noArticlesConflict"
-    : topic === "ai"
-      ? "noArticlesAi"
-      : topic === "crypto"
-        ? "noArticlesCrypto"
-        : topic === "bitcoin"
-          ? "noArticlesBitcoin"
-          : topic === "videogames"
-            ? "noArticlesVideogames"
-            : topic === "aiengineering"
-              ? "noArticlesAiengineering"
-              : "noArticlesRobotics";
+  const noArticlesKey = !topic ? "noArticlesConflict"
+    : topic === "conflict"
+      ? "noArticlesConflict"
+      : topic === "ai"
+        ? "noArticlesAi"
+        : topic === "crypto"
+          ? "noArticlesCrypto"
+          : topic === "bitcoin"
+            ? "noArticlesBitcoin"
+            : topic === "videogames"
+              ? "noArticlesVideogames"
+              : topic === "aiengineering"
+                ? "noArticlesAiengineering"
+                : "noArticlesRobotics";
 
   function startProgress() {
     setProgress(0);
@@ -1010,6 +1019,7 @@ export default function Home() {
   }
 
   async function fetchNews(hours: number) {
+    if (!topic) return;
     unlockAudioContext();
     setSelected(hours);
     setLoading(true);
@@ -1036,7 +1046,7 @@ export default function Home() {
 
   function handleTopicChange(newTopic: Topic) {
     if (newTopic === topic) return;
-    setTopic(newTopic);
+    setTopic(newTopic as Topic);
     setSelected(null);
     setData(null);
     setError(null);
@@ -1102,7 +1112,7 @@ export default function Home() {
                 key={hours}
                 label={label}
                 active={selected === hours}
-                disabled={loading}
+                disabled={loading || !topic}
                 onClick={() => fetchNews(hours)}
               />
             ))}
@@ -1145,7 +1155,7 @@ export default function Home() {
         {/* ── Results ────────────────────────────────────────── */}
         {!loading && data && (
           <div>
-            <SummaryBox data={data} locale={locale} lang={lang} hours={selected ?? 24} topic={topic} />
+            <SummaryBox data={data} locale={locale} lang={lang} hours={selected ?? 24} topic={topic || "conflict"} />
 
             {/* Tab bar */}
             <div style={{ display: "flex", borderBottom: `1px solid ${color.border}`, marginBottom: 20, gap: 0 }}>
@@ -1210,7 +1220,7 @@ export default function Home() {
 
       {showSettings && (
         <SettingsModal
-          topic={topic}
+          topic={topic || "conflict"}
           lang={lang}
           maxArticles={maxArticles}
           onMaxArticlesChange={updateMaxArticles}

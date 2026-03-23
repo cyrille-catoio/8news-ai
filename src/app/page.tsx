@@ -162,7 +162,8 @@ function PeriodButton({
           text-align: center;
           border-radius: 8px;
           font-size: 15px;
-          font-weight: 500;
+          font-weight: 600;
+          letter-spacing: 0.02em;
           transition: all 0.15s;
         }
         @media (max-width: 640px) {
@@ -181,9 +182,9 @@ function PeriodButton({
         onClick={onClick}
         disabled={disabled}
         style={{
-          border: `1px solid ${active ? color.gold : color.borderLight}`,
-          background: active ? color.gold : "#141414",
-          color: active ? "#000" : "#ccc",
+          border: `1px solid ${active ? color.gold : "#777"}`,
+          background: active ? color.gold : "#222",
+          color: active ? "#000" : "#e5e5e5",
           cursor: disabled ? "default" : "pointer",
           opacity: disabled ? 0.45 : 1,
         }}
@@ -529,6 +530,7 @@ function AudioPlayer({ text }: { text: string }) {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const blobUrlRef = useRef<string | null>(null);
+  const genId = useRef(0);
 
   const cleanup = useCallback(() => {
     if (audioRef.current) {
@@ -542,11 +544,10 @@ function AudioPlayer({ text }: { text: string }) {
     }
   }, []);
 
-  useEffect(() => {
-    return cleanup;
-  }, [cleanup]);
+  useEffect(() => cleanup, [cleanup]);
 
   useEffect(() => {
+    genId.current++;
     cleanup();
     setState("idle");
     setCurrentTime(0);
@@ -555,16 +556,23 @@ function AudioPlayer({ text }: { text: string }) {
 
   async function handlePlay() {
     if (audioRef.current) {
-      try {
-        audioRef.current.currentTime = audioRef.current.currentTime >= (audioRef.current.duration || 0) - 0.5
-          ? 0 : audioRef.current.currentTime;
-        await audioRef.current.play();
-        setState("playing");
-      } catch {
-        setState("idle");
-      }
+      const a = audioRef.current;
+      if (a.currentTime >= (a.duration || 0) - 0.5) a.currentTime = 0;
+      try { await a.play(); setState("playing"); } catch { setState("idle"); }
       return;
     }
+
+    const id = ++genId.current;
+    const audio = new Audio();
+    audioRef.current = audio;
+
+    audio.addEventListener("loadedmetadata", () => setDuration(audio.duration));
+    audio.addEventListener("timeupdate", () => setCurrentTime(audio.currentTime));
+    audio.addEventListener("ended", () => {
+      audio.currentTime = 0;
+      setCurrentTime(0);
+      setState("idle");
+    });
 
     setState("loading");
     try {
@@ -574,34 +582,32 @@ function AudioPlayer({ text }: { text: string }) {
         body: JSON.stringify({ text }),
       });
       if (!res.ok) throw new Error("TTS failed");
+      if (id !== genId.current) return;
 
       const blob = await res.blob();
-      cleanup();
+      if (id !== genId.current) return;
+
+      if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
       const url = URL.createObjectURL(blob);
       blobUrlRef.current = url;
 
-      const audio = new Audio();
-      audioRef.current = audio;
-
-      audio.addEventListener("loadedmetadata", () => setDuration(audio.duration));
-      audio.addEventListener("timeupdate", () => setCurrentTime(audio.currentTime));
-      audio.addEventListener("ended", () => {
-        if (audioRef.current) audioRef.current.currentTime = 0;
-        setCurrentTime(0);
-        setState("idle");
-      });
+      audio.src = url;
+      audio.load();
 
       await new Promise<void>((resolve, reject) => {
-        audio.addEventListener("canplaythrough", () => resolve(), { once: true });
-        audio.addEventListener("error", () => reject(new Error("Audio load error")), { once: true });
-        audio.src = url;
-        audio.load();
+        const timeout = setTimeout(() => resolve(), 5000);
+        audio.addEventListener("canplaythrough", () => { clearTimeout(timeout); resolve(); }, { once: true });
+        audio.addEventListener("error", () => { clearTimeout(timeout); reject(new Error("Audio load error")); }, { once: true });
       });
+      if (id !== genId.current) { audio.pause(); return; }
 
       await audio.play();
       setState("playing");
     } catch {
-      setState("idle");
+      if (id === genId.current) {
+        if (audioRef.current === audio) audioRef.current = null;
+        setState("idle");
+      }
     }
   }
 

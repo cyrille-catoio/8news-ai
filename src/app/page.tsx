@@ -9,20 +9,20 @@ import { getSystemPrompt } from "@/lib/prompts";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.45";
+const APP_VERSION = "1.46";
 const VERSION_CHECK_INTERVAL_MS = 60_000;
 
 const TTS_VOICES_EN = [
   { id: "sarah",   label: "Jade",    desc: "American · Soft",          gender: "F" },
   { id: "alice",   label: "Alice",   desc: "British · Confident",      gender: "F" },
   { id: "rachel",  label: "Rachel",  desc: "American · Calm",          gender: "F" },
-  { id: "daniel",  label: "Tristan", desc: "British · News presenter", gender: "M" },
+  { id: "daniel",  label: "Nicolas", desc: "British · News presenter", gender: "M" },
   { id: "drew",    label: "Drew",    desc: "American · News",          gender: "M" },
   { id: "josh",    label: "Josh",    desc: "American · Deep",          gender: "M" },
 ] as const;
 
 const TTS_VOICES_FR = [
-  { id: "george",    label: "Nicolas",   desc: "Chaleureux · Posé",     gender: "M" },
+  { id: "george",    label: "Tristan",   desc: "Chaleureux · Posé",     gender: "M" },
   { id: "charlotte", label: "Charlotte", desc: "Chaleureuse · Douce",   gender: "F" },
   { id: "lily",      label: "Lily",      desc: "Posée · Naturelle",     gender: "F" },
   { id: "nicole",    label: "Nicole",    desc: "Intime · Calme",        gender: "F" },
@@ -913,7 +913,8 @@ function ttsIntro(hours: number, lang: Lang, topic: Topic): string {
 
 function SummaryBox({ data, locale, lang, hours, topic, speed, voice }: { data: SummaryResponse; locale: string; lang: Lang; hours: number; topic: Topic; speed: number; voice: string }) {
   const raw = typeof data.summary === "string" ? data.summary : String(data.summary ?? "");
-  const ttsText = raw.trim().length > 0 ? `${ttsIntro(hours, lang, topic)} ${raw}` : "";
+  const ttsOutro = lang === "fr" ? "... ... C'est tout... pour le moment..." : "... ... That's all folks!";
+  const ttsText = raw.trim().length > 0 ? `${ttsIntro(hours, lang, topic)} ${raw} ${ttsOutro}` : "";
   const bullets = data.bullets ?? [];
   const hasBullets = bullets.length > 0;
 

@@ -9,7 +9,7 @@ import { getSystemPrompt } from "@/lib/prompts";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.42";
+const APP_VERSION = "1.43";
 const VERSION_CHECK_INTERVAL_MS = 60_000;
 
 const TTS_VOICES_EN = [
@@ -657,6 +657,7 @@ function SettingsModal({
 
 function AudioPlayer({ text, lang, speed, voice }: { text: string; lang: Lang; speed: number; voice: string }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
   const [state, setState] = useState<"idle" | "loading" | "playing" | "paused">("idle");
   const [spinner, setSpinner] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -691,8 +692,19 @@ function AudioPlayer({ text, lang, speed, voice }: { text: string; lang: Lang; s
     if (spinner && currentTime >= 2) setSpinner(false);
   }, [spinner, currentTime]);
 
+  function ensureAudioContext() {
+    if (!audioCtxRef.current) {
+      const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (AC) audioCtxRef.current = new AC();
+    }
+    if (audioCtxRef.current?.state === "suspended") {
+      audioCtxRef.current.resume().catch(() => {});
+    }
+  }
+
   async function handlePlay() {
     setSpinner(true);
+    ensureAudioContext();
 
     if (audioRef.current) {
       const a = audioRef.current;
@@ -711,13 +723,9 @@ function AudioPlayer({ text, lang, speed, voice }: { text: string; lang: Lang; s
     setState("loading");
 
     const audio = new Audio();
+    audio.setAttribute("playsinline", "");
+    audio.preload = "auto";
     audioRef.current = audio;
-
-    // Play a tiny silent WAV immediately to unlock audio in user-gesture context
-    const silentWav = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
-    audio.src = silentWav;
-    await audio.play().catch(() => {});
-    audio.pause();
 
     audio.addEventListener("loadedmetadata", () => setDuration(audio.duration));
     audio.addEventListener("timeupdate", () => setCurrentTime(audio.currentTime));
@@ -726,6 +734,7 @@ function AudioPlayer({ text, lang, speed, voice }: { text: string; lang: Lang; s
       setCurrentTime(0);
       setState("idle");
     });
+
     try {
       const res = await fetch("/api/tts", {
         method: "POST",
@@ -749,8 +758,10 @@ function AudioPlayer({ text, lang, speed, voice }: { text: string; lang: Lang; s
       audio.load();
 
       await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => resolve(), 5000);
-        audio.addEventListener("canplaythrough", () => { clearTimeout(timeout); resolve(); }, { once: true });
+        const timeout = setTimeout(() => resolve(), 8000);
+        const done = () => { clearTimeout(timeout); resolve(); };
+        audio.addEventListener("canplaythrough", done, { once: true });
+        audio.addEventListener("loadeddata", done, { once: true });
         audio.addEventListener("error", () => { clearTimeout(timeout); reject(new Error("Audio load error")); }, { once: true });
       });
       if (id !== genId.current) { audio.pause(); return; }
@@ -762,6 +773,7 @@ function AudioPlayer({ text, lang, speed, voice }: { text: string; lang: Lang; s
       if (id === genId.current) {
         if (audioRef.current === audio) audioRef.current = null;
         setState("idle");
+        setSpinner(false);
       }
     }
   }

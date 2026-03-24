@@ -9,8 +9,26 @@ import { getSystemPrompt } from "@/lib/prompts";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.38";
+const APP_VERSION = "1.40";
 const VERSION_CHECK_INTERVAL_MS = 60_000;
+
+const TTS_VOICES_EN = [
+  { id: "sarah",   label: "Jade",    desc: "American · Soft",          gender: "F" },
+  { id: "alice",   label: "Alice",   desc: "British · Confident",      gender: "F" },
+  { id: "rachel",  label: "Rachel",  desc: "American · Calm",          gender: "F" },
+  { id: "daniel",  label: "Tristan", desc: "British · News presenter", gender: "M" },
+  { id: "drew",    label: "Drew",    desc: "American · News",          gender: "M" },
+  { id: "josh",    label: "Josh",    desc: "American · Deep",          gender: "M" },
+] as const;
+
+const TTS_VOICES_FR = [
+  { id: "george",    label: "Nicolas",   desc: "Chaleureux · Posé",     gender: "M" },
+  { id: "charlotte", label: "Charlotte", desc: "Chaleureuse · Douce",   gender: "F" },
+  { id: "lily",      label: "Lily",      desc: "Posée · Naturelle",     gender: "F" },
+  { id: "nicole",    label: "Nicole",    desc: "Intime · Calme",        gender: "F" },
+  { id: "thomas",    label: "Thomas",    desc: "Calme · Narrateur",     gender: "M" },
+  { id: "callum",    label: "Callum",    desc: "Intense · Dynamique",   gender: "M" },
+] as const;
 
 const PERIODS = [
   { label: "30 m",  hours: 0.5 },
@@ -119,28 +137,9 @@ function TopicToggle({
   );
 }
 
-const SpinKeyframes = () => (
-  <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+const PulseKeyframes = () => (
+  <style>{`@keyframes pulse-play { 0% { transform: scale(1) } 30% { transform: scale(1.35) } 100% { transform: scale(1) } }`}</style>
 );
-
-function Spinner() {
-  return (
-    <>
-      <span
-        style={{
-          display: "inline-block",
-          width: 16,
-          height: 16,
-          border: `2px solid ${color.gold}`,
-          borderTop: "2px solid transparent",
-          borderRadius: "50%",
-          animation: "spin 1s linear infinite",
-        }}
-      />
-      <SpinKeyframes />
-    </>
-  );
-}
 
 function PeriodButton({
   label,
@@ -221,15 +220,29 @@ function SettingsModal({
   lang,
   maxArticles,
   onMaxArticlesChange,
+  ttsSpeed,
+  onTtsSpeedChange,
+  ttsVoice,
+  onTtsVoiceChange,
+  ttsVoiceFr,
+  onTtsVoiceFrChange,
   onClose,
 }: {
   topic: Topic;
   lang: Lang;
   maxArticles: number;
   onMaxArticlesChange: (v: number) => void;
+  ttsSpeed: number;
+  onTtsSpeedChange: (v: number) => void;
+  ttsVoice: string;
+  onTtsVoiceChange: (v: string) => void;
+  ttsVoiceFr: string;
+  onTtsVoiceFrChange: (v: string) => void;
   onClose: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<Topic>(topic);
+  const [voiceEnOpen, setVoiceEnOpen] = useState(false);
+  const [voiceFrOpen, setVoiceFrOpen] = useState(false);
   const [rssOpen, setRssOpen] = useState(false);
   const [promptOpen, setPromptOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
@@ -364,6 +377,124 @@ function SettingsModal({
                   }}
                 >
                   {t("maxArticlesInfo", lang)}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14 }}>
+              <label style={{ color: color.textLabel, fontSize: 14, fontWeight: 500, whiteSpace: "nowrap" }}>
+                {lang === "fr" ? "Vitesse voix" : "Voice speed"}
+              </label>
+              <input
+                type="range"
+                min={0.7}
+                max={1.2}
+                step={0.05}
+                value={ttsSpeed}
+                onChange={(e) => onTtsSpeedChange(Number(e.target.value))}
+                style={{ flex: 1, accentColor: color.gold, cursor: "pointer" }}
+              />
+              <span style={{ color: color.gold, fontSize: 15, fontWeight: 600, minWidth: 40, textAlign: "center" }}>
+                {ttsSpeed.toFixed(2)}x
+              </span>
+            </div>
+
+            <div style={{ marginTop: 14 }}>
+              <button
+                onClick={() => setVoiceEnOpen(!voiceEnOpen)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  width: "100%",
+                  color: color.textLabel,
+                  fontSize: 14,
+                  fontWeight: 500,
+                  marginBottom: voiceEnOpen ? 8 : 0,
+                }}
+              >
+                {lang === "fr" ? "Voix EN" : "Voice EN"}
+                <span style={{ fontSize: 14, transition: "transform 0.2s", transform: voiceEnOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▾</span>
+              </button>
+              {voiceEnOpen && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                  {TTS_VOICES_EN.map((v) => (
+                    <button
+                      key={v.id}
+                      onClick={() => onTtsVoiceChange(v.id)}
+                      style={{
+                        padding: "8px 10px",
+                        borderRadius: 8,
+                        border: `1px solid ${ttsVoice === v.id ? color.gold : color.borderLight}`,
+                        background: ttsVoice === v.id ? color.gold : "transparent",
+                        color: ttsVoice === v.id ? "#000" : color.text,
+                        cursor: "pointer",
+                        textAlign: "left",
+                        fontSize: 13,
+                        lineHeight: 1.3,
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      <span style={{ fontWeight: 600 }}>{v.label}</span>
+                      <span style={{ opacity: 0.7, marginLeft: 4, fontSize: 11 }}>{v.gender}</span>
+                      <br />
+                      <span style={{ fontSize: 11, opacity: 0.65 }}>{v.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginTop: 14 }}>
+              <button
+                onClick={() => setVoiceFrOpen(!voiceFrOpen)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  width: "100%",
+                  color: color.textLabel,
+                  fontSize: 14,
+                  fontWeight: 500,
+                  marginBottom: voiceFrOpen ? 8 : 0,
+                }}
+              >
+                {lang === "fr" ? "Voix FR" : "Voice FR"}
+                <span style={{ fontSize: 14, transition: "transform 0.2s", transform: voiceFrOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▾</span>
+              </button>
+              {voiceFrOpen && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                  {TTS_VOICES_FR.map((v) => (
+                    <button
+                      key={v.id}
+                      onClick={() => onTtsVoiceFrChange(v.id)}
+                      style={{
+                        padding: "8px 10px",
+                        borderRadius: 8,
+                        border: `1px solid ${ttsVoiceFr === v.id ? color.gold : color.borderLight}`,
+                        background: ttsVoiceFr === v.id ? color.gold : "transparent",
+                        color: ttsVoiceFr === v.id ? "#000" : color.text,
+                        cursor: "pointer",
+                        textAlign: "left",
+                        fontSize: 13,
+                        lineHeight: 1.3,
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      <span style={{ fontWeight: 600 }}>{v.label}</span>
+                      <span style={{ opacity: 0.7, marginLeft: 4, fontSize: 11 }}>{v.gender}</span>
+                      <br />
+                      <span style={{ fontSize: 11, opacity: 0.65 }}>{v.desc}</span>
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
@@ -524,9 +655,10 @@ function SettingsModal({
   );
 }
 
-function AudioPlayer({ text }: { text: string }) {
+function AudioPlayer({ text, lang, speed, voice }: { text: string; lang: Lang; speed: number; voice: string }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [state, setState] = useState<"idle" | "loading" | "playing" | "paused">("idle");
+  const [pressed, setPressed] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const blobUrlRef = useRef<string | null>(null);
@@ -555,16 +687,34 @@ function AudioPlayer({ text }: { text: string }) {
   }, [text, cleanup]);
 
   async function handlePlay() {
+    setPressed(true);
+    await new Promise((r) => setTimeout(r, 450));
+    setPressed(false);
+
     if (audioRef.current) {
       const a = audioRef.current;
       if (a.currentTime >= (a.duration || 0) - 0.5) a.currentTime = 0;
-      try { await a.play(); setState("playing"); } catch { setState("idle"); }
+      try {
+        await a.play();
+        setState("playing");
+      } catch (e) {
+        console.error("[AudioPlayer] resume failed:", e);
+        setState("idle");
+      }
       return;
     }
 
     const id = ++genId.current;
+    setState("loading");
+
     const audio = new Audio();
     audioRef.current = audio;
+
+    // Play a tiny silent WAV immediately to unlock audio in user-gesture context
+    const silentWav = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+    audio.src = silentWav;
+    await audio.play().catch(() => {});
+    audio.pause();
 
     audio.addEventListener("loadedmetadata", () => setDuration(audio.duration));
     audio.addEventListener("timeupdate", () => setCurrentTime(audio.currentTime));
@@ -573,15 +723,16 @@ function AudioPlayer({ text }: { text: string }) {
       setCurrentTime(0);
       setState("idle");
     });
-
-    setState("loading");
     try {
       const res = await fetch("/api/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, lang, speed, voice }),
       });
-      if (!res.ok) throw new Error("TTS failed");
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        throw new Error(`TTS ${res.status}: ${errText.slice(0, 100)}`);
+      }
       if (id !== genId.current) return;
 
       const blob = await res.blob();
@@ -603,7 +754,8 @@ function AudioPlayer({ text }: { text: string }) {
 
       await audio.play();
       setState("playing");
-    } catch {
+    } catch (e) {
+      console.error("[AudioPlayer] play failed:", e);
       if (id === genId.current) {
         if (audioRef.current === audio) audioRef.current = null;
         setState("idle");
@@ -665,24 +817,40 @@ function AudioPlayer({ text }: { text: string }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
-        {state === "playing" ? (
-          <button onClick={handlePause} style={{ ...btnBase, color: color.gold }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
+        <div style={{ position: "relative", width: 44, height: 44 }}>
+          <PulseKeyframes />
+          <button
+            onClick={handlePlay}
+            disabled={state === "loading" || state === "playing"}
+            style={{
+              ...btnBase,
+              color: color.gold,
+              position: "absolute",
+              inset: 0,
+              opacity: state === "idle" || state === "paused" ? 1 : 0,
+              transition: "opacity 1.5s ease",
+              pointerEvents: state === "idle" || state === "paused" ? "auto" : "none",
+              animation: pressed ? "pulse-play 0.45s ease-out" : "none",
+            }}
+          >
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21" /></svg>
           </button>
-        ) : (
-          <button onClick={handlePlay} disabled={state === "loading"} style={{ ...btnBase, color: state === "loading" ? color.textDim : color.gold }}>
-            {state === "loading" ? (
-              <>
-                <SpinKeyframes />
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: "spin 1s linear infinite" }}>
-                  <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
-                </svg>
-              </>
-            ) : (
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21" /></svg>
-            )}
+          <button
+            onClick={handlePause}
+            disabled={state !== "playing"}
+            style={{
+              ...btnBase,
+              color: color.gold,
+              position: "absolute",
+              inset: 0,
+              opacity: state === "playing" ? 1 : 0,
+              transition: "opacity 1.5s ease",
+              pointerEvents: state === "playing" ? "auto" : "none",
+            }}
+          >
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
           </button>
-        )}
+        </div>
 
         <button onClick={handleStop} disabled={!isActive} style={{ ...btnBase, opacity: isActive ? 1 : 0.35 }}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2" /></svg>
@@ -767,7 +935,7 @@ function ttsIntro(hours: number, lang: Lang, topic: Topic): string {
   return `${topicName}. Here is the news analyzed for ${period}.`;
 }
 
-function SummaryBox({ data, locale, lang, hours, topic }: { data: SummaryResponse; locale: string; lang: Lang; hours: number; topic: Topic }) {
+function SummaryBox({ data, locale, lang, hours, topic, speed, voice }: { data: SummaryResponse; locale: string; lang: Lang; hours: number; topic: Topic; speed: number; voice: string }) {
   const raw = typeof data.summary === "string" ? data.summary : String(data.summary ?? "");
   const ttsText = raw.trim().length > 0 ? `${ttsIntro(hours, lang, topic)} ${raw}` : "";
   const bullets = data.bullets ?? [];
@@ -783,7 +951,7 @@ function SummaryBox({ data, locale, lang, hours, topic }: { data: SummaryRespons
           </span>
         )}
       </h2>
-      {ttsText.length > 0 && <div style={{ marginBottom: 12 }}><AudioPlayer text={ttsText} /></div>}
+      {ttsText.length > 0 && <div style={{ marginBottom: 12 }}><AudioPlayer text={ttsText} lang={lang} speed={speed} voice={voice} /></div>}
       {hasBullets ? (
         <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none" }}>
           {bullets.map((bullet, i) => (
@@ -950,6 +1118,14 @@ function playNotificationBeep() {
 
 export default function Home() {
   const [lang, setLang] = useState<Lang>("en");
+  useEffect(() => {
+    const match = document.cookie.match(/(?:^|; )lang=(en|fr)/);
+    if (match && match[1] !== "en") setLang(match[1] as Lang);
+  }, []);
+  const handleLangChange = useCallback((newLang: Lang) => {
+    document.cookie = `lang=${newLang};max-age=${365 * 86400};path=/;SameSite=Lax`;
+    window.location.reload();
+  }, []);
   const [topic, setTopic] = useState<Topic | null>(null);
   const [maxArticles, setMaxArticles] = useState(() => {
     if (typeof document === "undefined") return 10;
@@ -960,6 +1136,35 @@ export default function Home() {
   const updateMaxArticles = useCallback((value: number) => {
     setMaxArticles(value);
     document.cookie = `maxArticles=${value};max-age=${365 * 86400};path=/;SameSite=Lax`;
+  }, []);
+  const [ttsSpeed, setTtsSpeed] = useState(() => {
+    if (typeof document === "undefined") return 1.05;
+    const match = document.cookie.match(/(?:^|; )ttsSpeed=([\d.]+)/);
+    return match ? Math.min(1.2, Math.max(0.7, Number(match[1]))) : 1.05;
+  });
+  const updateTtsSpeed = useCallback((value: number) => {
+    setTtsSpeed(value);
+    document.cookie = `ttsSpeed=${value};max-age=${365 * 86400};path=/;SameSite=Lax`;
+  }, []);
+  const [ttsVoice, setTtsVoice] = useState(() => {
+    if (typeof document === "undefined") return "sarah";
+    const match = document.cookie.match(/(?:^|; )ttsVoice=(\w+)/);
+    const v = match ? match[1] : "sarah";
+    return TTS_VOICES_EN.some((voice) => voice.id === v) ? v : "sarah";
+  });
+  const updateTtsVoice = useCallback((value: string) => {
+    setTtsVoice(value);
+    document.cookie = `ttsVoice=${value};max-age=${365 * 86400};path=/;SameSite=Lax`;
+  }, []);
+  const [ttsVoiceFr, setTtsVoiceFr] = useState(() => {
+    if (typeof document === "undefined") return "george";
+    const match = document.cookie.match(/(?:^|; )ttsVoiceFr=(\w+)/);
+    const v = match ? match[1] : "george";
+    return TTS_VOICES_FR.some((voice) => voice.id === v) ? v : "george";
+  });
+  const updateTtsVoiceFr = useCallback((value: string) => {
+    setTtsVoiceFr(value);
+    document.cookie = `ttsVoiceFr=${value};max-age=${365 * 86400};path=/;SameSite=Lax`;
   }, []);
   const [selected, setSelected] = useState<number | null>(null);
   const [data, setData] = useState<SummaryResponse | null>(null);
@@ -1073,7 +1278,7 @@ export default function Home() {
         {/* ── Header ─────────────────────────────────────────── */}
         <header style={{ paddingBottom: 12, marginBottom: 20, position: "relative" }}>
           <div style={{ position: "absolute", top: 0, right: 0, display: "flex", alignItems: "center", gap: 8 }}>
-            <LangToggle lang={lang} onChange={setLang} />
+            <LangToggle lang={lang} onChange={handleLangChange} />
             <button
               onClick={() => setShowSettings(true)}
               aria-label={t("settings", lang)}
@@ -1161,7 +1366,7 @@ export default function Home() {
         {/* ── Results ────────────────────────────────────────── */}
         {!loading && data && (
           <div>
-            <SummaryBox data={data} locale={locale} lang={lang} hours={selected ?? 24} topic={topic || "conflict"} />
+            <SummaryBox data={data} locale={locale} lang={lang} hours={selected ?? 24} topic={topic || "conflict"} speed={ttsSpeed} voice={lang === "fr" ? ttsVoiceFr : ttsVoice} />
 
             {/* Tab bar */}
             <div style={{ display: "flex", borderBottom: `1px solid ${color.border}`, marginBottom: 20, gap: 0 }}>
@@ -1230,6 +1435,12 @@ export default function Home() {
           lang={lang}
           maxArticles={maxArticles}
           onMaxArticlesChange={updateMaxArticles}
+          ttsSpeed={ttsSpeed}
+          onTtsSpeedChange={updateTtsSpeed}
+          ttsVoice={ttsVoice}
+          onTtsVoiceChange={updateTtsVoice}
+          ttsVoiceFr={ttsVoiceFr}
+          onTtsVoiceFrChange={updateTtsVoiceFr}
           onClose={() => setShowSettings(false)}
         />
       )}

@@ -1,10 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
+
+const VALID_VOICES: Record<string, string> = {
+  sarah:     "Dme3o25EiC1DfrBQd73f",
+  alice:     "Xb7hH8MSUJpSbSDYk0k2",
+  rachel:    "21m00Tcm4TlvDq8ikWAM",
+  daniel:    "dtSEyYGNJqjrtBArPCVZ",
+  drew:      "29vD33N1CtxCmqQRPOHJ",
+  josh:      "TxGEqnHWrfWFTfGW9XjX",
+  charlotte: "XB0fDUnXU5powFXDhCwa",
+  lily:      "pFZP5JQG7iQjIQuC4Bku",
+  nicole:    "piTKgcLEGmPE4e6mEKli",
+  thomas:    "GBv7mTt0atIp3Br8iCZE",
+  george:    "AmMsHJaCw4BtwV3KoUXF",
+  callum:    "N2lVS1w4EtoT3dr4eOWO",
+};
+const DEFAULT_VOICE = "sarah";
+const MODEL_ID = "eleven_flash_v2_5";
+const OUTPUT_FORMAT = "mp3_44100_128";
 
 export async function POST(request: NextRequest) {
   try {
-    const { text, voice } = (await request.json()) as {
+    const { text, lang, speed, voice } = (await request.json()) as {
       text?: string;
+      lang?: string;
+      speed?: number;
       voice?: string;
     };
 
@@ -12,26 +31,45 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No text provided" }, { status: 400 });
     }
 
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey || apiKey.trim() === "" || apiKey === "sk-your-key-here") {
-      return NextResponse.json({ error: "OpenAI API key not configured" }, { status: 500 });
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    if (!apiKey || apiKey.trim() === "") {
+      return NextResponse.json({ error: "ElevenLabs API key not configured" }, { status: 500 });
     }
 
-    const openai = new OpenAI({ apiKey });
+    const voiceId = VALID_VOICES[voice ?? ""] ?? VALID_VOICES[DEFAULT_VOICE];
+    const languageCode = lang === "fr" ? "fr" : "en";
+    const ttsSpeed = Math.min(1.2, Math.max(0.7, speed ?? 1.05));
 
-    const ttsVoice = (["alloy", "echo", "fable", "onyx", "nova", "shimmer"] as const).includes(
-      voice as never,
-    )
-      ? (voice as "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer")
-      : "nova";
+    const res = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=${OUTPUT_FORMAT}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "xi-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          text: text.slice(0, 5000),
+          model_id: MODEL_ID,
+          language_code: languageCode,
+          voice_settings: {
+            stability: 0.7,
+            similarity_boost: 0.85,
+            speed: ttsSpeed,
+          },
+        }),
+      },
+    );
 
-    const mp3 = await openai.audio.speech.create({
-      model: "tts-1",
-      voice: ttsVoice,
-      input: text.slice(0, 4096),
-    });
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "");
+      return NextResponse.json(
+        { error: `ElevenLabs error ${res.status}: ${errBody.slice(0, 200)}` },
+        { status: 502 },
+      );
+    }
 
-    const buffer = Buffer.from(await mp3.arrayBuffer());
+    const buffer = Buffer.from(await res.arrayBuffer());
 
     return new NextResponse(buffer, {
       headers: {

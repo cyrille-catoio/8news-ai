@@ -71,7 +71,7 @@ const strings = {
   },
   loading: {
     en: "Reading articles and running AI analysis…",
-    fr: "Chargement des articles et analyse IA…",
+    fr: "Lecture des articles et analyse IA…",
   },
   connectionError: {
     en: "Unable to connect to the server.",

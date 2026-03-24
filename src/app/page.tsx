@@ -9,7 +9,7 @@ import { getSystemPrompt } from "@/lib/prompts";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.46";
+const APP_VERSION = "1.47";
 const VERSION_CHECK_INTERVAL_MS = 60_000;
 
 const TTS_VOICES_EN = [
@@ -699,9 +699,11 @@ function AudioPlayer({ text, lang, speed, voice }: { text: string; lang: Lang; s
     audio.addEventListener("loadedmetadata", () => setDuration(audio.duration));
     audio.addEventListener("timeupdate", () => setCurrentTime(audio.currentTime));
     audio.addEventListener("ended", () => {
-      audio.currentTime = 0;
-      setCurrentTime(0);
-      setState("idle");
+      setTimeout(() => {
+        audio.currentTime = 0;
+        setCurrentTime(0);
+        setState("idle");
+      }, 2000);
     });
 
     try {
@@ -913,7 +915,7 @@ function ttsIntro(hours: number, lang: Lang, topic: Topic): string {
 
 function SummaryBox({ data, locale, lang, hours, topic, speed, voice }: { data: SummaryResponse; locale: string; lang: Lang; hours: number; topic: Topic; speed: number; voice: string }) {
   const raw = typeof data.summary === "string" ? data.summary : String(data.summary ?? "");
-  const ttsOutro = lang === "fr" ? "... ... C'est tout... pour le moment..." : "... ... That's all folks!";
+  const ttsOutro = lang === "fr" ? "... ... Analyse terminée. Vous pouvez reprendre une activité normale." : "... ... That's all folks!";
   const ttsText = raw.trim().length > 0 ? `${ttsIntro(hours, lang, topic)} ${raw} ${ttsOutro}` : "";
   const bullets = data.bullets ?? [];
   const hasBullets = bullets.length > 0;

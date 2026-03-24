@@ -9,7 +9,7 @@ import { getSystemPrompt } from "@/lib/prompts";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.41";
+const APP_VERSION = "1.42";
 const VERSION_CHECK_INTERVAL_MS = 60_000;
 
 const TTS_VOICES_EN = [
@@ -137,8 +137,8 @@ function TopicToggle({
   );
 }
 
-const PulseKeyframes = () => (
-  <style>{`@keyframes pulse-play { 0% { transform: scale(1) } 30% { transform: scale(1.35) } 100% { transform: scale(1) } }`}</style>
+const SpinKeyframes = () => (
+  <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
 );
 
 function PeriodButton({
@@ -658,7 +658,7 @@ function SettingsModal({
 function AudioPlayer({ text, lang, speed, voice }: { text: string; lang: Lang; speed: number; voice: string }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [state, setState] = useState<"idle" | "loading" | "playing" | "paused">("idle");
-  const [pressed, setPressed] = useState(false);
+  const [spinner, setSpinner] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const blobUrlRef = useRef<string | null>(null);
@@ -682,14 +682,17 @@ function AudioPlayer({ text, lang, speed, voice }: { text: string; lang: Lang; s
     genId.current++;
     cleanup();
     setState("idle");
+    setSpinner(false);
     setCurrentTime(0);
     setDuration(0);
   }, [text, cleanup]);
 
+  useEffect(() => {
+    if (spinner && currentTime >= 2) setSpinner(false);
+  }, [spinner, currentTime]);
+
   async function handlePlay() {
-    setPressed(true);
-    await new Promise((r) => setTimeout(r, 450));
-    setPressed(false);
+    setSpinner(true);
 
     if (audioRef.current) {
       const a = audioRef.current;
@@ -816,41 +819,17 @@ function AudioPlayer({ text, lang, speed, voice }: { text: string; lang: Lang; s
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <SpinKeyframes />
       <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
-        <div style={{ position: "relative", width: 44, height: 44 }}>
-          <PulseKeyframes />
-          <button
-            onClick={handlePlay}
-            disabled={state === "loading" || state === "playing"}
-            style={{
-              ...btnBase,
-              color: color.gold,
-              position: "absolute",
-              inset: 0,
-              opacity: state === "idle" || state === "paused" ? 1 : 0,
-              transition: "opacity 1.5s ease",
-              pointerEvents: state === "idle" || state === "paused" ? "auto" : "none",
-              animation: pressed ? "pulse-play 0.45s ease-out" : "none",
-            }}
-          >
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21" /></svg>
-          </button>
-          <button
-            onClick={handlePause}
-            disabled={state !== "playing"}
-            style={{
-              ...btnBase,
-              color: color.gold,
-              position: "absolute",
-              inset: 0,
-              opacity: state === "playing" ? 1 : 0,
-              transition: "opacity 1.5s ease",
-              pointerEvents: state === "playing" ? "auto" : "none",
-            }}
-          >
+        {state === "playing" ? (
+          <button onClick={handlePause} style={{ ...btnBase, color: color.gold }}>
             <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
           </button>
-        </div>
+        ) : (
+          <button onClick={handlePlay} disabled={state === "loading"} style={{ ...btnBase, color: color.gold }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21" /></svg>
+          </button>
+        )}
 
         <button onClick={handleStop} disabled={!isActive} style={{ ...btnBase, opacity: isActive ? 1 : 0.35 }}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2" /></svg>
@@ -867,6 +846,22 @@ function AudioPlayer({ text, lang, speed, voice }: { text: string; lang: Lang; s
         <span style={{ color: isActive && duration > 0 ? color.textDim : "transparent", fontSize: 11, marginLeft: 4, minWidth: 72, textAlign: "center" }}>
           {isActive && duration > 0 ? `${formatTime(currentTime)} / ${formatTime(duration)}` : "0:00 / 0:00"}
         </span>
+
+        {spinner && (
+          <span
+            style={{
+              display: "inline-block",
+              width: 18,
+              height: 18,
+              border: `2.5px solid ${color.gold}`,
+              borderTop: "2.5px solid transparent",
+              borderRadius: "50%",
+              animation: "spin 0.8s linear infinite",
+              marginLeft: 6,
+              flexShrink: 0,
+            }}
+          />
+        )}
       </div>
 
       <div

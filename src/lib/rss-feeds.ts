@@ -166,6 +166,29 @@ const AI_ENGINEERING_FEEDS: readonly Feed[] = [
   { name: "MIT Tech Review AI",      url: "https://www.technologyreview.com/topic/artificial-intelligence/feed" },
 ];
 
+const ELON_FEEDS: readonly Feed[] = [
+  { name: "Google News Elon",      url: "https://news.google.com/rss/search?q=elon+musk&hl=en" },
+  { name: "TechCrunch",            url: "https://techcrunch.com/feed/" },
+  { name: "The Verge",             url: "https://www.theverge.com/rss/index.xml" },
+  { name: "Ars Technica",          url: "https://feeds.arstechnica.com/arstechnica/technology-lab" },
+  { name: "Wired",                 url: "https://www.wired.com/feed/rss" },
+  { name: "Engadget",              url: "https://www.engadget.com/rss.xml" },
+  { name: "CNBC Tech",             url: "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=19854910" },
+  { name: "Reuters Tech",          url: "https://www.reutersagency.com/feed/?taxonomy=best-topics&post_type=best" },
+  { name: "Bloomberg Tech",        url: "https://feeds.bloomberg.com/technology/news.rss" },
+  { name: "Electrek",              url: "https://electrek.co/feed/" },
+  { name: "Teslarati",             url: "https://www.teslarati.com/feed/" },
+  { name: "InsideEVs",             url: "https://insideevs.com/rss/make/tesla/" },
+  { name: "SpaceNews",             url: "https://spacenews.com/feed/" },
+  { name: "NASASpaceflight",       url: "https://www.nasaspaceflight.com/feed/" },
+  { name: "The Guardian Tech",     url: "https://www.theguardian.com/technology/rss" },
+  { name: "Business Insider Tech",  url: "https://www.businessinsider.com/tech?IR=T&format=rss" },
+  { name: "Forbes Innovation",     url: "https://www.forbes.com/innovation/feed/" },
+  { name: "Futurism",              url: "https://futurism.com/feed" },
+  { name: "VentureBeat",           url: "https://venturebeat.com/feed/" },
+  { name: "ZDNET",                 url: "https://www.zdnet.com/news/rss.xml" },
+];
+
 const FEEDS_BY_TOPIC: Record<Topic, readonly Feed[]> = {
   conflict: CONFLICT_FEEDS,
   ai: AI_FEEDS,
@@ -174,6 +197,7 @@ const FEEDS_BY_TOPIC: Record<Topic, readonly Feed[]> = {
   bitcoin: BITCOIN_FEEDS,
   videogames: VIDEOGAMES_FEEDS,
   aiengineering: AI_ENGINEERING_FEEDS,
+  elon: ELON_FEEDS,
 };
 
 export function getFeedsForTopic(topic: Topic): readonly Feed[] {

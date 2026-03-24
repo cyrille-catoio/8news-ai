@@ -33,6 +33,10 @@ const strings = {
     en: "AI Eng.",
     fr: "AI Eng.",
   },
+  topicElon: {
+    en: "Elon Musk",
+    fr: "Elon Musk",
+  },
   conflictTitle: {
     en: "USA / Israel vs Iran Conflict",
     fr: "Conflit USA / Israël vs Iran",
@@ -60,6 +64,10 @@ const strings = {
   aiengineeringTitle: {
     en: "AI Engineering & Production Systems",
     fr: "Ingénierie IA & Systèmes de Production",
+  },
+  elonTitle: {
+    en: "Elon Musk — Tesla, SpaceX, xAI, X & Neuralink",
+    fr: "Elon Musk — Tesla, SpaceX, xAI, X & Neuralink",
   },
   subtitle: {
     en: "AI that decodes the news",
@@ -120,6 +128,10 @@ const strings = {
   noArticlesAiengineering: {
     en: "No AI engineering articles found for this time period.",
     fr: "Aucun article lié à l'ingénierie IA sur cette période.",
+  },
+  noArticlesElon: {
+    en: "No Elon Musk-related articles found for this time period.",
+    fr: "Aucun article lié à Elon Musk sur cette période.",
   },
   initialMessage: {
     en: "Select a topic and click a time period button to analyse the latest news.",

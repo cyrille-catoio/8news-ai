@@ -377,6 +377,56 @@ Réponds en JSON valide :
 Les valeurs "index" correspondent aux positions (à partir de 0) dans la liste. "refs" dans globalSummary sont les indices des articles qui soutiennent chaque bullet point. N'inclus que les articles vraiment pertinents.`;
 }
 
+// ── Elon Musk prompts ────────────────────────────────────────────────
+
+function elonEn(max: number) {
+  return `You are a tech journalist specializing in Elon Musk and his companies: Tesla, SpaceX, xAI, X (formerly Twitter), Neuralink, The Boring Company, and Starlink. Your task:
+
+1. FILTER: From the article list below, identify ONLY articles directly about Elon Musk or his companies. Include: Tesla (vehicles, FSD, Robotaxi, Megapack, earnings, factories), SpaceX (Starship, Falcon, Starlink, contracts, launches), xAI (Grok, models, funding), X/Twitter (platform changes, business, regulation), Neuralink (trials, implants), Boring Company (tunnels), and Elon Musk's public statements, decisions, and controversies. EXCLUDE articles that merely mention Elon Musk in passing.
+
+2. SUMMARIZE EACH: For every relevant article, write a factual 2–3 sentence summary in English. Cover the key facts: what happened, who is involved, and why it matters. Include specific details: stock prices, delivery numbers, launch dates, funding amounts, user metrics, product specs, government decisions.
+
+3. GLOBAL SUMMARY: Write up to 8 bullet points summarizing the latest Elon Musk / companies developments based on the relevant articles. 8 is a maximum target — if fewer noteworthy points exist, only write those; do not pad with weak or redundant bullets. Each bullet point must start with "• " and be on its own line. You MUST include specific numbers and figures: stock price, market cap, delivery numbers, launch success/failure, user counts, revenue, funding rounds, timelines. Never write vague bullets — each one should contain at least one concrete fact or figure.
+
+IMPORTANT: Try to select approximately ${max} relevant articles. If fewer than ${max} are truly relevant, return only those. If more than ${max} are relevant, pick the ${max} most important and diverse ones.
+
+Respond with valid JSON:
+{
+  "relevant": [{ "index": 0, "snippet": "Factual 2–3 sentence summary" }],
+  "globalSummary": [
+    { "text": "First bullet point with facts", "refs": [0, 3] },
+    { "text": "Second bullet point with facts", "refs": [1] }
+  ]
+}
+
+"index" values are 0-based positions in the article list. "refs" in globalSummary are the indices of articles that support each bullet point. Only include truly relevant articles.`;
+}
+
+function elonFr(max: number) {
+  return `Tu es un journaliste tech spécialisé dans Elon Musk et ses entreprises : Tesla, SpaceX, xAI, X (anciennement Twitter), Neuralink, The Boring Company et Starlink. Ta tâche :
+
+1. FILTRER : Dans la liste d'articles ci-dessous, identifie UNIQUEMENT ceux qui concernent directement Elon Musk ou ses entreprises. Inclus : Tesla (véhicules, FSD, Robotaxi, Megapack, résultats financiers, usines), SpaceX (Starship, Falcon, Starlink, contrats, lancements), xAI (Grok, modèles, levées de fonds), X/Twitter (changements de plateforme, business, régulation), Neuralink (essais cliniques, implants), Boring Company (tunnels), et les déclarations publiques, décisions et controverses d'Elon Musk. EXCLUS les articles qui mentionnent Elon Musk en passant.
+
+2. RÉSUMER CHAQUE ARTICLE : Pour chaque article pertinent :
+   - Traduis le titre en français (champ "title").
+   - Rédige un résumé factuel de 2 à 3 phrases en français (champ "snippet"). Couvre les faits essentiels : quoi, qui, et pourquoi c'est important. Inclus des détails précis : cours de l'action, chiffres de livraison, dates de lancement, montants de financement, métriques utilisateurs, specs produits, décisions gouvernementales.
+
+3. RÉSUMÉ GLOBAL : Rédige jusqu'à 8 bullet points résumant les dernières actualités Elon Musk / entreprises basé sur les articles pertinents. 8 est un objectif maximum — s'il y a moins de points importants, n'en écris que le nombre justifié ; ne rajoute pas de points faibles ou redondants. Chaque bullet point doit commencer par "• " et être sur sa propre ligne. Tu DOIS inclure les chiffres et données précises : cours de l'action, capitalisation, chiffres de livraison, succès/échec de lancements, nombre d'utilisateurs, revenus, tours de financement, timelines. Ne rédige jamais de bullet vague — chacun doit contenir au moins un fait concret ou un chiffre précis.
+
+IMPORTANT : Essaie de sélectionner environ ${max} articles pertinents. S'il y en a moins de ${max} qui sont vraiment pertinents, retourne uniquement ceux-là. S'il y en a plus de ${max}, choisis les ${max} plus importants et variés.
+
+Réponds en JSON valide :
+{
+  "relevant": [{ "index": 0, "title": "Titre traduit en français", "snippet": "Résumé factuel de 2-3 phrases" }],
+  "globalSummary": [
+    { "text": "Premier point avec des faits", "refs": [0, 3] },
+    { "text": "Deuxième point avec des faits", "refs": [1] }
+  ]
+}
+
+Les valeurs "index" correspondent aux positions (à partir de 0) dans la liste. "refs" dans globalSummary sont les indices des articles qui soutiennent chaque bullet point. N'inclus que les articles vraiment pertinents.`;
+}
+
 const PROMPTS: Record<Topic, Record<Lang, PromptFn>> = {
   conflict: { en: conflictEn, fr: conflictFr },
   ai: { en: aiEn, fr: aiFr },
@@ -385,6 +435,7 @@ const PROMPTS: Record<Topic, Record<Lang, PromptFn>> = {
   bitcoin: { en: bitcoinEn, fr: bitcoinFr },
   videogames: { en: videogamesEn, fr: videogamesFr },
   aiengineering: { en: aiengineeringEn, fr: aiengineeringFr },
+  elon: { en: elonEn, fr: elonFr },
 };
 
 export function getSystemPrompt(topic: Topic, lang: Lang, maxArticles: number): string {

@@ -9,7 +9,7 @@ import { getSystemPrompt } from "@/lib/prompts";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.44";
+const APP_VERSION = "1.45";
 const VERSION_CHECK_INTERVAL_MS = 60_000;
 
 const TTS_VOICES_EN = [
@@ -44,15 +44,16 @@ const PERIODS = [
   { label: "30 d",  hours: 720 },
 ] as const;
 
-const TOPICS: { value: Topic; labelKey: "topicConflict" | "topicAi" | "topicRobotics" | "topicCrypto" | "topicBitcoin" | "topicVideogames" | "topicAiengineering" }[] = [
-  { value: "conflict", labelKey: "topicConflict" },
-  { value: "ai", labelKey: "topicAi" },
-  { value: "aiengineering", labelKey: "topicAiengineering" },
-  { value: "robotics", labelKey: "topicRobotics" },
-  { value: "crypto", labelKey: "topicCrypto" },
-  { value: "bitcoin", labelKey: "topicBitcoin" },
-  { value: "videogames", labelKey: "topicVideogames" },
-];
+const TOPICS = [
+  { value: "conflict",      labelKey: "topicConflict" },
+  { value: "ai",             labelKey: "topicAi" },
+  { value: "aiengineering",  labelKey: "topicAiengineering" },
+  { value: "robotics",       labelKey: "topicRobotics" },
+  { value: "crypto",         labelKey: "topicCrypto" },
+  { value: "bitcoin",        labelKey: "topicBitcoin" },
+  { value: "videogames",     labelKey: "topicVideogames" },
+  { value: "elon",           labelKey: "topicElon" },
+] as const;
 
 // ── Sub-components ────────────────────────────────────────────────────
 
@@ -212,6 +213,100 @@ function ArticleCard({ article, locale }: { article: ArticleSummary; locale: str
         {article.source} · {article.pubDate ? new Date(article.pubDate).toLocaleString(locale) : ""}
       </p>
     </a>
+  );
+}
+
+function TopicTabBar({ activeTab, lang, onSelect }: { activeTab: Topic; lang: Lang; onSelect: (t: Topic) => void }) {
+  return (
+    <div style={{ display: "flex", gap: 0, marginBottom: 12, borderBottom: `1px solid ${color.border}`, flexWrap: "wrap" }}>
+      {TOPICS.map(({ value, labelKey }) => (
+        <button
+          key={value}
+          onClick={() => onSelect(value)}
+          style={{
+            padding: "7px 12px",
+            fontSize: 12,
+            fontWeight: 600,
+            border: "none",
+            borderBottom: activeTab === value ? `2px solid ${color.gold}` : "2px solid transparent",
+            background: "transparent",
+            color: activeTab === value ? color.gold : color.textMuted,
+            cursor: "pointer",
+            transition: "all 0.15s",
+          }}
+        >
+          {t(labelKey, lang)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function VoiceAccordion({
+  label,
+  voices,
+  selected,
+  onChange,
+  open,
+  onToggle,
+}: {
+  label: string;
+  voices: readonly { id: string; label: string; desc: string; gender: string }[];
+  selected: string;
+  onChange: (id: string) => void;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div style={{ marginTop: 14 }}>
+      <button
+        onClick={onToggle}
+        style={{
+          background: "none",
+          border: "none",
+          padding: 0,
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          width: "100%",
+          color: color.textLabel,
+          fontSize: 14,
+          fontWeight: 500,
+          marginBottom: open ? 8 : 0,
+        }}
+      >
+        {label}
+        <span style={{ fontSize: 14, transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}>▾</span>
+      </button>
+      {open && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          {voices.map((v) => (
+            <button
+              key={v.id}
+              onClick={() => onChange(v.id)}
+              style={{
+                padding: "8px 10px",
+                borderRadius: 8,
+                border: `1px solid ${selected === v.id ? color.gold : color.borderLight}`,
+                background: selected === v.id ? color.gold : "transparent",
+                color: selected === v.id ? "#000" : color.text,
+                cursor: "pointer",
+                textAlign: "left",
+                fontSize: 13,
+                lineHeight: 1.3,
+                transition: "all 0.15s",
+              }}
+            >
+              <span style={{ fontWeight: 600 }}>{v.label}</span>
+              <span style={{ opacity: 0.7, marginLeft: 4, fontSize: 11 }}>{v.gender}</span>
+              <br />
+              <span style={{ fontSize: 11, opacity: 0.65 }}>{v.desc}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -399,105 +494,22 @@ function SettingsModal({
               </span>
             </div>
 
-            <div style={{ marginTop: 14 }}>
-              <button
-                onClick={() => setVoiceEnOpen(!voiceEnOpen)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  padding: 0,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  width: "100%",
-                  color: color.textLabel,
-                  fontSize: 14,
-                  fontWeight: 500,
-                  marginBottom: voiceEnOpen ? 8 : 0,
-                }}
-              >
-                {lang === "fr" ? "Voix EN" : "Voice EN"}
-                <span style={{ fontSize: 14, transition: "transform 0.2s", transform: voiceEnOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▾</span>
-              </button>
-              {voiceEnOpen && (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                  {TTS_VOICES_EN.map((v) => (
-                    <button
-                      key={v.id}
-                      onClick={() => onTtsVoiceChange(v.id)}
-                      style={{
-                        padding: "8px 10px",
-                        borderRadius: 8,
-                        border: `1px solid ${ttsVoice === v.id ? color.gold : color.borderLight}`,
-                        background: ttsVoice === v.id ? color.gold : "transparent",
-                        color: ttsVoice === v.id ? "#000" : color.text,
-                        cursor: "pointer",
-                        textAlign: "left",
-                        fontSize: 13,
-                        lineHeight: 1.3,
-                        transition: "all 0.15s",
-                      }}
-                    >
-                      <span style={{ fontWeight: 600 }}>{v.label}</span>
-                      <span style={{ opacity: 0.7, marginLeft: 4, fontSize: 11 }}>{v.gender}</span>
-                      <br />
-                      <span style={{ fontSize: 11, opacity: 0.65 }}>{v.desc}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div style={{ marginTop: 14 }}>
-              <button
-                onClick={() => setVoiceFrOpen(!voiceFrOpen)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  padding: 0,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  width: "100%",
-                  color: color.textLabel,
-                  fontSize: 14,
-                  fontWeight: 500,
-                  marginBottom: voiceFrOpen ? 8 : 0,
-                }}
-              >
-                {lang === "fr" ? "Voix FR" : "Voice FR"}
-                <span style={{ fontSize: 14, transition: "transform 0.2s", transform: voiceFrOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▾</span>
-              </button>
-              {voiceFrOpen && (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                  {TTS_VOICES_FR.map((v) => (
-                    <button
-                      key={v.id}
-                      onClick={() => onTtsVoiceFrChange(v.id)}
-                      style={{
-                        padding: "8px 10px",
-                        borderRadius: 8,
-                        border: `1px solid ${ttsVoiceFr === v.id ? color.gold : color.borderLight}`,
-                        background: ttsVoiceFr === v.id ? color.gold : "transparent",
-                        color: ttsVoiceFr === v.id ? "#000" : color.text,
-                        cursor: "pointer",
-                        textAlign: "left",
-                        fontSize: 13,
-                        lineHeight: 1.3,
-                        transition: "all 0.15s",
-                      }}
-                    >
-                      <span style={{ fontWeight: 600 }}>{v.label}</span>
-                      <span style={{ opacity: 0.7, marginLeft: 4, fontSize: 11 }}>{v.gender}</span>
-                      <br />
-                      <span style={{ fontSize: 11, opacity: 0.65 }}>{v.desc}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <VoiceAccordion
+              label={lang === "fr" ? "Voix EN" : "Voice EN"}
+              voices={TTS_VOICES_EN}
+              selected={ttsVoice}
+              onChange={onTtsVoiceChange}
+              open={voiceEnOpen}
+              onToggle={() => setVoiceEnOpen(!voiceEnOpen)}
+            />
+            <VoiceAccordion
+              label={lang === "fr" ? "Voix FR" : "Voice FR"}
+              voices={TTS_VOICES_FR}
+              selected={ttsVoiceFr}
+              onChange={onTtsVoiceFrChange}
+              open={voiceFrOpen}
+              onToggle={() => setVoiceFrOpen(!voiceFrOpen)}
+            />
           </div>
 
           {/* ── RSS Sources section (accordion) ──────────── */}
@@ -523,28 +535,7 @@ function SettingsModal({
 
             {rssOpen && (
               <>
-                <div style={{ display: "flex", gap: 0, marginBottom: 12, borderBottom: `1px solid ${color.border}`, flexWrap: "wrap" }}>
-                  {TOPICS.map(({ value, labelKey }) => (
-                    <button
-                      key={value}
-                      onClick={() => setActiveTab(value)}
-                      style={{
-                        padding: "7px 12px",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        border: "none",
-                        borderBottom: activeTab === value ? `2px solid ${color.gold}` : "2px solid transparent",
-                        background: "transparent",
-                        color: activeTab === value ? color.gold : color.textMuted,
-                        cursor: "pointer",
-                        transition: "all 0.15s",
-                      }}
-                    >
-                      {t(labelKey, lang)}
-                    </button>
-                  ))}
-                </div>
-
+                <TopicTabBar activeTab={activeTab} lang={lang} onSelect={setActiveTab} />
                 <p style={{ color: color.textDim, fontSize: 12, margin: "0 0 8px" }}>
                   {feeds.length} sources
                 </p>
@@ -606,28 +597,7 @@ function SettingsModal({
 
             {promptOpen && (
               <>
-                <div style={{ display: "flex", gap: 0, marginBottom: 12, borderBottom: `1px solid ${color.border}`, flexWrap: "wrap" }}>
-                  {TOPICS.map(({ value, labelKey }) => (
-                    <button
-                      key={value}
-                      onClick={() => setActiveTab(value)}
-                      style={{
-                        padding: "7px 12px",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        border: "none",
-                        borderBottom: activeTab === value ? `2px solid ${color.gold}` : "2px solid transparent",
-                        background: "transparent",
-                        color: activeTab === value ? color.gold : color.textMuted,
-                        cursor: "pointer",
-                        transition: "all 0.15s",
-                      }}
-                    >
-                      {t(labelKey, lang)}
-                    </button>
-                  ))}
-                </div>
-
+                <TopicTabBar activeTab={activeTab} lang={lang} onSelect={setActiveTab} />
                 <pre
                   style={{
                     color: color.textDim,
@@ -712,8 +682,7 @@ function AudioPlayer({ text, lang, speed, voice }: { text: string; lang: Lang; s
       try {
         await a.play();
         setState("playing");
-      } catch (e) {
-        console.error("[AudioPlayer] resume failed:", e);
+      } catch {
         setState("idle");
       }
       return;
@@ -768,8 +737,7 @@ function AudioPlayer({ text, lang, speed, voice }: { text: string; lang: Lang; s
 
       await audio.play();
       setState("playing");
-    } catch (e) {
-      console.error("[AudioPlayer] play failed:", e);
+    } catch {
       if (id === genId.current) {
         if (audioRef.current === audio) audioRef.current = null;
         setState("idle");
@@ -912,7 +880,7 @@ function RefIcon() {
   );
 }
 
-const TOPIC_TITLE_KEY: Record<Topic, "conflictTitle" | "aiTitle" | "cryptoTitle" | "roboticsTitle" | "bitcoinTitle" | "videogamesTitle" | "aiengineeringTitle"> = {
+const TOPIC_TITLE_KEY = {
   conflict: "conflictTitle",
   ai: "aiTitle",
   crypto: "cryptoTitle",
@@ -920,7 +888,8 @@ const TOPIC_TITLE_KEY: Record<Topic, "conflictTitle" | "aiTitle" | "cryptoTitle"
   bitcoin: "bitcoinTitle",
   videogames: "videogamesTitle",
   aiengineering: "aiengineeringTitle",
-};
+  elon: "elonTitle",
+} as const satisfies Record<Topic, string>;
 
 function ttsIntro(hours: number, lang: Lang, topic: Topic): string {
   const topicName = t(TOPIC_TITLE_KEY[topic], lang);
@@ -1198,20 +1167,17 @@ export default function Home() {
   }, []);
 
   const locale = dateLocale(lang);
-  const noArticlesKey = !topic ? "noArticlesConflict"
-    : topic === "conflict"
-      ? "noArticlesConflict"
-      : topic === "ai"
-        ? "noArticlesAi"
-        : topic === "crypto"
-          ? "noArticlesCrypto"
-          : topic === "bitcoin"
-            ? "noArticlesBitcoin"
-            : topic === "videogames"
-              ? "noArticlesVideogames"
-              : topic === "aiengineering"
-                ? "noArticlesAiengineering"
-                : "noArticlesRobotics";
+  const NO_ARTICLES_KEY = {
+    conflict: "noArticlesConflict",
+    ai: "noArticlesAi",
+    crypto: "noArticlesCrypto",
+    robotics: "noArticlesRobotics",
+    bitcoin: "noArticlesBitcoin",
+    videogames: "noArticlesVideogames",
+    aiengineering: "noArticlesAiengineering",
+    elon: "noArticlesElon",
+  } as const satisfies Record<Topic, string>;
+  const noArticlesKey = NO_ARTICLES_KEY[topic || "conflict"];
 
   function startProgress() {
     setProgress(0);
@@ -1264,7 +1230,7 @@ export default function Home() {
 
   function handleTopicChange(newTopic: Topic) {
     if (newTopic === topic) return;
-    setTopic(newTopic as Topic);
+    setTopic(newTopic);
     setSelected(null);
     setData(null);
     setError(null);
@@ -1341,7 +1307,9 @@ export default function Home() {
         {loading && (
           <div style={{ padding: "32px 0" }}>
             <p style={{ fontSize: 15, color: color.gold, marginBottom: 12 }}>
-              {t("loading", lang)}
+              {progress < 50
+                ? (lang === "fr" ? "Lecture des articles..." : "Reading articles...")
+                : (lang === "fr" ? "Analyse IA..." : "AI analysis...")}
             </p>
             <div style={{ position: "relative", height: 6, borderRadius: 3, background: color.border, overflow: "hidden" }}>
               <div

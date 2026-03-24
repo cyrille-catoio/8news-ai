@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const VALID_VOICES: Record<string, string> = {
-  sarah:     "NDTYOmYEjbDIVCKB35i3",
-  alice:     "Xb7hH8MSUJpSbSDYk0k2",
+  sarah:     "Xb7hH8MSUJpSbSDYk0k2",
+  alice:     "NDTYOmYEjbDIVCKB35i3",
   rachel:    "21m00Tcm4TlvDq8ikWAM",
   daniel:    "dtSEyYGNJqjrtBArPCVZ",
   drew:      "29vD33N1CtxCmqQRPOHJ",

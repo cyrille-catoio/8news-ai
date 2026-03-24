@@ -1,6 +1,6 @@
-export type Topic = "conflict" | "ai" | "crypto" | "robotics" | "bitcoin" | "videogames" | "aiengineering";
+export type Topic = "conflict" | "ai" | "crypto" | "robotics" | "bitcoin" | "videogames" | "aiengineering" | "elon";
 
-export const VALID_TOPICS: Topic[] = ["conflict", "ai", "aiengineering", "robotics", "crypto", "bitcoin", "videogames"];
+export const VALID_TOPICS: Topic[] = ["conflict", "ai", "aiengineering", "robotics", "crypto", "bitcoin", "videogames", "elon"];
 
 export interface ScoreResult {
   index: number;

@@ -66,6 +66,14 @@ const SCORING_CRITERIA: Record<Topic, ScoringCriteria> = {
     tier4: "Unsourced rumor, 'top 10' list, promotional content",
     tier5: "Off-topic gaming, merchandise, celebrity playing",
   },
+  elon: {
+    domain: "Elon Musk and his companies (Tesla, SpaceX, xAI, X/Twitter, Neuralink, The Boring Company, Starlink)",
+    tier1: "Major product launch, IPO/valuation milestone, government contract >1B$, breakthrough demo, CEO-level decision with global impact",
+    tier2: "Significant earnings report, major partnership, regulatory ruling, Starship test, Tesla delivery numbers, xAI model release",
+    tier3: "Product update, sourced interview, executive appointment, factory milestone, credible sourced report",
+    tier4: "Elon tweet commentary, opinion piece, speculation without source, personal life gossip",
+    tier5: "Off-topic or no direct link to Elon Musk or his companies",
+  },
 };
 
 export function getScoringPrompt(topic: Topic): string {

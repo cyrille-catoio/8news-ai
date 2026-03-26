@@ -144,28 +144,9 @@ export async function GET(req: NextRequest) {
     getTopArticlesForStats(topic === "all" ? null : topic, days),
   ]);
 
-  // ── KPIs (filtered by topic, not by days) ──
-  const kpiArticles =
-    topic !== "all" ? allArticles.filter((a) => a.topic === topic) : allArticles;
-  const scored = kpiArticles.filter((a) => a.relevance_score !== null);
-  const totalArticles = kpiArticles.length;
-  const scoredArticles = scored.length;
-  const avgScore =
-    scoredArticles > 0
-      ? roundOne(scored.reduce((s, a) => s + a.relevance_score!, 0) / scoredArticles)
-      : 0;
-
   const now = Date.now();
-  const cutoff24h = new Date(now - 24 * 3_600_000).toISOString();
-  const cutoff7d = new Date(now - 7 * 86_400_000).toISOString();
 
-  const new24h = kpiArticles.filter((a) => a.pub_date >= cutoff24h).length;
-  const new7d = kpiArticles.filter((a) => a.pub_date >= cutoff7d).length;
-  const scored24h = kpiArticles.filter(
-    (a) => a.scored_at && a.scored_at >= cutoff24h,
-  ).length;
-
-  // ── Filtered dataset (for distribution, feed ranking) ──
+  // ── Filtered dataset (topic + period) ──
   let filtered = allArticles;
   if (topic !== "all") filtered = filtered.filter((a) => a.topic === topic);
   if (days > 0) {
@@ -173,6 +154,23 @@ export async function GET(req: NextRequest) {
     filtered = filtered.filter((a) => a.pub_date >= since);
   }
   const filteredScored = filtered.filter((a) => a.relevance_score !== null);
+
+  // ── KPIs (from filtered dataset) ──
+  const totalArticles = filtered.length;
+  const scoredArticles = filteredScored.length;
+  const avgScore =
+    scoredArticles > 0
+      ? roundOne(filteredScored.reduce((s, a) => s + a.relevance_score!, 0) / scoredArticles)
+      : 0;
+
+  const cutoff24h = new Date(now - 24 * 3_600_000).toISOString();
+  const cutoff7d = new Date(now - 7 * 86_400_000).toISOString();
+
+  const new24h = filtered.filter((a) => a.pub_date >= cutoff24h).length;
+  const new7d = filtered.filter((a) => a.pub_date >= cutoff7d).length;
+  const scored24h = filtered.filter(
+    (a) => a.scored_at && a.scored_at >= cutoff24h,
+  ).length;
 
   // ── Feed counts from config ──
   const feedCounts: Record<string, number> = {};

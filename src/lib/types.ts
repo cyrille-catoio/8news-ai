@@ -48,3 +48,52 @@ export interface AIAnalysis {
   relevant: Array<{ index: number; snippet: string; title?: string }>;
   globalSummary: string | Array<{ text: string; refs: number[] }>;
 }
+
+export interface StatsResponse {
+  global: {
+    totalArticles: number;
+    scoredArticles: number;
+    pctScored: number;
+    avgScore: number;
+    new24h: number;
+    new7d: number;
+    scored24h: number;
+  };
+  scoreDistribution: Array<{
+    tier: string;
+    count: number;
+    pct: number;
+  }>;
+  feedRanking: Array<{
+    source: string;
+    topic: string;
+    total: number;
+    scored: number;
+    avgScore: number;
+    hitRate: number;
+    pct9_10: number;
+    pct7_8: number;
+    pct5_6: number;
+    pct3_4: number;
+    pct1_2: number;
+  }>;
+  topArticles: Array<{
+    title: string;
+    link: string;
+    source: string;
+    topic: string;
+    pubDate: string;
+    score: number;
+    reason: string;
+  }>;
+  topicComparison: Array<{
+    topic: string;
+    total: number;
+    scored: number;
+    pctScored: number;
+    avgScore: number;
+    hitRate: number;
+    activeSources: number;
+    totalFeeds: number;
+  }>;
+}

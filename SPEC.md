@@ -1,13 +1,13 @@
 # 8news.ai — Technical Specification
 
-**Version**: v1.19
+**Version**: v1.48
 **Last updated**: March 2026
 
 ---
 
 ## 1. Overview
 
-**8news.ai** is an AI-powered news aggregation and summarisation platform. It fetches articles from curated RSS feeds across multiple topics, sends them to OpenAI's GPT-4o-mini for relevance filtering and structured summarisation, and presents the results in a dark-themed, bilingual (EN/FR) web interface with text-to-speech playback.
+**8news.ai** is an AI-powered news aggregation and summarisation platform. It fetches articles from curated RSS feeds across multiple topics, pre-scores them with AI via scheduled Netlify cron jobs (stored in Supabase), then analyses the top-scoring articles with OpenAI's GPT-4.1-nano for structured summarisation. Results are presented in a dark-themed, bilingual (EN/FR) web interface with ElevenLabs text-to-speech playback.
 
 **Tagline**: "AI that decodes the news" / "L'IA qui décrypte l'actualité"
 
@@ -25,9 +25,11 @@
 | Frontend | React | 19.2.3 |
 | CSS | Tailwind CSS v4 + inline styles via `theme.ts` | ^4 |
 | RSS Parsing | rss-parser | ^3.13.0 |
-| AI (text analysis) | OpenAI API — `gpt-4o-mini` | via `openai` ^6.25.0 |
-| AI (text-to-speech) | OpenAI API — `tts-1` model | via `openai` ^6.25.0 |
+| AI (text analysis) | OpenAI API — `gpt-4.1-nano` | via `openai` ^6.25.0 |
+| AI (text-to-speech) | ElevenLabs API — `eleven_flash_v2_5` model | via REST API |
+| Database | Supabase (PostgreSQL) | via `@supabase/supabase-js` |
 | Hosting | Netlify | via `@netlify/plugin-nextjs` ^5.15.8 |
+| Cron Jobs | Netlify Scheduled Functions | `@netlify/functions` |
 | Domain | 8news.ai (redirect from 8news.netlify.app) | |
 
 ---
@@ -38,25 +40,51 @@
 newsread/
 ├── public/
 │   ├── logo-8news.png          # App logo (PNG, "8" gold / "news" light grey)
-│   ├── logo-8news.svg          # App logo (SVG fallback)
 │   ├── favicon.svg             # Browser favicon — gold "8" on black, 512×512
-│   └── apple-touch-icon.svg    # iOS home screen icon — gold "8" on black, 180×180
+│   ├── apple-touch-icon.svg    # iOS home screen icon — gold "8" on black, 180×180
+│   └── version.json            # {"version":"1.48"} — auto-update check
 ├── src/
 │   ├── app/
 │   │   ├── layout.tsx          # Root layout, metadata, favicons
 │   │   ├── globals.css         # Global CSS reset + base styles
 │   │   ├── page.tsx            # Main client component (entire UI)
 │   │   └── api/
-│   │       ├── news/route.ts   # GET /api/news — RSS fetch + AI analysis
-│   │       └── tts/route.ts    # POST /api/tts — Text-to-Speech
+│   │       ├── news/route.ts   # GET /api/news — Supabase read + AI analysis
+│   │       ├── tts/route.ts    # POST /api/tts — ElevenLabs Text-to-Speech
+│   │       ├── fetch-feeds/route.ts  # GET /api/fetch-feeds — manual RSS fetch
+│   │       └── test-score/route.ts   # GET /api/test-score — manual scoring
 │   └── lib/
-│       ├── types.ts            # TypeScript interfaces
+│       ├── types.ts            # TypeScript interfaces (Topic, ScoreResult, etc.)
 │       ├── theme.ts            # Design tokens (colors, fonts, shared styles)
-│       ├── i18n.ts             # EN/FR translation strings
+│       ├── i18n.ts             # EN/FR translation strings (40+ keys)
 │       ├── rss-feeds.ts        # RSS feed URLs per topic (20 feeds each)
-│       └── prompts.ts          # AI system prompts per topic × language
-├── .env                        # OPENAI_API_KEY (not committed)
-├── .env.example                # Placeholder for API key
+│       ├── prompts.ts          # AI system prompts per topic × language
+│       ├── scoring-prompts.ts  # AI scoring prompts per topic
+│       ├── supabase.ts         # Supabase client, caching, article queries
+│       └── html.ts             # HTML entity decoder
+├── netlify/
+│   └── functions/
+│       ├── shared/
+│       │   ├── fetch-topic.ts  # Shared: fetch RSS → Supabase
+│       │   └── score-topic.ts  # Shared: score articles with AI → Supabase
+│       ├── fetch-conflict.ts   # Cron: fetch conflict feeds (@hourly)
+│       ├── fetch-ai.ts         # Cron: fetch AI feeds (@hourly)
+│       ├── fetch-aiengineering.ts
+│       ├── fetch-robotics.ts
+│       ├── fetch-crypto.ts
+│       ├── fetch-bitcoin.ts
+│       ├── fetch-videogames.ts
+│       ├── fetch-elon.ts
+│       ├── score-conflict.ts   # Cron: score conflict articles (10 * * * *)
+│       ├── score-ai.ts
+│       ├── score-aiengineering.ts
+│       ├── score-robotics.ts
+│       ├── score-crypto.ts
+│       ├── score-bitcoin.ts
+│       ├── score-videogames.ts
+│       └── score-elon.ts
+├── .env                        # API keys (not committed)
+├── .env.example                # Placeholder for API keys
 ├── netlify.toml                # Netlify build + redirect config
 ├── package.json
 ├── tsconfig.json
@@ -67,26 +95,27 @@ newsread/
 
 ## 4. Topics
 
-The application supports **7 topics**, each with 20 curated RSS feeds and dedicated EN/FR AI prompts:
+The application supports **8 topics**, each with ~20 curated RSS feeds, dedicated EN/FR AI prompts, and AI scoring criteria:
 
 | # | Topic ID | Label (EN) | Label (FR) | Focus |
 |---|---|---|---|---|
 | 1 | `conflict` | Iran War | Iran War | USA/Israel vs Iran conflict, Hezbollah, Houthis, militias |
 | 2 | `ai` | AI | IA | AI models, breakthroughs, products, regulation, industry news |
-| 3 | `aiengineering` | AI Engineering | AI Engineering | Production AI systems, coding agents, LLM engineering, infra, evals, MLOps |
+| 3 | `aiengineering` | AI Eng. | AI Eng. | Production AI systems, coding agents, LLM engineering, infra, MLOps |
 | 4 | `robotics` | Robotics | Robotique | Humanoid robots, Unitree, Tesla Optimus, Boston Dynamics, Figure AI |
 | 5 | `crypto` | Crypto | Crypto | Cryptocurrency, blockchain, DeFi, regulation, market movements |
 | 6 | `bitcoin` | Bitcoin | Bitcoin | BTC-only: price, ETFs, mining, Lightning, on-chain, institutional adoption |
 | 7 | `videogames` | Video Games | Jeux Vidéo | Game releases, reviews, studios, consoles, esports, industry business |
+| 8 | `elon` | Elon Musk | Elon Musk | Tesla, SpaceX, xAI, X/Twitter, Neuralink, Starlink |
 
 ### Topic order in UI
-`Iran War` → `AI` → `AI Engineering` → `Robotics` → `Crypto` → `Bitcoin` → `Video Games`
+`Iran War` → `AI` → `AI Eng.` → `Robotics` → `Crypto` → `Bitcoin` → `Video Games` → `Elon Musk`
 
 ---
 
 ## 5. RSS Feeds
 
-Each topic has exactly **20 RSS feed URLs** defined in `src/lib/rss-feeds.ts`.
+Each topic has approximately **20 RSS feed URLs** defined in `src/lib/rss-feeds.ts`.
 
 ### 5.1 Iran War (conflict)
 BBC News, Al Jazeera, The Guardian, France 24, DW, NYT World, NPR News, ABC News, Times of Israel, Jerusalem Post, Middle East Eye, War on the Rocks, The War Zone, Google News Iran, Sky News, CBS News, Euronews, The Hill, Politico Defense, CNBC World.
@@ -95,7 +124,7 @@ BBC News, Al Jazeera, The Guardian, France 24, DW, NYT World, NPR News, ABC News
 TechCrunch AI, The Verge AI, Wired AI, Ars Technica, VentureBeat AI, MIT Tech Review, The Register AI, AI News, Google AI Blog, OpenAI Blog, Hacker News AI, Hugging Face Blog, Towards Data Science, DeepMind Blog, Simon Willison, Engadget, Marktechpost, The Decoder, ZDNET AI, Last Week in AI.
 
 ### 5.3 AI Engineering
-Latent Space, Simon Willison, Eugene Yan, Chip Huyen, Hamel Husain, Lilian Weng, LangChain Blog, LlamaIndex Blog, Anthropic Blog, Hugging Face Blog, GitHub Blog, Databricks Blog, W&B Fully Connected, The Pragmatic Engineer, InfoQ AI/ML, Software Engineering Daily, OpenAI Blog, Google AI Blog, Vercel Blog, The Batch (DeepLearning.AI).
+Latent Space, Simon Willison, Eugene Yan, Chip Huyen, LangChain Blog, Hugging Face Blog, GitHub Blog, OpenAI Blog, Google AI Blog, Vercel Blog, The Verge AI, TechCrunch AI, VentureBeat AI, DeepMind Blog, Together AI Blog, Replicate Blog, W&B Fully Connected, The Pragmatic Engineer, InfoQ AI/ML, MIT Tech Review AI.
 
 ### 5.4 Robotics
 The Robot Report, TechCrunch Robotics, The Verge AI, Ars Technica, Wired AI, VentureBeat AI, MIT Tech Review, Hacker News Robotics, Robohub, Singularity Hub, Google DeepMind, OpenAI Blog, Futurism, Slash Gear, IEEE Robotics, Hackaday, Science Daily Robots, Engadget, ZDNET Robotics, SCMP Tech.
@@ -109,97 +138,127 @@ Bitcoin Magazine, CoinDesk, Cointelegraph Bitcoin, NewsBTC, Bitcoinist, Bitcoin.
 ### 5.7 Video Games
 IGN, Kotaku, GameSpot, PC Gamer, Eurogamer, Polygon, Rock Paper Shotgun, VG247, GamesRadar+, Destructoid, Nintendo Life, Push Square, Pure Xbox, The Verge Gaming, Ars Technica Gaming, GamesIndustry.biz, Siliconera, Dualshockers, Wired Gaming, PCGamesN.
 
+### 5.8 Elon Musk
+Google News Elon, TechCrunch, The Verge, Ars Technica, Wired, Engadget, CNBC Tech, Reuters Tech, Bloomberg Tech, Electrek, Teslarati, InsideEVs, SpaceNews, NASASpaceflight, The Guardian Tech, Business Insider Tech, Forbes Innovation, Futurism, VentureBeat, ZDNET.
+
 ---
 
-## 6. Backend — API Routes
+## 6. Backend Architecture
 
-### 6.1 `GET /api/news`
+### 6.1 Netlify Scheduled Functions (Cron Jobs)
 
-Main data endpoint. Fetches RSS, filters with AI, returns structured summary.
+Articles are fetched and pre-scored by background cron jobs, not at request time.
+
+**Fetch functions** (`netlify/functions/fetch-*.ts`):
+- Run **hourly** (`@hourly`)
+- Fetch all RSS feeds for a topic
+- Parse and decode HTML entities
+- Upsert into Supabase `articles` table (deduplicated by `link`)
+
+**Score functions** (`netlify/functions/score-*.ts`):
+- Run **every hour at minute 10** (`10 * * * *`)
+- Fetch up to **300** unscored articles from the last 7 days
+- Score in batches of 50 using `gpt-4.1-nano`
+- Each article gets a relevance score (1-10), reason, and AI-generated EN/FR summaries for articles scoring ≥5
+- Results stored back in Supabase
+
+**Scoring criteria** (`src/lib/scoring-prompts.ts`):
+Each topic has 5 scoring tiers:
+- **9-10**: Major breaking news (e.g., new model launch, peace treaty, ATH)
+- **7-8**: Significant development (e.g., notable partnership, large funding)
+- **5-6**: Interesting content (e.g., product update, analysis with data)
+- **3-4**: Low value (e.g., opinion without facts, tutorial)
+- **1-2**: Off-topic or spam
+
+### 6.2 Supabase Database
+
+**Tables:**
+
+| Table | Purpose |
+|---|---|
+| `articles` | All fetched articles with scores, AI summaries |
+| `news_cache` | Cached API responses (TTL-based) |
+
+**`articles` columns**: `id`, `topic`, `source`, `title`, `link`, `pub_date`, `content`, `snippet`, `snippet_ai_en`, `snippet_ai_fr`, `relevance_score`, `score_reason`, `scored_at`
+
+**Cache TTL** (based on time window):
+
+| Hours | Cache duration |
+|---|---|
+| ≤1h | 5 min |
+| ≤6h | 15 min |
+| ≤24h | 30 min |
+| >24h | 60 min |
+
+### 6.3 `GET /api/news`
+
+Main data endpoint. Reads pre-scored articles from Supabase, analyses with AI, returns structured summary.
 
 **Query parameters:**
 
 | Param | Type | Default | Description |
 |---|---|---|---|
-| `hours` | float | 24 | Time window (0.25 to 168). Supports fractional values (0.25 = 15 min). |
-| `lang` | `"en"` \| `"fr"` | `"en"` | Language for AI output and translations. |
-| `topic` | Topic string | `"conflict"` | One of the 7 topic IDs. |
-| `count` | int | 10 | Target number of relevant articles (3–30, clamped). |
+| `hours` | float | 24 | Time window (0.25 to 168) |
+| `lang` | `"en"` \| `"fr"` | `"en"` | Language for AI output |
+| `topic` | Topic string | `"conflict"` | One of the 8 topic IDs |
+| `count` | int | 10 | Target number of relevant articles (3–30) |
 
 **Processing pipeline:**
 
-1. **Fetch all feeds** — `Promise.allSettled` on all 20 RSS URLs for the topic, with 5s timeout per feed. HTML entities decoded during parse.
-2. **Filter by date** — Only articles published after `now - hours` are kept.
-3. **Sort** — Newest first by `pubDate`.
-4. **Truncate** — Max 200 articles sent to AI (`MAX_ARTICLES`). Each snippet capped at 600 chars (`SNIPPET_MAX`).
-5. **AI analysis** — If `OPENAI_API_KEY` is valid, articles are formatted as a numbered list and sent to `gpt-4o-mini` with the topic-specific system prompt. Response format is `json_object`.
-6. **Parse AI response** — Extracts `relevant` articles (with AI-generated summaries) and `globalSummary` (structured bullet points with article refs).
-7. **Return** — JSON response matching `SummaryResponse` interface.
+1. **Cache check** — Look for a valid cached response in Supabase
+2. **Read scored articles** — Fetch articles with `relevance_score >= minScore` from Supabase
+3. **Read all articles** — Fetch all articles for the "All articles" tab
+4. **AI analysis** — Send top-scored articles to `gpt-4.1-nano` for filtering and summarisation
+5. **Cache write** — Store result in `news_cache` (non-blocking)
+6. **Periodic cleanup** — 10% chance to clean expired cache entries
 
-**Response shape (`SummaryResponse`):**
+**Minimum score by time window:**
 
-```json
-{
-  "summary": "Plain text summary (bullet points joined by \\n)",
-  "bullets": [
-    {
-      "text": "Bullet point text without the • prefix",
-      "refs": [
-        { "title": "Article title", "link": "https://...", "source": "BBC News" }
-      ]
-    }
-  ],
-  "articles": [
-    {
-      "title": "Article title (translated if FR)",
-      "link": "https://...",
-      "source": "BBC News",
-      "pubDate": "2026-03-03T12:00:00Z",
-      "snippet": "AI-generated 2-3 sentence summary"
-    }
-  ],
-  "allArticles": [
-    { "title": "...", "link": "...", "source": "...", "pubDate": "...", "snippet": "..." }
-  ],
-  "period": {
-    "from": "2026-03-03T00:00:00.000Z",
-    "to": "2026-03-03T12:00:00.000Z"
-  }
-}
-```
+| Hours | Min score |
+|---|---|
+| ≤1h | 3 |
+| ≤6h | 4 |
+| ≤12h | 5 |
+| ≤48h | 6 |
+| >48h | 7 |
 
-**Key constants:**
+### 6.4 `POST /api/tts`
 
-| Constant | Value | Description |
-|---|---|---|
-| `FETCH_TIMEOUT_MS` | 5000 | Per-feed HTTP timeout |
-| `MAX_ARTICLES` | 200 | Max articles sent to AI |
-| `SNIPPET_MAX` | 600 | Max snippet chars stored |
-| `PREVIEW_LIMIT` | 10 | Articles shown when no API key |
-
-**Fallback behaviours:**
-- No API key → returns raw articles without AI filtering, with explanatory message.
-- AI call fails → returns error message as summary, empty bullets.
-- No articles found → returns informative message with feed success/failure counts.
-
-### 6.2 `POST /api/tts`
-
-Text-to-Speech endpoint using OpenAI `tts-1` model.
+Text-to-Speech endpoint using **ElevenLabs** `eleven_flash_v2_5` model.
 
 **Request body:**
 
 ```json
 {
-  "text": "Text to synthesize (max 4096 chars)",
-  "voice": "nova"  // optional, defaults to "nova"
+  "text": "Text to synthesize (max 5000 chars)",
+  "lang": "en",
+  "speed": 1.05,
+  "voice": "sarah"
 }
 ```
 
-**Supported voices:** `alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`.
+**Voice IDs** (ElevenLabs):
 
-**Response:** Binary `audio/mpeg` (MP3 buffer).
+| Internal ID | Display Name | Language | ElevenLabs Voice ID |
+|---|---|---|---|
+| `sarah` | Jade | EN | `Xb7hH8MSUJpSbSDYk0k2` |
+| `alice` | Alice | EN | `NDTYOmYEjbDIVCKB35i3` |
+| `rachel` | Rachel | EN | `21m00Tcm4TlvDq8ikWAM` |
+| `daniel` | Nicolas | EN | `dtSEyYGNJqjrtBArPCVZ` |
+| `drew` | Drew | EN | `29vD33N1CtxCmqQRPOHJ` |
+| `josh` | Josh | EN | `TxGEqnHWrfWFTfGW9XjX` |
+| `george` | Tristan | FR | `AmMsHJaCw4BtwV3KoUXF` |
+| `charlotte` | Charlotte | FR | `XB0fDUnXU5powFXDhCwa` |
+| `lily` | Lily | FR | `pFZP5JQG7iQjIQuC4Bku` |
+| `nicole` | Nicole | FR | `piTKgcLEGmPE4e6mEKli` |
+| `thomas` | Thomas | FR | `GBv7mTt0atIp3Br8iCZE` |
+| `callum` | Callum | FR | `N2lVS1w4EtoT3dr4eOWO` |
 
-**API key validation:** Same as news endpoint — rejects empty keys and the `sk-your-key-here` placeholder.
+**Voice settings**: `stability: 0.7`, `similarity_boost: 0.85`, `speed: 0.7–1.2` (clamped)
+
+**Output format**: `mp3_44100_128`
+
+**Response:** Binary `audio/mpeg` (MP3 buffer)
 
 ---
 
@@ -228,20 +287,18 @@ Every prompt instructs the AI to:
 }
 ```
 
-- `index` = 0-based position in the article list sent to the AI.
-- `refs` = indices of articles that support each bullet point (used for source links in UI).
-
 ### 7.3 Topic-specific focus
 
 | Topic | Prompt focus |
 |---|---|
 | **Iran War** | Casualty counts, troop numbers, dollar amounts, escalation/de-escalation |
 | **AI** | Model names, benchmarks, parameter counts, funding, release dates, coding tools |
-| **AI Engineering** | Production systems, architecture decisions, tradeoffs, latency/cost, tooling, postmortems. Excludes consumer news, hype, tutorials |
+| **AI Engineering** | Production systems, architecture decisions, tradeoffs, latency/cost, tooling, postmortems |
 | **Robotics** | Robot specs (DOF, payload, speed), funding, deployment numbers, company names |
 | **Crypto** | BTC price, percentage changes, market caps, hash rates, regulatory actions |
 | **Bitcoin** | Exclusively BTC: price, ETFs, mining, Lightning, on-chain, institutional adoption |
 | **Video Games** | Game titles, review scores, sales, player counts, prize pools, studio names |
+| **Elon Musk** | Tesla deliveries, SpaceX launches, xAI model releases, X platform changes, Neuralink trials |
 
 ---
 
@@ -256,30 +313,36 @@ The entire UI is in `src/app/page.tsx` (client component, `"use client"`).
 - **Font**: System UI stack
 - **Theme**: Black & gold (`#c9a227`)
 
-### 8.2 Header
+### 8.2 Navigation
 
-- **Logo**: PNG image (`/logo-8news.png`) — "8" in gold, "news" in light grey, responsive height `clamp(32px, 5vw, 48px)`
+The app has **3 pages** managed by `currentPage` state (`"home"` | `"stats"` | `"settings"`):
+
+**Header** (shared across all pages):
+- **Logo**: PNG image (`/logo-8news.png`), responsive height `clamp(32px, 5vw, 48px)`
 - **Subtitle**: "AI that decodes the news" / "L'IA qui décrypte l'actualité"
-- **Top-right controls**:
-  - **Language toggle** (EN/FR) — Segmented control, gold highlight
-  - **Settings button** — Gear icon (SVG), opens settings modal
-  - **Reset button** — Refresh icon (SVG), clears all state
+- **Top-right controls** (left to right):
+  - **Language toggle** (EN/FR) — Segmented control, gold highlight. Changing language reloads the page.
+  - **Home icon** (house SVG) — Navigates to home page, gold when active
+  - **Stats icon** (bar chart SVG) — Navigates to stats page, gold when active
+  - **Settings icon** (gear SVG) — Navigates to settings page, gold when active
 
-### 8.3 Topic Selector (`TopicToggle`)
+### 8.3 Home Page
+
+#### Topic Selector (`TopicToggle`)
 
 - **Layout**: CSS grid
   - Desktop (>640px): up to 9 columns
   - Mobile (≤640px): 4 columns → wraps to 2 rows
 - **Style**: Individual rounded buttons with gold border, gold fill when active
+- **Default**: No topic selected on launch
 - **Behaviour**: Changing topic clears results and resets state
 
-### 8.4 Period Selector
+#### Period Selector
 
-10 buttons in a flex-wrap row:
+11 buttons in a flex-wrap row:
 
 | Label | Hours value |
 |---|---|
-| 15 m | 0.25 |
 | 30 m | 0.5 |
 | 1 h | 1 |
 | 3 h | 3 |
@@ -289,94 +352,104 @@ The entire UI is in `src/app/page.tsx` (client component, `"use client"`).
 | 48 h | 48 |
 | 3 d | 72 |
 | 7 d | 168 |
+| 14 d | 336 |
+| 30 d | 720 |
 
-Clicking a period button triggers `fetchNews(hours)`.
+Disabled until a topic is selected. Clicking triggers `fetchNews(hours)`.
 
-### 8.5 Loading State
+#### Loading State
 
 - **Progress bar** with simulated two-phase animation:
-  - Phase 1 (0→70%): +3.5% every 200ms (~4s)
-  - Phase 2 (70→95%): Exponentially slowing increments
-- **Percentage display** below the bar
+  - Phase 1 (0→90%): +3.5% every 200ms
+  - Phase 2 (90→99%): Exponentially slowing increments
+- **Dynamic loading message**:
+  - `< 50%`: "Reading articles..." / "Lecture des articles..."
+  - `≥ 50%`: "AI analysis..." / "Analyse IA..."
 - Jumps to 100% when API responds
-- No spinner (removed by design)
 
-### 8.6 Summary Box (`SummaryBox`)
+#### Summary Box (`SummaryBox`)
 
-- **Heading**: "Summary" / "Résumé"
-- **Audio player**: Top-right corner (see section 8.8)
-- **Bullet points**: Up to 8, each with:
-  - Gold "•" prefix
-  - Text content
-  - Source references below each bullet — clickable links with external-link icon (`RefIcon`), muted grey, gold on hover
+- **Heading**: "Summary" / "Résumé" with article count
+- **Audio player**: Below heading (see section 8.5)
+- **Bullet points**: Up to 8, each with gold "•" prefix, source reference links below
 - **Period display**: "from → to" timestamps in locale format
 
-### 8.7 Result Tabs
+#### Result Tabs
 
 Two tabs below the summary:
 - **"Relevant articles"** — AI-filtered articles with generated summaries
-- **"All articles"** — Raw articles from all RSS feeds, grouped by source, no AI filtering
+- **"All articles"** — All articles from Supabase, grouped by source
 
-### 8.8 Audio Player (`AudioPlayer`)
+### 8.4 Stats Page
 
-Text-to-Speech player for the global summary.
+Placeholder page with "Coming soon." / "Bientôt disponible." message. Same header and navigation as other pages.
+
+### 8.5 Settings Page (`SettingsPage`)
+
+Four sections:
+
+**1. Preferences**
+- **Max relevant articles** slider: 3–30, default 10
+- Info button with explanatory tooltip
+- Persisted in cookie (`maxArticles`, 1 year)
+
+**2. Voice**
+- **Speed** slider: 0.7x–1.2x, default 1.05x, persisted in cookie (`ttsSpeed`)
+- **Voice EN** (accordion): 6 voices (3F, 3M), default "Jade" (`sarah`), persisted in cookie (`ttsVoice`)
+- **Voice FR** (accordion): 6 voices (3F, 3M), default "Tristan" (`george`), persisted in cookie (`ttsVoiceFr`)
+
+**3. RSS Sources** (accordion)
+- Tab bar to switch between topics
+- Lists all feeds with name + domain, clickable
+- Shows feed count
+
+**4. AI Prompt** (accordion)
+- Tab bar to switch between topics
+- Displays the full system prompt for the selected topic/language/maxArticles
+- Monospace `<pre>` block, scrollable
+
+### 8.6 Audio Player (`AudioPlayer`)
+
+Text-to-Speech player for the global summary, using ElevenLabs API.
 
 **Controls:**
-- **-15s** / **+15s** skip buttons
-- **Play/Pause** toggle (SVG icons)
+- **Play/Pause** toggle (SVG icons, 32px/30px)
 - **Stop** button (resets to beginning)
+- **-15s** / **+15s** skip buttons
+- **Time display** (current / total)
+- **Loading spinner** (gold, appears during first audio fetch, disappears after 2s of playback)
 - **Seekable progress bar** (clickable)
-- **Time display** (current / total) — fixed 72px width to prevent layout shift
 
-**TTS flow:**
-1. On Play, calls `POST /api/tts` with summary text prepended by topic/period intro
-2. Receives MP3 blob, creates `Audio` object
-3. Stores blob URL — reuses on Stop→Play (no re-fetch)
-4. On new summary data, cleans up and resets
+**TTS text composition:**
+1. **Intro** (`ttsIntro`): e.g., "Bitcoin News. Here is the news analyzed for the last 3 hours."
+2. **Summary text** (from AI analysis)
+3. **Outro** with ~2s pause: "... ... That's all folks!" (EN) / "... ... C'est tout... pour le moment..." (FR)
 
-**TTS intro** (`ttsIntro` function): Generates a spoken introduction, e.g.:
-- EN: "Bitcoin News. Here is the news analyzed for the last 3 hours."
-- FR: "Actualités Bitcoin. Voici l'actualité analysée pour les 3 dernières heures."
+**Audio end behaviour:** 2-second delay before resetting to idle state to avoid abrupt cutoff.
 
-### 8.9 Notification Beep
+**iOS compatibility:**
+- `AudioContext` created and resumed on user gesture (`ensureAudioContext`)
+- `playsinline` attribute set on audio element
+- `preload="auto"` set
+- Waits for both `canplaythrough` and `loadeddata` events (8s timeout)
+- Voice selected based on current language (EN voices for English, FR voices for French)
+
+### 8.7 Notification Beep
 
 When results load successfully, a **double beep** plays via Web Audio API:
 - Beep 1: 880 Hz, 120ms
 - Silence: 60ms
 - Beep 2: 1050 Hz, 120ms
 
-**iOS fix**: `AudioContext` is created and unlocked during the user's tap (in `fetchNews`), then reused for the beep after the async fetch completes. This avoids iOS blocking audio created outside user gestures.
+**iOS fix**: `AudioContext` is created and unlocked during the user's tap (in `fetchNews`), then reused for the beep after the async fetch completes.
 
-### 8.10 Settings Modal (`SettingsModal`)
+### 8.8 Auto-Update
 
-Three sections:
+The app checks `public/version.json` every **60 seconds**. If the version differs from `APP_VERSION`, the page automatically reloads to pick up the latest deployment.
 
-**1. Preferences** (always visible)
-- **Max relevant articles** slider: 3–30, default 10 on first launch
-- Persisted in cookie (`maxArticles`, 1 year, `SameSite=Lax`)
+### 8.9 Version Footer
 
-**2. RSS Sources** (accordion, collapsed by default)
-- Tab bar to switch between topics (defaults to currently selected topic)
-- Lists all 20 feeds for the active tab
-- Each feed: name + domain, clickable (opens RSS URL in new tab)
-- Shows feed count
-
-**3. AI Prompt** (accordion, collapsed by default)
-- Same tab bar as RSS Sources
-- Displays the full system prompt sent to OpenAI for the selected topic/language/maxArticles
-- Monospace `<pre>` block, scrollable
-
-### 8.11 Version Footer
-
-Fixed bottom-right: `v1.19` (incremented with each GitHub push).
-
-### 8.12 Article Card (`ArticleCard`)
-
-Each relevant article card shows:
-- **Title** (translated to French in FR mode)
-- **Snippet** (AI-generated 2-3 sentence summary), lighter grey (`#b0b0b0`)
-- **Source + date** in gold
-- Entire card is a link, opens original article in new tab
+Fixed bottom-right: `v1.48` (incremented with each GitHub push).
 
 ---
 
@@ -385,12 +458,14 @@ Each relevant article card shows:
 Defined in `src/lib/i18n.ts`.
 
 - **Languages**: English (`en`), French (`fr`)
-- **Toggle**: Segmented control in header
-- **Scope**: All UI text, topic labels, error messages
+- **Toggle**: Segmented control in header — changing language sets a cookie and reloads the page
+- **Language persistence**: Cookie (`lang`, 1 year, `SameSite=Lax`), read client-side via `useEffect` to avoid hydration mismatch
+- **Scope**: All UI text, topic labels, error messages, loading messages
 - **AI output**: When `lang=fr`, the AI prompt instructs GPT to translate article titles and write summaries in French
+- **TTS voice**: Automatically selects from EN or FR voice pool based on current language
 - **Date formatting**: `en-US` or `fr-FR` locale via `Intl.DateTimeFormat`
 
-**Total translation keys**: 30+ strings covering all UI states.
+**Total translation keys**: 40+ strings covering all UI states.
 
 ---
 
@@ -417,7 +492,6 @@ Centralised design tokens:
 
 ### Typography
 - Font: `system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`
-- All font sizes increased by ~10% from default for readability
 
 ### Shared styles
 - `sectionHeading`: Gold, 13px, uppercase, letterspaced
@@ -425,105 +499,49 @@ Centralised design tokens:
 
 ---
 
-## 11. Data Flow
+## 11. State Management
 
-```
-User clicks period button
-        │
-        ▼
-  unlockAudioContext()     ← iOS audio fix (on user tap)
-        │
-        ▼
-  startProgress()         ← Simulated loading bar begins
-        │
-        ▼
-  GET /api/news?hours=X&lang=Y&topic=Z&count=N
-        │
-        ▼
-  ┌─────────────────────────────────────────────┐
-  │  Server: fetchAllFeeds()                    │
-  │  - Fetch 20 RSS feeds in parallel (5s max)  │
-  │  - Filter by pubDate >= since               │
-  │  - Decode HTML entities                     │
-  │  - Sort by date (newest first)              │
-  │  - Cap at 200 articles                      │
-  └─────────────────────┬───────────────────────┘
-                        │
-                        ▼
-  ┌─────────────────────────────────────────────┐
-  │  Server: analyzeWithAI()                    │
-  │  - Format articles as numbered list         │
-  │  - Send to gpt-4o-mini with system prompt   │
-  │  - Request JSON response format             │
-  │  - Parse relevant[] and globalSummary[]     │
-  │  - Map refs to actual article links         │
-  └─────────────────────┬───────────────────────┘
-                        │
-                        ▼
-  JSON response → Client
-        │
-        ▼
-  stopProgress()          ← Bar jumps to 100%
-  playNotificationBeep()  ← Double beep
-  setData(response)       ← Renders Summary + Articles
-```
-
----
-
-## 12. Deployment
-
-### Netlify
-
-- **Build command**: `npm run build`
-- **Publish directory**: `.next`
-- **Plugin**: `@netlify/plugin-nextjs` (handles SSR/serverless functions)
-- **Domain**: `8news.ai`
-- **Redirect**: `8news.netlify.app/*` → `8news.ai/:splat` (301)
-
-### Environment Variables
-
-| Variable | Required | Description |
-|---|---|---|
-| `OPENAI_API_KEY` | Yes | OpenAI API key for GPT-4o-mini and TTS |
-
-### Favicons
-
-- **Browser**: `/favicon.svg` — SVG, gold "8" on black, 512×512 viewBox
-- **iOS**: `/apple-touch-icon.svg` — SVG, gold "8" on black, 180×180 viewBox
-
----
-
-## 13. State Management
-
-All state is managed with React `useState` + `useRef` hooks in the `Home` component. No external state library.
+All state is managed with React `useState` + `useRef` + `useCallback` hooks in the `Home` component. No external state library.
 
 | State | Type | Default | Persistence |
 |---|---|---|---|
-| `lang` | `"en"` \| `"fr"` | `"en"` | None (resets on reload) |
-| `topic` | Topic | `"conflict"` | None |
+| `lang` | `"en"` \| `"fr"` | `"en"` | Cookie (`lang`, read via useEffect) |
+| `topic` | Topic \| null | null | None |
 | `maxArticles` | number | 10 | Cookie (`maxArticles`, 1 year) |
+| `ttsSpeed` | number | 1.05 | Cookie (`ttsSpeed`, 1 year) |
+| `ttsVoice` | string | `"sarah"` | Cookie (`ttsVoice`, 1 year) |
+| `ttsVoiceFr` | string | `"george"` | Cookie (`ttsVoiceFr`, 1 year) |
 | `selected` | number \| null | null | None |
 | `data` | SummaryResponse \| null | null | None |
 | `loading` | boolean | false | None |
 | `progress` | number | 0 | None |
 | `error` | string \| null | null | None |
-| `showSettings` | boolean | false | None |
+| `currentPage` | `"home"` \| `"stats"` \| `"settings"` | `"home"` | None |
 | `resultTab` | `"relevant"` \| `"all"` | `"relevant"` | None |
 
 ---
 
-## 14. TypeScript Interfaces
+## 12. TypeScript Interfaces
 
 ```typescript
-type Topic = "conflict" | "ai" | "crypto" | "robotics" | "bitcoin" | "videogames" | "aiengineering";
+type Topic = "conflict" | "ai" | "crypto" | "robotics" | "bitcoin" | "videogames" | "aiengineering" | "elon";
 
-interface RawArticle {
+interface ScoreResult {
+  index: number;
+  score: number;
+  reason: string;
+  summary_en?: string;
+  summary_fr?: string;
+}
+
+interface ParsedArticle {
+  topic: string;
+  source: string;
   title: string;
   link: string;
-  pubDate: string;
+  pub_date: string;
   content: string;
-  contentSnippet: string;
-  source: string;
+  snippet: string;
 }
 
 interface ArticleSummary {
@@ -555,52 +573,128 @@ interface AIAnalysis {
 
 ---
 
+## 13. Data Flow
+
+```
+          ┌──────────────────────────────────────────────────┐
+          │  BACKGROUND (Netlify Scheduled Functions)        │
+          │                                                  │
+          │  @hourly: fetch-*.ts                            │
+          │  - Fetch 20 RSS feeds per topic                 │
+          │  - Parse, decode, deduplicate                   │
+          │  - Upsert into Supabase `articles` table        │
+          │                                                  │
+          │  10 * * * *: score-*.ts                         │
+          │  - Fetch ≤300 unscored articles (last 7 days)   │
+          │  - Score with gpt-4.1-nano (batches of 50)      │
+          │  - Store score + AI summaries in Supabase        │
+          └──────────────────────────────────────────────────┘
+
+User clicks period button
+        │
+        ▼
+  unlockAudioContext()     ← iOS audio fix (on user tap)
+        │
+        ▼
+  startProgress()         ← Simulated loading bar begins
+        │
+        ▼
+  GET /api/news?hours=X&lang=Y&topic=Z&count=N
+        │
+        ▼
+  ┌─────────────────────────────────────────────┐
+  │  Server: Check cache (Supabase news_cache)  │
+  │  → If valid cached response, return it      │
+  └─────────────────────┬───────────────────────┘
+                        │ (cache miss)
+                        ▼
+  ┌─────────────────────────────────────────────┐
+  │  Server: Read from Supabase                 │
+  │  - Scored articles (score >= minScore)      │
+  │  - All articles (for "All" tab)             │
+  │  - Use AI snippets based on language        │
+  └─────────────────────┬───────────────────────┘
+                        │
+                        ▼
+  ┌─────────────────────────────────────────────┐
+  │  Server: analyzeWithAI()                    │
+  │  - Send top articles to gpt-4.1-nano       │
+  │  - Parse relevant[] and globalSummary[]     │
+  │  - Map refs to actual article links         │
+  └─────────────────────┬───────────────────────┘
+                        │
+                        ▼
+  JSON response → Client (+ async cache write)
+        │
+        ▼
+  stopProgress()          ← Bar jumps to 100%
+  playNotificationBeep()  ← Double beep
+  setData(response)       ← Renders Summary + Articles
+```
+
+---
+
+## 14. Deployment
+
+### Netlify
+
+- **Build command**: `npm run build`
+- **Publish directory**: `.next`
+- **Plugin**: `@netlify/plugin-nextjs` (handles SSR/serverless functions)
+- **Scheduled functions**: 16 cron jobs (8 fetch + 8 score)
+- **Domain**: `8news.ai`
+- **Redirect**: `8news.netlify.app/*` → `8news.ai/:splat` (301)
+
+### Environment Variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `OPENAI_API_KEY` | Yes | OpenAI API key for GPT-4.1-nano |
+| `ELEVENLABS_API_KEY` | Yes | ElevenLabs API key for TTS |
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key |
+| `CRON_SECRET` | Yes | Secret for manual API route invocation |
+
+---
+
 ## 15. Error Handling
 
 | Scenario | Behaviour |
 |---|---|
 | RSS feed timeout (>5s) | Feed silently skipped, others continue |
-| All feeds fail | "No articles found (0 feeds OK, 20 failed)" |
-| No articles in time window | "No articles found for the selected time period" |
-| Missing/invalid API key | Returns raw articles without AI, with explanatory message |
-| OpenAI API error | "Error calling OpenAI. Please verify your OPENAI_API_KEY." |
+| All feeds fail | "No articles found" message |
+| No scored articles in time window | Topic-specific "no articles" message |
+| Missing/invalid OpenAI key | Returns raw articles without AI, with explanatory message |
+| OpenAI API error | "Error calling OpenAI" message, empty bullets |
+| ElevenLabs API error | 502 with error details |
 | Network error (client) | "Unable to connect to the server" |
-| AI returns array instead of string for globalSummary | Handled: joins if string array, maps if structured array |
-| HTML entities in RSS content | Decoded via custom `decodeHtmlEntities()` (numeric, hex, named) |
+| Supabase errors | Graceful fallback (empty arrays) |
+| iOS audio autoplay blocked | AudioContext resume on user gesture |
+| Audio load timeout | 8-second timeout with fallback |
 
 ---
 
-## 16. Performance Optimisations
+## 16. Adding a New Topic
 
-- **Parallel RSS fetching**: All 20 feeds fetched with `Promise.allSettled` (resilient to individual failures)
-- **5s timeout** per feed (reduced from original 8s for Netlify serverless compatibility)
-- **Max 200 articles** sent to AI (increased from original 80)
-- **500 chars** per article snippet sent to LLM (increased from original 200)
-- **Simulated progress bar** with two-phase animation for perceived performance
-- **Audio reuse**: TTS MP3 cached as blob URL, reused on Stop→Play without re-fetching
-- **Cookie-based preferences**: `maxArticles` persisted to avoid re-configuration
+To add a new topic, update these files:
 
----
-
-## 17. Adding a New Topic
-
-To add a new topic, update these 6 files:
-
-1. **`src/lib/types.ts`** — Add topic ID to `Topic` union type
-2. **`src/lib/rss-feeds.ts`** — Add `const NEW_FEEDS: readonly Feed[]` with 20 URLs, add to `FEEDS_BY_TOPIC`
+1. **`src/lib/types.ts`** — Add topic ID to `Topic` union type and `VALID_TOPICS` array
+2. **`src/lib/rss-feeds.ts`** — Add feed constant with ~20 URLs, add to `FEEDS_BY_TOPIC`
 3. **`src/lib/i18n.ts`** — Add keys: `topicXxx`, `xxxTitle`, `noArticlesXxx`
 4. **`src/lib/prompts.ts`** — Add `xxxEn(max)` and `xxxFr(max)` functions, add to `PROMPTS` map
-5. **`src/app/page.tsx`** — Add to `TOPICS`, `TABS`, `TOPIC_TITLE_KEY`, `noArticlesKey` chain, update all type unions
-6. **`src/app/api/news/route.ts`** — Add to `topic` parsing ternary chain
+5. **`src/lib/scoring-prompts.ts`** — Add scoring criteria to `SCORING_CRITERIA`
+6. **`src/app/page.tsx`** — Add to `TOPICS`, `TOPIC_TITLE_KEY`, `NO_ARTICLES_KEY`
+7. **`netlify/functions/fetch-xxx.ts`** — New fetch cron function
+8. **`netlify/functions/score-xxx.ts`** — New score cron function
 
 ---
 
-## 18. Known Limitations
+## 17. Known Limitations
 
 - **No authentication** — The app is public, no user accounts
-- **No caching** — Each request fetches RSS and calls OpenAI fresh
 - **Serverless timeout** — Netlify functions have execution time limits; 5s per-feed timeout helps stay within bounds
 - **RSS availability** — Some feeds may go offline; periodic manual verification needed
-- **AI cost** — Each request consumes OpenAI tokens (gpt-4o-mini for analysis, tts-1 for audio)
+- **AI cost** — Each request consumes OpenAI tokens (gpt-4.1-nano for analysis and scoring), each TTS request consumes ElevenLabs credits
 - **No SSR** — The page is a client-only component (`"use client"`)
-- **Cookie-only persistence** — Only `maxArticles` is persisted; topic, language, and period reset on reload
+- **Cookie-only persistence** — User preferences persisted in cookies; topic and period reset on reload
+- **Stats page** — Placeholder only, not yet implemented

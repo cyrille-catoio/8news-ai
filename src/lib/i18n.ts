@@ -173,6 +173,114 @@ const strings = {
     en: "Articles pre-scored hourly by AI (relevance 1-10) are filtered by minimum score based on the selected time window. 2x the max number of articles are sent to GPT-4o-mini, which generates a summary and selects the most relevant ones to display. Results are cached for 5-60 min depending on the time range.",
     fr: "Les articles sont pré-scorés toutes les heures par l'IA (pertinence 1-10) puis filtrés par score minimum selon la fenêtre temporelle choisie. 2x le nombre max d'articles sont envoyés à GPT-4o-mini qui génère un résumé et sélectionne les plus pertinents à afficher. Les résultats sont mis en cache 5-60 min selon la plage horaire.",
   },
+  statsTitle: {
+    en: "Stats",
+    fr: "Stats",
+  },
+  totalArticles: {
+    en: "Total articles",
+    fr: "Total articles",
+  },
+  scoredArticles: {
+    en: "Scored",
+    fr: "Scorés",
+  },
+  coverage: {
+    en: "Coverage",
+    fr: "Couverture",
+  },
+  avgScore: {
+    en: "Avg score",
+    fr: "Score moy.",
+  },
+  new24h: {
+    en: "New 24h",
+    fr: "Nouveaux 24h",
+  },
+  new7d: {
+    en: "New 7d",
+    fr: "Nouveaux 7j",
+  },
+  scored24h: {
+    en: "Scored 24h",
+    fr: "Scorés 24h",
+  },
+  scoreDistrib: {
+    en: "Score distribution",
+    fr: "Distribution des scores",
+  },
+  feedRanking: {
+    en: "Feed ranking",
+    fr: "Classement des flux",
+  },
+  topArticles: {
+    en: "Top articles",
+    fr: "Meilleurs articles",
+  },
+  topicComparison: {
+    en: "Topic comparison",
+    fr: "Comparaison des topics",
+  },
+  hitRate: {
+    en: "Hit rate",
+    fr: "Taux de pertinence",
+  },
+  allTopics: {
+    en: "All",
+    fr: "Tous",
+  },
+  allTime: {
+    en: "All time",
+    fr: "Tout",
+  },
+  last7d: {
+    en: "Last 7 days",
+    fr: "7 derniers jours",
+  },
+  last30d: {
+    en: "Last 30 days",
+    fr: "30 derniers jours",
+  },
+  source: {
+    en: "Source",
+    fr: "Source",
+  },
+  total: {
+    en: "Total",
+    fr: "Total",
+  },
+  scored: {
+    en: "Scored",
+    fr: "Scorés",
+  },
+  average: {
+    en: "Avg",
+    fr: "Moy.",
+  },
+  score: {
+    en: "Score",
+    fr: "Score",
+  },
+  title: {
+    en: "Title",
+    fr: "Titre",
+  },
+  date: {
+    en: "Date",
+    fr: "Date",
+  },
+  reason: {
+    en: "Reason",
+    fr: "Raison",
+  },
+  feeds: {
+    en: "Feeds",
+    fr: "Flux",
+  },
+  activeFeeds: {
+    en: "Active feeds",
+    fr: "Flux actifs",
+  },
 } as const;
 
 type StringKey = keyof typeof strings;

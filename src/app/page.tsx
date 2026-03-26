@@ -1,7 +1,7 @@
 "use client";
 
 import { type CSSProperties, useState, useEffect, useCallback, useRef } from "react";
-import type { SummaryResponse, ArticleSummary, Topic } from "@/lib/types";
+import type { SummaryResponse, ArticleSummary, Topic, StatsResponse } from "@/lib/types";
 import { t, dateLocale, type Lang } from "@/lib/i18n";
 import { color, font, sectionHeading, card } from "@/lib/theme";
 import { getFeedsForTopic } from "@/lib/rss-feeds";
@@ -9,7 +9,7 @@ import { getSystemPrompt } from "@/lib/prompts";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.47";
+const APP_VERSION = "1.48";
 const VERSION_CHECK_INTERVAL_MS = 60_000;
 
 const TTS_VOICES_EN = [
@@ -54,6 +54,13 @@ const TOPICS = [
   { value: "videogames",     labelKey: "topicVideogames" },
   { value: "elon",           labelKey: "topicElon" },
 ] as const;
+
+const FEED_SITE_URL = new Map<string, string>();
+for (const { value } of TOPICS) {
+  for (const feed of getFeedsForTopic(value)) {
+    try { FEED_SITE_URL.set(feed.name, new URL(feed.url).origin); } catch { /* skip */ }
+  }
+}
 
 // ── Sub-components ────────────────────────────────────────────────────
 
@@ -310,7 +317,7 @@ function VoiceAccordion({
   );
 }
 
-function SettingsModal({
+function SettingsPage({
   topic,
   lang,
   maxArticles,
@@ -321,7 +328,6 @@ function SettingsModal({
   onTtsVoiceChange,
   ttsVoiceFr,
   onTtsVoiceFrChange,
-  onClose,
 }: {
   topic: Topic;
   lang: Lang;
@@ -333,7 +339,6 @@ function SettingsModal({
   onTtsVoiceChange: (v: string) => void;
   ttsVoiceFr: string;
   onTtsVoiceFrChange: (v: string) => void;
-  onClose: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<Topic>(topic);
   const [voiceEnOpen, setVoiceEnOpen] = useState(false);
@@ -362,56 +367,10 @@ function SettingsModal({
   };
 
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.7)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 100,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "#141414",
-          border: `1px solid ${color.border}`,
-          borderRadius: 12,
-          padding: "24px 28px",
-          width: "100%",
-          maxWidth: 560,
-          maxHeight: "85vh",
-          display: "flex",
-          flexDirection: "column",
-          margin: 16,
-        }}
-      >
-        {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <h3 style={{ color: color.gold, fontSize: 18, fontWeight: 600, margin: 0 }}>
-            {t("settingsTitle", lang)}
-          </h3>
-          <button
-            onClick={onClose}
-            style={{
-              padding: "4px 12px",
-              borderRadius: 6,
-              border: `1px solid ${color.borderLight}`,
-              background: "transparent",
-              color: color.textMuted,
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: "pointer",
-            }}
-          >
-            {t("settingsClose", lang)}
-          </button>
-        </div>
-
-        <div style={{ overflowY: "auto", flex: 1 }}>
+    <div>
+      <h2 style={{ color: color.gold, fontSize: 20, fontWeight: 600, marginBottom: 20, marginTop: 0 }}>
+        {t("settingsTitle", lang)}
+      </h2>
           {/* ── Preferences section ──────────────────────── */}
           <div style={sectionStyle}>
             <h4 style={sectionTitle}>{t("preferencesSection", lang)}</h4>
@@ -476,9 +435,15 @@ function SettingsModal({
               )}
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14 }}>
+          </div>
+
+          {/* ── Voice section ─────────────────────────────── */}
+          <div style={sectionStyle}>
+            <h4 style={sectionTitle}>{lang === "fr" ? "Voix" : "Voice"}</h4>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <label style={{ color: color.textLabel, fontSize: 14, fontWeight: 500, whiteSpace: "nowrap" }}>
-                {lang === "fr" ? "Vitesse voix" : "Voice speed"}
+                {lang === "fr" ? "Vitesse" : "Speed"}
               </label>
               <input
                 type="range"
@@ -619,8 +584,6 @@ function SettingsModal({
               </>
             )}
           </div>
-        </div>
-      </div>
     </div>
   );
 }
@@ -1093,6 +1056,381 @@ function playNotificationBeep() {
   } catch { /* silent fail */ }
 }
 
+// ── Stats page ────────────────────────────────────────────────────────
+
+const TIER_COLORS: Record<string, string> = {
+  "9-10": "#22c55e",
+  "7-8": "#c9a227",
+  "5-6": "#eab308",
+  "3-4": "#f97316",
+  "1-2": "#ef4444",
+};
+
+function heatmapBg(pct: number, tier: string): string | undefined {
+  if (pct <= 0) return undefined;
+  const hex = TIER_COLORS[tier] || "#666";
+  const r = parseInt(hex.slice(1, 3), 16);
+  const gr = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const a = Math.min(0.6, 0.1 + (pct / 100) * 0.5);
+  return `rgba(${r},${gr},${b},${a})`;
+}
+
+const scoreClr = (s: number) =>
+  s >= 7 ? "#4ade80" : s >= 5 ? "#c9a227" : s >= 3 ? "#f97316" : "#ff8888";
+
+const hitClr = (r: number) =>
+  r >= 50 ? "#4ade80" : r >= 30 ? "#c9a227" : "#ff8888";
+
+const covClr = (p: number) =>
+  p >= 90 ? "#4ade80" : p >= 70 ? "#c9a227" : "#ff8888";
+
+function StatsPage({ lang }: { lang: Lang }) {
+  const [data, setData] = useState<StatsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+  const [statsTopic, setStatsTopic] = useState<"all" | Topic>("all");
+  const [days, setDays] = useState(0);
+  const [sortKey, setSortKey] = useState("avgScore");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const cache = useRef<Record<string, StatsResponse>>({});
+  const locale = dateLocale(lang);
+
+  useEffect(() => {
+    const key = `${statsTopic}:${days}`;
+    if (cache.current[key]) {
+      setData(cache.current[key]);
+      setErr(null);
+      setLoading(false);
+      return;
+    }
+    const ac = new AbortController();
+    setLoading(true);
+    setErr(null);
+    fetch(`/api/stats?topic=${statsTopic}&days=${days}`, { signal: ac.signal, cache: "no-store" })
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then((json: StatsResponse) => {
+        if (ac.signal.aborted) return;
+        cache.current[key] = json;
+        setData(json);
+      })
+      .catch((e: unknown) => {
+        if (e instanceof DOMException && e.name === "AbortError") return;
+        if (!ac.signal.aborted) setErr(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => { if (!ac.signal.aborted) setLoading(false); });
+    return () => ac.abort();
+  }, [statsTopic, days]);
+
+  const fmt = (n: number) => n.toLocaleString(locale);
+
+  const topicLabel = (tp: string) => {
+    const found = TOPICS.find((item) => item.value === tp);
+    return found ? t(found.labelKey, lang) : tp;
+  };
+
+  const handleSort = (key: string) => {
+    if (key === sortKey) setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+    else { setSortKey(key); setSortDir("desc"); }
+  };
+  const sortArrow = (key: string) => (key === sortKey ? (sortDir === "desc" ? " ▼" : " ▲") : "");
+
+  // ── Shared styles ──
+  const kpiCard: CSSProperties = { background: color.surface, border: `1px solid ${color.border}`, borderRadius: 10, padding: "16px 20px", textAlign: "center" };
+  const kpiVal: CSSProperties = { fontSize: 24, fontWeight: 700, color: color.gold };
+  const kpiLbl: CSSProperties = { fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: color.textMuted, marginTop: 4 };
+  const secStyle: CSSProperties = { background: color.surface, border: `1px solid ${color.border}`, borderRadius: 10, padding: "16px 20px", marginBottom: 16 };
+  const secTitle: CSSProperties = { color: color.gold, fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14, marginTop: 0 };
+
+  const periodOpts = [
+    { label: t("allTime", lang), value: 0 },
+    { label: t("last7d", lang), value: 7 },
+    { label: t("last30d", lang), value: 30 },
+  ];
+
+  // ── Loading ──
+  if (loading && !data) {
+    return (
+      <div style={{ padding: "60px 0", textAlign: "center" }}>
+        <SpinKeyframes />
+        <span style={{ display: "inline-block", width: 28, height: 28, border: `3px solid ${color.gold}`, borderTop: "3px solid transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+        <p style={{ color: color.textMuted, fontSize: 14, marginTop: 12 }}>
+          {lang === "fr" ? "Chargement des statistiques…" : "Loading statistics…"}
+        </p>
+      </div>
+    );
+  }
+
+  if (err) {
+    return (
+      <div style={{ padding: "40px 0", textAlign: "center" }}>
+        <p style={{ color: color.errorText, fontSize: 15 }}>{err}</p>
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  const g = data.global;
+  const { scoreDistribution, feedRanking, topArticles, topicComparison } = data;
+  const maxPct = Math.max(...scoreDistribution.map((d) => d.pct), 1);
+
+  const sorted = [...feedRanking].sort((a, b) => {
+    const va = (a as Record<string, unknown>)[sortKey] as number;
+    const vb = (b as Record<string, unknown>)[sortKey] as number;
+    return sortDir === "desc" ? vb - va : va - vb;
+  });
+
+  return (
+    <div>
+      <h2 style={{ color: color.gold, fontSize: 20, fontWeight: 600, marginBottom: 20, marginTop: 0 }}>
+        {t("statsTitle", lang)}
+      </h2>
+
+      <style>{`
+        .s-kpi4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+        .s-kpi3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}
+        @media(max-width:640px){.s-kpi4,.s-kpi3{grid-template-columns:repeat(2,1fr)}}
+        .s-tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+        .s-tb{width:100%;border-collapse:collapse;font-size:13px;min-width:700px}
+        .s-tb th{position:sticky;top:0;background:#0d0d0d;padding:8px 6px;text-align:left;font-weight:600;color:${color.textMuted};border-bottom:1px solid ${color.border};white-space:nowrap;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+        .s-tb th.sc{cursor:pointer;user-select:none}
+        .s-tb th.sc:hover{color:${color.gold}}
+        .s-tb td{padding:7px 6px;border-bottom:1px solid ${color.border};white-space:nowrap}
+        .s-tb tr:nth-child(odd) td{background:${color.surface}}
+        .s-tb tr:nth-child(even) td{background:#0d0d0d}
+        .s-tb tr:hover td{background:#1a1a1a}
+        .s-tb .col-src{position:sticky;left:0;z-index:1}
+        .s-tb tr:nth-child(odd) .col-src{background:${color.surface}}
+        .s-tb tr:nth-child(even) .col-src{background:#0d0d0d}
+        .s-tb tr:hover .col-src{background:#1a1a1a}
+        .s-tb thead .col-src{background:#0d0d0d;z-index:2}
+      `}</style>
+
+      {/* ── Topic Selector ───────────────────────── */}
+      <div style={{ display: "flex", gap: 0, marginBottom: 12, borderBottom: `1px solid ${color.border}`, flexWrap: "wrap" }}>
+        <button
+          onClick={() => setStatsTopic("all")}
+          style={{
+            padding: "7px 12px", fontSize: 12, fontWeight: 600, border: "none",
+            borderBottom: statsTopic === "all" ? `2px solid ${color.gold}` : "2px solid transparent",
+            background: "transparent", color: statsTopic === "all" ? color.gold : color.textMuted,
+            cursor: "pointer", transition: "all 0.15s",
+          }}
+        >
+          {t("allTopics", lang)}
+        </button>
+        {TOPICS.map(({ value, labelKey }) => (
+          <button
+            key={value}
+            onClick={() => setStatsTopic(value)}
+            style={{
+              padding: "7px 12px", fontSize: 12, fontWeight: 600, border: "none",
+              borderBottom: statsTopic === value ? `2px solid ${color.gold}` : "2px solid transparent",
+              background: "transparent", color: statsTopic === value ? color.gold : color.textMuted,
+              cursor: "pointer", transition: "all 0.15s",
+            }}
+          >
+            {t(labelKey, lang)}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Period filter ────────────────────────── */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+        {periodOpts.map((o) => (
+          <button
+            key={o.value}
+            onClick={() => setDays(o.value)}
+            style={{
+              padding: "6px 14px", borderRadius: 6, fontSize: 13, fontWeight: 600,
+              border: `1px solid ${days === o.value ? color.gold : color.border}`,
+              background: days === o.value ? color.gold : "transparent",
+              color: days === o.value ? "#000" : color.textMuted,
+              cursor: "pointer", transition: "all 0.15s",
+            }}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Data sections (dim when refreshing) ── */}
+      <div style={{ position: "relative", transition: "opacity 0.25s", opacity: loading ? 0.3 : 1, pointerEvents: loading ? "none" : "auto" }}>
+
+      {loading && (
+        <div style={{ position: "absolute", top: 60, left: 0, right: 0, display: "flex", justifyContent: "center", zIndex: 5 }}>
+          <SpinKeyframes />
+          <span style={{ display: "inline-block", width: 24, height: 24, border: `3px solid ${color.gold}`, borderTop: "3px solid transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+        </div>
+      )}
+
+      {/* ── KPIs ─────────────────────────────────── */}
+      <div className="s-kpi4">
+        <div style={kpiCard}><div style={kpiVal}>{fmt(g.totalArticles)}</div><div style={kpiLbl}>{t("totalArticles", lang)}</div></div>
+        <div style={kpiCard}><div style={kpiVal}>{fmt(g.scoredArticles)}</div><div style={kpiLbl}>{t("scoredArticles", lang)}</div></div>
+        <div style={kpiCard}><div style={{ ...kpiVal, color: covClr(g.pctScored) }}>{g.pctScored}%</div><div style={kpiLbl}>{t("coverage", lang)}</div></div>
+        <div style={kpiCard}><div style={{ ...kpiVal, color: scoreClr(g.avgScore) }}>{g.avgScore}</div><div style={kpiLbl}>{t("avgScore", lang)}</div></div>
+      </div>
+      <div className="s-kpi3">
+        <div style={kpiCard}><div style={kpiVal}>{fmt(g.new24h)}</div><div style={kpiLbl}>{t("new24h", lang)}</div></div>
+        <div style={kpiCard}><div style={kpiVal}>{fmt(g.new7d)}</div><div style={kpiLbl}>{t("new7d", lang)}</div></div>
+        <div style={kpiCard}><div style={kpiVal}>{fmt(g.scored24h)}</div><div style={kpiLbl}>{t("scored24h", lang)}</div></div>
+      </div>
+
+      {/* ── Score Distribution ────────────────────── */}
+      <div style={secStyle}>
+        <h4 style={secTitle}>{t("scoreDistrib", lang)}</h4>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {scoreDistribution.map((d) => (
+            <div key={d.tier} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ width: 36, fontSize: 13, fontWeight: 600, color: TIER_COLORS[d.tier], textAlign: "right", flexShrink: 0 }}>{d.tier}</span>
+              <div style={{ flex: 1, height: 24, background: color.border, borderRadius: 4, overflow: "hidden" }}>
+                <div style={{ height: "100%", borderRadius: 4, background: TIER_COLORS[d.tier], width: `${(d.pct / maxPct) * 100}%`, transition: "width 0.4s ease-out" }} />
+              </div>
+              <span style={{ width: 44, fontSize: 12, color: color.textMuted, textAlign: "right", flexShrink: 0 }}>{d.pct}%</span>
+              <span style={{ width: 60, fontSize: 11, color: color.textDim, textAlign: "right", flexShrink: 0 }}>({fmt(d.count)})</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Feed Ranking Table ────────────────────── */}
+      <div style={secStyle}>
+        <h4 style={secTitle}>{t("feedRanking", lang)}</h4>
+        {sorted.length === 0 ? (
+          <p style={{ color: color.textDim, fontSize: 14, margin: 0 }}>—</p>
+        ) : (
+          <div className="s-tw">
+            <table className="s-tb">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th className="col-src">{t("source", lang)}</th>
+                  {statsTopic === "all" && <th>Topic</th>}
+                  <th className="sc" onClick={() => handleSort("total")}>{t("total", lang)}{sortArrow("total")}</th>
+                  <th className="sc" onClick={() => handleSort("scored")}>{t("scored", lang)}{sortArrow("scored")}</th>
+                  <th className="sc" onClick={() => handleSort("avgScore")}>{t("average", lang)}{sortArrow("avgScore")}</th>
+                  <th className="sc" onClick={() => handleSort("hitRate")}>Hit%{sortArrow("hitRate")}</th>
+                  <th className="sc" onClick={() => handleSort("pct9_10")}>9-10{sortArrow("pct9_10")}</th>
+                  <th className="sc" onClick={() => handleSort("pct7_8")}>7-8{sortArrow("pct7_8")}</th>
+                  <th>5-6</th>
+                  <th>3-4</th>
+                  <th>1-2</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((f, i) => (
+                  <tr key={`${f.source}\0${f.topic}`}>
+                    <td style={{ color: color.textDim, fontSize: 11 }}>{i + 1}</td>
+                    <td className="col-src" style={{ fontWeight: 500, color: color.text, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {FEED_SITE_URL.has(f.source) ? (
+                        <a href={FEED_SITE_URL.get(f.source)} target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "none" }}>{f.source}</a>
+                      ) : f.source}
+                    </td>
+                    {statsTopic === "all" && <td style={{ color: color.textMuted, fontSize: 12 }}>{topicLabel(f.topic)}</td>}
+                    <td>{fmt(f.total)}</td>
+                    <td>{fmt(f.scored)}</td>
+                    <td style={{ fontWeight: 700, color: scoreClr(f.avgScore) }}>
+                      {f.avgScore}
+                      <div style={{ height: 3, borderRadius: 2, marginTop: 2, background: scoreClr(f.avgScore), width: `${(f.avgScore / 10) * 100}%`, opacity: 0.5 }} />
+                    </td>
+                    <td style={{ color: hitClr(f.hitRate), fontWeight: 600 }}>{f.hitRate}%</td>
+                    <td style={{ background: heatmapBg(f.pct9_10, "9-10"), textAlign: "center", borderRadius: 3 }}>{f.pct9_10 > 0 ? `${f.pct9_10}%` : "—"}</td>
+                    <td style={{ background: heatmapBg(f.pct7_8, "7-8"), textAlign: "center", borderRadius: 3 }}>{f.pct7_8 > 0 ? `${f.pct7_8}%` : "—"}</td>
+                    <td style={{ background: heatmapBg(f.pct5_6, "5-6"), textAlign: "center", borderRadius: 3 }}>{f.pct5_6 > 0 ? `${f.pct5_6}%` : "—"}</td>
+                    <td style={{ background: heatmapBg(f.pct3_4, "3-4"), textAlign: "center", borderRadius: 3 }}>{f.pct3_4 > 0 ? `${f.pct3_4}%` : "—"}</td>
+                    <td style={{ background: heatmapBg(f.pct1_2, "1-2"), textAlign: "center", borderRadius: 3 }}>{f.pct1_2 > 0 ? `${f.pct1_2}%` : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ── Top 10 Articles ──────────────────────── */}
+      <div style={secStyle}>
+        <h4 style={secTitle}>{t("topArticles", lang)}</h4>
+        {topArticles.length === 0 ? (
+          <p style={{ color: color.textDim, fontSize: 14, margin: 0 }}>—</p>
+        ) : topArticles.map((a, i) => (
+          <a
+            key={`${a.link}-${i}`}
+            href={a.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "flex", gap: 10, alignItems: "flex-start",
+              padding: "10px 0",
+              borderBottom: i < topArticles.length - 1 ? `1px solid ${color.border}` : "none",
+              textDecoration: "none", color: "inherit",
+            }}
+          >
+            <span style={{
+              display: "inline-block", padding: "2px 8px", borderRadius: 4,
+              fontSize: 13, fontWeight: 700, color: "#000", flexShrink: 0,
+              background: a.score >= 9 ? "#22c55e" : a.score >= 7 ? color.gold : a.score >= 5 ? "#eab308" : "#f97316",
+            }}>
+              {a.score}
+            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ color: color.text, fontWeight: 500, fontSize: 14 }}>{a.title}</div>
+              <div style={{ color: color.textMuted, fontSize: 12, marginTop: 3 }}>
+                {a.source} · {new Date(a.pubDate).toLocaleDateString(locale)}
+              </div>
+              {a.reason && (
+                <div style={{ color: color.textDim, fontSize: 12, marginTop: 2, whiteSpace: "normal" }}>
+                  {a.reason.length > 80 ? `${a.reason.slice(0, 80)}…` : a.reason}
+                </div>
+              )}
+            </div>
+          </a>
+        ))}
+      </div>
+
+      {/* ── Topic Comparison (All only) ──────────── */}
+      {statsTopic === "all" && topicComparison.length > 0 && (
+        <div style={secStyle}>
+          <h4 style={secTitle}>{t("topicComparison", lang)}</h4>
+          <div className="s-tw">
+            <table className="s-tb">
+              <thead>
+                <tr>
+                  <th>Topic</th>
+                  <th>{t("total", lang)}</th>
+                  <th>{t("scored", lang)}</th>
+                  <th>{t("coverage", lang)}</th>
+                  <th>{t("avgScore", lang)}</th>
+                  <th>Hit%</th>
+                  <th>{t("feeds", lang)}</th>
+                  <th>{t("activeFeeds", lang)}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topicComparison.map((tc) => (
+                  <tr key={tc.topic}>
+                    <td style={{ fontWeight: 500, color: color.gold }}>{topicLabel(tc.topic)}</td>
+                    <td>{fmt(tc.total)}</td>
+                    <td>{fmt(tc.scored)}</td>
+                    <td style={{ color: covClr(tc.pctScored) }}>{tc.pctScored}%</td>
+                    <td style={{ fontWeight: 700, color: scoreClr(tc.avgScore) }}>{tc.avgScore}</td>
+                    <td style={{ color: hitClr(tc.hitRate), fontWeight: 600 }}>{tc.hitRate}%</td>
+                    <td>{tc.totalFeeds}</td>
+                    <td>{tc.activeSources}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      </div>{/* end filtered sections wrapper */}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -1151,7 +1489,7 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
+  const [currentPage, setCurrentPage] = useState<"home" | "stats" | "settings">("home");
   const [resultTab, setResultTab] = useState<"relevant" | "all">("relevant");
 
   useEffect(() => {
@@ -1256,14 +1594,53 @@ export default function Home() {
           <div style={{ position: "absolute", top: 0, right: 0, display: "flex", alignItems: "center", gap: 8 }}>
             <LangToggle lang={lang} onChange={handleLangChange} />
             <button
-              onClick={() => setShowSettings(true)}
+              onClick={() => setCurrentPage("home")}
+              aria-label="Home"
+              style={{
+                padding: 4,
+                border: "none",
+                background: "transparent",
+                color: currentPage === "home" ? color.gold : color.textMuted,
+                cursor: currentPage === "home" ? "default" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z" />
+                <polyline points="9 21 9 14 15 14 15 21" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setCurrentPage("stats")}
+              aria-label="Stats"
+              style={{
+                padding: 4,
+                border: "none",
+                background: "transparent",
+                color: currentPage === "stats" ? color.gold : color.textMuted,
+                cursor: currentPage === "stats" ? "default" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="12" width="4" height="9" rx="1" />
+                <rect x="10" y="7" width="4" height="14" rx="1" />
+                <rect x="17" y="3" width="4" height="18" rx="1" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setCurrentPage("settings")}
               aria-label={t("settings", lang)}
               style={{
                 padding: 4,
                 border: "none",
                 background: "transparent",
-                color: color.textMuted,
-                cursor: "pointer",
+                color: currentPage === "settings" ? color.gold : color.textMuted,
+                cursor: currentPage === "settings" ? "default" : "pointer",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -1286,6 +1663,23 @@ export default function Home() {
           </p>
         </header>
 
+        {currentPage === "stats" ? (
+          <StatsPage lang={lang} />
+        ) : currentPage === "settings" ? (
+          <SettingsPage
+            topic={topic || "conflict"}
+            lang={lang}
+            maxArticles={maxArticles}
+            onMaxArticlesChange={updateMaxArticles}
+            ttsSpeed={ttsSpeed}
+            onTtsSpeedChange={updateTtsSpeed}
+            ttsVoice={ttsVoice}
+            onTtsVoiceChange={updateTtsVoice}
+            ttsVoiceFr={ttsVoiceFr}
+            onTtsVoiceFrChange={updateTtsVoiceFr}
+          />
+        ) : (
+        <>
         {/* ── Topic selector ──────────────────────────────────── */}
         <section style={{ marginBottom: 24 }}>
           <TopicToggle topic={topic} lang={lang} disabled={loading} onChange={handleTopicChange} />
@@ -1405,23 +1799,9 @@ export default function Home() {
             {t("initialMessage", lang)}
           </p>
         )}
+        </>
+        )}
       </div>
-
-      {showSettings && (
-        <SettingsModal
-          topic={topic || "conflict"}
-          lang={lang}
-          maxArticles={maxArticles}
-          onMaxArticlesChange={updateMaxArticles}
-          ttsSpeed={ttsSpeed}
-          onTtsSpeedChange={updateTtsSpeed}
-          ttsVoice={ttsVoice}
-          onTtsVoiceChange={updateTtsVoice}
-          ttsVoiceFr={ttsVoiceFr}
-          onTtsVoiceFrChange={updateTtsVoiceFr}
-          onClose={() => setShowSettings(false)}
-        />
-      )}
 
       <footer style={{ position: "fixed", bottom: 8, right: 27, color: color.textDim, fontSize: 12 }}>
         v{APP_VERSION}

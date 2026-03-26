@@ -100,6 +100,88 @@ export async function cleanExpiredCache(): Promise<void> {
   }
 }
 
+// ── Stats ──────────────────────────────────────────────────────────────
+
+export interface StatsArticleRow {
+  source: string;
+  topic: string;
+  relevance_score: number | null;
+  pub_date: string;
+  scored_at: string | null;
+}
+
+export interface TopArticleRow {
+  title: string;
+  link: string;
+  source: string;
+  topic: string;
+  pub_date: string;
+  relevance_score: number;
+  score_reason: string | null;
+}
+
+export async function getAllArticlesForStats(): Promise<StatsArticleRow[]> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
+
+  try {
+    const supabase = await clientP;
+    const PAGE_SIZE = 1000;
+    const allRows: StatsArticleRow[] = [];
+    let offset = 0;
+
+    while (true) {
+      const { data, error } = await supabase
+        .from("articles")
+        .select("source, topic, relevance_score, pub_date, scored_at")
+        .order("id", { ascending: true })
+        .range(offset, offset + PAGE_SIZE - 1);
+
+      if (error || !data || data.length === 0) break;
+      allRows.push(...(data as StatsArticleRow[]));
+      if (data.length < PAGE_SIZE) break;
+      offset += PAGE_SIZE;
+    }
+
+    return allRows;
+  } catch {
+    return [];
+  }
+}
+
+export async function getTopArticlesForStats(
+  topic: string | null,
+  days: number,
+  limit = 10,
+): Promise<TopArticleRow[]> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
+
+  try {
+    const supabase = await clientP;
+    let query = supabase
+      .from("articles")
+      .select("title, link, source, topic, pub_date, relevance_score, score_reason")
+      .not("relevance_score", "is", null);
+
+    if (topic && topic !== "all") query = query.eq("topic", topic);
+    if (days > 0) {
+      const since = new Date(Date.now() - days * 86_400_000).toISOString();
+      query = query.gte("pub_date", since);
+    }
+
+    const { data, error } = await query
+      .order("relevance_score", { ascending: false })
+      .order("pub_date", { ascending: false })
+      .limit(limit);
+
+    if (error || !data) return [];
+    return data as TopArticleRow[];
+  } catch {
+    return [];
+  }
+}
+
 // ── Articles from BDD ──────────────────────────────────────────────────
 
 export interface DbArticle {

@@ -9,8 +9,8 @@ import { getSystemPrompt } from "@/lib/prompts";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.48";
-const VERSION_CHECK_INTERVAL_MS = 60_000;
+const APP_VERSION = "1.50";
+const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 const TTS_VOICES_EN = [
   { id: "sarah",   label: "Jade",    desc: "American · Soft",          gender: "F" },
@@ -1144,6 +1144,8 @@ function StatsPage({ lang }: { lang: Lang }) {
 
   const periodOpts = [
     { label: t("allTime", lang), value: 0 },
+    { label: t("yesterday", lang), value: 1 },
+    { label: t("last3d", lang), value: 3 },
     { label: t("last7d", lang), value: 7 },
     { label: t("last30d", lang), value: 30 },
   ];
@@ -1491,6 +1493,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState<"home" | "stats" | "settings">("home");
   const [resultTab, setResultTab] = useState<"relevant" | "all">("relevant");
+  const [newVersionAvailable, setNewVersionAvailable] = useState(false);
 
   useEffect(() => {
     const check = async () => {
@@ -1499,7 +1502,7 @@ export default function Home() {
         if (!res.ok) return;
         const { version } = await res.json();
         if (version && version !== APP_VERSION) {
-          window.location.reload();
+          setNewVersionAvailable(true);
         }
       } catch { /* ignore */ }
     };
@@ -1802,6 +1805,20 @@ export default function Home() {
         </>
         )}
       </div>
+
+      {newVersionAvailable && (
+        <div
+          onClick={() => window.location.reload()}
+          style={{
+            position: "fixed", bottom: 48, left: "50%", transform: "translateX(-50%)",
+            background: color.gold, color: "#000", padding: "8px 20px", borderRadius: 8,
+            fontSize: 13, fontWeight: 600, cursor: "pointer", zIndex: 999,
+            boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
+          }}
+        >
+          {lang === "fr" ? "Nouvelle version disponible — cliquer pour rafraîchir" : "New version available — click to refresh"}
+        </div>
+      )}
 
       <footer style={{ position: "fixed", bottom: 8, right: 27, color: color.textDim, fontSize: 12 }}>
         v{APP_VERSION}

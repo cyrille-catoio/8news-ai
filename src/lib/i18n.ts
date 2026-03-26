@@ -233,13 +233,21 @@ const strings = {
     en: "All time",
     fr: "Tout",
   },
+  yesterday: {
+    en: "Yesterday",
+    fr: "Hier",
+  },
+  last3d: {
+    en: "Last 3 days",
+    fr: "3 jours",
+  },
   last7d: {
     en: "Last 7 days",
-    fr: "7 derniers jours",
+    fr: "7 jours",
   },
   last30d: {
     en: "Last 30 days",
-    fr: "30 derniers jours",
+    fr: "30 jours",
   },
   source: {
     en: "Source",

@@ -7,7 +7,7 @@ import { color, font, sectionHeading, card } from "@/lib/theme";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.53";
+const APP_VERSION = "1.54";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 const TTS_VOICES_EN = [
@@ -98,7 +98,7 @@ function TopicToggle({
         .topic-grid {
           display: grid;
           gap: 6px;
-          grid-template-columns: repeat(${Math.min(topics.length || 8, 9)}, 1fr);
+          grid-template-columns: repeat(${Math.min(topics.length || 8, 8)}, 1fr);
         }
         @media (max-width: 640px) {
           .topic-grid {
@@ -993,9 +993,9 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
   const sortArrow = (key: string) => (key === sortKey ? (sortDir === "desc" ? " ▼" : " ▲") : "");
 
   // ── Shared styles ──
-  const kpiCard: CSSProperties = { background: color.surface, border: `1px solid ${color.border}`, borderRadius: 10, padding: "16px 20px", textAlign: "center" };
-  const kpiVal: CSSProperties = { fontSize: 24, fontWeight: 700, color: color.gold };
-  const kpiLbl: CSSProperties = { fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: color.textMuted, marginTop: 4 };
+  const kpiCard: CSSProperties = { background: color.surface, border: `1px solid ${color.border}`, borderRadius: 8, padding: "10px 6px", textAlign: "center" };
+  const kpiVal: CSSProperties = { fontSize: 17, fontWeight: 700, color: color.gold };
+  const kpiLbl: CSSProperties = { fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: color.textMuted, marginTop: 2 };
   const secStyle: CSSProperties = { background: color.surface, border: `1px solid ${color.border}`, borderRadius: 10, padding: "16px 20px", marginBottom: 16 };
   const secTitle: CSSProperties = { color: color.gold, fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14, marginTop: 0 };
 
@@ -1047,9 +1047,8 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
       </h2>
 
       <style>{`
-        .s-kpi4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
-        .s-kpi3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}
-        @media(max-width:640px){.s-kpi4,.s-kpi3{grid-template-columns:repeat(2,1fr)}}
+        .s-kpi7{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:20px}
+        @media(max-width:640px){.s-kpi7{grid-template-columns:repeat(4,1fr)}}
         .s-tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
         .s-tb{width:100%;border-collapse:collapse;font-size:13px;min-width:700px}
         .s-tb th{position:sticky;top:0;background:#0d0d0d;padding:8px 6px;text-align:left;font-weight:600;color:${color.textMuted};border-bottom:1px solid ${color.border};white-space:nowrap;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
@@ -1125,13 +1124,11 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
       )}
 
       {/* ── KPIs ─────────────────────────────────── */}
-      <div className="s-kpi4">
+      <div className="s-kpi7">
         <div style={kpiCard}><div style={kpiVal}>{fmt(g.totalArticles)}</div><div style={kpiLbl}>{t("totalArticles", lang)}</div></div>
         <div style={kpiCard}><div style={kpiVal}>{fmt(g.scoredArticles)}</div><div style={kpiLbl}>{t("scoredArticles", lang)}</div></div>
         <div style={kpiCard}><div style={{ ...kpiVal, color: covClr(g.pctScored) }}>{g.pctScored}%</div><div style={kpiLbl}>{t("coverage", lang)}</div></div>
         <div style={kpiCard}><div style={{ ...kpiVal, color: scoreClr(g.avgScore) }}>{g.avgScore}</div><div style={kpiLbl}>{t("avgScore", lang)}</div></div>
-      </div>
-      <div className="s-kpi3">
         <div style={kpiCard}><div style={kpiVal}>{fmt(g.new24h)}</div><div style={kpiLbl}>{t("new24h", lang)}</div></div>
         <div style={kpiCard}><div style={kpiVal}>{fmt(g.new7d)}</div><div style={kpiLbl}>{t("new7d", lang)}</div></div>
         <div style={kpiCard}><div style={kpiVal}>{fmt(g.scored24h)}</div><div style={kpiLbl}>{t("scored24h", lang)}</div></div>

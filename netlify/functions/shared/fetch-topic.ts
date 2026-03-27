@@ -1,8 +1,7 @@
 import Parser from "rss-parser";
-import { createClient } from "@supabase/supabase-js";
-import { getFeedsForTopic } from "../../../src/lib/rss-feeds";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { decodeHtmlEntities } from "../../../src/lib/html";
-import type { Topic, ParsedArticle } from "../../../src/lib/types";
+import type { ParsedArticle } from "../../../src/lib/types";
 
 const rssParser = new Parser({ timeout: 5_000 });
 const FETCH_TIMEOUT_MS = 5_000;
@@ -15,8 +14,11 @@ function getSupabase() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-export async function fetchAndStoreTopic(topic: Topic): Promise<string> {
-  const feeds = getFeedsForTopic(topic);
+async function fetchFeedsAndStore(
+  topicId: string,
+  feeds: { name: string; url: string }[],
+  supabase: SupabaseClient,
+): Promise<string> {
   const articles: ParsedArticle[] = [];
   let feedsOk = 0;
   let feedsFailed = 0;
@@ -40,7 +42,7 @@ export async function fetchAndStoreTopic(topic: Topic): Promise<string> {
         const rawSnippet = decodeHtmlEntities(item.contentSnippet ?? "");
 
         articles.push({
-          topic,
+          topic: topicId,
           source: feed.name,
           title: decodeHtmlEntities(item.title ?? ""),
           link: item.link ?? "",
@@ -58,14 +60,11 @@ export async function fetchAndStoreTopic(topic: Topic): Promise<string> {
   }
 
   if (articles.length === 0) {
-    return `[${topic}] No articles found. Feeds OK: ${feedsOk}, failed: ${feedsFailed}`;
+    return `[${topicId}] No articles found. Feeds OK: ${feedsOk}, failed: ${feedsFailed}`;
   }
-
-  const supabase = getSupabase();
 
   const BATCH_SIZE = 100;
   let inserted = 0;
-  let duplicates = 0;
 
   for (let i = 0; i < articles.length; i += BATCH_SIZE) {
     const batch = articles.slice(i, i + BATCH_SIZE);
@@ -75,15 +74,51 @@ export async function fetchAndStoreTopic(topic: Topic): Promise<string> {
       .select("id");
 
     if (error) {
-      console.error(`[${topic}] Supabase batch error:`, error.message);
+      console.error(`[${topicId}] Supabase batch error:`, error.message);
       continue;
     }
     inserted += data?.length ?? 0;
   }
 
-  duplicates = articles.length - inserted;
+  const duplicates = articles.length - inserted;
 
-  const summary = `[${topic}] Done. Feeds OK: ${feedsOk}, failed: ${feedsFailed}. Articles: ${articles.length} parsed, ${inserted} inserted, ${duplicates} duplicates skipped.`;
+  const summary = `[${topicId}] Done. Feeds OK: ${feedsOk}, failed: ${feedsFailed}. Articles: ${articles.length} parsed, ${inserted} inserted, ${duplicates} duplicates skipped.`;
   console.log(summary);
   return summary;
+}
+
+/**
+ * Dynamic version: reads feeds from DB for the given topic.
+ * Called by the cron-fetch dispatcher.
+ */
+export async function fetchAndStoreTopicDynamic(
+  topicId: string,
+  supabase: SupabaseClient,
+): Promise<string> {
+  const { data: feeds, error } = await supabase
+    .from("feeds")
+    .select("name, url")
+    .eq("topic_id", topicId)
+    .eq("is_active", true);
+
+  if (error) {
+    console.error(`[${topicId}] Failed to load feeds:`, error.message);
+    return `[${topicId}] Failed to load feeds: ${error.message}`;
+  }
+
+  if (!feeds || feeds.length === 0) {
+    return `[${topicId}] No active feeds`;
+  }
+
+  return fetchFeedsAndStore(topicId, feeds, supabase);
+}
+
+/**
+ * Legacy wrapper — reads feeds from hardcoded file.
+ * Kept temporarily for backward-compat during migration.
+ */
+export async function fetchAndStoreTopic(topic: string): Promise<string> {
+  const { getFeedsForTopic } = await import("../../../src/lib/rss-feeds");
+  const feeds = getFeedsForTopic(topic as never);
+  return fetchFeedsAndStore(topic, feeds as { name: string; url: string }[], getSupabase());
 }

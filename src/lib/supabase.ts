@@ -182,6 +182,222 @@ export async function getTopArticlesForStats(
   }
 }
 
+// ── Topics & Feeds CRUD ─────────────────────────────────────────────────
+
+export interface TopicRow {
+  id: string;
+  label_en: string;
+  label_fr: string;
+  scoring_domain: string;
+  scoring_tier1: string;
+  scoring_tier2: string;
+  scoring_tier3: string;
+  scoring_tier4: string;
+  scoring_tier5: string;
+  is_active: boolean;
+  sort_order: number;
+  last_fetched_at: string | null;
+  last_scored_at: string | null;
+  created_at: string;
+}
+
+export interface FeedRow {
+  id: number;
+  topic_id: string;
+  name: string;
+  url: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export async function getActiveTopics(): Promise<
+  (TopicRow & { feed_count: number })[]
+> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
+
+  try {
+    const supabase = await clientP;
+
+    const { data: topics, error } = await supabase
+      .from("topics")
+      .select("*")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true });
+
+    if (error || !topics) return [];
+
+    const { data: counts } = await supabase
+      .from("feeds")
+      .select("topic_id")
+      .eq("is_active", true);
+
+    const countMap = new Map<string, number>();
+    if (counts) {
+      for (const row of counts) {
+        countMap.set(row.topic_id, (countMap.get(row.topic_id) ?? 0) + 1);
+      }
+    }
+
+    return (topics as TopicRow[]).map((t) => ({
+      ...t,
+      feed_count: countMap.get(t.id) ?? 0,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function getTopicWithFeeds(
+  id: string,
+): Promise<(TopicRow & { feeds: FeedRow[] }) | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+
+  try {
+    const supabase = await clientP;
+
+    const { data: topic, error } = await supabase
+      .from("topics")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (error || !topic) return null;
+
+    const { data: feeds } = await supabase
+      .from("feeds")
+      .select("*")
+      .eq("topic_id", id)
+      .order("created_at", { ascending: true });
+
+    return { ...(topic as TopicRow), feeds: (feeds ?? []) as FeedRow[] };
+  } catch {
+    return null;
+  }
+}
+
+export async function createTopic(
+  data: Omit<TopicRow, "is_active" | "last_fetched_at" | "last_scored_at" | "created_at">,
+): Promise<TopicRow | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+
+  try {
+    const supabase = await clientP;
+    const { data: row, error } = await supabase
+      .from("topics")
+      .insert(data)
+      .select()
+      .single();
+
+    if (error || !row) return null;
+    return row as TopicRow;
+  } catch {
+    return null;
+  }
+}
+
+export async function updateTopic(
+  id: string,
+  data: Partial<Omit<TopicRow, "id" | "created_at">>,
+): Promise<TopicRow | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+
+  try {
+    const supabase = await clientP;
+    const { data: row, error } = await supabase
+      .from("topics")
+      .update(data)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error || !row) return null;
+    return row as TopicRow;
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteTopic(id: string): Promise<boolean> {
+  const clientP = getServerClient();
+  if (!clientP) return false;
+
+  try {
+    const supabase = await clientP;
+    const { error } = await supabase
+      .from("topics")
+      .update({ is_active: false })
+      .eq("id", id);
+
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+export async function createFeed(
+  topicId: string,
+  name: string,
+  url: string,
+): Promise<FeedRow | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+
+  try {
+    const supabase = await clientP;
+    const { data: row, error } = await supabase
+      .from("feeds")
+      .insert({ topic_id: topicId, name, url })
+      .select()
+      .single();
+
+    if (error || !row) return null;
+    return row as FeedRow;
+  } catch {
+    return null;
+  }
+}
+
+export async function updateFeed(
+  feedId: number,
+  data: Partial<Pick<FeedRow, "name" | "url" | "is_active">>,
+): Promise<FeedRow | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+
+  try {
+    const supabase = await clientP;
+    const { data: row, error } = await supabase
+      .from("feeds")
+      .update(data)
+      .eq("id", feedId)
+      .select()
+      .single();
+
+    if (error || !row) return null;
+    return row as FeedRow;
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteFeed(feedId: number): Promise<boolean> {
+  const clientP = getServerClient();
+  if (!clientP) return false;
+
+  try {
+    const supabase = await clientP;
+    const { error } = await supabase.from("feeds").delete().eq("id", feedId);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
 // ── Articles from BDD ──────────────────────────────────────────────────
 
 export interface DbArticle {

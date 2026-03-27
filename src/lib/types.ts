@@ -49,6 +49,41 @@ export interface AIAnalysis {
   globalSummary: string | Array<{ text: string; refs: number[] }>;
 }
 
+// ── Topics & Feeds (DB-driven) ─────────────────────────────────────────
+
+export interface TopicItem {
+  id: string;
+  labelEn: string;
+  labelFr: string;
+  feedCount: number;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+export interface TopicDetail {
+  id: string;
+  labelEn: string;
+  labelFr: string;
+  scoringDomain: string;
+  scoringTier1: string;
+  scoringTier2: string;
+  scoringTier3: string;
+  scoringTier4: string;
+  scoringTier5: string;
+  isActive: boolean;
+  sortOrder: number;
+  feeds: FeedItem[];
+}
+
+export interface FeedItem {
+  id: number;
+  name: string;
+  url: string;
+  isActive: boolean;
+}
+
+// ── Stats ───────────────────────────────────────────────────────────────
+
 export interface StatsResponse {
   global: {
     totalArticles: number;

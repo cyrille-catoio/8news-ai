@@ -1,15 +1,14 @@
 "use client";
 
 import { type CSSProperties, useState, useEffect, useCallback, useRef } from "react";
-import type { SummaryResponse, ArticleSummary, Topic, StatsResponse } from "@/lib/types";
+import type { SummaryResponse, ArticleSummary, StatsResponse, TopicItem, TopicDetail, FeedItem } from "@/lib/types";
 import { t, dateLocale, type Lang } from "@/lib/i18n";
 import { color, font, sectionHeading, card } from "@/lib/theme";
-import { getFeedsForTopic } from "@/lib/rss-feeds";
 import { getSystemPrompt } from "@/lib/prompts";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.51";
+const APP_VERSION = "1.52";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 const TTS_VOICES_EN = [
@@ -44,23 +43,7 @@ const PERIODS = [
   { label: "30 d",  hours: 720 },
 ] as const;
 
-const TOPICS = [
-  { value: "conflict",      labelKey: "topicConflict" },
-  { value: "ai",             labelKey: "topicAi" },
-  { value: "aiengineering",  labelKey: "topicAiengineering" },
-  { value: "robotics",       labelKey: "topicRobotics" },
-  { value: "crypto",         labelKey: "topicCrypto" },
-  { value: "bitcoin",        labelKey: "topicBitcoin" },
-  { value: "videogames",     labelKey: "topicVideogames" },
-  { value: "elon",           labelKey: "topicElon" },
-] as const;
-
-const FEED_SITE_URL = new Map<string, string>();
-for (const { value } of TOPICS) {
-  for (const feed of getFeedsForTopic(value)) {
-    try { FEED_SITE_URL.set(feed.name, new URL(feed.url).origin); } catch { /* skip */ }
-  }
-}
+interface TopicLabel { id: string; label: string }
 
 // ── Sub-components ────────────────────────────────────────────────────
 
@@ -86,17 +69,17 @@ function LangToggle({ lang, onChange }: { lang: Lang; onChange: (l: Lang) => voi
 }
 
 function TopicToggle({
+  topics,
   topic,
-  lang,
   disabled,
   onChange,
 }: {
-  topic: Topic | null;
-  lang: Lang;
+  topics: TopicLabel[];
+  topic: string | null;
   disabled: boolean;
-  onChange: (t: Topic) => void;
+  onChange: (t: string) => void;
 }) {
-  const btnStyle = (value: Topic): CSSProperties => ({
+  const btnStyle = (value: string): CSSProperties => ({
     padding: "8px 0",
     fontSize: 14,
     fontWeight: 600,
@@ -116,7 +99,7 @@ function TopicToggle({
         .topic-grid {
           display: grid;
           gap: 6px;
-          grid-template-columns: repeat(${Math.min(TOPICS.length, 9)}, 1fr);
+          grid-template-columns: repeat(${Math.min(topics.length || 8, 9)}, 1fr);
         }
         @media (max-width: 640px) {
           .topic-grid {
@@ -130,14 +113,14 @@ function TopicToggle({
         }
       `}</style>
       <div className="topic-grid">
-        {TOPICS.map(({ value, labelKey }) => (
+        {topics.map(({ id, label }) => (
           <button
-            key={value}
-            onClick={() => onChange(value)}
+            key={id}
+            onClick={() => onChange(id)}
             disabled={disabled}
-            style={btnStyle(value)}
+            style={btnStyle(id)}
           >
-            {t(labelKey, lang)}
+            {label}
           </button>
         ))}
       </div>
@@ -223,26 +206,26 @@ function ArticleCard({ article, locale }: { article: ArticleSummary; locale: str
   );
 }
 
-function TopicTabBar({ activeTab, lang, onSelect }: { activeTab: Topic; lang: Lang; onSelect: (t: Topic) => void }) {
+function TopicTabBar({ topics, activeTab, onSelect }: { topics: TopicLabel[]; activeTab: string; onSelect: (t: string) => void }) {
   return (
     <div style={{ display: "flex", gap: 0, marginBottom: 12, borderBottom: `1px solid ${color.border}`, flexWrap: "wrap" }}>
-      {TOPICS.map(({ value, labelKey }) => (
+      {topics.map(({ id, label }) => (
         <button
-          key={value}
-          onClick={() => onSelect(value)}
+          key={id}
+          onClick={() => onSelect(id)}
           style={{
             padding: "7px 12px",
             fontSize: 12,
             fontWeight: 600,
             border: "none",
-            borderBottom: activeTab === value ? `2px solid ${color.gold}` : "2px solid transparent",
+            borderBottom: activeTab === id ? `2px solid ${color.gold}` : "2px solid transparent",
             background: "transparent",
-            color: activeTab === value ? color.gold : color.textMuted,
+            color: activeTab === id ? color.gold : color.textMuted,
             cursor: "pointer",
             transition: "all 0.15s",
           }}
         >
-          {t(labelKey, lang)}
+          {label}
         </button>
       ))}
     </div>
@@ -318,7 +301,7 @@ function VoiceAccordion({
 }
 
 function SettingsPage({
-  topic,
+  topics,
   lang,
   maxArticles,
   onMaxArticlesChange,
@@ -329,7 +312,7 @@ function SettingsPage({
   ttsVoiceFr,
   onTtsVoiceFrChange,
 }: {
-  topic: Topic;
+  topics: TopicLabel[];
   lang: Lang;
   maxArticles: number;
   onMaxArticlesChange: (v: number) => void;
@@ -340,13 +323,11 @@ function SettingsPage({
   ttsVoiceFr: string;
   onTtsVoiceFrChange: (v: string) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<Topic>(topic);
+  const [activeTab, setActiveTab] = useState(topics[0]?.id ?? "conflict");
   const [voiceEnOpen, setVoiceEnOpen] = useState(false);
   const [voiceFrOpen, setVoiceFrOpen] = useState(false);
-  const [rssOpen, setRssOpen] = useState(false);
   const [promptOpen, setPromptOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
-  const feeds = getFeedsForTopic(activeTab);
 
   const sectionStyle: CSSProperties = {
     background: color.surface,
@@ -477,68 +458,6 @@ function SettingsPage({
             />
           </div>
 
-          {/* ── RSS Sources section (accordion) ──────────── */}
-          <div style={sectionStyle}>
-            <button
-              onClick={() => setRssOpen(!rssOpen)}
-              style={{
-                ...sectionTitle,
-                background: "none",
-                border: "none",
-                padding: 0,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                width: "100%",
-                marginBottom: rssOpen ? 14 : 0,
-              }}
-            >
-              {t("rssSourcesSection", lang)}
-              <span style={{ fontSize: 14, transition: "transform 0.2s", transform: rssOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▾</span>
-            </button>
-
-            {rssOpen && (
-              <>
-                <TopicTabBar activeTab={activeTab} lang={lang} onSelect={setActiveTab} />
-                <p style={{ color: color.textDim, fontSize: 12, margin: "0 0 8px" }}>
-                  {feeds.length} sources
-                </p>
-
-                <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-                  {feeds.map((feed) => {
-                    const domain = new URL(feed.url).hostname.replace("www.", "");
-                    return (
-                      <li key={feed.url} style={{ borderBottom: `1px solid ${color.border}` }}>
-                        <a
-                          href={feed.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            padding: "9px 0",
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            gap: 12,
-                            textDecoration: "none",
-                            color: "inherit",
-                          }}
-                        >
-                          <span style={{ color: color.text, fontSize: 14, fontWeight: 500 }}>
-                            {feed.name}
-                          </span>
-                          <span style={{ color: color.textDim, fontSize: 12, flexShrink: 0 }}>
-                            {domain} ↗
-                          </span>
-                        </a>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </>
-            )}
-          </div>
-
           {/* ── AI Prompt section (accordion) ─────────────── */}
           <div style={sectionStyle}>
             <button
@@ -562,7 +481,7 @@ function SettingsPage({
 
             {promptOpen && (
               <>
-                <TopicTabBar activeTab={activeTab} lang={lang} onSelect={setActiveTab} />
+                <TopicTabBar topics={topics} activeTab={activeTab} onSelect={setActiveTab} />
                 <pre
                   style={{
                     color: color.textDim,
@@ -579,7 +498,7 @@ function SettingsPage({
                     overflowY: "auto",
                   }}
                 >
-                  {getSystemPrompt(activeTab, lang, maxArticles)}
+                  {getSystemPrompt(activeTab as Parameters<typeof getSystemPrompt>[0], lang, maxArticles)}
                 </pre>
               </>
             )}
@@ -845,7 +764,7 @@ function RefIcon() {
   );
 }
 
-const TOPIC_TITLE_KEY = {
+const TOPIC_TITLE_KEY: Record<string, string> = {
   conflict: "conflictTitle",
   ai: "aiTitle",
   crypto: "cryptoTitle",
@@ -854,10 +773,11 @@ const TOPIC_TITLE_KEY = {
   videogames: "videogamesTitle",
   aiengineering: "aiengineeringTitle",
   elon: "elonTitle",
-} as const satisfies Record<Topic, string>;
+};
 
-function ttsIntro(hours: number, lang: Lang, topic: Topic): string {
-  const topicName = t(TOPIC_TITLE_KEY[topic], lang);
+function ttsIntro(hours: number, lang: Lang, topic: string): string {
+  const key = TOPIC_TITLE_KEY[topic];
+  const topicName = key ? t(key as Parameters<typeof t>[0], lang) : topic;
   if (lang === "fr") {
     const period =
       hours < 1 ? `les ${Math.round(hours * 60)} dernières minutes`
@@ -876,7 +796,7 @@ function ttsIntro(hours: number, lang: Lang, topic: Topic): string {
   return `${topicName}. Here is the news analyzed for ${period}.`;
 }
 
-function SummaryBox({ data, locale, lang, hours, topic, speed, voice }: { data: SummaryResponse; locale: string; lang: Lang; hours: number; topic: Topic; speed: number; voice: string }) {
+function SummaryBox({ data, locale, lang, hours, topic, speed, voice }: { data: SummaryResponse; locale: string; lang: Lang; hours: number; topic: string; speed: number; voice: string }) {
   const raw = typeof data.summary === "string" ? data.summary : String(data.summary ?? "");
   const ttsOutro = lang === "fr" ? "... ... Analyse terminée. Vous pouvez reprendre une activité normale." : "... ... That's all folks!";
   const ttsText = raw.trim().length > 0 ? `${ttsIntro(hours, lang, topic)} ${raw} ${ttsOutro}` : "";
@@ -1085,11 +1005,11 @@ const hitClr = (r: number) =>
 const covClr = (p: number) =>
   p >= 90 ? "#4ade80" : p >= 70 ? "#c9a227" : "#ff8888";
 
-function StatsPage({ lang }: { lang: Lang }) {
+function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
   const [data, setData] = useState<StatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [statsTopic, setStatsTopic] = useState<"all" | Topic>("all");
+  const [statsTopic, setStatsTopic] = useState<string>("all");
   const [days, setDays] = useState(0);
   const [sortKey, setSortKey] = useState("avgScore");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -1125,8 +1045,8 @@ function StatsPage({ lang }: { lang: Lang }) {
   const fmt = (n: number) => n.toLocaleString(locale);
 
   const topicLabel = (tp: string) => {
-    const found = TOPICS.find((item) => item.value === tp);
-    return found ? t(found.labelKey, lang) : tp;
+    const found = topics.find((item) => item.id === tp);
+    return found ? found.label : tp;
   };
 
   const handleSort = (key: string) => {
@@ -1222,18 +1142,18 @@ function StatsPage({ lang }: { lang: Lang }) {
         >
           {t("allTopics", lang)}
         </button>
-        {TOPICS.map(({ value, labelKey }) => (
+        {topics.map(({ id, label }) => (
           <button
-            key={value}
-            onClick={() => setStatsTopic(value)}
+            key={id}
+            onClick={() => setStatsTopic(id)}
             style={{
               padding: "7px 12px", fontSize: 12, fontWeight: 600, border: "none",
-              borderBottom: statsTopic === value ? `2px solid ${color.gold}` : "2px solid transparent",
-              background: "transparent", color: statsTopic === value ? color.gold : color.textMuted,
+              borderBottom: statsTopic === id ? `2px solid ${color.gold}` : "2px solid transparent",
+              background: "transparent", color: statsTopic === id ? color.gold : color.textMuted,
               cursor: "pointer", transition: "all 0.15s",
             }}
           >
-            {t(labelKey, lang)}
+            {label}
           </button>
         ))}
       </div>
@@ -1326,9 +1246,7 @@ function StatsPage({ lang }: { lang: Lang }) {
                   <tr key={`${f.source}\0${f.topic}`}>
                     <td style={{ color: color.textDim, fontSize: 11 }}>{i + 1}</td>
                     <td className="col-src" style={{ fontWeight: 500, color: color.text, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {FEED_SITE_URL.has(f.source) ? (
-                        <a href={FEED_SITE_URL.get(f.source)} target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "none" }}>{f.source}</a>
-                      ) : f.source}
+                      {f.source}
                     </td>
                     {statsTopic === "all" && <td style={{ color: color.textMuted, fontSize: 12 }}>{topicLabel(f.topic)}</td>}
                     <td>{fmt(f.total)}</td>
@@ -1433,6 +1351,378 @@ function StatsPage({ lang }: { lang: Lang }) {
   );
 }
 
+// ── Topics page ───────────────────────────────────────────────────────
+
+function TopicsPage({ lang }: { lang: Lang }) {
+  const [view, setView] = useState<"list" | "detail" | "create">("list");
+  const [topics, setTopics] = useState<TopicItem[]>([]);
+  const [topicDetail, setTopicDetail] = useState<TopicDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [formId, setFormId] = useState("");
+  const [formLabelEn, setFormLabelEn] = useState("");
+  const [formLabelFr, setFormLabelFr] = useState("");
+  const [formDomain, setFormDomain] = useState("");
+  const [formT1, setFormT1] = useState("");
+  const [formT2, setFormT2] = useState("");
+  const [formT3, setFormT3] = useState("");
+  const [formT4, setFormT4] = useState("");
+  const [formT5, setFormT5] = useState("");
+
+  const [feedName, setFeedName] = useState("");
+  const [feedUrl, setFeedUrl] = useState("");
+  const [addingFeed, setAddingFeed] = useState(false);
+
+  const [editingTopic, setEditingTopic] = useState(false);
+  const [editLabelEn, setEditLabelEn] = useState("");
+  const [editLabelFr, setEditLabelFr] = useState("");
+  const [editDomain, setEditDomain] = useState("");
+  const [editT1, setEditT1] = useState("");
+  const [editT2, setEditT2] = useState("");
+  const [editT3, setEditT3] = useState("");
+  const [editT4, setEditT4] = useState("");
+  const [editT5, setEditT5] = useState("");
+
+  const secStyle: CSSProperties = { background: color.surface, border: `1px solid ${color.border}`, borderRadius: 10, padding: "16px 20px", marginBottom: 16 };
+  const secTitle: CSSProperties = { color: color.gold, fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14, marginTop: 0 };
+  const inputStyle: CSSProperties = {
+    width: "100%", padding: "8px 10px", borderRadius: 6,
+    border: `1px solid ${color.border}`, background: color.surface,
+    color: color.text, fontSize: 13, boxSizing: "border-box",
+  };
+  const textareaStyle: CSSProperties = { ...inputStyle, minHeight: 60, resize: "vertical" };
+  const primaryBtn: CSSProperties = {
+    padding: "8px 20px", borderRadius: 6, border: "none",
+    background: color.gold, color: "#000", fontSize: 13, fontWeight: 600, cursor: "pointer",
+  };
+  const dangerBtn: CSSProperties = {
+    padding: "6px 12px", borderRadius: 6, border: "none",
+    background: "transparent", color: "#ef4444", fontSize: 13, fontWeight: 600, cursor: "pointer",
+  };
+  const ghostBtn: CSSProperties = {
+    padding: "6px 12px", borderRadius: 6, border: `1px solid ${color.border}`,
+    background: "transparent", color: color.textMuted, fontSize: 13, fontWeight: 500, cursor: "pointer",
+  };
+
+  async function loadTopics() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/topics", { cache: "no-store" });
+      if (!res.ok) throw new Error("Failed");
+      setTopics(await res.json());
+      setError(null);
+    } catch { setError("Failed to load topics"); }
+    finally { setLoading(false); }
+  }
+
+  async function loadDetail(id: string) {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/topics/${id}`, { cache: "no-store" });
+      if (!res.ok) throw new Error("Failed");
+      const d: TopicDetail = await res.json();
+      setTopicDetail(d);
+      setEditLabelEn(d.labelEn); setEditLabelFr(d.labelFr);
+      setEditDomain(d.scoringDomain);
+      setEditT1(d.scoringTier1); setEditT2(d.scoringTier2);
+      setEditT3(d.scoringTier3); setEditT4(d.scoringTier4); setEditT5(d.scoringTier5);
+      setEditingTopic(false);
+      setView("detail");
+      setError(null);
+    } catch { setError("Failed to load topic"); }
+    finally { setLoading(false); }
+  }
+
+  async function handleCreate() {
+    setSaving(true); setError(null);
+    try {
+      const res = await fetch("/api/topics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: formId, labelEn: formLabelEn, labelFr: formLabelFr,
+          scoringDomain: formDomain,
+          scoringTier1: formT1, scoringTier2: formT2, scoringTier3: formT3,
+          scoringTier4: formT4, scoringTier5: formT5,
+        }),
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || "Failed"); }
+      const created = await res.json();
+      setFormId(""); setFormLabelEn(""); setFormLabelFr(""); setFormDomain("");
+      setFormT1(""); setFormT2(""); setFormT3(""); setFormT4(""); setFormT5("");
+      await loadDetail(created.id);
+    } catch (e) { setError(e instanceof Error ? e.message : "Failed"); }
+    finally { setSaving(false); }
+  }
+
+  async function handleDeleteTopic(id: string) {
+    if (!confirm(t("confirmDelete", lang))) return;
+    try {
+      await fetch(`/api/topics/${id}`, { method: "DELETE" });
+      setView("list");
+      await loadTopics();
+    } catch { setError("Failed to delete"); }
+  }
+
+  async function handleSaveTopic() {
+    if (!topicDetail) return;
+    setSaving(true); setError(null);
+    try {
+      const res = await fetch(`/api/topics/${topicDetail.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          labelEn: editLabelEn, labelFr: editLabelFr,
+          scoringDomain: editDomain,
+          scoringTier1: editT1, scoringTier2: editT2, scoringTier3: editT3,
+          scoringTier4: editT4, scoringTier5: editT5,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      await loadDetail(topicDetail.id);
+    } catch { setError("Failed to save"); }
+    finally { setSaving(false); }
+  }
+
+  async function handleAddFeed() {
+    if (!topicDetail || !feedName.trim() || !feedUrl.trim()) return;
+    setAddingFeed(true); setError(null);
+    try {
+      const res = await fetch(`/api/topics/${topicDetail.id}/feeds`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: feedName.trim(), url: feedUrl.trim() }),
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || "Failed"); }
+      setFeedName(""); setFeedUrl("");
+      await loadDetail(topicDetail.id);
+    } catch (e) { setError(e instanceof Error ? e.message : "Failed"); }
+    finally { setAddingFeed(false); }
+  }
+
+  async function handleDeleteFeed(feedId: number) {
+    if (!topicDetail) return;
+    try {
+      await fetch(`/api/topics/${topicDetail.id}/feeds/${feedId}`, { method: "DELETE" });
+      await loadDetail(topicDetail.id);
+    } catch { setError("Failed to delete feed"); }
+  }
+
+  useEffect(() => { loadTopics(); }, []);
+
+  function slugify(s: string) {
+    return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 30);
+  }
+
+  // ── Create view ──
+  if (view === "create") {
+    return (
+      <div>
+        <button onClick={() => setView("list")} style={{ ...ghostBtn, marginBottom: 16 }}>
+          ← {t("back", lang)}
+        </button>
+        <h2 style={{ color: color.gold, fontSize: 20, fontWeight: 600, marginBottom: 20, marginTop: 0 }}>
+          {t("newTopic", lang)}
+        </h2>
+        {error && <div style={{ color: "#ef4444", fontSize: 13, marginBottom: 12 }}>{error}</div>}
+
+        <div style={secStyle}>
+          <div style={{ display: "grid", gap: 12 }}>
+            <div>
+              <label style={{ color: color.textMuted, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>{t("topicSlug", lang)}</label>
+              <input value={formId} onChange={(e) => setFormId(slugify(e.target.value))} placeholder="my-topic" style={inputStyle} />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div>
+                <label style={{ color: color.textMuted, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>{t("labelEn", lang)}</label>
+                <input value={formLabelEn} onChange={(e) => { setFormLabelEn(e.target.value); if (!formId || formId === slugify(formLabelEn)) setFormId(slugify(e.target.value)); }} placeholder="My Topic" style={inputStyle} />
+              </div>
+              <div>
+                <label style={{ color: color.textMuted, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>{t("labelFr", lang)}</label>
+                <input value={formLabelFr} onChange={(e) => setFormLabelFr(e.target.value)} placeholder="Mon topic" style={inputStyle} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style={secStyle}>
+          <h4 style={secTitle}>{t("scoringCriteria", lang)}</h4>
+          <div style={{ display: "grid", gap: 10 }}>
+            <div>
+              <label style={{ color: color.textMuted, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>{t("scoringDomainLabel", lang)}</label>
+              <textarea value={formDomain} onChange={(e) => setFormDomain(e.target.value)} style={textareaStyle} placeholder="Description of the domain..." />
+            </div>
+            {[["9-10", formT1, setFormT1], ["7-8", formT2, setFormT2], ["5-6", formT3, setFormT3], ["3-4", formT4, setFormT4], ["1-2", formT5, setFormT5]].map(([tier, val, setter]) => (
+              <div key={tier as string}>
+                <label style={{ color: color.textMuted, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>{tier as string}</label>
+                <textarea value={val as string} onChange={(e) => (setter as (v: string) => void)(e.target.value)} style={textareaStyle} />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <button onClick={handleCreate} disabled={saving || !formId || !formLabelEn || !formLabelFr || !formDomain} style={{ ...primaryBtn, opacity: saving ? 0.6 : 1 }}>
+          {saving ? "..." : t("createBtn", lang)}
+        </button>
+      </div>
+    );
+  }
+
+  // ── Detail view ──
+  if (view === "detail" && topicDetail) {
+    const d = topicDetail;
+    return (
+      <div>
+        <button onClick={() => { setView("list"); loadTopics(); }} style={{ ...ghostBtn, marginBottom: 16 }}>
+          ← {t("back", lang)}
+        </button>
+        <h2 style={{ color: color.gold, fontSize: 20, fontWeight: 600, marginBottom: 20, marginTop: 0 }}>
+          {lang === "fr" ? d.labelFr : d.labelEn}
+        </h2>
+        {error && <div style={{ color: "#ef4444", fontSize: 13, marginBottom: 12 }}>{error}</div>}
+
+        {/* Topic info */}
+        <div style={secStyle}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <h4 style={{ ...secTitle, marginBottom: 0 }}>{t("topicInfo", lang)}</h4>
+            <button onClick={() => setEditingTopic(!editingTopic)} style={ghostBtn}>{editingTopic ? t("cancelBtn", lang) : t("editBtn", lang)}</button>
+          </div>
+          {editingTopic ? (
+            <div style={{ display: "grid", gap: 10 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div><label style={{ color: color.textMuted, fontSize: 11, fontWeight: 600, textTransform: "uppercase" }}>{t("labelEn", lang)}</label><input value={editLabelEn} onChange={(e) => setEditLabelEn(e.target.value)} style={inputStyle} /></div>
+                <div><label style={{ color: color.textMuted, fontSize: 11, fontWeight: 600, textTransform: "uppercase" }}>{t("labelFr", lang)}</label><input value={editLabelFr} onChange={(e) => setEditLabelFr(e.target.value)} style={inputStyle} /></div>
+              </div>
+              <div><label style={{ color: color.textMuted, fontSize: 11, fontWeight: 600, textTransform: "uppercase" }}>{t("scoringDomainLabel", lang)}</label><textarea value={editDomain} onChange={(e) => setEditDomain(e.target.value)} style={textareaStyle} /></div>
+              {[["9-10", editT1, setEditT1], ["7-8", editT2, setEditT2], ["5-6", editT3, setEditT3], ["3-4", editT4, setEditT4], ["1-2", editT5, setEditT5]].map(([tier, val, setter]) => (
+                <div key={tier as string}><label style={{ color: color.textMuted, fontSize: 11, fontWeight: 600, textTransform: "uppercase" }}>{tier as string}</label><textarea value={val as string} onChange={(e) => (setter as (v: string) => void)(e.target.value)} style={textareaStyle} /></div>
+              ))}
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={handleSaveTopic} disabled={saving} style={{ ...primaryBtn, opacity: saving ? 0.6 : 1 }}>{saving ? "..." : t("saveBtn", lang)}</button>
+                <button onClick={() => handleDeleteTopic(d.id)} style={dangerBtn}>{t("deleteBtn", lang)}</button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 6, fontSize: 13 }}>
+              <div><span style={{ color: color.textMuted }}>EN:</span> <span style={{ color: color.text }}>{d.labelEn}</span></div>
+              <div><span style={{ color: color.textMuted }}>FR:</span> <span style={{ color: color.text }}>{d.labelFr}</span></div>
+              <div><span style={{ color: color.textMuted }}>{t("scoringDomainLabel", lang)}:</span> <span style={{ color: color.text }}>{d.scoringDomain}</span></div>
+            </div>
+          )}
+        </div>
+
+        {/* Feeds */}
+        <div style={secStyle}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <h4 style={{ ...secTitle, marginBottom: 0 }}>{t("feeds", lang)} ({d.feeds.length})</h4>
+          </div>
+
+          {d.feeds.length === 0 ? (
+            <p style={{ color: color.textDim, fontSize: 13, margin: 0 }}>{t("noFeeds", lang)}</p>
+          ) : (
+            <div style={{ display: "grid", gap: 0 }}>
+              {d.feeds.map((f, i) => {
+                let domain = "";
+                try { domain = new URL(f.url).hostname.replace("www.", ""); } catch { /* */ }
+                return (
+                  <div key={f.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: i < d.feeds.length - 1 ? `1px solid ${color.border}` : "none" }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ color: color.text, fontSize: 13, fontWeight: 500 }}>{f.name}</div>
+                      <div style={{ color: color.textDim, fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <a href={f.url} target="_blank" rel="noopener noreferrer" style={{ color: color.textDim, textDecoration: "none" }}>{domain} ↗</a>
+                      </div>
+                    </div>
+                    <button onClick={() => handleDeleteFeed(f.id)} style={{ ...dangerBtn, padding: "4px 8px", fontSize: 12 }}>✕</button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Add feed form */}
+          <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+            <input value={feedName} onChange={(e) => setFeedName(e.target.value)} placeholder={t("feedName", lang)} style={{ ...inputStyle, flex: "1 1 120px" }} />
+            <input value={feedUrl} onChange={(e) => setFeedUrl(e.target.value)} placeholder={t("feedUrl", lang)} style={{ ...inputStyle, flex: "2 1 200px" }} />
+            <button onClick={handleAddFeed} disabled={addingFeed || !feedName.trim() || !feedUrl.trim()} style={{ ...primaryBtn, opacity: addingFeed ? 0.6 : 1, flexShrink: 0 }}>
+              {addingFeed ? "..." : "+ " + t("addFeed", lang)}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── List view (default) ──
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <h2 style={{ color: color.gold, fontSize: 20, fontWeight: 600, margin: 0 }}>
+          {t("topicsTitle", lang)}
+        </h2>
+        <button onClick={() => setView("create")} style={primaryBtn}>
+          + {t("newTopic", lang)}
+        </button>
+      </div>
+
+      {error && <div style={{ color: "#ef4444", fontSize: 13, marginBottom: 12 }}>{error}</div>}
+
+      {loading ? (
+        <div style={{ padding: "40px 0", textAlign: "center" }}>
+          <SpinKeyframes />
+          <span style={{ display: "inline-block", width: 24, height: 24, border: `3px solid ${color.gold}`, borderTop: "3px solid transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+        </div>
+      ) : topics.length === 0 ? (
+        <p style={{ color: color.textDim, fontSize: 14, textAlign: "center", padding: "40px 0" }}>
+          {lang === "fr" ? "Aucun topic" : "No topics"}
+        </p>
+      ) : (
+        <div style={secStyle}>
+          <style>{`
+            .tp-tb{width:100%;border-collapse:collapse;font-size:13px}
+            .tp-tb th{padding:8px 6px;text-align:left;font-weight:600;color:${color.textMuted};border-bottom:1px solid ${color.border};font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+            .tp-tb td{padding:8px 6px;border-bottom:1px solid ${color.border}}
+            .tp-tb tr:hover td{background:#1a1a1a}
+            @media(max-width:640px){.tp-tb .col-hide{display:none}}
+          `}</style>
+          <table className="tp-tb">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Topic</th>
+                <th>{t("feeds", lang)}</th>
+                <th className="col-hide">Status</th>
+                <th>{t("activeFeeds", lang)}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {topics.map((tp, i) => (
+                <tr key={tp.id}>
+                  <td style={{ color: color.textDim, fontSize: 11 }}>{i + 1}</td>
+                  <td>
+                    <button onClick={() => loadDetail(tp.id)} style={{ background: "none", border: "none", color: color.gold, fontWeight: 600, fontSize: 13, cursor: "pointer", padding: 0, textAlign: "left" }}>
+                      {lang === "fr" ? tp.labelFr : tp.labelEn}
+                    </button>
+                  </td>
+                  <td>{tp.feedCount}</td>
+                  <td className="col-hide">
+                    <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: tp.isActive ? "#22c55e" : "#666", marginRight: 6 }} />
+                    {tp.isActive ? t("statusActive", lang) : t("statusInactive", lang)}
+                  </td>
+                  <td>
+                    <button onClick={() => loadDetail(tp.id)} style={ghostBtn}>{t("editBtn", lang)}</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -1445,7 +1735,10 @@ export default function Home() {
     document.cookie = `lang=${newLang};max-age=${365 * 86400};path=/;SameSite=Lax`;
     window.location.reload();
   }, []);
-  const [topic, setTopic] = useState<Topic | null>(null);
+  const [topics, setTopics] = useState<TopicItem[]>([]);
+  const [topicsLoading, setTopicsLoading] = useState(true);
+  const topicLabels: TopicLabel[] = topics.map((tp) => ({ id: tp.id, label: lang === "fr" ? tp.labelFr : tp.labelEn }));
+  const [topic, setTopic] = useState<string | null>(null);
   const [maxArticles, setMaxArticles] = useState(() => {
     if (typeof document === "undefined") return 10;
     const match = document.cookie.match(/(?:^|; )maxArticles=(\d+)/);
@@ -1491,7 +1784,7 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState<"home" | "stats" | "settings">("home");
+  const [currentPage, setCurrentPage] = useState<"home" | "stats" | "topics" | "settings">("home");
   const [resultTab, setResultTab] = useState<"relevant" | "all">("relevant");
   const [newVersionAvailable, setNewVersionAvailable] = useState(false);
 
@@ -1510,8 +1803,16 @@ export default function Home() {
     return () => clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    fetch("/api/topics", { cache: "no-store" })
+      .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
+      .then((list: TopicItem[]) => setTopics(list))
+      .catch(() => {})
+      .finally(() => setTopicsLoading(false));
+  }, []);
+
   const locale = dateLocale(lang);
-  const NO_ARTICLES_KEY = {
+  const NO_ARTICLES_KEY: Record<string, string> = {
     conflict: "noArticlesConflict",
     ai: "noArticlesAi",
     crypto: "noArticlesCrypto",
@@ -1520,8 +1821,8 @@ export default function Home() {
     videogames: "noArticlesVideogames",
     aiengineering: "noArticlesAiengineering",
     elon: "noArticlesElon",
-  } as const satisfies Record<Topic, string>;
-  const noArticlesKey = NO_ARTICLES_KEY[topic || "conflict"];
+  };
+  const noArticlesKey = NO_ARTICLES_KEY[topic || "conflict"] || "noArticlesConflict";
 
   function startProgress() {
     setProgress(0);
@@ -1572,7 +1873,7 @@ export default function Home() {
     }
   }
 
-  function handleTopicChange(newTopic: Topic) {
+  function handleTopicChange(newTopic: string) {
     if (newTopic === topic) return;
     setTopic(newTopic);
     setSelected(null);
@@ -1636,6 +1937,26 @@ export default function Home() {
               </svg>
             </button>
             <button
+              onClick={() => setCurrentPage("topics")}
+              aria-label="Topics"
+              style={{
+                padding: 4,
+                border: "none",
+                background: "transparent",
+                color: currentPage === "topics" ? color.gold : color.textMuted,
+                cursor: currentPage === "topics" ? "default" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 11a9 9 0 0 1 9 9" />
+                <path d="M4 4a16 16 0 0 1 16 16" />
+                <circle cx="5" cy="19" r="1" fill="currentColor" />
+              </svg>
+            </button>
+            <button
               onClick={() => setCurrentPage("settings")}
               aria-label={t("settings", lang)}
               style={{
@@ -1667,10 +1988,12 @@ export default function Home() {
         </header>
 
         {currentPage === "stats" ? (
-          <StatsPage lang={lang} />
+          <StatsPage lang={lang} topics={topicLabels} />
+        ) : currentPage === "topics" ? (
+          <TopicsPage lang={lang} />
         ) : currentPage === "settings" ? (
           <SettingsPage
-            topic={topic || "conflict"}
+            topics={topicLabels}
             lang={lang}
             maxArticles={maxArticles}
             onMaxArticlesChange={updateMaxArticles}
@@ -1685,7 +2008,7 @@ export default function Home() {
         <>
         {/* ── Topic selector ──────────────────────────────────── */}
         <section style={{ marginBottom: 24 }}>
-          <TopicToggle topic={topic} lang={lang} disabled={loading} onChange={handleTopicChange} />
+          <TopicToggle topics={topicLabels} topic={topic} disabled={loading || topicsLoading} onChange={handleTopicChange} />
         </section>
 
         {/* ── Period selector ────────────────────────────────── */}
@@ -1783,7 +2106,7 @@ export default function Home() {
                   </div>
                 ) : (
                   <p style={{ color: color.textDim, fontSize: 15 }}>
-                    {t(noArticlesKey, lang)}
+                    {t(noArticlesKey as Parameters<typeof t>[0], lang)}
                   </p>
                 )}
               </>
@@ -1810,7 +2133,7 @@ export default function Home() {
         <div
           onClick={() => window.location.reload()}
           style={{
-            position: "fixed", bottom: 48, left: "50%", transform: "translateX(-50%)",
+            position: "fixed", top: 12, right: 12,
             background: color.gold, color: "#000", padding: "8px 20px", borderRadius: 8,
             fontSize: 13, fontWeight: 600, cursor: "pointer", zIndex: 999,
             boxShadow: "0 4px 20px rgba(0,0,0,0.5)",

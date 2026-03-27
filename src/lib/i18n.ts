@@ -289,6 +289,90 @@ const strings = {
     en: "Active feeds",
     fr: "Flux actifs",
   },
+  topicsTitle: {
+    en: "Topics",
+    fr: "Topics",
+  },
+  newTopic: {
+    en: "New Topic",
+    fr: "Nouveau topic",
+  },
+  back: {
+    en: "Back",
+    fr: "Retour",
+  },
+  createBtn: {
+    en: "Create",
+    fr: "Créer",
+  },
+  saveBtn: {
+    en: "Save",
+    fr: "Sauvegarder",
+  },
+  cancelBtn: {
+    en: "Cancel",
+    fr: "Annuler",
+  },
+  deleteBtn: {
+    en: "Delete",
+    fr: "Supprimer",
+  },
+  confirmDelete: {
+    en: "Are you sure?",
+    fr: "Êtes-vous sûr ?",
+  },
+  addFeed: {
+    en: "Add Feed",
+    fr: "Ajouter un flux",
+  },
+  feedName: {
+    en: "Feed name",
+    fr: "Nom du flux",
+  },
+  feedUrl: {
+    en: "Feed URL",
+    fr: "URL du flux",
+  },
+  noFeeds: {
+    en: "No feeds yet",
+    fr: "Aucun flux",
+  },
+  topicSlug: {
+    en: "Slug (ID)",
+    fr: "Slug (ID)",
+  },
+  labelEn: {
+    en: "Label EN",
+    fr: "Label EN",
+  },
+  labelFr: {
+    en: "Label FR",
+    fr: "Label FR",
+  },
+  scoringCriteria: {
+    en: "Scoring criteria",
+    fr: "Critères de scoring",
+  },
+  scoringDomainLabel: {
+    en: "Domain",
+    fr: "Domaine",
+  },
+  topicInfo: {
+    en: "Topic info",
+    fr: "Info topic",
+  },
+  editBtn: {
+    en: "Edit",
+    fr: "Modifier",
+  },
+  statusActive: {
+    en: "Active",
+    fr: "Actif",
+  },
+  statusInactive: {
+    en: "Inactive",
+    fr: "Inactif",
+  },
 } as const;
 
 type StringKey = keyof typeof strings;

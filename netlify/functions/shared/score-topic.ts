@@ -1,7 +1,6 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
-import { getScoringPrompt } from "../../../src/lib/scoring-prompts";
-import type { Topic, ScoreResult } from "../../../src/lib/types";
+import type { ScoreResult } from "../../../src/lib/types";
 
 const BATCH_SIZE = 50;
 const SCORE_WINDOW_HOURS = 168;
@@ -11,6 +10,15 @@ interface DbRow {
   title: string;
   snippet: string | null;
   content: string | null;
+}
+
+export interface ScoringCriteria {
+  scoring_domain: string;
+  scoring_tier1: string;
+  scoring_tier2: string;
+  scoring_tier3: string;
+  scoring_tier4: string;
+  scoring_tier5: string;
 }
 
 function getSupabase() {
@@ -26,9 +34,35 @@ function getOpenAIKey(): string {
   return key;
 }
 
+function buildScoringPrompt(c: ScoringCriteria): string {
+  return `You are a senior news editor specialized in ${c.scoring_domain}.
+
+Rate each article's relevance and importance from 1 to 10 (integer).
+For articles scoring 5 or above, also write a factual 2-sentence summary in English AND in French.
+
+## Scoring scale for ${c.scoring_domain}:
+- 9-10: ${c.scoring_tier1}
+- 7-8: ${c.scoring_tier2}
+- 5-6: ${c.scoring_tier3}
+- 3-4: ${c.scoring_tier4}
+- 1-2: ${c.scoring_tier5}
+
+## Rules:
+- Score based on the TITLE and CONTENT provided, not assumptions.
+- Duplicate or rehashed news from previous cycles = max score 3.
+- Clickbait or vague opinion pieces without facts = max score 4.
+- Must include concrete data (names, numbers, dates) to score above 6.
+- Summaries must include key facts: who, what, where, when, specific numbers.
+
+Respond ONLY with a JSON object containing a "scores" array. No markdown, no explanation:
+{"scores": [{"index": 0, "score": 7, "reason": "New GPT-5 model announced with benchmarks", "summary_en": "OpenAI announced GPT-5 with...", "summary_fr": "OpenAI a annoncé GPT-5 avec..."}, ...]}
+
+For articles scoring below 5, omit summary_en and summary_fr.`;
+}
+
 async function scoreArticleBatch(
   batch: DbRow[],
-  topic: Topic,
+  prompt: string,
   openai: OpenAI,
 ): Promise<ScoreResult[]> {
   const articleList = batch
@@ -38,7 +72,7 @@ async function scoreArticleBatch(
   const completion = await openai.chat.completions.create({
     model: "gpt-4.1-nano",
     messages: [
-      { role: "system", content: getScoringPrompt(topic) },
+      { role: "system", content: prompt },
       { role: "user", content: articleList },
     ],
     response_format: { type: "json_object" },
@@ -66,30 +100,33 @@ async function scoreArticleBatch(
   }
 }
 
-export async function scoreAndStoreTopic(topic: Topic): Promise<string> {
+async function scoreCore(
+  topicId: string,
+  prompt: string,
+  supabase: SupabaseClient,
+): Promise<string> {
   const apiKey = getOpenAIKey();
   const openai = new OpenAI({ apiKey });
-  const supabase = getSupabase();
 
   const since = new Date(Date.now() - SCORE_WINDOW_HOURS * 3_600_000).toISOString();
 
   const { data: unscored, error } = await supabase
     .from("articles")
     .select("id, title, snippet, content")
-    .eq("topic", topic)
+    .eq("topic", topicId)
     .gte("pub_date", since)
     .is("relevance_score", null)
     .order("pub_date", { ascending: false })
     .limit(500);
 
   if (error) {
-    console.error(`[${topic}] DB error:`, error.message);
-    return `[${topic}] DB error: ${error.message}`;
+    console.error(`[${topicId}] DB error:`, error.message);
+    return `[${topicId}] DB error: ${error.message}`;
   }
 
   const rows = (unscored ?? []) as DbRow[];
   if (rows.length === 0) {
-    const msg = `[${topic}] No unscored articles`;
+    const msg = `[${topicId}] No unscored articles`;
     console.log(msg);
     return msg;
   }
@@ -99,7 +136,7 @@ export async function scoreAndStoreTopic(topic: Topic): Promise<string> {
     const batch = rows.slice(i, i + BATCH_SIZE);
 
     try {
-      const results = await scoreArticleBatch(batch, topic, openai);
+      const results = await scoreArticleBatch(batch, prompt, openai);
 
       const updates = results
         .filter((r) => r.index >= 0 && r.index < batch.length)
@@ -121,11 +158,34 @@ export async function scoreAndStoreTopic(topic: Topic): Promise<string> {
       await Promise.all(updates);
       scored += updates.length;
     } catch (err) {
-      console.error(`[${topic}] Scoring batch error:`, err instanceof Error ? err.message : err);
+      console.error(`[${topicId}] Scoring batch error:`, err instanceof Error ? err.message : err);
     }
   }
 
-  const msg = `[${topic}] Scored ${scored}/${rows.length} articles`;
+  const msg = `[${topicId}] Scored ${scored}/${rows.length} articles`;
   console.log(msg);
   return msg;
+}
+
+/**
+ * Dynamic version: scoring criteria come from the DB row.
+ * Called by the cron-score dispatcher.
+ */
+export async function scoreAndStoreTopicDynamic(
+  topicId: string,
+  criteria: ScoringCriteria,
+  supabase: SupabaseClient,
+): Promise<string> {
+  const prompt = buildScoringPrompt(criteria);
+  return scoreCore(topicId, prompt, supabase);
+}
+
+/**
+ * Legacy wrapper — reads criteria from hardcoded file.
+ * Kept temporarily for backward-compat during migration.
+ */
+export async function scoreAndStoreTopic(topic: string): Promise<string> {
+  const { getScoringPrompt } = await import("../../../src/lib/scoring-prompts");
+  const prompt = getScoringPrompt(topic as never);
+  return scoreCore(topic, prompt, getSupabase());
 }

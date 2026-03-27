@@ -1,9 +1,0 @@
-import type { Config } from "@netlify/functions";
-import { fetchAndStoreTopic } from "./shared/fetch-topic";
-
-export default async () => {
-  const result = await fetchAndStoreTopic("robotics");
-  return new Response(result);
-};
-
-export const config: Config = { schedule: "@hourly" };

@@ -19,12 +19,13 @@ export default async () => {
 
   if (!topic) return new Response("No active topics");
 
-  const result = await fetchAndStoreTopicDynamic(topic.id, supabase);
-
+  // Update timestamp BEFORE fetching so round-robin advances even on timeout
   await supabase
     .from("topics")
     .update({ last_fetched_at: new Date().toISOString() })
     .eq("id", topic.id);
+
+  const result = await fetchAndStoreTopicDynamic(topic.id, supabase);
 
   return new Response(result);
 };

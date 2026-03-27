@@ -19,14 +19,15 @@ export default async () => {
 
   if (!topic) return new Response("No active topics");
 
-  const result = await scoreAndStoreTopicDynamic(topic.id, topic, supabase);
-
+  // Update timestamp BEFORE scoring so round-robin advances even on timeout
   await supabase
     .from("topics")
     .update({ last_scored_at: new Date().toISOString() })
     .eq("id", topic.id);
 
+  const result = await scoreAndStoreTopicDynamic(topic.id, topic, supabase);
+
   return new Response(result);
 };
 
-export const config: Config = { schedule: "*/3 * * * *" };
+export const config: Config = { schedule: "* * * * *" };

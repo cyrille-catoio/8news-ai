@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import type { ScoreResult } from "../../../src/lib/types";
 
 const BATCH_SIZE = 50;
+const MAX_ARTICLES_PER_RUN = 100;
 const SCORE_WINDOW_HOURS = 168;
 
 interface DbRow {
@@ -117,7 +118,7 @@ async function scoreCore(
     .gte("pub_date", since)
     .is("relevance_score", null)
     .order("pub_date", { ascending: false })
-    .limit(500);
+    .limit(MAX_ARTICLES_PER_RUN);
 
   if (error) {
     console.error(`[${topicId}] DB error:`, error.message);

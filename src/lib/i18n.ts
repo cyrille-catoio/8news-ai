@@ -5,70 +5,6 @@ const strings = {
     en: "8news",
     fr: "8news",
   },
-  topicConflict: {
-    en: "Iran War",
-    fr: "Iran War",
-  },
-  topicAi: {
-    en: "AI",
-    fr: "IA",
-  },
-  topicCrypto: {
-    en: "Crypto",
-    fr: "Crypto",
-  },
-  topicRobotics: {
-    en: "Robotics",
-    fr: "Robotique",
-  },
-  topicBitcoin: {
-    en: "Bitcoin",
-    fr: "Bitcoin",
-  },
-  topicVideogames: {
-    en: "Video Games",
-    fr: "Jeux Vidéo",
-  },
-  topicAiengineering: {
-    en: "AI Eng.",
-    fr: "AI Eng.",
-  },
-  topicElon: {
-    en: "Elon Musk",
-    fr: "Elon Musk",
-  },
-  conflictTitle: {
-    en: "USA / Israel vs Iran Conflict",
-    fr: "Conflit USA / Israël vs Iran",
-  },
-  aiTitle: {
-    en: "AI & Machine Learning News",
-    fr: "Nouveautés Intelligence Artificielle",
-  },
-  cryptoTitle: {
-    en: "Crypto & Blockchain News",
-    fr: "Actualités Crypto & Blockchain",
-  },
-  roboticsTitle: {
-    en: "Robotics & AI Humanoids News",
-    fr: "Actualités Robotique & Humanoïdes IA",
-  },
-  bitcoinTitle: {
-    en: "Bitcoin News",
-    fr: "Actualités Bitcoin",
-  },
-  videogamesTitle: {
-    en: "Video Games News",
-    fr: "Actualités Jeux Vidéo",
-  },
-  aiengineeringTitle: {
-    en: "AI Engineering & Production Systems",
-    fr: "Ingénierie IA & Systèmes de Production",
-  },
-  elonTitle: {
-    en: "Elon Musk — Tesla, SpaceX, xAI, X & Neuralink",
-    fr: "Elon Musk — Tesla, SpaceX, xAI, X & Neuralink",
-  },
   subtitle: {
     en: "AI that decodes the news",
     fr: "L'IA qui décrypte l'actualité",
@@ -101,37 +37,9 @@ const strings = {
     en: "All articles",
     fr: "Tous les articles",
   },
-  noArticlesConflict: {
-    en: "No articles related to the USA/Israel vs Iran conflict found for this time period.",
-    fr: "Aucun article lié au conflit USA/Israël vs Iran sur cette période.",
-  },
-  noArticlesAi: {
-    en: "No AI-related articles found for this time period.",
-    fr: "Aucun article lié à l'IA sur cette période.",
-  },
-  noArticlesCrypto: {
-    en: "No crypto-related articles found for this time period.",
-    fr: "Aucun article lié à la crypto sur cette période.",
-  },
-  noArticlesRobotics: {
-    en: "No robotics-related articles found for this time period.",
-    fr: "Aucun article lié à la robotique sur cette période.",
-  },
-  noArticlesBitcoin: {
-    en: "No Bitcoin-related articles found for this time period.",
-    fr: "Aucun article lié au Bitcoin sur cette période.",
-  },
-  noArticlesVideogames: {
-    en: "No video game-related articles found for this time period.",
-    fr: "Aucun article lié aux jeux vidéo sur cette période.",
-  },
-  noArticlesAiengineering: {
-    en: "No AI engineering articles found for this time period.",
-    fr: "Aucun article lié à l'ingénierie IA sur cette période.",
-  },
-  noArticlesElon: {
-    en: "No Elon Musk-related articles found for this time period.",
-    fr: "Aucun article lié à Elon Musk sur cette période.",
+  noArticlesForPeriod: {
+    en: "No relevant articles found for this time period.",
+    fr: "Aucun article pertinent trouvé pour cette période.",
   },
   initialMessage: {
     en: "Select a topic and click a time period button to analyse the latest news.",
@@ -372,6 +280,22 @@ const strings = {
   statusInactive: {
     en: "Inactive",
     fr: "Inactif",
+  },
+  analysisPrompt: {
+    en: "Analysis Prompt",
+    fr: "Prompt d'analyse",
+  },
+  promptPlaceholder: {
+    en: "Leave empty to auto-generate a default prompt based on your topic name and scoring domain.",
+    fr: "Laissez vide pour générer automatiquement un prompt basé sur le nom du topic et le domaine de scoring.",
+  },
+  promptMissingMax: {
+    en: "Warning: {{max}} placeholder is missing. The number of articles to select will not be controlled.",
+    fr: "Attention : le placeholder {{max}} est absent. Le nombre d'articles à sélectionner ne sera pas contrôlé.",
+  },
+  promptMaxInfo: {
+    en: "{{max}} will be replaced by the number of articles selected by the user.",
+    fr: "{{max}} sera remplacé par le nombre d'articles sélectionné par l'utilisateur.",
   },
 } as const;
 

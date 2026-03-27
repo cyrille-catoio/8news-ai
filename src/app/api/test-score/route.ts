@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
-import { getScoringPrompt } from "@/lib/scoring-prompts";
-import { VALID_TOPICS } from "@/lib/types";
-import type { Topic, ScoreResult } from "@/lib/types";
+import type { ScoreResult } from "@/lib/types";
 
 export const maxDuration = 60;
 
@@ -20,9 +18,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const topicParam = params.get("topic") as Topic | null;
-  if (!topicParam || !VALID_TOPICS.includes(topicParam)) {
-    return NextResponse.json({ error: `Invalid topic. Use one of: ${VALID_TOPICS.join(", ")}` }, { status: 400 });
+  const topicParam = params.get("topic");
+  if (!topicParam) {
+    return NextResponse.json({ error: "Missing topic parameter" }, { status: 400 });
   }
 
   const hours = Math.max(1, parseInt(params.get("hours") ?? String(DEFAULT_HOURS), 10) || DEFAULT_HOURS);
@@ -41,6 +39,43 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = createClient(url, key, { auth: { persistSession: false } });
+
+  const { data: topicRow, error: topicError } = await supabase
+    .from("topics")
+    .select("scoring_domain, scoring_tier1, scoring_tier2, scoring_tier3, scoring_tier4, scoring_tier5")
+    .eq("id", topicParam)
+    .eq("is_active", true)
+    .single();
+
+  if (topicError || !topicRow) {
+    return NextResponse.json({ error: "Invalid or inactive topic" }, { status: 400 });
+  }
+
+  const c = topicRow;
+  const scoringPrompt = `You are a senior news editor specialized in ${c.scoring_domain}.
+
+Rate each article's relevance and importance from 1 to 10 (integer).
+For articles scoring 5 or above, also write a factual 2-sentence summary in English AND in French.
+
+## Scoring scale for ${c.scoring_domain}:
+- 9-10: ${c.scoring_tier1}
+- 7-8: ${c.scoring_tier2}
+- 5-6: ${c.scoring_tier3}
+- 3-4: ${c.scoring_tier4}
+- 1-2: ${c.scoring_tier5}
+
+## Rules:
+- Score based on the TITLE and CONTENT provided, not assumptions.
+- Duplicate or rehashed news from previous cycles = max score 3.
+- Clickbait or vague opinion pieces without facts = max score 4.
+- Must include concrete data (names, numbers, dates) to score above 6.
+- Summaries must include key facts: who, what, where, when, specific numbers.
+
+Respond ONLY with a JSON object containing a "scores" array. No markdown, no explanation:
+{"scores": [{"index": 0, "score": 7, "reason": "New GPT-5 model announced with benchmarks", "summary_en": "OpenAI announced GPT-5 with...", "summary_fr": "OpenAI a annoncé GPT-5 avec..."}, ...]}
+
+For articles scoring below 5, omit summary_en and summary_fr.`;
+
   const openai = new OpenAI({ apiKey });
   const since = new Date(Date.now() - hours * 3_600_000).toISOString();
 
@@ -95,7 +130,7 @@ export async function GET(request: NextRequest) {
       const completion = await openai.chat.completions.create({
         model: "gpt-4.1-nano",
         messages: [
-          { role: "system", content: getScoringPrompt(topicParam) },
+          { role: "system", content: scoringPrompt },
           { role: "user", content: articleList },
         ],
         response_format: { type: "json_object" },

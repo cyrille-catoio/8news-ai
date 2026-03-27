@@ -1,7 +1,3 @@
-export type Topic = "conflict" | "ai" | "crypto" | "robotics" | "bitcoin" | "videogames" | "aiengineering" | "elon";
-
-export const VALID_TOPICS: Topic[] = ["conflict", "ai", "aiengineering", "robotics", "crypto", "bitcoin", "videogames", "elon"];
-
 export interface ScoreResult {
   index: number;
   score: number;
@@ -70,6 +66,8 @@ export interface TopicDetail {
   scoringTier3: string;
   scoringTier4: string;
   scoringTier5: string;
+  promptEn: string;
+  promptFr: string;
   isActive: boolean;
   sortOrder: number;
   feeds: FeedItem[];

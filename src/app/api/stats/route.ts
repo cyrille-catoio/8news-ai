@@ -2,11 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getAllArticlesForStats,
   getTopArticlesForStats,
+  getActiveTopics,
   type StatsArticleRow,
 } from "@/lib/supabase";
-import { getFeedsForTopic } from "@/lib/rss-feeds";
-import type { Topic, StatsResponse } from "@/lib/types";
-import { VALID_TOPICS } from "@/lib/types";
+import type { StatsResponse } from "@/lib/types";
 
 function roundOne(n: number): number {
   return Math.round(n * 10) / 10;
@@ -135,7 +134,10 @@ export async function GET(req: NextRequest) {
   const topic = searchParams.get("topic") || "all";
   const days = Math.max(0, parseInt(searchParams.get("days") || "0", 10) || 0);
 
-  if (topic !== "all" && !VALID_TOPICS.includes(topic as Topic)) {
+  const activeTopics = await getActiveTopics();
+  const validIds = new Set(activeTopics.map((t) => t.id));
+
+  if (topic !== "all" && !validIds.has(topic)) {
     return NextResponse.json({ error: "Invalid topic" }, { status: 400 });
   }
 
@@ -172,9 +174,8 @@ export async function GET(req: NextRequest) {
     (a) => a.scored_at && a.scored_at >= cutoff24h,
   ).length;
 
-  // ── Feed counts from config ──
   const feedCounts: Record<string, number> = {};
-  for (const t of VALID_TOPICS) feedCounts[t] = getFeedsForTopic(t).length;
+  for (const tp of activeTopics) feedCounts[tp.id] = tp.feed_count;
 
   const response: StatsResponse = {
     global: {

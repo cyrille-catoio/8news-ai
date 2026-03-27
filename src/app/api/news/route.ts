@@ -1,14 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
-import { getSystemPrompt, getServerMessages } from "@/lib/prompts";
-import { getCachedResult, setCachedResult, cleanExpiredCache, getScoredArticles, getAllArticlesFromDb } from "@/lib/supabase";
+import { getCachedResult, setCachedResult, cleanExpiredCache, getScoredArticles, getAllArticlesFromDb, getTopicPrompt } from "@/lib/supabase";
 import type { Lang } from "@/lib/i18n";
-import { VALID_TOPICS } from "@/lib/types";
-import type { ArticleSummary, SummaryBullet, SummaryResponse, AIAnalysis, Topic } from "@/lib/types";
+import type { ArticleSummary, SummaryBullet, SummaryResponse, AIAnalysis } from "@/lib/types";
 
 const MAX_ARTICLES = 200;
 const PREVIEW_LIMIT = 10;
 const SNIPPET_MAX = 600;
+
+function getServerMessages(lang: Lang) {
+  if (lang === "fr") {
+    return {
+      noArticles: "Aucun article trouvé pour la période sélectionnée.",
+      noApiKey: (count: number, feeds: number) =>
+        `${count} articles récupérés depuis ${feeds} flux. Configurez OPENAI_API_KEY dans .env pour activer le filtrage IA.`,
+      aiError:
+        "Erreur lors de l'appel à OpenAI. Vérifiez que votre OPENAI_API_KEY est valide.",
+      fallback: "Impossible de générer le résumé.",
+    } as const;
+  }
+  return {
+    noArticles: "No articles found for the selected time period.",
+    noApiKey: (count: number, feeds: number) =>
+      `${count} articles fetched from ${feeds} feeds. Set OPENAI_API_KEY in .env to enable AI filtering.`,
+    aiError:
+      "Error calling OpenAI. Please verify that your OPENAI_API_KEY is valid.",
+    fallback: "Unable to generate summary.",
+  } as const;
+}
+
+function generateFallbackPrompt(lang: Lang, maxArticles: number): string {
+  if (lang === "fr") {
+    return `Tu es un analyste de presse. Identifie les ${maxArticles} articles les plus pertinents. Résume chacun en 2-3 phrases. Produis jusqu'à 8 bullet points factuels. Réponds en JSON: {"relevant":[{"index":0,"snippet":"..."}],"globalSummary":[{"text":"...","refs":[0]}]}`;
+  }
+  return `You are a news analyst. Identify the ${maxArticles} most relevant articles. Summarize each in 2-3 sentences. Write up to 8 factual bullet points. Respond with JSON: {"relevant":[{"index":0,"snippet":"..."}],"globalSummary":[{"text":"...","refs":[0]}]}`;
+}
 
 export const maxDuration = 60;
 
@@ -65,10 +91,9 @@ interface RelevantEntry {
 
 async function analyzeWithAI(
   items: ArticleSummary[],
-  topic: Topic,
+  systemPrompt: string,
   lang: Lang,
   apiKey: string,
-  maxArticles: number,
 ): Promise<{ summary: string; bullets: SummaryBullet[]; relevant: Map<number, RelevantEntry> }> {
   const msg = getServerMessages(lang);
   const openai = new OpenAI({ apiKey });
@@ -76,7 +101,7 @@ async function analyzeWithAI(
   const completion = await openai.chat.completions.create({
     model: "gpt-4.1-nano",
     messages: [
-      { role: "system", content: getSystemPrompt(topic, lang, maxArticles) },
+      { role: "system", content: systemPrompt },
       { role: "user", content: `Article list:\n${formatArticleList(items)}` },
     ],
     response_format: { type: "json_object" },
@@ -130,9 +155,22 @@ export async function GET(request: NextRequest) {
   try {
     const params = request.nextUrl.searchParams;
     const lang: Lang = params.get("lang") === "fr" ? "fr" : "en";
-    const rawTopic = params.get("topic") as Topic | null;
-    const topic: Topic = rawTopic && VALID_TOPICS.includes(rawTopic) ? rawTopic : "conflict";
+    const rawTopic = params.get("topic");
+    if (!rawTopic) {
+      return NextResponse.json({ error: "Missing topic parameter" }, { status: 400 });
+    }
     const maxArticles = Math.min(30, Math.max(3, parseInt(params.get("count") ?? "10", 10) || 10));
+
+    const topicPrompt = await getTopicPrompt(rawTopic);
+    if (!topicPrompt) {
+      return NextResponse.json({ error: "Invalid or inactive topic" }, { status: 400 });
+    }
+    const topic = rawTopic;
+
+    const promptTemplate = lang === "fr" ? topicPrompt.prompt_fr : topicPrompt.prompt_en;
+    const systemPrompt = promptTemplate
+      ? promptTemplate.replace(/\{\{max\}\}/g, String(maxArticles))
+      : generateFallbackPrompt(lang, maxArticles);
     const hours = Math.min(168, Math.max(0.25, parseFloat(params.get("hours") ?? "24") || 24));
     const since = Date.now() - hours * 3_600_000;
     const sinceISO = new Date(since).toISOString();
@@ -185,7 +223,7 @@ export async function GET(request: NextRequest) {
     let relevant: Map<number, RelevantEntry>;
 
     try {
-      ({ summary, bullets, relevant } = await analyzeWithAI(items, topic, lang, apiKey, maxArticles));
+      ({ summary, bullets, relevant } = await analyzeWithAI(items, systemPrompt, lang, apiKey));
     } catch {
       summary = msg.aiError;
       bullets = [];

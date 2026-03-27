@@ -4,11 +4,10 @@ import { type CSSProperties, useState, useEffect, useCallback, useRef } from "re
 import type { SummaryResponse, ArticleSummary, StatsResponse, TopicItem, TopicDetail, FeedItem } from "@/lib/types";
 import { t, dateLocale, type Lang } from "@/lib/i18n";
 import { color, font, sectionHeading, card } from "@/lib/theme";
-import { getSystemPrompt } from "@/lib/prompts";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.52";
+const APP_VERSION = "1.53";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 const TTS_VOICES_EN = [
@@ -301,7 +300,6 @@ function VoiceAccordion({
 }
 
 function SettingsPage({
-  topics,
   lang,
   maxArticles,
   onMaxArticlesChange,
@@ -312,7 +310,6 @@ function SettingsPage({
   ttsVoiceFr,
   onTtsVoiceFrChange,
 }: {
-  topics: TopicLabel[];
   lang: Lang;
   maxArticles: number;
   onMaxArticlesChange: (v: number) => void;
@@ -323,10 +320,8 @@ function SettingsPage({
   ttsVoiceFr: string;
   onTtsVoiceFrChange: (v: string) => void;
 }) {
-  const [activeTab, setActiveTab] = useState(topics[0]?.id ?? "conflict");
   const [voiceEnOpen, setVoiceEnOpen] = useState(false);
   const [voiceFrOpen, setVoiceFrOpen] = useState(false);
-  const [promptOpen, setPromptOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
 
   const sectionStyle: CSSProperties = {
@@ -458,51 +453,6 @@ function SettingsPage({
             />
           </div>
 
-          {/* ── AI Prompt section (accordion) ─────────────── */}
-          <div style={sectionStyle}>
-            <button
-              onClick={() => setPromptOpen(!promptOpen)}
-              style={{
-                ...sectionTitle,
-                background: "none",
-                border: "none",
-                padding: 0,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                width: "100%",
-                marginBottom: promptOpen ? 14 : 0,
-              }}
-            >
-              {t("aiPromptSection", lang)}
-              <span style={{ fontSize: 14, transition: "transform 0.2s", transform: promptOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▾</span>
-            </button>
-
-            {promptOpen && (
-              <>
-                <TopicTabBar topics={topics} activeTab={activeTab} onSelect={setActiveTab} />
-                <pre
-                  style={{
-                    color: color.textDim,
-                    fontSize: 12,
-                    lineHeight: 1.6,
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
-                    margin: 0,
-                    padding: "10px 12px",
-                    background: "#0a0a0a",
-                    borderRadius: 6,
-                    border: `1px solid ${color.border}`,
-                    maxHeight: 280,
-                    overflowY: "auto",
-                  }}
-                >
-                  {getSystemPrompt(activeTab as Parameters<typeof getSystemPrompt>[0], lang, maxArticles)}
-                </pre>
-              </>
-            )}
-          </div>
     </div>
   );
 }
@@ -764,20 +714,7 @@ function RefIcon() {
   );
 }
 
-const TOPIC_TITLE_KEY: Record<string, string> = {
-  conflict: "conflictTitle",
-  ai: "aiTitle",
-  crypto: "cryptoTitle",
-  robotics: "roboticsTitle",
-  bitcoin: "bitcoinTitle",
-  videogames: "videogamesTitle",
-  aiengineering: "aiengineeringTitle",
-  elon: "elonTitle",
-};
-
-function ttsIntro(hours: number, lang: Lang, topic: string): string {
-  const key = TOPIC_TITLE_KEY[topic];
-  const topicName = key ? t(key as Parameters<typeof t>[0], lang) : topic;
+function ttsIntro(hours: number, lang: Lang, topicName: string): string {
   if (lang === "fr") {
     const period =
       hours < 1 ? `les ${Math.round(hours * 60)} dernières minutes`
@@ -796,10 +733,10 @@ function ttsIntro(hours: number, lang: Lang, topic: string): string {
   return `${topicName}. Here is the news analyzed for ${period}.`;
 }
 
-function SummaryBox({ data, locale, lang, hours, topic, speed, voice }: { data: SummaryResponse; locale: string; lang: Lang; hours: number; topic: string; speed: number; voice: string }) {
+function SummaryBox({ data, locale, lang, hours, topicName, speed, voice }: { data: SummaryResponse; locale: string; lang: Lang; hours: number; topicName: string; speed: number; voice: string }) {
   const raw = typeof data.summary === "string" ? data.summary : String(data.summary ?? "");
   const ttsOutro = lang === "fr" ? "... ... Analyse terminée. Vous pouvez reprendre une activité normale." : "... ... That's all folks!";
-  const ttsText = raw.trim().length > 0 ? `${ttsIntro(hours, lang, topic)} ${raw} ${ttsOutro}` : "";
+  const ttsText = raw.trim().length > 0 ? `${ttsIntro(hours, lang, topicName)} ${raw} ${ttsOutro}` : "";
   const bullets = data.bullets ?? [];
   const hasBullets = bullets.length > 0;
 
@@ -1385,6 +1322,15 @@ function TopicsPage({ lang }: { lang: Lang }) {
   const [editT4, setEditT4] = useState("");
   const [editT5, setEditT5] = useState("");
 
+  const [editingPrompt, setEditingPrompt] = useState(false);
+  const [promptLang, setPromptLang] = useState<"en" | "fr">("en");
+  const [editPromptEn, setEditPromptEn] = useState("");
+  const [editPromptFr, setEditPromptFr] = useState("");
+
+  const [formPromptEn, setFormPromptEn] = useState("");
+  const [formPromptFr, setFormPromptFr] = useState("");
+  const [formPromptLang, setFormPromptLang] = useState<"en" | "fr">("en");
+
   const secStyle: CSSProperties = { background: color.surface, border: `1px solid ${color.border}`, borderRadius: 10, padding: "16px 20px", marginBottom: 16 };
   const secTitle: CSSProperties = { color: color.gold, fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14, marginTop: 0 };
   const inputStyle: CSSProperties = {
@@ -1428,7 +1374,8 @@ function TopicsPage({ lang }: { lang: Lang }) {
       setEditDomain(d.scoringDomain);
       setEditT1(d.scoringTier1); setEditT2(d.scoringTier2);
       setEditT3(d.scoringTier3); setEditT4(d.scoringTier4); setEditT5(d.scoringTier5);
-      setEditingTopic(false);
+      setEditPromptEn(d.promptEn); setEditPromptFr(d.promptFr);
+      setEditingTopic(false); setEditingPrompt(false);
       setView("detail");
       setError(null);
     } catch { setError("Failed to load topic"); }
@@ -1446,12 +1393,15 @@ function TopicsPage({ lang }: { lang: Lang }) {
           scoringDomain: formDomain,
           scoringTier1: formT1, scoringTier2: formT2, scoringTier3: formT3,
           scoringTier4: formT4, scoringTier5: formT5,
+          promptEn: formPromptEn || undefined,
+          promptFr: formPromptFr || undefined,
         }),
       });
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || "Failed"); }
       const created = await res.json();
       setFormId(""); setFormLabelEn(""); setFormLabelFr(""); setFormDomain("");
       setFormT1(""); setFormT2(""); setFormT3(""); setFormT4(""); setFormT5("");
+      setFormPromptEn(""); setFormPromptFr("");
       await loadDetail(created.id);
     } catch (e) { setError(e instanceof Error ? e.message : "Failed"); }
     finally { setSaving(false); }
@@ -1483,6 +1433,21 @@ function TopicsPage({ lang }: { lang: Lang }) {
       if (!res.ok) throw new Error("Failed");
       await loadDetail(topicDetail.id);
     } catch { setError("Failed to save"); }
+    finally { setSaving(false); }
+  }
+
+  async function handleSavePrompt() {
+    if (!topicDetail) return;
+    setSaving(true); setError(null);
+    try {
+      const res = await fetch(`/api/topics/${topicDetail.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ promptEn: editPromptEn, promptFr: editPromptFr }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      await loadDetail(topicDetail.id);
+    } catch { setError("Failed to save prompt"); }
     finally { setSaving(false); }
   }
 
@@ -1563,6 +1528,30 @@ function TopicsPage({ lang }: { lang: Lang }) {
           </div>
         </div>
 
+        <div style={secStyle}>
+          <h4 style={secTitle}>{t("analysisPrompt", lang)} ({lang === "fr" ? "optionnel" : "optional"})</h4>
+          <div style={{ display: "flex", gap: 0, marginBottom: 10 }}>
+            {(["en", "fr"] as const).map((pl) => (
+              <button key={pl} onClick={() => setFormPromptLang(pl)} style={{
+                padding: "6px 16px", fontSize: 12, fontWeight: 600, border: `1px solid ${color.border}`,
+                borderBottom: formPromptLang === pl ? `2px solid ${color.gold}` : `1px solid ${color.border}`,
+                background: formPromptLang === pl ? color.surface : "transparent",
+                color: formPromptLang === pl ? color.gold : color.textMuted,
+                cursor: "pointer", borderRadius: pl === "en" ? "6px 0 0 0" : "0 6px 0 0",
+              }}>
+                {pl.toUpperCase()}
+              </button>
+            ))}
+          </div>
+          <textarea
+            value={formPromptLang === "en" ? formPromptEn : formPromptFr}
+            onChange={(e) => formPromptLang === "en" ? setFormPromptEn(e.target.value) : setFormPromptFr(e.target.value)}
+            placeholder={t("promptPlaceholder", lang)}
+            style={{ ...inputStyle, minHeight: 120, resize: "vertical", fontFamily: "monospace", fontSize: 12, lineHeight: 1.6 }}
+          />
+          <div style={{ color: color.textDim, fontSize: 11, marginTop: 4 }}>{t("promptMaxInfo", lang)}</div>
+        </div>
+
         <button onClick={handleCreate} disabled={saving || !formId || !formLabelEn || !formLabelFr || !formDomain} style={{ ...primaryBtn, opacity: saving ? 0.6 : 1 }}>
           {saving ? "..." : t("createBtn", lang)}
         </button>
@@ -1605,11 +1594,73 @@ function TopicsPage({ lang }: { lang: Lang }) {
               </div>
             </div>
           ) : (
-            <div style={{ display: "grid", gap: 6, fontSize: 13 }}>
+            <div style={{ display: "grid", gap: 8, fontSize: 13 }}>
               <div><span style={{ color: color.textMuted }}>EN:</span> <span style={{ color: color.text }}>{d.labelEn}</span></div>
               <div><span style={{ color: color.textMuted }}>FR:</span> <span style={{ color: color.text }}>{d.labelFr}</span></div>
-              <div><span style={{ color: color.textMuted }}>{t("scoringDomainLabel", lang)}:</span> <span style={{ color: color.text }}>{d.scoringDomain}</span></div>
+              <div style={{ marginTop: 6 }}><span style={{ color: color.textMuted, fontWeight: 600 }}>{t("scoringDomainLabel", lang)}:</span> <span style={{ color: color.text }}>{d.scoringDomain}</span></div>
+              <div style={{ marginTop: 8 }}><span style={{ color: color.textMuted, fontWeight: 600 }}>{t("scoringCriteria", lang)}:</span></div>
+              {([["9-10", d.scoringTier1], ["7-8", d.scoringTier2], ["5-6", d.scoringTier3], ["3-4", d.scoringTier4], ["1-2", d.scoringTier5]] as [string, string][]).map(([tier, val]) => (
+                <div key={tier} style={{ paddingLeft: 8, borderLeft: `2px solid ${color.border}` }}>
+                  <span style={{ color: color.gold, fontSize: 11, fontWeight: 700 }}>{tier}</span>
+                  <span style={{ color: color.textDim, marginLeft: 8 }}>{val}</span>
+                </div>
+              ))}
             </div>
+          )}
+        </div>
+
+        {/* Analysis Prompt */}
+        <div style={secStyle}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <h4 style={{ ...secTitle, marginBottom: 0 }}>{t("analysisPrompt", lang)}</h4>
+            <button onClick={() => { if (editingPrompt) { setEditPromptEn(d.promptEn); setEditPromptFr(d.promptFr); } setEditingPrompt(!editingPrompt); }} style={ghostBtn}>
+              {editingPrompt ? t("cancelBtn", lang) : t("editBtn", lang)}
+            </button>
+          </div>
+
+          <div style={{ display: "flex", gap: 0, marginBottom: 10 }}>
+            {(["en", "fr"] as const).map((pl) => (
+              <button key={pl} onClick={() => setPromptLang(pl)} style={{
+                padding: "6px 16px", fontSize: 12, fontWeight: 600, border: `1px solid ${color.border}`,
+                borderBottom: promptLang === pl ? `2px solid ${color.gold}` : `1px solid ${color.border}`,
+                background: promptLang === pl ? color.surface : "transparent",
+                color: promptLang === pl ? color.gold : color.textMuted,
+                cursor: "pointer", borderRadius: pl === "en" ? "6px 0 0 0" : "0 6px 0 0",
+              }}>
+                {pl.toUpperCase()}
+              </button>
+            ))}
+          </div>
+
+          {editingPrompt ? (
+            <>
+              <textarea
+                value={promptLang === "en" ? editPromptEn : editPromptFr}
+                onChange={(e) => promptLang === "en" ? setEditPromptEn(e.target.value) : setEditPromptFr(e.target.value)}
+                style={{ ...inputStyle, minHeight: 200, resize: "vertical", fontFamily: "monospace", fontSize: 12, lineHeight: 1.6 }}
+              />
+              {!(promptLang === "en" ? editPromptEn : editPromptFr).includes("{{max}}") && (
+                <div style={{ color: "#f59e0b", fontSize: 11, marginTop: 6 }}>{t("promptMissingMax", lang)}</div>
+              )}
+              <div style={{ color: color.textDim, fontSize: 11, marginTop: 4 }}>{t("promptMaxInfo", lang)}</div>
+              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                <button onClick={handleSavePrompt} disabled={saving} style={{ ...primaryBtn, opacity: saving ? 0.6 : 1 }}>{saving ? "..." : t("saveBtn", lang)}</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <pre style={{
+                color: color.textDim, fontSize: 12, lineHeight: 1.6, whiteSpace: "pre-wrap", wordBreak: "break-word",
+                margin: 0, padding: "10px 12px", background: "#0a0a0a", borderRadius: 6,
+                border: `1px solid ${color.border}`, maxHeight: 300, overflowY: "auto",
+              }}>
+                {promptLang === "en" ? d.promptEn : d.promptFr}
+              </pre>
+              {!(promptLang === "en" ? d.promptEn : d.promptFr).includes("{{max}}") && (d.promptEn || d.promptFr) && (
+                <div style={{ color: "#f59e0b", fontSize: 11, marginTop: 6 }}>{t("promptMissingMax", lang)}</div>
+              )}
+              <div style={{ color: color.textDim, fontSize: 11, marginTop: 4 }}>{t("promptMaxInfo", lang)}</div>
+            </>
           )}
         </div>
 
@@ -1812,17 +1863,7 @@ export default function Home() {
   }, []);
 
   const locale = dateLocale(lang);
-  const NO_ARTICLES_KEY: Record<string, string> = {
-    conflict: "noArticlesConflict",
-    ai: "noArticlesAi",
-    crypto: "noArticlesCrypto",
-    robotics: "noArticlesRobotics",
-    bitcoin: "noArticlesBitcoin",
-    videogames: "noArticlesVideogames",
-    aiengineering: "noArticlesAiengineering",
-    elon: "noArticlesElon",
-  };
-  const noArticlesKey = NO_ARTICLES_KEY[topic || "conflict"] || "noArticlesConflict";
+  const currentTopicLabel = topicLabels.find((tp) => tp.id === topic)?.label ?? topic ?? "";
 
   function startProgress() {
     setProgress(0);
@@ -1993,7 +2034,6 @@ export default function Home() {
           <TopicsPage lang={lang} />
         ) : currentPage === "settings" ? (
           <SettingsPage
-            topics={topicLabels}
             lang={lang}
             maxArticles={maxArticles}
             onMaxArticlesChange={updateMaxArticles}
@@ -2064,7 +2104,7 @@ export default function Home() {
         {/* ── Results ────────────────────────────────────────── */}
         {!loading && data && (
           <div>
-            <SummaryBox data={data} locale={locale} lang={lang} hours={selected ?? 24} topic={topic || "conflict"} speed={ttsSpeed} voice={lang === "fr" ? ttsVoiceFr : ttsVoice} />
+            <SummaryBox data={data} locale={locale} lang={lang} hours={selected ?? 24} topicName={currentTopicLabel} speed={ttsSpeed} voice={lang === "fr" ? ttsVoiceFr : ttsVoice} />
 
             {/* Tab bar */}
             <div style={{ display: "flex", borderBottom: `1px solid ${color.border}`, marginBottom: 20, gap: 0 }}>
@@ -2106,7 +2146,7 @@ export default function Home() {
                   </div>
                 ) : (
                   <p style={{ color: color.textDim, fontSize: 15 }}>
-                    {t(noArticlesKey as Parameters<typeof t>[0], lang)}
+                    {t("noArticlesForPeriod", lang)}
                   </p>
                 )}
               </>

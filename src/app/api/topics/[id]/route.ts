@@ -28,6 +28,8 @@ export async function GET(
       scoringTier3: row.scoring_tier3,
       scoringTier4: row.scoring_tier4,
       scoringTier5: row.scoring_tier5,
+      promptEn: row.prompt_en ?? "",
+      promptFr: row.prompt_fr ?? "",
       isActive: row.is_active,
       sortOrder: row.sort_order,
       feeds: row.feeds.map(
@@ -68,6 +70,8 @@ export async function PATCH(
       scoringTier3: "scoring_tier3",
       scoringTier4: "scoring_tier4",
       scoringTier5: "scoring_tier5",
+      promptEn: "prompt_en",
+      promptFr: "prompt_fr",
       isActive: "is_active",
       sortOrder: "sort_order",
     };

@@ -180,12 +180,3 @@ export async function scoreAndStoreTopicDynamic(
   return scoreCore(topicId, prompt, supabase);
 }
 
-/**
- * Legacy wrapper — reads criteria from hardcoded file.
- * Kept temporarily for backward-compat during migration.
- */
-export async function scoreAndStoreTopic(topic: string): Promise<string> {
-  const { getScoringPrompt } = await import("../../../src/lib/scoring-prompts");
-  const prompt = getScoringPrompt(topic as never);
-  return scoreCore(topic, prompt, getSupabase());
-}

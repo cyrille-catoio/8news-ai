@@ -113,12 +113,3 @@ export async function fetchAndStoreTopicDynamic(
   return fetchFeedsAndStore(topicId, feeds, supabase);
 }
 
-/**
- * Legacy wrapper — reads feeds from hardcoded file.
- * Kept temporarily for backward-compat during migration.
- */
-export async function fetchAndStoreTopic(topic: string): Promise<string> {
-  const { getFeedsForTopic } = await import("../../../src/lib/rss-feeds");
-  const feeds = getFeedsForTopic(topic as never);
-  return fetchFeedsAndStore(topic, feeds as { name: string; url: string }[], getSupabase());
-}

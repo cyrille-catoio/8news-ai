@@ -194,6 +194,8 @@ export interface TopicRow {
   scoring_tier3: string;
   scoring_tier4: string;
   scoring_tier5: string;
+  prompt_en: string;
+  prompt_fr: string;
   is_active: boolean;
   sort_order: number;
   last_fetched_at: string | null;
@@ -395,6 +397,28 @@ export async function deleteFeed(feedId: number): Promise<boolean> {
     return !error;
   } catch {
     return false;
+  }
+}
+
+export async function getTopicPrompt(
+  id: string,
+): Promise<{ prompt_en: string; prompt_fr: string } | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("topics")
+      .select("prompt_en, prompt_fr")
+      .eq("id", id)
+      .eq("is_active", true)
+      .single();
+
+    if (error || !data) return null;
+    return data as { prompt_en: string; prompt_fr: string };
+  } catch {
+    return null;
   }
 }
 

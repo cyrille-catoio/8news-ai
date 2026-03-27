@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import Parser from "rss-parser";
 import { createClient } from "@supabase/supabase-js";
-import { getFeedsForTopic } from "@/lib/rss-feeds";
 import { decodeHtmlEntities } from "@/lib/html";
-import { VALID_TOPICS } from "@/lib/types";
-import type { Topic, ParsedArticle } from "@/lib/types";
+import type { ParsedArticle } from "@/lib/types";
 
 export const maxDuration = 60;
 const rssParser = new Parser({ timeout: 5_000 });
@@ -20,9 +18,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const topicParam = params.get("topic") as Topic | null;
-  if (!topicParam || !VALID_TOPICS.includes(topicParam)) {
-    return NextResponse.json({ error: `Invalid topic. Use one of: ${VALID_TOPICS.join(", ")}` }, { status: 400 });
+  const topicParam = params.get("topic");
+  if (!topicParam) {
+    return NextResponse.json({ error: "Missing topic parameter" }, { status: 400 });
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -32,7 +30,18 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = createClient(url, key, { auth: { persistSession: false } });
-  const feeds = getFeedsForTopic(topicParam);
+
+  const { data: dbFeeds, error: feedError } = await supabase
+    .from("feeds")
+    .select("name, url")
+    .eq("topic_id", topicParam)
+    .eq("is_active", true);
+
+  if (feedError || !dbFeeds || dbFeeds.length === 0) {
+    return NextResponse.json({ error: "Invalid topic or no active feeds" }, { status: 400 });
+  }
+
+  const feeds = dbFeeds as { name: string; url: string }[];
 
   const articles: ParsedArticle[] = [];
   let feedsOk = 0;

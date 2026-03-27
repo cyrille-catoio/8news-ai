@@ -7,7 +7,7 @@ import { color, font, sectionHeading, card } from "@/lib/theme";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.54";
+const APP_VERSION = "1.55";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 const TTS_VOICES_EN = [
@@ -1327,6 +1327,13 @@ function TopicsPage({ lang }: { lang: Lang }) {
   const [formPromptEn, setFormPromptEn] = useState("");
   const [formPromptFr, setFormPromptFr] = useState("");
   const [formPromptLang, setFormPromptLang] = useState<"en" | "fr">("en");
+  const [generatingScoring, setGeneratingScoring] = useState(false);
+  const [autoFeeds, setAutoFeeds] = useState(true);
+  const [discoveringFeeds, setDiscoveringFeeds] = useState(false);
+  const [discoverResult, setDiscoverResult] = useState<{
+    added: { name: string; url: string }[];
+    rejected: { name: string; url: string; reason: string }[];
+  } | null>(null);
 
   const secStyle: CSSProperties = { background: color.surface, border: `1px solid ${color.border}`, borderRadius: 10, padding: "16px 20px", marginBottom: 16 };
   const secTitle: CSSProperties = { color: color.gold, fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14, marginTop: 0 };
@@ -1381,6 +1388,7 @@ function TopicsPage({ lang }: { lang: Lang }) {
 
   async function handleCreate() {
     setSaving(true); setError(null);
+    const wantFeeds = autoFeeds && !!formDomain.trim();
     try {
       const res = await fetch("/api/topics", {
         method: "POST",
@@ -1396,12 +1404,26 @@ function TopicsPage({ lang }: { lang: Lang }) {
       });
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || "Failed"); }
       const created = await res.json();
+      const createdId = created.id;
       setFormId(""); setFormLabelEn(""); setFormLabelFr(""); setFormDomain("");
       setFormT1(""); setFormT2(""); setFormT3(""); setFormT4(""); setFormT5("");
-      setFormPromptEn(""); setFormPromptFr("");
-      await loadDetail(created.id);
-    } catch (e) { setError(e instanceof Error ? e.message : "Failed"); }
-    finally { setSaving(false); }
+      setFormPromptEn(""); setFormPromptFr(""); setAutoFeeds(true);
+      await loadDetail(createdId);
+      setSaving(false);
+
+      if (wantFeeds) {
+        setDiscoveringFeeds(true); setDiscoverResult(null);
+        try {
+          const dr = await fetch(`/api/topics/${createdId}/discover-feeds`, { method: "POST" });
+          if (dr.ok) {
+            const data = await dr.json();
+            setDiscoverResult(data);
+          }
+          await loadDetail(createdId);
+        } catch { /* topic already created, feeds are optional */ }
+        finally { setDiscoveringFeeds(false); }
+      }
+    } catch (e) { setError(e instanceof Error ? e.message : "Failed"); setSaving(false); }
   }
 
   async function handleDeleteTopic(id: string) {
@@ -1446,6 +1468,23 @@ function TopicsPage({ lang }: { lang: Lang }) {
       await loadDetail(topicDetail.id);
     } catch { setError("Failed to save prompt"); }
     finally { setSaving(false); }
+  }
+
+  async function handleGenerateScoring() {
+    if (!formDomain.trim()) return;
+    setGeneratingScoring(true); setError(null);
+    try {
+      const res = await fetch("/api/topics/generate-scoring", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain: formDomain.trim() }),
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || "Failed"); }
+      const data = await res.json();
+      setFormT1(data.tier1); setFormT2(data.tier2); setFormT3(data.tier3);
+      setFormT4(data.tier4); setFormT5(data.tier5);
+    } catch (e) { setError(e instanceof Error ? e.message : "Failed to generate"); }
+    finally { setGeneratingScoring(false); }
   }
 
   async function handleAddFeed() {
@@ -1515,6 +1554,19 @@ function TopicsPage({ lang }: { lang: Lang }) {
             <div>
               <label style={{ color: color.textMuted, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>{t("scoringDomainLabel", lang)}</label>
               <textarea value={formDomain} onChange={(e) => setFormDomain(e.target.value)} style={textareaStyle} placeholder="Description of the domain..." />
+              <button
+                onClick={handleGenerateScoring}
+                disabled={generatingScoring || !formDomain.trim()}
+                style={{
+                  marginTop: 8, padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 600,
+                  border: `1px solid ${color.gold}`, background: "transparent", color: color.gold,
+                  cursor: generatingScoring || !formDomain.trim() ? "not-allowed" : "pointer",
+                  opacity: generatingScoring || !formDomain.trim() ? 0.5 : 1,
+                  transition: "all 0.15s",
+                }}
+              >
+                {generatingScoring ? `⏳ ${t("generatingAi", lang)}` : `✨ ${t("generateAi", lang)}`}
+              </button>
             </div>
             {[["9-10", formT1, setFormT1], ["7-8", formT2, setFormT2], ["5-6", formT3, setFormT3], ["3-4", formT4, setFormT4], ["1-2", formT5, setFormT5]].map(([tier, val, setter]) => (
               <div key={tier as string}>
@@ -1549,6 +1601,28 @@ function TopicsPage({ lang }: { lang: Lang }) {
           <div style={{ color: color.textDim, fontSize: 11, marginTop: 4 }}>{t("promptMaxInfo", lang)}</div>
         </div>
 
+        {/* Auto RSS feed discovery */}
+        <div style={{ ...secStyle, cursor: formDomain.trim() ? "pointer" : "default", opacity: formDomain.trim() ? 1 : 0.5 }} onClick={() => { if (formDomain.trim()) setAutoFeeds(!autoFeeds); }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+            <input
+              type="checkbox"
+              checked={autoFeeds && !!formDomain.trim()}
+              disabled={!formDomain.trim()}
+              onChange={(e) => setAutoFeeds(e.target.checked)}
+              onClick={(e) => e.stopPropagation()}
+              style={{ width: 20, height: 20, marginTop: 2, accentColor: color.gold, cursor: formDomain.trim() ? "pointer" : "not-allowed", flexShrink: 0 }}
+            />
+            <div>
+              <div style={{ color: color.text, fontSize: 14, fontWeight: 600 }}>
+                🔍 {t("autoFeedSearch", lang)}
+              </div>
+              <div style={{ color: color.textMuted, fontSize: 12, marginTop: 4, lineHeight: 1.5 }}>
+                {t("autoFeedSearchDesc", lang)}
+              </div>
+            </div>
+          </div>
+        </div>
+
         <button onClick={handleCreate} disabled={saving || !formId || !formLabelEn || !formLabelFr || !formDomain} style={{ ...primaryBtn, opacity: saving ? 0.6 : 1 }}>
           {saving ? "..." : t("createBtn", lang)}
         </button>
@@ -1561,7 +1635,7 @@ function TopicsPage({ lang }: { lang: Lang }) {
     const d = topicDetail;
     return (
       <div>
-        <button onClick={() => { setView("list"); loadTopics(); }} style={{ ...ghostBtn, marginBottom: 16 }}>
+        <button onClick={() => { setView("list"); loadTopics(); setDiscoverResult(null); }} style={{ ...ghostBtn, marginBottom: 16 }}>
           ← {t("back", lang)}
         </button>
         <h2 style={{ color: color.gold, fontSize: 20, fontWeight: 600, marginBottom: 20, marginTop: 0 }}>
@@ -1667,9 +1741,31 @@ function TopicsPage({ lang }: { lang: Lang }) {
             <h4 style={{ ...secTitle, marginBottom: 0 }}>{t("feeds", lang)} ({d.feeds.length})</h4>
           </div>
 
-          {d.feeds.length === 0 ? (
+          {discoveringFeeds && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 0", marginBottom: 8 }}>
+              <SpinKeyframes />
+              <span style={{ display: "inline-block", width: 18, height: 18, border: `2px solid ${color.gold}`, borderTop: "2px solid transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+              <span style={{ color: color.gold, fontSize: 13, fontWeight: 500 }}>🔍 {t("discoveringFeeds", lang)}</span>
+            </div>
+          )}
+
+          {discoverResult && !discoveringFeeds && (
+            <div style={{ padding: "10px 12px", borderRadius: 6, background: "#0a0a0a", border: `1px solid ${color.border}`, marginBottom: 10, fontSize: 13 }}>
+              {discoverResult.added.length > 0 && (
+                <div style={{ color: "#22c55e" }}>✅ {discoverResult.added.length} {t("feedsAdded", lang)}</div>
+              )}
+              {discoverResult.rejected.length > 0 && (
+                <div style={{ color: "#f59e0b", marginTop: discoverResult.added.length > 0 ? 4 : 0 }}>❌ {discoverResult.rejected.length} {t("feedsRejected", lang)}</div>
+              )}
+              {discoverResult.added.length === 0 && discoverResult.rejected.length === 0 && (
+                <div style={{ color: color.textDim }}>No feeds could be found.</div>
+              )}
+            </div>
+          )}
+
+          {d.feeds.length === 0 && !discoveringFeeds ? (
             <p style={{ color: color.textDim, fontSize: 13, margin: 0 }}>{t("noFeeds", lang)}</p>
-          ) : (
+          ) : d.feeds.length > 0 ? (
             <div style={{ display: "grid", gap: 0 }}>
               {d.feeds.map((f, i) => {
                 let domain = "";
@@ -1687,7 +1783,7 @@ function TopicsPage({ lang }: { lang: Lang }) {
                 );
               })}
             </div>
-          )}
+          ) : null}
 
           {/* Add feed form */}
           <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
@@ -1852,12 +1948,14 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (currentPage !== "home") return;
+    setTopicsLoading(true);
     fetch("/api/topics", { cache: "no-store" })
       .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
       .then((list: TopicItem[]) => setTopics(list))
       .catch(() => {})
       .finally(() => setTopicsLoading(false));
-  }, []);
+  }, [currentPage]);
 
   const locale = dateLocale(lang);
   const currentTopicLabel = topicLabels.find((tp) => tp.id === topic)?.label ?? topic ?? "";

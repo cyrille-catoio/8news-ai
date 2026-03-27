@@ -265,6 +265,14 @@ const strings = {
     en: "Domain",
     fr: "Domaine",
   },
+  generateAi: {
+    en: "Generate with AI",
+    fr: "Générer par IA",
+  },
+  generatingAi: {
+    en: "Generating…",
+    fr: "Génération…",
+  },
   topicInfo: {
     en: "Topic info",
     fr: "Info topic",
@@ -296,6 +304,26 @@ const strings = {
   promptMaxInfo: {
     en: "{{max}} will be replaced by the number of articles selected by the user.",
     fr: "{{max}} sera remplacé par le nombre d'articles sélectionné par l'utilisateur.",
+  },
+  autoFeedSearch: {
+    en: "Find 10 RSS feeds automatically",
+    fr: "Trouver 10 flux RSS automatiquement",
+  },
+  autoFeedSearchDesc: {
+    en: "The AI will search for relevant RSS feeds based on the topic domain and verify they contain articles before adding them.",
+    fr: "L'IA recherchera des flux RSS pertinents en fonction du domaine du topic et vérifiera qu'ils contiennent des articles avant de les ajouter.",
+  },
+  discoveringFeeds: {
+    en: "Searching for RSS feeds…",
+    fr: "Recherche de flux RSS…",
+  },
+  feedsAdded: {
+    en: "feeds added successfully",
+    fr: "flux ajoutés avec succès",
+  },
+  feedsRejected: {
+    en: "feeds rejected",
+    fr: "flux rejetés",
   },
 } as const;
 

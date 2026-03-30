@@ -212,7 +212,7 @@ export interface FeedRow {
   created_at: string;
 }
 
-export async function getActiveTopics(): Promise<
+export async function getActiveTopics(includeInactive = false): Promise<
   (TopicRow & { feed_count: number })[]
 > {
   const clientP = getServerClient();
@@ -221,12 +221,15 @@ export async function getActiveTopics(): Promise<
   try {
     const supabase = await clientP;
 
-    const { data: topics, error } = await supabase
+    let query = supabase
       .from("topics")
       .select("*")
-      .eq("is_active", true)
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true });
+
+    if (!includeInactive) query = query.eq("is_active", true);
+
+    const { data: topics, error } = await query;
 
     if (error || !topics) return [];
 

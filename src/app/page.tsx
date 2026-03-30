@@ -7,7 +7,7 @@ import { color, font, sectionHeading, card } from "@/lib/theme";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.56";
+const APP_VERSION = "1.57";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 const TTS_VOICES_EN = [
@@ -964,7 +964,8 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
     const ac = new AbortController();
     setLoading(true);
     setErr(null);
-    fetch(`/api/stats?topic=${statsTopic}&days=${days}`, { signal: ac.signal, cache: "no-store" })
+    const daysParam = days === -1 ? (Date.now() - new Date().setHours(0, 0, 0, 0)) / 86_400_000 : days;
+    fetch(`/api/stats?topic=${statsTopic}&days=${daysParam}`, { signal: ac.signal, cache: "no-store" })
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((json: StatsResponse) => {
         if (ac.signal.aborted) return;
@@ -1001,6 +1002,10 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
 
   const periodOpts = [
     { label: t("allTime", lang), value: 0 },
+    { label: t("last1h", lang), value: 1 / 24 },
+    { label: t("last3h", lang), value: 3 / 24 },
+    { label: t("last6h", lang), value: 6 / 24 },
+    { label: t("today", lang), value: -1 },
     { label: t("yesterday", lang), value: 1 },
     { label: t("last3d", lang), value: 3 },
     { label: t("last7d", lang), value: 7 },
@@ -1095,13 +1100,13 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
       </div>
 
       {/* ── Period filter ────────────────────────── */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" }}>
         {periodOpts.map((o) => (
           <button
             key={o.value}
             onClick={() => setDays(o.value)}
             style={{
-              padding: "6px 14px", borderRadius: 6, fontSize: 13, fontWeight: 600,
+              padding: "5px 10px", borderRadius: 6, fontSize: 12, fontWeight: 600,
               border: `1px solid ${days === o.value ? color.gold : color.border}`,
               background: days === o.value ? color.gold : "transparent",
               color: days === o.value ? "#000" : color.textMuted,
@@ -1359,7 +1364,7 @@ function TopicsPage({ lang }: { lang: Lang }) {
   async function loadTopics() {
     setLoading(true);
     try {
-      const res = await fetch("/api/topics", { cache: "no-store" });
+      const res = await fetch("/api/topics?all=1", { cache: "no-store" });
       if (!res.ok) throw new Error("Failed");
       setTopics(await res.json());
       setError(null);
@@ -1467,6 +1472,21 @@ function TopicsPage({ lang }: { lang: Lang }) {
       if (!res.ok) throw new Error("Failed");
       await loadDetail(topicDetail.id);
     } catch { setError("Failed to save prompt"); }
+    finally { setSaving(false); }
+  }
+
+  async function handleToggleActive() {
+    if (!topicDetail) return;
+    setSaving(true); setError(null);
+    try {
+      const res = await fetch(`/api/topics/${topicDetail.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: !topicDetail.isActive }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      await loadDetail(topicDetail.id);
+    } catch { setError("Failed to toggle status"); }
     finally { setSaving(false); }
   }
 
@@ -1638,9 +1658,36 @@ function TopicsPage({ lang }: { lang: Lang }) {
         <button onClick={() => { setView("list"); loadTopics(); setDiscoverResult(null); }} style={{ ...ghostBtn, marginBottom: 16 }}>
           ← {t("back", lang)}
         </button>
-        <h2 style={{ color: color.gold, fontSize: 20, fontWeight: 600, marginBottom: 20, marginTop: 0 }}>
+        <h2 style={{ color: color.gold, fontSize: 20, fontWeight: 600, marginBottom: 12, marginTop: 0 }}>
           {lang === "fr" ? d.labelFr : d.labelEn}
         </h2>
+
+        {/* Active/Inactive toggle */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, padding: "10px 14px", borderRadius: 8, background: d.isActive ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)", border: `1px solid ${d.isActive ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)"}` }}>
+          <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: d.isActive ? "#22c55e" : "#ef4444", flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>
+            <span style={{ color: d.isActive ? "#22c55e" : "#ef4444", fontSize: 13, fontWeight: 600 }}>
+              {d.isActive ? t("statusActive", lang) : t("statusInactive", lang)}
+            </span>
+            <span style={{ color: color.textDim, fontSize: 11, marginLeft: 8 }}>
+              {d.isActive ? t("topicVisibleHome", lang) : t("topicHiddenHome", lang)}
+            </span>
+          </div>
+          <button
+            onClick={handleToggleActive}
+            disabled={saving}
+            style={{
+              padding: "5px 14px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer",
+              border: `1px solid ${d.isActive ? "rgba(239,68,68,0.4)" : "rgba(34,197,94,0.4)"}`,
+              background: "transparent",
+              color: d.isActive ? "#ef4444" : "#22c55e",
+              opacity: saving ? 0.5 : 1,
+            }}
+          >
+            {d.isActive ? t("disableTopic", lang) : t("enableTopic", lang)}
+          </button>
+        </div>
+
         {error && <div style={{ color: "#ef4444", fontSize: 13, marginBottom: 12 }}>{error}</div>}
 
         {/* Topic info */}
@@ -2116,7 +2163,8 @@ export default function Home() {
           <img
             src="/logo-8news.png"
             alt="8news"
-            style={{ height: "clamp(32px, 5vw, 48px)", width: "auto", display: "block" }}
+            onClick={() => setCurrentPage("home")}
+            style={{ height: "clamp(32px, 5vw, 48px)", width: "auto", display: "block", cursor: "pointer" }}
           />
           <p style={{ color: color.textMuted, fontSize: 15, marginTop: 8 }}>
             {t("subtitle", lang)}
@@ -2139,11 +2187,16 @@ export default function Home() {
             ttsVoiceFr={ttsVoiceFr}
             onTtsVoiceFrChange={updateTtsVoiceFr}
           />
+        ) : topicsLoading ? (
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "80px 0" }}>
+          <SpinKeyframes />
+          <span style={{ display: "inline-block", width: 28, height: 28, border: `3px solid ${color.gold}`, borderTop: "3px solid transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+        </div>
         ) : (
         <>
         {/* ── Topic selector ──────────────────────────────────── */}
         <section style={{ marginBottom: 24 }}>
-          <TopicToggle topics={topicLabels} topic={topic} disabled={loading || topicsLoading} onChange={handleTopicChange} />
+          <TopicToggle topics={topicLabels} topic={topic} disabled={loading} onChange={handleTopicChange} />
         </section>
 
         {/* ── Period selector ────────────────────────────────── */}

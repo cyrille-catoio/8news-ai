@@ -141,12 +141,28 @@ const strings = {
     en: "All time",
     fr: "Tout",
   },
+  last1h: {
+    en: "1h",
+    fr: "1h",
+  },
+  last3h: {
+    en: "3h",
+    fr: "3h",
+  },
+  last6h: {
+    en: "6h",
+    fr: "6h",
+  },
+  today: {
+    en: "Today",
+    fr: "Aujourd'hui",
+  },
   yesterday: {
     en: "Yesterday",
     fr: "Hier",
   },
   last3d: {
-    en: "Last 3 days",
+    en: "3 days",
     fr: "3 jours",
   },
   last7d: {
@@ -288,6 +304,22 @@ const strings = {
   statusInactive: {
     en: "Inactive",
     fr: "Inactif",
+  },
+  enableTopic: {
+    en: "Enable",
+    fr: "Activer",
+  },
+  disableTopic: {
+    en: "Disable",
+    fr: "Désactiver",
+  },
+  topicVisibleHome: {
+    en: "Visible on homepage and scored by crons",
+    fr: "Visible sur la page d'accueil et scoré par les crons",
+  },
+  topicHiddenHome: {
+    en: "Hidden from homepage, not scored by crons",
+    fr: "Masqué de la page d'accueil, non scoré par les crons",
   },
   analysisPrompt: {
     en: "Analysis Prompt",

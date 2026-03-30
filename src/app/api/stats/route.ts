@@ -132,7 +132,7 @@ function buildTopicComparison(
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const topic = searchParams.get("topic") || "all";
-  const days = Math.max(0, parseInt(searchParams.get("days") || "0", 10) || 0);
+  const days = Math.max(0, parseFloat(searchParams.get("days") || "0") || 0);
 
   const activeTopics = await getActiveTopics();
   const validIds = new Set(activeTopics.map((t) => t.id));

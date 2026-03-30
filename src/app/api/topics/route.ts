@@ -5,9 +5,10 @@ import {
 } from "@/lib/supabase";
 import type { TopicItem } from "@/lib/types";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const rows = await getActiveTopics();
+    const includeAll = req.nextUrl.searchParams.get("all") === "1";
+    const rows = await getActiveTopics(includeAll);
 
     const topics: TopicItem[] = rows.map((r) => ({
       id: r.id,

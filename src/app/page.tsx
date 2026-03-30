@@ -7,7 +7,7 @@ import { color, font, sectionHeading, card } from "@/lib/theme";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.57";
+const APP_VERSION = "1.58";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 const TTS_VOICES_EN = [
@@ -1531,6 +1531,23 @@ function TopicsPage({ lang }: { lang: Lang }) {
     } catch { setError("Failed to delete feed"); }
   }
 
+  async function handleReorder(idA: string, idB: string) {
+    const newTopics = [...topics];
+    const iA = newTopics.findIndex((tp) => tp.id === idA);
+    const iB = newTopics.findIndex((tp) => tp.id === idB);
+    if (iA === -1 || iB === -1) return;
+    [newTopics[iA], newTopics[iB]] = [newTopics[iB], newTopics[iA]];
+    setTopics(newTopics);
+    try {
+      const res = await fetch("/api/topics/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topicA: idA, topicB: idB }),
+      });
+      if (!res.ok) throw new Error();
+    } catch { loadTopics(); }
+  }
+
   useEffect(() => { loadTopics(); }, []);
 
   function slugify(s: string) {
@@ -1880,19 +1897,28 @@ function TopicsPage({ lang }: { lang: Lang }) {
           <table className="tp-tb">
             <thead>
               <tr>
+                <th style={{ width: 40 }}></th>
                 <th>#</th>
                 <th>Topic</th>
                 <th>{t("feeds", lang)}</th>
                 <th className="col-hide">Status</th>
-                <th>{t("activeFeeds", lang)}</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               {topics.map((tp, i) => (
                 <tr key={tp.id}>
+                  <td style={{ whiteSpace: "nowrap", padding: "4px 2px" }}>
+                    {i > 0 && (
+                      <button onClick={() => handleReorder(tp.id, topics[i - 1].id)} title={t("moveUp", lang)} style={{ background: "none", border: "none", color: color.textMuted, fontSize: 14, fontWeight: 700, cursor: "pointer", padding: "2px 5px", borderRadius: 4 }}>↑</button>
+                    )}
+                    {i < topics.length - 1 && (
+                      <button onClick={() => handleReorder(tp.id, topics[i + 1].id)} title={t("moveDown", lang)} style={{ background: "none", border: "none", color: color.textMuted, fontSize: 14, fontWeight: 700, cursor: "pointer", padding: "2px 5px", borderRadius: 4 }}>↓</button>
+                    )}
+                  </td>
                   <td style={{ color: color.textDim, fontSize: 11 }}>{i + 1}</td>
                   <td>
-                    <button onClick={() => loadDetail(tp.id)} style={{ background: "none", border: "none", color: color.gold, fontWeight: 600, fontSize: 13, cursor: "pointer", padding: 0, textAlign: "left" }}>
+                    <button onClick={() => loadDetail(tp.id)} style={{ background: "none", border: "none", color: tp.isActive ? color.gold : color.textDim, fontWeight: 600, fontSize: 13, cursor: "pointer", padding: 0, textAlign: "left" }}>
                       {lang === "fr" ? tp.labelFr : tp.labelEn}
                     </button>
                   </td>

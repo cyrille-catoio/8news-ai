@@ -313,6 +313,14 @@ const strings = {
     en: "Disable",
     fr: "Désactiver",
   },
+  moveUp: {
+    en: "Move up",
+    fr: "Monter",
+  },
+  moveDown: {
+    en: "Move down",
+    fr: "Descendre",
+  },
   topicVisibleHome: {
     en: "Visible on homepage and scored by crons",
     fr: "Visible sur la page d'accueil et scoré par les crons",

@@ -7,7 +7,7 @@ import { color, font, sectionHeading, card } from "@/lib/theme";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.58";
+const APP_VERSION = "1.59";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 const TTS_VOICES_EN = [
@@ -1052,8 +1052,8 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
       </h2>
 
       <style>{`
-        .s-kpi7{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:20px}
-        @media(max-width:640px){.s-kpi7{grid-template-columns:repeat(4,1fr)}}
+        .s-kpi5{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:20px}
+        @media(max-width:640px){.s-kpi5{grid-template-columns:repeat(2,1fr)}}
         .s-tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
         .s-tb{width:100%;border-collapse:collapse;font-size:13px;min-width:700px}
         .s-tb th{position:sticky;top:0;background:#0d0d0d;padding:8px 6px;text-align:left;font-weight:600;color:${color.textMuted};border-bottom:1px solid ${color.border};white-space:nowrap;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
@@ -1129,14 +1129,12 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
       )}
 
       {/* ── KPIs ─────────────────────────────────── */}
-      <div className="s-kpi7">
+      <div className="s-kpi5">
         <div style={kpiCard}><div style={kpiVal}>{fmt(g.totalArticles)}</div><div style={kpiLbl}>{t("totalArticles", lang)}</div></div>
         <div style={kpiCard}><div style={kpiVal}>{fmt(g.scoredArticles)}</div><div style={kpiLbl}>{t("scoredArticles", lang)}</div></div>
         <div style={kpiCard}><div style={{ ...kpiVal, color: covClr(g.pctScored) }}>{g.pctScored}%</div><div style={kpiLbl}>{t("coverage", lang)}</div></div>
         <div style={kpiCard}><div style={{ ...kpiVal, color: scoreClr(g.avgScore) }}>{g.avgScore}</div><div style={kpiLbl}>{t("avgScore", lang)}</div></div>
-        <div style={kpiCard}><div style={kpiVal}>{fmt(g.new24h)}</div><div style={kpiLbl}>{t("new24h", lang)}</div></div>
-        <div style={kpiCard}><div style={kpiVal}>{fmt(g.new7d)}</div><div style={kpiLbl}>{t("new7d", lang)}</div></div>
-        <div style={kpiCard}><div style={kpiVal}>{fmt(g.scored24h)}</div><div style={kpiLbl}>{t("scored24h", lang)}</div></div>
+        <div style={kpiCard}><div style={kpiVal}>{g.hitRate}%</div><div style={kpiLbl}>Hit %</div></div>
       </div>
 
       {/* ── Score Distribution ────────────────────── */}
@@ -1185,7 +1183,18 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
                   <tr key={`${f.source}\0${f.topic}`}>
                     <td style={{ color: color.textDim, fontSize: 11 }}>{i + 1}</td>
                     <td className="col-src" style={{ fontWeight: 500, color: color.text, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {f.source}
+                      {f.sourceUrl ? (
+                        <a
+                          href={f.sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: color.text, textDecoration: "none" }}
+                        >
+                          {f.source}
+                        </a>
+                      ) : (
+                        f.source
+                      )}
                     </td>
                     {statsTopic === "all" && <td style={{ color: color.textMuted, fontSize: 12 }}>{topicLabel(f.topic)}</td>}
                     <td>{fmt(f.total)}</td>
@@ -1523,6 +1532,20 @@ function TopicsPage({ lang }: { lang: Lang }) {
     finally { setAddingFeed(false); }
   }
 
+  async function handleDiscoverFeeds() {
+    if (!topicDetail) return;
+    setDiscoveringFeeds(true); setDiscoverResult(null); setError(null);
+    try {
+      const dr = await fetch(`/api/topics/${topicDetail.id}/discover-feeds`, { method: "POST" });
+      if (dr.ok) setDiscoverResult(await dr.json());
+      else { const e = await dr.json().catch(() => ({})); setError((e as { error?: string }).error || "Failed"); }
+    } catch { setError("Failed to discover feeds"); }
+    finally {
+      await loadDetail(topicDetail.id);
+      setDiscoveringFeeds(false);
+    }
+  }
+
   async function handleDeleteFeed(feedId: number) {
     if (!topicDetail) return;
     try {
@@ -1822,7 +1845,7 @@ function TopicsPage({ lang }: { lang: Lang }) {
                 <div style={{ color: "#f59e0b", marginTop: discoverResult.added.length > 0 ? 4 : 0 }}>❌ {discoverResult.rejected.length} {t("feedsRejected", lang)}</div>
               )}
               {discoverResult.added.length === 0 && discoverResult.rejected.length === 0 && (
-                <div style={{ color: color.textDim }}>No feeds could be found.</div>
+                <div style={{ color: color.textDim }}>{t("noFeedsFoundAi", lang)}</div>
               )}
             </div>
           )}
@@ -1850,12 +1873,31 @@ function TopicsPage({ lang }: { lang: Lang }) {
           ) : null}
 
           {/* Add feed form */}
-          <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-            <input value={feedName} onChange={(e) => setFeedName(e.target.value)} placeholder={t("feedName", lang)} style={{ ...inputStyle, flex: "1 1 120px" }} />
-            <input value={feedUrl} onChange={(e) => setFeedUrl(e.target.value)} placeholder={t("feedUrl", lang)} style={{ ...inputStyle, flex: "2 1 200px" }} />
-            <button onClick={handleAddFeed} disabled={addingFeed || !feedName.trim() || !feedUrl.trim()} style={{ ...primaryBtn, opacity: addingFeed ? 0.6 : 1, flexShrink: 0 }}>
-              {addingFeed ? "..." : "+ " + t("addFeed", lang)}
+          <div style={{ marginTop: 12 }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <input value={feedName} onChange={(e) => setFeedName(e.target.value)} placeholder={t("feedName", lang)} style={{ ...inputStyle, flex: "1 1 120px" }} />
+              <input value={feedUrl} onChange={(e) => setFeedUrl(e.target.value)} placeholder={t("feedUrl", lang)} style={{ ...inputStyle, flex: "2 1 200px" }} />
+              <button onClick={handleAddFeed} disabled={addingFeed || discoveringFeeds || !feedName.trim() || !feedUrl.trim()} style={{ ...primaryBtn, opacity: addingFeed ? 0.6 : 1, flexShrink: 0 }}>
+                {addingFeed ? "..." : "+ " + t("addFeed", lang)}
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={handleDiscoverFeeds}
+              disabled={discoveringFeeds || addingFeed}
+              style={{
+                marginTop: 10, padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 600,
+                border: `1px solid ${color.gold}`, background: "transparent", color: color.gold,
+                cursor: discoveringFeeds || addingFeed ? "not-allowed" : "pointer",
+                opacity: discoveringFeeds || addingFeed ? 0.5 : 1,
+                transition: "all 0.15s",
+              }}
+            >
+              {discoveringFeeds ? `⏳ ${t("discoveringFeeds", lang)}` : `✨ ${t("addFeedsByAi", lang)}`}
             </button>
+            <div style={{ color: color.textDim, fontSize: 11, marginTop: 6, maxWidth: 420, lineHeight: 1.45 }}>
+              {t("autoFeedSearchDesc", lang)}
+            </div>
           </div>
         </div>
       </div>

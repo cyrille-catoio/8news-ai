@@ -120,6 +120,12 @@ export interface TopArticleRow {
   score_reason: string | null;
 }
 
+export interface StatsFeedRow {
+  topic_id: string;
+  name: string;
+  url: string;
+}
+
 export async function getAllArticlesForStats(): Promise<StatsArticleRow[]> {
   const clientP = getServerClient();
   if (!clientP) return [];
@@ -177,6 +183,23 @@ export async function getTopArticlesForStats(
 
     if (error || !data) return [];
     return data as TopArticleRow[];
+  } catch {
+    return [];
+  }
+}
+
+export async function getActiveFeedsForStats(): Promise<StatsFeedRow[]> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
+
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("feeds")
+      .select("topic_id, name, url")
+      .eq("is_active", true);
+    if (error || !data) return [];
+    return data as StatsFeedRow[];
   } catch {
     return [];
   }

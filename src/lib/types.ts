@@ -88,6 +88,7 @@ export interface StatsResponse {
     scoredArticles: number;
     pctScored: number;
     avgScore: number;
+    hitRate: number;
     new24h: number;
     new7d: number;
     scored24h: number;
@@ -100,6 +101,7 @@ export interface StatsResponse {
   feedRanking: Array<{
     source: string;
     topic: string;
+    sourceUrl?: string;
     total: number;
     scored: number;
     avgScore: number;

@@ -246,8 +246,16 @@ const strings = {
     fr: "Êtes-vous sûr ?",
   },
   addFeed: {
-    en: "Add Feed",
+    en: "Add feed",
     fr: "Ajouter un flux",
+  },
+  addFeedsByAi: {
+    en: "Find 10 RSS feeds with AI",
+    fr: "Trouver 10 flux RSS par IA",
+  },
+  noFeedsFoundAi: {
+    en: "No feeds could be found.",
+    fr: "Aucun flux n'a pu être trouvé.",
   },
   feedName: {
     en: "Feed name",

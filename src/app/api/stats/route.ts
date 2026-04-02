@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   getAllArticlesForStats,
+  getActiveFeedsForStats,
   getTopArticlesForStats,
   getActiveTopics,
   type StatsArticleRow,
@@ -40,7 +41,10 @@ interface FeedBucket {
   scores: number[];
 }
 
-function buildFeedRanking(articles: StatsArticleRow[]): StatsResponse["feedRanking"] {
+function buildFeedRanking(
+  articles: StatsArticleRow[],
+  feedUrlByTopicAndSource: Map<string, string>,
+): StatsResponse["feedRanking"] {
   const map = new Map<string, FeedBucket>();
 
   for (const a of articles) {
@@ -66,6 +70,7 @@ function buildFeedRanking(articles: StatsArticleRow[]): StatsResponse["feedRanki
       return {
         source: f.source,
         topic: f.topic,
+        sourceUrl: feedUrlByTopicAndSource.get(`${f.topic}\0${f.source}`),
         total: f.total,
         scored: f.scored,
         avgScore: roundOne(avg),
@@ -141,9 +146,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Invalid topic" }, { status: 400 });
   }
 
-  const [allArticles, topArticles] = await Promise.all([
+  const [allArticles, topArticles, activeFeeds] = await Promise.all([
     getAllArticlesForStats(),
     getTopArticlesForStats(topic === "all" ? null : topic, days),
+    getActiveFeedsForStats(),
   ]);
 
   const now = Date.now();
@@ -164,6 +170,10 @@ export async function GET(req: NextRequest) {
     scoredArticles > 0
       ? roundOne(filteredScored.reduce((s, a) => s + a.relevance_score!, 0) / scoredArticles)
       : 0;
+  const hitRate = pctOf(
+    filteredScored.filter((a) => (a.relevance_score ?? 0) >= 7).length,
+    scoredArticles,
+  );
 
   const cutoff24h = new Date(now - 24 * 3_600_000).toISOString();
   const cutoff7d = new Date(now - 7 * 86_400_000).toISOString();
@@ -176,6 +186,10 @@ export async function GET(req: NextRequest) {
 
   const feedCounts: Record<string, number> = {};
   for (const tp of activeTopics) feedCounts[tp.id] = tp.feed_count;
+  const feedUrlByTopicAndSource = new Map<string, string>();
+  for (const feed of activeFeeds) {
+    feedUrlByTopicAndSource.set(`${feed.topic_id}\0${feed.name}`, feed.url);
+  }
 
   const response: StatsResponse = {
     global: {
@@ -183,12 +197,13 @@ export async function GET(req: NextRequest) {
       scoredArticles,
       pctScored: pctOf(scoredArticles, totalArticles),
       avgScore,
+      hitRate,
       new24h,
       new7d,
       scored24h,
     },
     scoreDistribution: buildScoreDistribution(filteredScored),
-    feedRanking: buildFeedRanking(filtered),
+    feedRanking: buildFeedRanking(filtered, feedUrlByTopicAndSource),
     topArticles: topArticles.map((a) => ({
       title: a.title,
       link: a.link,

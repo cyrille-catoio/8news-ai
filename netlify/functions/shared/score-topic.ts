@@ -3,7 +3,8 @@ import OpenAI from "openai";
 import type { ScoreResult } from "../../../src/lib/types";
 
 const BATCH_SIZE = 50;
-const MAX_ARTICLES_PER_RUN = 100;
+const MAX_ARTICLES_PER_RUN = 50;
+const OPENAI_TIMEOUT_MS = 6_000;
 const SCORE_WINDOW_HOURS = 168;
 
 interface DbRow {
@@ -70,14 +71,17 @@ async function scoreArticleBatch(
     .map((a, i) => `[${i}] ${a.title} | ${(a.snippet || a.content || "").slice(0, 300)}`)
     .join("\n");
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-nano",
-    messages: [
-      { role: "system", content: prompt },
-      { role: "user", content: articleList },
-    ],
-    response_format: { type: "json_object" },
-  });
+  const completion = await openai.chat.completions.create(
+    {
+      model: "gpt-4.1-nano",
+      messages: [
+        { role: "system", content: prompt },
+        { role: "user", content: articleList },
+      ],
+      response_format: { type: "json_object" },
+    },
+    { timeout: OPENAI_TIMEOUT_MS },
+  );
 
   const raw = completion.choices[0]?.message?.content;
   if (!raw) return [];

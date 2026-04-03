@@ -373,6 +373,78 @@ const strings = {
     en: "feeds rejected",
     fr: "flux rejetés",
   },
+  cronMonitor: {
+    en: "Cron Monitor",
+    fr: "Monitoring Crons",
+  },
+  backlog: {
+    en: "Backlog",
+    fr: "En attente",
+  },
+  fetched24h: {
+    en: "Fetched 24h",
+    fr: "Fetchés 24h",
+  },
+  scored24hCron: {
+    en: "Scored 24h",
+    fr: "Scorés 24h",
+  },
+  coverage24h: {
+    en: "Coverage 24h",
+    fr: "Couverture 24h",
+  },
+  avgDelay: {
+    en: "Avg delay",
+    fr: "Délai moy.",
+  },
+  lastFetch: {
+    en: "Last fetch",
+    fr: "Dernier fetch",
+  },
+  lastScore: {
+    en: "Last score",
+    fr: "Dernier score",
+  },
+  topicStatus: {
+    en: "Topic Status",
+    fr: "Statut des topics",
+  },
+  activityTimeline: {
+    en: "Activity (last 24h)",
+    fr: "Activité (dernières 24h)",
+  },
+  statusOk: {
+    en: "OK",
+    fr: "OK",
+  },
+  statusSlow: {
+    en: "Slow",
+    fr: "Lent",
+  },
+  statusHigh: {
+    en: "High backlog",
+    fr: "Backlog élevé",
+  },
+  minutesAgo: {
+    en: "min ago",
+    fr: "min",
+  },
+  hoursAgo: {
+    en: "h ago",
+    fr: "h",
+  },
+  hourCol: {
+    en: "Hour",
+    fr: "Heure",
+  },
+  fetchedCol: {
+    en: "Fetched",
+    fr: "Fetchés",
+  },
+  scoredCol: {
+    en: "Scored",
+    fr: "Scorés",
+  },
 } as const;
 
 type StringKey = keyof typeof strings;

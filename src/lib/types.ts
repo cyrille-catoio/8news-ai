@@ -132,3 +132,28 @@ export interface StatsResponse {
     totalFeeds: number;
   }>;
 }
+
+// ── Cron Monitor ─────────────────────────────────────────────────────
+
+export interface CronStatsResponse {
+  global: {
+    backlog: number;
+    fetched24h: number;
+    scored24h: number;
+    coverage24h: number;
+    avgDelayMinutes: number;
+  };
+  topics: Array<{
+    id: string;
+    label: string;
+    lastFetchedAt: string | null;
+    lastScoredAt: string | null;
+    backlog: number;
+    status: "ok" | "slow" | "high";
+  }>;
+  timeline: Array<{
+    hour: string;
+    fetched: number;
+    scored: number;
+  }>;
+}

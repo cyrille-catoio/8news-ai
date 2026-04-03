@@ -1,13 +1,13 @@
 "use client";
 
 import { type CSSProperties, useState, useEffect, useCallback, useRef } from "react";
-import type { SummaryResponse, ArticleSummary, StatsResponse, TopicItem, TopicDetail, FeedItem } from "@/lib/types";
+import type { SummaryResponse, ArticleSummary, StatsResponse, TopicItem, TopicDetail, FeedItem, CronStatsResponse } from "@/lib/types";
 import { t, dateLocale, type Lang } from "@/lib/i18n";
 import { color, font, sectionHeading, card } from "@/lib/theme";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.59";
+const APP_VERSION = "1.60";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 const TTS_VOICES_EN = [
@@ -1299,6 +1299,207 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
   );
 }
 
+// ── Cron Monitor page ─────────────────────────────────────────────────
+
+function CronMonitorPage({ lang }: { lang: Lang }) {
+  const [data, setData] = useState<CronStatsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+
+  const loadData = useCallback(() => {
+    fetch("/api/cron-stats", { cache: "no-store" })
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then((json: CronStatsResponse) => { setData(json); setErr(null); })
+      .catch((e: unknown) => setErr(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    const id = setInterval(loadData, 60_000);
+    return () => clearInterval(id);
+  }, [loadData]);
+
+  const fmt = (n: number) => n.toLocaleString(lang === "fr" ? "fr-FR" : "en-US");
+
+  function timeAgo(iso: string | null): string {
+    if (!iso) return "—";
+    const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
+    if (mins < 1) return "< 1 " + t("minutesAgo", lang);
+    if (mins < 60) return `${mins} ${t("minutesAgo", lang)}`;
+    const hours = Math.floor(mins / 60);
+    return `${hours} ${t("hoursAgo", lang)}`;
+  }
+
+  function statusIcon(s: "ok" | "slow" | "high"): string {
+    if (s === "ok") return "✅";
+    if (s === "slow") return "⚠️";
+    return "🔴";
+  }
+
+  function statusLabel(s: "ok" | "slow" | "high"): string {
+    if (s === "ok") return t("statusOk", lang);
+    if (s === "slow") return t("statusSlow", lang);
+    return t("statusHigh", lang);
+  }
+
+  function kpiColor(val: number, thresholds: [number, number], invert = false): string {
+    const [low, high] = thresholds;
+    if (invert) {
+      if (val <= low) return "#22c55e";
+      if (val <= high) return color.gold;
+      return "#ef4444";
+    }
+    if (val >= high) return "#22c55e";
+    if (val >= low) return color.gold;
+    return "#ef4444";
+  }
+
+  const kpiCard: CSSProperties = { background: color.surface, border: `1px solid ${color.border}`, borderRadius: 8, padding: "10px 6px", textAlign: "center" };
+  const kpiVal: CSSProperties = { fontSize: 17, fontWeight: 700 };
+  const kpiLbl: CSSProperties = { fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: color.textMuted, marginTop: 2 };
+  const secStyle: CSSProperties = { background: color.surface, border: `1px solid ${color.border}`, borderRadius: 10, padding: "16px 20px", marginBottom: 16 };
+  const secTitle: CSSProperties = { color: color.gold, fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14, marginTop: 0 };
+  const thStyle: CSSProperties = { textAlign: "left", padding: "6px 10px", fontSize: 11, fontWeight: 600, color: color.textMuted, borderBottom: `1px solid ${color.border}`, whiteSpace: "nowrap" };
+  const tdStyle: CSSProperties = { padding: "6px 10px", fontSize: 13, borderBottom: `1px solid ${color.border}`, whiteSpace: "nowrap" };
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: "center", padding: "60px 0", color: color.textMuted }}>
+        <SpinKeyframes />
+        <span style={{ display: "inline-block", width: 24, height: 24, border: `3px solid ${color.gold}`, borderTop: "3px solid transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+      </div>
+    );
+  }
+
+  if (err) {
+    return <div style={{ background: color.errorBg, border: `1px solid ${color.errorBorder}`, borderRadius: 8, padding: "12px 16px", color: color.errorText, fontSize: 15 }}>{err}</div>;
+  }
+
+  if (!data) return null;
+
+  const maxBar = Math.max(...data.timeline.map((h) => Math.max(h.fetched, h.scored)), 1);
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
+        <h2 style={{ ...sectionHeading, marginBottom: 0 }}>{t("cronMonitor", lang)}</h2>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#22c55e", display: "inline-block", animation: "pulse 2s ease-in-out infinite" }} title="Auto-refresh 60s" />
+        <style>{`@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
+      </div>
+
+      {/* ── KPIs ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginBottom: 20 }}>
+        <div style={kpiCard}>
+          <div style={{ ...kpiVal, color: kpiColor(data.global.backlog, [50, 200], true) }}>{fmt(data.global.backlog)}</div>
+          <div style={kpiLbl}>{t("backlog", lang)}</div>
+        </div>
+        <div style={kpiCard}>
+          <div style={{ ...kpiVal, color: color.gold }}>{fmt(data.global.fetched24h)}</div>
+          <div style={kpiLbl}>{t("fetched24h", lang)}</div>
+        </div>
+        <div style={kpiCard}>
+          <div style={{ ...kpiVal, color: color.gold }}>{fmt(data.global.scored24h)}</div>
+          <div style={kpiLbl}>{t("scored24hCron", lang)}</div>
+        </div>
+        <div style={kpiCard}>
+          <div style={{ ...kpiVal, color: kpiColor(data.global.coverage24h, [70, 90]) }}>{data.global.coverage24h}%</div>
+          <div style={kpiLbl}>{t("coverage24h", lang)}</div>
+        </div>
+        <div style={kpiCard}>
+          <div style={{ ...kpiVal, color: kpiColor(data.global.avgDelayMinutes, [15, 60], true) }}>{data.global.avgDelayMinutes} min</div>
+          <div style={kpiLbl}>{t("avgDelay", lang)}</div>
+        </div>
+      </div>
+
+      {/* ── Topic Status ── */}
+      <div style={secStyle}>
+        <h3 style={secTitle}>{t("topicStatus", lang)}</h3>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={thStyle}>Topic</th>
+                <th style={thStyle}>{t("lastFetch", lang)}</th>
+                <th style={thStyle}>{t("lastScore", lang)}</th>
+                <th style={{ ...thStyle, textAlign: "right" }}>{t("backlog", lang)}</th>
+                <th style={thStyle}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.topics.map((tp) => (
+                <tr key={tp.id}>
+                  <td style={{ ...tdStyle, fontWeight: 600 }}>{tp.label}</td>
+                  <td style={tdStyle}>{timeAgo(tp.lastFetchedAt)}</td>
+                  <td style={tdStyle}>{timeAgo(tp.lastScoredAt)}</td>
+                  <td style={{
+                    ...tdStyle,
+                    textAlign: "right",
+                    fontWeight: 600,
+                    color: tp.backlog > 200 ? "#ef4444" : tp.backlog >= 50 ? color.gold : color.text,
+                  }}>{fmt(tp.backlog)}</td>
+                  <td style={tdStyle}>{statusIcon(tp.status)} {statusLabel(tp.status)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ── Activity Timeline ── */}
+      <div style={secStyle}>
+        <h3 style={secTitle}>{t("activityTimeline", lang)}</h3>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={thStyle}>{t("hourCol", lang)}</th>
+                <th style={thStyle}>{t("fetchedCol", lang)}</th>
+                <th style={thStyle}>{t("scoredCol", lang)}</th>
+                <th style={{ ...thStyle, textAlign: "right" }}>{t("coverage", lang)}</th>
+                <th style={{ ...thStyle, width: "40%" }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.timeline.map((row) => {
+                const hDate = new Date(row.hour);
+                const hLabel = hDate.toLocaleTimeString(lang === "fr" ? "fr-FR" : "en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+                const cov = row.fetched > 0 ? Math.round((row.scored / row.fetched) * 100) : 0;
+                const fetchW = Math.max(2, (row.fetched / maxBar) * 100);
+                const scoreW = Math.max(2, (row.scored / maxBar) * 100);
+                return (
+                  <tr key={row.hour}>
+                    <td style={{ ...tdStyle, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{hLabel}</td>
+                    <td style={{ ...tdStyle, fontVariantNumeric: "tabular-nums" }}>{fmt(row.fetched)}</td>
+                    <td style={{ ...tdStyle, fontVariantNumeric: "tabular-nums" }}>{fmt(row.scored)}</td>
+                    <td style={{
+                      ...tdStyle,
+                      textAlign: "right",
+                      fontVariantNumeric: "tabular-nums",
+                      color: cov >= 90 ? "#22c55e" : cov >= 70 ? color.gold : "#ef4444",
+                    }}>{cov}%</td>
+                    <td style={{ ...tdStyle, padding: "6px 10px" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                        <div style={{ height: 6, width: `${fetchW}%`, background: color.gold, borderRadius: 3 }} title={`Fetched: ${row.fetched}`} />
+                        <div style={{ height: 6, width: `${scoreW}%`, background: "#22c55e", borderRadius: 3 }} title={`Scored: ${row.scored}`} />
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div style={{ display: "flex", gap: 16, marginTop: 10, fontSize: 11, color: color.textMuted }}>
+          <span><span style={{ display: "inline-block", width: 10, height: 6, background: color.gold, borderRadius: 2, marginRight: 4 }} />{t("fetchedCol", lang)}</span>
+          <span><span style={{ display: "inline-block", width: 10, height: 6, background: "#22c55e", borderRadius: 2, marginRight: 4 }} />{t("scoredCol", lang)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Topics page ───────────────────────────────────────────────────────
 
 function TopicsPage({ lang }: { lang: Lang }) {
@@ -2043,7 +2244,7 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState<"home" | "stats" | "topics" | "settings">("home");
+  const [currentPage, setCurrentPage] = useState<"home" | "stats" | "crons" | "topics" | "settings">("home");
   const [resultTab, setResultTab] = useState<"relevant" | "all">("relevant");
   const [newVersionAvailable, setNewVersionAvailable] = useState(false);
 
@@ -2188,6 +2389,24 @@ export default function Home() {
               </svg>
             </button>
             <button
+              onClick={() => setCurrentPage("crons")}
+              aria-label={t("cronMonitor", lang)}
+              style={{
+                padding: 4,
+                border: "none",
+                background: "transparent",
+                color: currentPage === "crons" ? color.gold : color.textMuted,
+                cursor: currentPage === "crons" ? "default" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+              </svg>
+            </button>
+            <button
               onClick={() => setCurrentPage("topics")}
               aria-label="Topics"
               style={{
@@ -2241,6 +2460,8 @@ export default function Home() {
 
         {currentPage === "stats" ? (
           <StatsPage lang={lang} topics={topicLabels} />
+        ) : currentPage === "crons" ? (
+          <CronMonitorPage lang={lang} />
         ) : currentPage === "topics" ? (
           <TopicsPage lang={lang} />
         ) : currentPage === "settings" ? (

@@ -155,6 +155,7 @@ export interface CronStatsResponse {
     lastScoredAt: string | null;
     backlog: number;
     status: "ok" | "slow" | "high";
+    statusReason?: string;
   }>;
   timeline: Array<{
     hour: string;

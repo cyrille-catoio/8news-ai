@@ -7,7 +7,7 @@ import { color, font, sectionHeading, card } from "@/lib/theme";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.64";
+const APP_VERSION = "1.65";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 const TTS_VOICES_EN = [
@@ -225,24 +225,71 @@ function ScrollToTop() {
   );
 }
 
+function CopyLinkButton({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+  return (
+    <button
+      onClick={handleCopy}
+      title={copied ? "✓" : "Copy link"}
+      style={{
+        background: "transparent",
+        border: "none",
+        cursor: "pointer",
+        padding: 4,
+        color: copied ? "#22c55e" : color.textDim,
+        flexShrink: 0,
+        display: "inline-flex",
+        alignItems: "center",
+        transition: "color 0.15s",
+      }}
+    >
+      {copied ? (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      ) : (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 function ArticleCard({ article, locale }: { article: ArticleSummary; locale: string }) {
   return (
-    <a
-      href={article.link}
-      target="_blank"
-      rel="noopener noreferrer"
-      style={{ ...card, display: "block", textDecoration: "none", color: "inherit" }}
-    >
-      <span style={{ color: color.text, fontWeight: 500, fontSize: 17 }}>
-        {article.title}
-      </span>
-      <p style={{ color: color.articleSnippet, fontSize: 14, marginTop: 6, lineHeight: 1.5 }}>
-        {article.snippet}
-      </p>
-      <p style={{ color: color.gold, fontSize: 13, marginTop: 8 }}>
-        {article.source} · {article.pubDate ? new Date(article.pubDate).toLocaleString(locale) : ""}
-      </p>
-    </a>
+    <div style={{ ...card, display: "block", position: "relative" }}>
+      <a
+        href={article.link}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ textDecoration: "none", color: "inherit", display: "block" }}
+      >
+        <span style={{ color: color.text, fontWeight: 500, fontSize: 17 }}>
+          {article.title}
+        </span>
+        <p style={{ color: color.articleSnippet, fontSize: 14, marginTop: 6, lineHeight: 1.5 }}>
+          {article.snippet}
+        </p>
+      </a>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
+        <a href={article.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+          <span style={{ color: color.gold, fontSize: 13 }}>
+            {article.source} · {article.pubDate ? new Date(article.pubDate).toLocaleString(locale) : ""}
+          </span>
+        </a>
+        <CopyLinkButton url={article.link} />
+      </div>
+    </div>
   );
 }
 
@@ -909,47 +956,50 @@ function AllArticlesTab({ articles, loading, locale, lang }: { articles: AllArti
               {source} ({sourceArticles.length})
             </h3>
             {toRender.map((art, i) => (
-              <a
+              <div
                 key={`${art.link}-${i}`}
-                href={art.link}
-                target="_blank"
-                rel="noopener noreferrer"
                 style={{
-                  display: "block",
                   padding: "10px 14px",
                   marginBottom: 6,
                   borderRadius: 8,
                   background: color.surface,
-                  textDecoration: "none",
-                  color: "inherit",
-                  transition: "background 0.15s",
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                  <span style={{ color: color.text, fontWeight: 500, fontSize: 15, flex: 1 }}>
-                    {art.title}
-                  </span>
-                  {art.score != null && (
-                    <span style={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                      color: art.score >= 7 ? "#22c55e" : art.score >= 5 ? color.gold : color.textMuted,
-                      marginLeft: 8,
-                      flexShrink: 0,
-                    }}>
-                      {art.score}/10
+                <a
+                  href={art.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ textDecoration: "none", color: "inherit", display: "block" }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                    <span style={{ color: color.text, fontWeight: 500, fontSize: 15, flex: 1 }}>
+                      {art.title}
                     </span>
+                    {art.score != null && (
+                      <span style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: art.score >= 7 ? "#22c55e" : art.score >= 5 ? color.gold : color.textMuted,
+                        marginLeft: 8,
+                        flexShrink: 0,
+                      }}>
+                        {art.score}/10
+                      </span>
+                    )}
+                  </div>
+                  {art.snippet && (
+                    <p style={{ color: color.articleSnippet, fontSize: 13, marginTop: 4, lineHeight: 1.5 }}>
+                      {art.snippet}
+                    </p>
                   )}
+                </a>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
+                  <span style={{ color: color.textDim, fontSize: 12 }}>
+                    {art.pubDate ? new Date(art.pubDate).toLocaleString(locale) : ""}
+                  </span>
+                  <CopyLinkButton url={art.link} />
                 </div>
-                {art.snippet && (
-                  <p style={{ color: color.articleSnippet, fontSize: 13, marginTop: 4, lineHeight: 1.5 }}>
-                    {art.snippet}
-                  </p>
-                )}
-                <p style={{ color: color.textDim, fontSize: 12, marginTop: 4 }}>
-                  {art.pubDate ? new Date(art.pubDate).toLocaleString(locale) : ""}
-                </p>
-              </a>
+              </div>
             ))}
           </div>
         );
@@ -1340,16 +1390,12 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
         {topArticles.length === 0 ? (
           <p style={{ color: color.textDim, fontSize: 14, margin: 0 }}>—</p>
         ) : topArticles.map((a, i) => (
-          <a
+          <div
             key={`${a.link}-${i}`}
-            href={a.link}
-            target="_blank"
-            rel="noopener noreferrer"
             style={{
               display: "flex", gap: 10, alignItems: "flex-start",
               padding: "10px 0",
               borderBottom: i < topArticles.length - 1 ? `1px solid ${color.border}` : "none",
-              textDecoration: "none", color: "inherit",
             }}
           >
             <span style={{
@@ -1360,9 +1406,14 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
               {a.score}
             </span>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ color: color.text, fontWeight: 500, fontSize: 14 }}>{a.title}</div>
-              <div style={{ color: color.textMuted, fontSize: 12, marginTop: 3 }}>
-                {a.source} · {new Date(a.pubDate).toLocaleDateString(locale)}
+              <a href={a.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none", color: "inherit" }}>
+                <div style={{ color: color.text, fontWeight: 500, fontSize: 14 }}>{a.title}</div>
+              </a>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 3 }}>
+                <span style={{ color: color.textMuted, fontSize: 12 }}>
+                  {a.source} · {new Date(a.pubDate).toLocaleDateString(locale)}
+                </span>
+                <CopyLinkButton url={a.link} />
               </div>
               {a.reason && (
                 <div style={{ color: color.textDim, fontSize: 12, marginTop: 2, whiteSpace: "normal" }}>
@@ -1370,7 +1421,7 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
                 </div>
               )}
             </div>
-          </a>
+          </div>
         ))}
       </div>
 
@@ -1461,6 +1512,14 @@ function CronMonitorPage({ lang }: { lang: Lang }) {
     return t("statusHigh", lang);
   }
 
+  function reasonLabel(status: string, reason: string | undefined): string {
+    if (status === "ok" || !reason) return "";
+    const threshold = status === "high" ? "30m" : "15m";
+    if (reason === "backlog") return status === "high" ? "backlog > 200" : "backlog ≥ 50";
+    if (reason === "fetch") return `fetch > ${threshold}`;
+    return `score > ${threshold}`;
+  }
+
   function kpiColor(val: number, thresholds: [number, number], invert = false): string {
     const [low, high] = thresholds;
     if (invert) {
@@ -1542,6 +1601,7 @@ function CronMonitorPage({ lang }: { lang: Lang }) {
                 <th style={thStyle}>{t("lastScore", lang)}</th>
                 <th style={{ ...thStyle, textAlign: "right" }}>{t("backlog", lang)}</th>
                 <th style={thStyle}>Status</th>
+                <th style={thStyle}>{lang === "fr" ? "Raison" : "Reason"}</th>
               </tr>
             </thead>
             <tbody>
@@ -1557,6 +1617,7 @@ function CronMonitorPage({ lang }: { lang: Lang }) {
                     color: tp.backlog > 200 ? "#ef4444" : tp.backlog >= 50 ? color.gold : color.text,
                   }}>{fmt(tp.backlog)}</td>
                   <td style={tdStyle}>{statusIcon(tp.status)} {statusLabel(tp.status)}</td>
+                  <td style={{ ...tdStyle, color: color.textDim, fontSize: 12 }}>{reasonLabel(tp.status, tp.statusReason)}</td>
                 </tr>
               ))}
             </tbody>
@@ -2804,32 +2865,56 @@ export default function Home() {
                     {lang === "fr" ? "Rafraîchir" : "Refresh"}
                   </button>
                 </div>
-                {topFeed.map((art, i) => (
-                  <a
-                    key={`${art.link}-${i}`}
-                    href={art.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ ...card, display: "block", textDecoration: "none", color: "inherit" }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                      <span style={{ color: color.text, fontWeight: 500, fontSize: 17, flex: 1 }}>
-                        {art.title}
-                      </span>
-                      <span style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: art.score >= 7 ? "#22c55e" : art.score >= 5 ? color.gold : color.textMuted,
-                        marginLeft: 8,
-                        flexShrink: 0,
-                      }}>
-                        {art.score}/10
-                      </span>
+                {[...topFeed].sort((a, b) => {
+                  const aNew = a.pubDate && (Date.now() - new Date(a.pubDate).getTime()) < 3_600_000 ? 1 : 0;
+                  const bNew = b.pubDate && (Date.now() - new Date(b.pubDate).getTime()) < 3_600_000 ? 1 : 0;
+                  return bNew - aNew;
+                }).map((art, i) => (
+                  <div key={`${art.link}-${i}`} style={{ ...card, display: "block" }}>
+                    <a
+                      href={art.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ textDecoration: "none", color: "inherit", display: "block" }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                        <span style={{ color: color.text, fontWeight: 500, fontSize: 17, flex: 1 }}>
+                          {art.pubDate && (Date.now() - new Date(art.pubDate).getTime()) < 3_600_000 && (
+                            <span style={{
+                              display: "inline-block",
+                              fontSize: 10,
+                              fontWeight: 700,
+                              color: "#000",
+                              background: "#22c55e",
+                              borderRadius: 4,
+                              padding: "1px 5px",
+                              marginRight: 6,
+                              verticalAlign: "middle",
+                              letterSpacing: 0.5,
+                            }}>NEW</span>
+                          )}
+                          {art.title}
+                        </span>
+                        <span style={{
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: art.score >= 7 ? "#22c55e" : art.score >= 5 ? color.gold : color.textMuted,
+                          marginLeft: 8,
+                          flexShrink: 0,
+                        }}>
+                          {art.score}/10
+                        </span>
+                      </div>
+                    </a>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
+                      <a href={art.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+                        <span style={{ color: color.gold, fontSize: 13 }}>
+                          {art.source} · {art.pubDate ? new Date(art.pubDate).toLocaleString(locale) : ""}
+                        </span>
+                      </a>
+                      <CopyLinkButton url={art.link} />
                     </div>
-                    <p style={{ color: color.gold, fontSize: 13, marginTop: 8 }}>
-                      {art.source} · {art.pubDate ? new Date(art.pubDate).toLocaleString(locale) : ""}
-                    </p>
-                  </a>
+                  </div>
                 ))}
               </>
             ) : (

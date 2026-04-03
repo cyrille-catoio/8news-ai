@@ -422,8 +422,8 @@ const strings = {
     fr: "Lent",
   },
   statusHigh: {
-    en: "High backlog",
-    fr: "Backlog élevé",
+    en: "Very slow",
+    fr: "Très lent",
   },
   minutesAgo: {
     en: "min ago",

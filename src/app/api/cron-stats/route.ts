@@ -26,26 +26,66 @@ export async function GET() {
   const since24h = new Date(now - 24 * 3_600_000).toISOString();
   const since7d = new Date(now - 7 * 86_400_000).toISOString();
 
-  const [backlogRes, recentRes, scoredRecentRes] = await Promise.all([
-    supabase
-      .from("articles")
-      .select("topic", { count: "exact", head: false })
-      .gte("pub_date", since7d)
-      .is("relevance_score", null),
-    supabase
-      .from("articles")
-      .select("pub_date, scored_at, topic")
-      .gte("pub_date", since24h),
-    supabase
-      .from("articles")
-      .select("pub_date, scored_at")
-      .gte("scored_at", since24h)
-      .not("scored_at", "is", null),
-  ]);
+  const PAGE = 10_000;
 
-  const backlogRows: Array<{ topic: string }> = backlogRes.data ?? [];
-  const recentRows: Array<{ pub_date: string; scored_at: string | null; topic: string }> = recentRes.data ?? [];
-  const scoredRecentRows: Array<{ pub_date: string; scored_at: string }> = scoredRecentRes.data ?? [];
+  async function paginateBacklog(since: string): Promise<{ topic: string }[]> {
+    const all: { topic: string }[] = [];
+    let from = 0;
+    while (true) {
+      const { data } = await supabase
+        .from("articles")
+        .select("topic")
+        .gte("pub_date", since)
+        .is("relevance_score", null)
+        .range(from, from + PAGE - 1);
+      if (!data || data.length === 0) break;
+      all.push(...data);
+      if (data.length < PAGE) break;
+      from += PAGE;
+    }
+    return all;
+  }
+
+  async function paginateRecent(since: string): Promise<{ pub_date: string; scored_at: string | null; topic: string }[]> {
+    const all: { pub_date: string; scored_at: string | null; topic: string }[] = [];
+    let from = 0;
+    while (true) {
+      const { data } = await supabase
+        .from("articles")
+        .select("pub_date, scored_at, topic")
+        .gte("pub_date", since)
+        .range(from, from + PAGE - 1);
+      if (!data || data.length === 0) break;
+      all.push(...data);
+      if (data.length < PAGE) break;
+      from += PAGE;
+    }
+    return all;
+  }
+
+  async function paginateScoredRecent(since: string): Promise<{ pub_date: string; scored_at: string }[]> {
+    const all: { pub_date: string; scored_at: string }[] = [];
+    let from = 0;
+    while (true) {
+      const { data } = await supabase
+        .from("articles")
+        .select("pub_date, scored_at")
+        .gte("scored_at", since)
+        .not("scored_at", "is", null)
+        .range(from, from + PAGE - 1);
+      if (!data || data.length === 0) break;
+      all.push(...data);
+      if (data.length < PAGE) break;
+      from += PAGE;
+    }
+    return all;
+  }
+
+  const [backlogRows, recentRows, scoredRecentRows] = await Promise.all([
+    paginateBacklog(since7d),
+    paginateRecent(since24h),
+    paginateScoredRecent(since24h),
+  ]);
 
   // ── Global KPIs ──
   const totalBacklog = backlogRows.length;

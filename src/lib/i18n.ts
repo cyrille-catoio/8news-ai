@@ -78,8 +78,8 @@ const strings = {
     fr: "Nb articles max retenus:",
   },
   maxArticlesInfo: {
-    en: "Articles pre-scored hourly by AI (relevance 1-10) are filtered by minimum score based on the selected time window. 2x the max number of articles are sent to GPT-4o-mini, which generates a summary and selects the most relevant ones to display. Results are cached for 5-60 min depending on the time range.",
-    fr: "Les articles sont pré-scorés toutes les heures par l'IA (pertinence 1-10) puis filtrés par score minimum selon la fenêtre temporelle choisie. 2x le nombre max d'articles sont envoyés à GPT-4o-mini qui génère un résumé et sélectionne les plus pertinents à afficher. Les résultats sont mis en cache 5-60 min selon la plage horaire.",
+    en: "Articles are pre-scored by AI (relevance 1-10). The top-scored articles from the selected period are sent to the AI for summary. This setting controls how many articles are analyzed and displayed.",
+    fr: "Les articles sont pré-scorés par l'IA (pertinence 1-10). Les articles les mieux scorés de la période sont envoyés à l'IA pour résumé. Ce réglage contrôle combien d'articles sont analysés et affichés.",
   },
   statsTitle: {
     en: "Stats",

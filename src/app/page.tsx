@@ -7,7 +7,7 @@ import { color, font, sectionHeading, card } from "@/lib/theme";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.60";
+const APP_VERSION = "1.61";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 const TTS_VOICES_EN = [
@@ -379,7 +379,7 @@ function SettingsPage({
               <input
                 type="range"
                 min={3}
-                max={30}
+                max={100}
                 step={1}
                 value={maxArticles}
                 onChange={(e) => onMaxArticlesChange(Number(e.target.value))}
@@ -744,12 +744,16 @@ function SummaryBox({ data, locale, lang, hours, topicName, speed, voice }: { da
     <div style={{ ...card, borderRadius: 12, padding: 20, marginBottom: 28, position: "relative" }}>
       <h2 style={sectionHeading}>
         {t("summary", lang)}
-        {data.allArticles?.length > 0 && (
-          <span style={{ color: color.textMuted, fontWeight: 400, fontSize: 11, marginLeft: 8, textTransform: "none", letterSpacing: 0 }}>
-            ({data.allArticles.length} articles)
-          </span>
-        )}
       </h2>
+      {data.meta && (
+        <div style={{ display: "flex", gap: 16, marginBottom: 12, fontSize: 12, color: color.textMuted }}>
+          <span>{data.meta.totalArticles.toLocaleString(lang === "fr" ? "fr-FR" : "en-US")} {lang === "fr" ? "articles sur la période" : "articles in period"}</span>
+          <span style={{ color: color.border }}>|</span>
+          <span>{data.meta.scoredArticles.toLocaleString(lang === "fr" ? "fr-FR" : "en-US")} {lang === "fr" ? "scorés" : "scored"}</span>
+          <span style={{ color: color.border }}>|</span>
+          <span style={{ color: color.gold }}>{data.meta.analyzedArticles} {lang === "fr" ? "analysés par l'IA" : "analyzed by AI"}</span>
+        </div>
+      )}
       {ttsText.length > 0 && <div style={{ marginBottom: 12 }}><AudioPlayer text={ttsText} lang={lang} speed={speed} voice={voice} /></div>}
       {hasBullets ? (
         <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none" }}>
@@ -808,8 +812,26 @@ function SummaryBox({ data, locale, lang, hours, topicName, speed, voice }: { da
   );
 }
 
-function AllArticlesTab({ articles, locale }: { articles: ArticleSummary[]; locale: string }) {
-  const grouped = articles.reduce<Record<string, ArticleSummary[]>>((acc, art) => {
+const ALL_ARTICLES_PAGE_SIZE = 50;
+
+type AllArticleEntry = ArticleSummary & { score?: number | null };
+
+function AllArticlesTab({ articles, loading, locale, lang }: { articles: AllArticleEntry[]; loading: boolean; locale: string; lang: Lang }) {
+  const [visible, setVisible] = useState(ALL_ARTICLES_PAGE_SIZE);
+
+  useEffect(() => { setVisible(ALL_ARTICLES_PAGE_SIZE); }, [articles]);
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: "center", padding: "40px 0", color: color.textMuted, fontSize: 14 }}>
+        <SpinKeyframes />
+        <span style={{ display: "inline-block", width: 24, height: 24, border: `3px solid ${color.gold}`, borderTop: "3px solid transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite", marginRight: 10, verticalAlign: "middle" }} />
+        {lang === "fr" ? "Chargement des articles…" : "Loading articles…"}
+      </div>
+    );
+  }
+
+  const grouped = articles.reduce<Record<string, AllArticleEntry[]>>((acc, art) => {
     const key = art.source || "Unknown";
     (acc[key] ??= []).push(art);
     return acc;
@@ -821,45 +843,96 @@ function AllArticlesTab({ articles, locale }: { articles: ArticleSummary[]; loca
     return <p style={{ color: color.textDim, fontSize: 15 }}>No articles found.</p>;
   }
 
+  let rendered = 0;
+  const hasMore = visible < articles.length;
+
   return (
     <div>
-      {sources.map((source) => (
-        <div key={source} style={{ marginBottom: 28 }}>
-          <h3 style={{ color: color.gold, fontSize: 16, fontWeight: 600, marginBottom: 12, borderBottom: `1px solid ${color.border}`, paddingBottom: 8 }}>
-            {source} ({grouped[source].length})
-          </h3>
-          {grouped[source].map((art, i) => (
-            <a
-              key={`${art.link}-${i}`}
-              href={art.link}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: "block",
-                padding: "10px 14px",
-                marginBottom: 6,
-                borderRadius: 8,
-                background: color.surface,
-                textDecoration: "none",
-                color: "inherit",
-                transition: "background 0.15s",
-              }}
-            >
-              <span style={{ color: color.text, fontWeight: 500, fontSize: 15 }}>
-                {art.title}
-              </span>
-              {art.snippet && (
-                <p style={{ color: color.articleSnippet, fontSize: 13, marginTop: 4, lineHeight: 1.5 }}>
-                  {art.snippet}
+      <p style={{ color: color.textMuted, fontSize: 12, marginBottom: 16 }}>
+        {articles.length.toLocaleString(locale)} {lang === "fr" ? "articles triés par score" : "articles sorted by score"}
+      </p>
+      {sources.map((source) => {
+        const sourceArticles = grouped[source];
+        const toRender = sourceArticles.filter(() => {
+          if (rendered >= visible) return false;
+          rendered++;
+          return true;
+        });
+        if (toRender.length === 0) return null;
+        return (
+          <div key={source} style={{ marginBottom: 28 }}>
+            <h3 style={{ color: color.gold, fontSize: 16, fontWeight: 600, marginBottom: 12, borderBottom: `1px solid ${color.border}`, paddingBottom: 8 }}>
+              {source} ({sourceArticles.length})
+            </h3>
+            {toRender.map((art, i) => (
+              <a
+                key={`${art.link}-${i}`}
+                href={art.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "block",
+                  padding: "10px 14px",
+                  marginBottom: 6,
+                  borderRadius: 8,
+                  background: color.surface,
+                  textDecoration: "none",
+                  color: "inherit",
+                  transition: "background 0.15s",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                  <span style={{ color: color.text, fontWeight: 500, fontSize: 15, flex: 1 }}>
+                    {art.title}
+                  </span>
+                  {art.score != null && (
+                    <span style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: art.score >= 7 ? "#22c55e" : art.score >= 5 ? color.gold : color.textMuted,
+                      marginLeft: 8,
+                      flexShrink: 0,
+                    }}>
+                      {art.score}/10
+                    </span>
+                  )}
+                </div>
+                {art.snippet && (
+                  <p style={{ color: color.articleSnippet, fontSize: 13, marginTop: 4, lineHeight: 1.5 }}>
+                    {art.snippet}
+                  </p>
+                )}
+                <p style={{ color: color.textDim, fontSize: 12, marginTop: 4 }}>
+                  {art.pubDate ? new Date(art.pubDate).toLocaleString(locale) : ""}
                 </p>
-              )}
-              <p style={{ color: color.textDim, fontSize: 12, marginTop: 4 }}>
-                {art.pubDate ? new Date(art.pubDate).toLocaleString(locale) : ""}
-              </p>
-            </a>
-          ))}
-        </div>
-      ))}
+              </a>
+            ))}
+          </div>
+        );
+      })}
+      {hasMore && (
+        <button
+          onClick={() => setVisible((v) => v + ALL_ARTICLES_PAGE_SIZE)}
+          style={{
+            display: "block",
+            width: "100%",
+            padding: "12px 0",
+            marginTop: 8,
+            border: `1px solid ${color.border}`,
+            borderRadius: 8,
+            background: color.surface,
+            color: color.gold,
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: "pointer",
+            transition: "background 0.15s",
+          }}
+        >
+          {lang === "fr"
+            ? `Afficher plus (${Math.min(ALL_ARTICLES_PAGE_SIZE, articles.length - visible)} suivants)`
+            : `Show more (${Math.min(ALL_ARTICLES_PAGE_SIZE, articles.length - visible)} next)`}
+        </button>
+      )}
     </div>
   );
 }
@@ -1462,9 +1535,9 @@ function CronMonitorPage({ lang }: { lang: Lang }) {
               </tr>
             </thead>
             <tbody>
-              {data.timeline.map((row) => {
+              {data.timeline.filter((row) => new Date(row.hour).getTime() <= Date.now()).map((row) => {
                 const hDate = new Date(row.hour);
-                const hLabel = hDate.toLocaleTimeString(lang === "fr" ? "fr-FR" : "en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+                const hLabel = hDate.toLocaleTimeString(lang === "fr" ? "fr-FR" : "en-US", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
                 const cov = row.fetched > 0 ? Math.round((row.scored / row.fetched) * 100) : 0;
                 const fetchW = Math.max(2, (row.fetched / maxBar) * 100);
                 const scoreW = Math.max(2, (row.scored / maxBar) * 100);
@@ -2200,9 +2273,9 @@ export default function Home() {
   const topicLabels: TopicLabel[] = topics.map((tp) => ({ id: tp.id, label: lang === "fr" ? tp.labelFr : tp.labelEn }));
   const [topic, setTopic] = useState<string | null>(null);
   const [maxArticles, setMaxArticles] = useState(() => {
-    if (typeof document === "undefined") return 10;
+    if (typeof document === "undefined") return 20;
     const match = document.cookie.match(/(?:^|; )maxArticles=(\d+)/);
-    return match ? Math.min(30, Math.max(3, Number(match[1]))) : 10;
+    return match ? Math.min(100, Math.max(3, Number(match[1]))) : 20;
   });
 
   const updateMaxArticles = useCallback((value: number) => {
@@ -2246,6 +2319,8 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState<"home" | "stats" | "crons" | "topics" | "settings">("home");
   const [resultTab, setResultTab] = useState<"relevant" | "all">("relevant");
+  const [allArticles, setAllArticles] = useState<AllArticleEntry[]>([]);
+  const [allArticlesLoading, setAllArticlesLoading] = useState(false);
   const [newVersionAvailable, setNewVersionAvailable] = useState(false);
 
   useEffect(() => {
@@ -2306,19 +2381,30 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setData(null);
+    setAllArticles([]);
+    setAllArticlesLoading(true);
     setResultTab("relevant");
     startProgress();
+
+    const sinceISO = new Date(Date.now() - hours * 3_600_000).toISOString();
 
     try {
       const res = await fetch(`/api/news?hours=${hours}&lang=${lang}&topic=${topic}&count=${maxArticles}`);
       if (!res.ok) throw new Error(await res.text().catch(() => "") || `HTTP ${res.status}`);
       setData(await res.json());
       playNotificationBeep();
+
+      fetch(`/api/news/all?topic=${encodeURIComponent(topic)}&since=${encodeURIComponent(sinceISO)}&lang=${lang}`, { cache: "no-store" })
+        .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
+        .then((json) => setAllArticles(json.articles ?? []))
+        .catch(() => {})
+        .finally(() => setAllArticlesLoading(false));
     } catch (e) {
       const msg = e instanceof Error ? e.message : t("unknownError", lang);
       const isNetworkError =
         msg === "Failed to fetch" || msg.includes("NetworkError") || msg.includes("Load failed");
       setError(isNetworkError ? t("connectionError", lang) : msg);
+      setAllArticlesLoading(false);
     } finally {
       stopProgress();
       setLoading(false);
@@ -2331,6 +2417,8 @@ export default function Home() {
     setSelected(null);
     setData(null);
     setError(null);
+    setAllArticles([]);
+    setAllArticlesLoading(false);
   }
 
   function handleReset() {
@@ -2339,6 +2427,8 @@ export default function Home() {
     setError(null);
     setLoading(false);
     setResultTab("relevant");
+    setAllArticles([]);
+    setAllArticlesLoading(false);
   }
 
   return (
@@ -2366,6 +2456,26 @@ export default function Home() {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z" />
                 <polyline points="9 21 9 14 15 14 15 21" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setCurrentPage("topics")}
+              aria-label="Topics"
+              style={{
+                padding: 4,
+                border: "none",
+                background: "transparent",
+                color: currentPage === "topics" ? color.gold : color.textMuted,
+                cursor: currentPage === "topics" ? "default" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 11a9 9 0 0 1 9 9" />
+                <path d="M4 4a16 16 0 0 1 16 16" />
+                <circle cx="5" cy="19" r="1" fill="currentColor" />
               </svg>
             </button>
             <button
@@ -2404,26 +2514,6 @@ export default function Home() {
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-              </svg>
-            </button>
-            <button
-              onClick={() => setCurrentPage("topics")}
-              aria-label="Topics"
-              style={{
-                padding: 4,
-                border: "none",
-                background: "transparent",
-                color: currentPage === "topics" ? color.gold : color.textMuted,
-                cursor: currentPage === "topics" ? "default" : "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 11a9 9 0 0 1 9 9" />
-                <path d="M4 4a16 16 0 0 1 16 16" />
-                <circle cx="5" cy="19" r="1" fill="currentColor" />
               </svg>
             </button>
             <button
@@ -2547,9 +2637,10 @@ export default function Home() {
             <div style={{ display: "flex", borderBottom: `1px solid ${color.border}`, marginBottom: 20, gap: 0 }}>
               {(["relevant", "all"] as const).map((tab) => {
                 const active = resultTab === tab;
+                const allCount = allArticles.length > 0 ? allArticles.length : (data.meta?.totalArticles ?? 0);
                 const label = tab === "relevant"
                   ? `${t("relevantArticles", lang)} (${data.articles.length})`
-                  : `${t("allArticles", lang)} (${data.allArticles?.length ?? 0})`;
+                  : `${t("allArticles", lang)} (${allCount > 0 ? allCount.toLocaleString(locale) : "…"})`;
                 return (
                   <button
                     key={tab}
@@ -2589,9 +2680,14 @@ export default function Home() {
               </>
             )}
 
-            {/* All articles tab */}
+            {/* All articles tab (preloaded in background) */}
             {resultTab === "all" && (
-              <AllArticlesTab articles={data.allArticles ?? []} locale={locale} />
+              <AllArticlesTab
+                articles={allArticles}
+                loading={allArticlesLoading}
+                locale={locale}
+                lang={lang}
+              />
             )}
           </div>
         )}

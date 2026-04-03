@@ -5,7 +5,7 @@ import type { ScoreResult } from "../../../src/lib/types";
 const BATCH_SIZE = 50;
 const MAX_ARTICLES_PER_RUN = 50;
 const OPENAI_TIMEOUT_MS = 6_000;
-const SCORE_WINDOW_HOURS = 168;
+export const SCORE_WINDOW_HOURS = 168;
 
 interface DbRow {
   id: number;

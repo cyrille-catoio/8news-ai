@@ -507,6 +507,7 @@ export async function getAllArticlesFromDb(
       .select("id, topic, source, title, link, pub_date, content, snippet, snippet_ai_en, snippet_ai_fr, relevance_score")
       .eq("topic", topic)
       .gte("pub_date", since)
+      .order("relevance_score", { ascending: false, nullsFirst: false })
       .order("pub_date", { ascending: false })
       .limit(limit);
 
@@ -517,3 +518,33 @@ export async function getAllArticlesFromDb(
   }
 }
 
+export async function countArticlesForPeriod(
+  topic: string,
+  since: string,
+): Promise<{ total: number; scored: number }> {
+  const clientP = getServerClient();
+  if (!clientP) return { total: 0, scored: 0 };
+
+  try {
+    const supabase = await clientP;
+    const [totalRes, scoredRes] = await Promise.all([
+      supabase
+        .from("articles")
+        .select("id", { count: "exact", head: true })
+        .eq("topic", topic)
+        .gte("pub_date", since),
+      supabase
+        .from("articles")
+        .select("id", { count: "exact", head: true })
+        .eq("topic", topic)
+        .gte("pub_date", since)
+        .not("relevance_score", "is", null),
+    ]);
+    return {
+      total: totalRes.count ?? 0,
+      scored: scoredRes.count ?? 0,
+    };
+  } catch {
+    return { total: 0, scored: 0 };
+  }
+}

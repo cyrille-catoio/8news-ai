@@ -38,6 +38,11 @@ export interface SummaryResponse {
     from: string;
     to: string;
   };
+  meta?: {
+    totalArticles: number;
+    scoredArticles: number;
+    analyzedArticles: number;
+  };
 }
 
 export interface AIAnalysis {

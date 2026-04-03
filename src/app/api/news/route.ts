@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
-import { getCachedResult, setCachedResult, cleanExpiredCache, getScoredArticles, getAllArticlesFromDb, getTopicPrompt } from "@/lib/supabase";
+import { getCachedResult, setCachedResult, cleanExpiredCache, getScoredArticles, getTopicPrompt, countArticlesForPeriod } from "@/lib/supabase";
 import type { Lang } from "@/lib/i18n";
 import type { ArticleSummary, SummaryBullet, SummaryResponse, AIAnalysis } from "@/lib/types";
 
-const MAX_ARTICLES = 200;
 const PREVIEW_LIMIT = 10;
 const SNIPPET_MAX = 600;
 
@@ -29,11 +28,11 @@ function getServerMessages(lang: Lang) {
   } as const;
 }
 
-function generateFallbackPrompt(lang: Lang, maxArticles: number): string {
+function generateFallbackPrompt(lang: Lang): string {
   if (lang === "fr") {
-    return `Tu es un analyste de presse. Identifie les ${maxArticles} articles les plus pertinents. Résume chacun en 2-3 phrases. Produis jusqu'à 8 bullet points factuels. Réponds en JSON: {"relevant":[{"index":0,"snippet":"..."}],"globalSummary":[{"text":"...","refs":[0]}]}`;
+    return `Tu es un analyste de presse. Résume TOUS les articles fournis. Pour chaque article, écris un résumé factuel de 2-3 phrases. Produis jusqu'à 8 bullet points factuels couvrant les sujets majeurs. Réponds en JSON: {"relevant":[{"index":0,"snippet":"..."}],"globalSummary":[{"text":"...","refs":[0]}]}`;
   }
-  return `You are a news analyst. Identify the ${maxArticles} most relevant articles. Summarize each in 2-3 sentences. Write up to 8 factual bullet points. Respond with JSON: {"relevant":[{"index":0,"snippet":"..."}],"globalSummary":[{"text":"...","refs":[0]}]}`;
+  return `You are a news analyst. Summarize ALL articles provided. For each article, write a factual 2-3 sentence summary. Write up to 8 factual bullet points covering the major topics. Respond with JSON: {"relevant":[{"index":0,"snippet":"..."}],"globalSummary":[{"text":"...","refs":[0]}]}`;
 }
 
 export const maxDuration = 60;
@@ -159,7 +158,7 @@ export async function GET(request: NextRequest) {
     if (!rawTopic) {
       return NextResponse.json({ error: "Missing topic parameter" }, { status: 400 });
     }
-    const maxArticles = Math.min(30, Math.max(3, parseInt(params.get("count") ?? "10", 10) || 10));
+    const maxArticles = Math.min(100, Math.max(3, parseInt(params.get("count") ?? "10", 10) || 10));
 
     const topicPrompt = await getTopicPrompt(rawTopic);
     if (!topicPrompt) {
@@ -170,7 +169,7 @@ export async function GET(request: NextRequest) {
     const promptTemplate = lang === "fr" ? topicPrompt.prompt_fr : topicPrompt.prompt_en;
     const systemPrompt = promptTemplate
       ? promptTemplate.replace(/\{\{max\}\}/g, String(maxArticles))
-      : generateFallbackPrompt(lang, maxArticles);
+      : generateFallbackPrompt(lang);
     const hours = Math.min(168, Math.max(0.25, parseFloat(params.get("hours") ?? "24") || 24));
     const since = Date.now() - hours * 3_600_000;
     const sinceISO = new Date(since).toISOString();
@@ -185,23 +184,29 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // ── Read scored + all articles from DB ───────────────────────────
+    // ── Read scored articles from DB ────────────────────────────────
     const minScore = getMinScore(hours);
-    const [scoredRows, allRows] = await Promise.all([
-      getScoredArticles(topic, sinceISO, minScore, maxArticles * 2),
-      getAllArticlesFromDb(topic, sinceISO, MAX_ARTICLES),
+    const [scoredRows, counts] = await Promise.all([
+      getScoredArticles(topic, sinceISO, minScore, maxArticles),
+      countArticlesForPeriod(topic, sinceISO),
     ]);
 
     const items = scoredRows.map((r) => toArticleSummary(r, SNIPPET_MAX, lang));
-    const allArticles = allRows.map((r) => toArticleSummary(r, 300, lang));
+
+    const meta = {
+      totalArticles: counts.total,
+      scoredArticles: counts.scored,
+      analyzedArticles: items.length,
+    };
 
     if (items.length === 0) {
       return NextResponse.json({
         summary: msg.noArticles,
         bullets: [],
         articles: [],
-        allArticles,
+        allArticles: [],
         period: buildPeriod(since),
+        meta,
       } satisfies SummaryResponse);
     }
 
@@ -213,8 +218,9 @@ export async function GET(request: NextRequest) {
           ...a,
           snippet: a.snippet.slice(0, 200),
         })),
-        allArticles,
+        allArticles: [],
         period: buildPeriod(since),
+        meta,
       } satisfies SummaryResponse);
     }
 
@@ -230,24 +236,22 @@ export async function GET(request: NextRequest) {
       relevant = new Map();
     }
 
-    const filteredArticles: ArticleSummary[] = items
-      .map((a, i) => {
-        const entry = relevant.get(i);
-        if (!entry) return null;
-        return {
-          ...a,
-          title: entry.title || a.title,
-          snippet: entry.snippet,
-        };
-      })
-      .filter((a): a is ArticleSummary => a !== null);
+    const filteredArticles: ArticleSummary[] = items.map((a, i) => {
+      const entry = relevant.get(i);
+      return {
+        ...a,
+        title: entry?.title || a.title,
+        snippet: entry?.snippet || a.snippet,
+      };
+    });
 
     const result: SummaryResponse = {
       summary,
       bullets,
       articles: filteredArticles,
-      allArticles,
+      allArticles: [],
       period: buildPeriod(since),
+      meta,
     };
 
     // ── Cache write (non-blocking) ──────────────────────────────────

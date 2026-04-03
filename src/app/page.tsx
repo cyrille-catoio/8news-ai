@@ -7,7 +7,7 @@ import { color, font, sectionHeading, card } from "@/lib/theme";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.62";
+const APP_VERSION = "1.63";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 const TTS_VOICES_EN = [
@@ -785,6 +785,9 @@ function SummaryBox({ data, locale, lang, hours, topicName, speed, voice }: { da
     <div style={{ ...card, borderRadius: 12, padding: 20, marginBottom: 28, position: "relative" }}>
       <h2 style={sectionHeading}>
         {t("summary", lang)}
+        {topicName && (
+          <span style={{ color: color.textMuted, fontWeight: 400 }}> | {topicName}</span>
+        )}
       </h2>
       {data.meta && (
         <div style={{ display: "flex", gap: 16, marginBottom: 12, fontSize: 12, color: color.textMuted }}>
@@ -2472,7 +2475,17 @@ export default function Home() {
     setAllArticlesLoading(false);
   }
 
+  function loadTopFeed() {
+    setTopFeedLoading(true);
+    fetch("/api/news/top?limit=20&days=1", { cache: "no-store" })
+      .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
+      .then((json) => setTopFeed(json.articles ?? []))
+      .catch(() => {})
+      .finally(() => setTopFeedLoading(false));
+  }
+
   function handleReset() {
+    setTopic(null);
     setSelected(null);
     setData(null);
     setError(null);
@@ -2480,6 +2493,7 @@ export default function Home() {
     setResultTab("relevant");
     setAllArticles([]);
     setAllArticlesLoading(false);
+    loadTopFeed();
   }
 
   return (
@@ -2491,14 +2505,14 @@ export default function Home() {
           <div style={{ position: "absolute", top: 0, right: 0, display: "flex", alignItems: "center", gap: 8 }}>
             <LangToggle lang={lang} onChange={handleLangChange} />
             <button
-              onClick={() => setCurrentPage("home")}
+              onClick={() => { setCurrentPage("home"); handleReset(); }}
               aria-label="Home"
               style={{
                 padding: 4,
                 border: "none",
                 background: "transparent",
                 color: currentPage === "home" ? color.gold : color.textMuted,
-                cursor: currentPage === "home" ? "default" : "pointer",
+                cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -2591,7 +2605,7 @@ export default function Home() {
           <img
             src="/logo-8news.png"
             alt="8news"
-            onClick={() => setCurrentPage("home")}
+            onClick={() => { setCurrentPage("home"); handleReset(); }}
             style={{ height: "clamp(32px, 5vw, 48px)", width: "auto", display: "block", cursor: "pointer" }}
           />
           <p style={{ color: color.textMuted, fontSize: 15, marginTop: 8 }}>
@@ -2753,9 +2767,36 @@ export default function Home() {
               </div>
             ) : topFeed.length > 0 ? (
               <>
-                <p style={{ color: color.textMuted, fontSize: 12, marginBottom: 16 }}>
-                  {lang === "fr" ? "Top 20 articles des dernières 24h" : "Top 20 articles from the last 24h"}
-                </p>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                  <p style={{ color: color.textMuted, fontSize: 12, margin: 0 }}>
+                    {lang === "fr" ? "Top 20 articles des dernières 24h" : "Top 20 articles from the last 24h"}
+                  </p>
+                  <button
+                    onClick={loadTopFeed}
+                    disabled={topFeedLoading}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 5,
+                      padding: "4px 10px",
+                      border: `1px solid ${color.border}`,
+                      borderRadius: 6,
+                      background: color.surface,
+                      color: color.gold,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: topFeedLoading ? "default" : "pointer",
+                      opacity: topFeedLoading ? 0.5 : 1,
+                      transition: "opacity 0.15s",
+                    }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="23 4 23 10 17 10" />
+                      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                    </svg>
+                    {lang === "fr" ? "Rafraîchir" : "Refresh"}
+                  </button>
+                </div>
                 {topFeed.map((art, i) => (
                   <a
                     key={`${art.link}-${i}`}

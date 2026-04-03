@@ -7,7 +7,7 @@ import { color, font, sectionHeading, card } from "@/lib/theme";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.61";
+const APP_VERSION = "1.62";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 const TTS_VOICES_EN = [
@@ -181,6 +181,47 @@ function PeriodButton({
         {label}
       </button>
     </>
+  );
+}
+
+function ScrollToTop() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setVisible(window.scrollY > 400);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  if (!visible) return null;
+
+  return (
+    <button
+      onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+      aria-label="Scroll to top"
+      style={{
+        position: "fixed",
+        bottom: 32,
+        left: 27,
+        width: 40,
+        height: 40,
+        borderRadius: "50%",
+        border: `1px solid ${color.border}`,
+        background: color.surface,
+        color: color.gold,
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        boxShadow: "0 2px 10px rgba(0,0,0,0.4)",
+        transition: "opacity 0.2s",
+        zIndex: 998,
+      }}
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="18 15 12 9 6 15" />
+      </svg>
+    </button>
   );
 }
 
@@ -1207,7 +1248,7 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
         <div style={kpiCard}><div style={kpiVal}>{fmt(g.scoredArticles)}</div><div style={kpiLbl}>{t("scoredArticles", lang)}</div></div>
         <div style={kpiCard}><div style={{ ...kpiVal, color: covClr(g.pctScored) }}>{g.pctScored}%</div><div style={kpiLbl}>{t("coverage", lang)}</div></div>
         <div style={kpiCard}><div style={{ ...kpiVal, color: scoreClr(g.avgScore) }}>{g.avgScore}</div><div style={kpiLbl}>{t("avgScore", lang)}</div></div>
-        <div style={kpiCard}><div style={kpiVal}>{g.hitRate}%</div><div style={kpiLbl}>Hit %</div></div>
+        <div style={kpiCard}><div style={kpiVal}>{g.hitRate}%</div><div style={kpiLbl}>Score ≥ 7</div></div>
       </div>
 
       {/* ── Score Distribution ────────────────────── */}
@@ -1243,7 +1284,7 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
                   <th className="sc" onClick={() => handleSort("total")}>{t("total", lang)}{sortArrow("total")}</th>
                   <th className="sc" onClick={() => handleSort("scored")}>{t("scored", lang)}{sortArrow("scored")}</th>
                   <th className="sc" onClick={() => handleSort("avgScore")}>{t("average", lang)}{sortArrow("avgScore")}</th>
-                  <th className="sc" onClick={() => handleSort("hitRate")}>Hit%{sortArrow("hitRate")}</th>
+                  <th className="sc" onClick={() => handleSort("hitRate")}>≥ 7{sortArrow("hitRate")}</th>
                   <th className="sc" onClick={() => handleSort("pct9_10")}>9-10{sortArrow("pct9_10")}</th>
                   <th className="sc" onClick={() => handleSort("pct7_8")}>7-8{sortArrow("pct7_8")}</th>
                   <th>5-6</th>
@@ -1343,9 +1384,9 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
                   <th>{t("scored", lang)}</th>
                   <th>{t("coverage", lang)}</th>
                   <th>{t("avgScore", lang)}</th>
-                  <th>Hit%</th>
+                  <th>Score ≥ 7</th>
                   <th>{t("feeds", lang)}</th>
-                  <th>{t("activeFeeds", lang)}</th>
+                  <th>{t("activeFeeds", lang)} ({lang === "fr" ? "7j" : "7d"})</th>
                 </tr>
               </thead>
               <tbody>
@@ -2321,6 +2362,8 @@ export default function Home() {
   const [resultTab, setResultTab] = useState<"relevant" | "all">("relevant");
   const [allArticles, setAllArticles] = useState<AllArticleEntry[]>([]);
   const [allArticlesLoading, setAllArticlesLoading] = useState(false);
+  const [topFeed, setTopFeed] = useState<Array<{ title: string; link: string; source: string; topic: string; pubDate: string; score: number }>>([]);
+  const [topFeedLoading, setTopFeedLoading] = useState(true);
   const [newVersionAvailable, setNewVersionAvailable] = useState(false);
 
   useEffect(() => {
@@ -2347,6 +2390,14 @@ export default function Home() {
       .catch(() => {})
       .finally(() => setTopicsLoading(false));
   }, [currentPage]);
+
+  useEffect(() => {
+    fetch("/api/news/top?limit=20&days=1", { cache: "no-store" })
+      .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
+      .then((json) => setTopFeed(json.articles ?? []))
+      .catch(() => {})
+      .finally(() => setTopFeedLoading(false));
+  }, []);
 
   const locale = dateLocale(lang);
   const currentTopicLabel = topicLabels.find((tp) => tp.id === topic)?.label ?? topic ?? "";
@@ -2692,11 +2743,53 @@ export default function Home() {
           </div>
         )}
 
-        {/* ── Empty state ────────────────────────────────────── */}
+        {/* ── Default feed (top articles 24h) ─────────────────── */}
         {!loading && !data && !error && (
-          <p style={{ color: color.textDim, padding: "32px 0", fontSize: 15, textAlign: "center" }}>
-            {t("initialMessage", lang)}
-          </p>
+          <div>
+            {topFeedLoading ? (
+              <div style={{ textAlign: "center", padding: "40px 0" }}>
+                <SpinKeyframes />
+                <span style={{ display: "inline-block", width: 24, height: 24, border: `3px solid ${color.gold}`, borderTop: "3px solid transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+              </div>
+            ) : topFeed.length > 0 ? (
+              <>
+                <p style={{ color: color.textMuted, fontSize: 12, marginBottom: 16 }}>
+                  {lang === "fr" ? "Top 20 articles des dernières 24h" : "Top 20 articles from the last 24h"}
+                </p>
+                {topFeed.map((art, i) => (
+                  <a
+                    key={`${art.link}-${i}`}
+                    href={art.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ ...card, display: "block", textDecoration: "none", color: "inherit" }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                      <span style={{ color: color.text, fontWeight: 500, fontSize: 17, flex: 1 }}>
+                        {art.title}
+                      </span>
+                      <span style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: art.score >= 7 ? "#22c55e" : art.score >= 5 ? color.gold : color.textMuted,
+                        marginLeft: 8,
+                        flexShrink: 0,
+                      }}>
+                        {art.score}/10
+                      </span>
+                    </div>
+                    <p style={{ color: color.gold, fontSize: 13, marginTop: 8 }}>
+                      {art.source} · {art.pubDate ? new Date(art.pubDate).toLocaleString(locale) : ""}
+                    </p>
+                  </a>
+                ))}
+              </>
+            ) : (
+              <p style={{ color: color.textDim, padding: "32px 0", fontSize: 15, textAlign: "center" }}>
+                {t("initialMessage", lang)}
+              </p>
+            )}
+          </div>
         )}
         </>
         )}
@@ -2715,6 +2808,8 @@ export default function Home() {
           {lang === "fr" ? "Nouvelle version disponible — cliquer pour rafraîchir" : "New version available — click to refresh"}
         </div>
       )}
+
+      <ScrollToTop />
 
       <footer style={{ position: "fixed", bottom: 8, right: 27, color: color.textDim, fontSize: 12 }}>
         v{APP_VERSION}

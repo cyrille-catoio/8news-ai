@@ -130,8 +130,8 @@ const strings = {
     fr: "Comparaison des topics",
   },
   hitRate: {
-    en: "Hit rate",
-    fr: "Taux de pertinence",
+    en: "Score ≥ 7",
+    fr: "Score ≥ 7",
   },
   allTopics: {
     en: "All",

@@ -7,7 +7,7 @@ import { color, font, sectionHeading, card } from "@/lib/theme";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.63";
+const APP_VERSION = "1.64";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 const TTS_VOICES_EN = [
@@ -2473,6 +2473,7 @@ export default function Home() {
     setError(null);
     setAllArticles([]);
     setAllArticlesLoading(false);
+    setTopFeed([]);
   }
 
   function loadTopFeed() {
@@ -2757,10 +2758,16 @@ export default function Home() {
           </div>
         )}
 
-        {/* ── Default feed (top articles 24h) ─────────────────── */}
+        {/* ── Empty state ────────────────────────────────────── */}
         {!loading && !data && !error && (
           <div>
-            {topFeedLoading ? (
+            {topic ? (
+              <p style={{ color: color.textDim, padding: "32px 0", fontSize: 15, textAlign: "center" }}>
+                {lang === "fr"
+                  ? "Sélectionnez une durée pour lancer l'analyse."
+                  : "Select a time period to start the analysis."}
+              </p>
+            ) : topFeedLoading ? (
               <div style={{ textAlign: "center", padding: "40px 0" }}>
                 <SpinKeyframes />
                 <span style={{ display: "inline-block", width: 24, height: 24, border: `3px solid ${color.gold}`, borderTop: "3px solid transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />

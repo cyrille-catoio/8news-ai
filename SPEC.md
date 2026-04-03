@@ -1,6 +1,6 @@
 # 8news.ai — Technical Specification
 
-**Version**: v1.56
+**Version**: v1.64
 **Last updated**: March 2026
 
 ---
@@ -44,14 +44,18 @@ newsread/
 │   ├── logo-8news.png          # App logo (PNG, "8" gold / "news" light grey)
 │   ├── favicon.svg             # Browser favicon — gold "8" on black, 512×512
 │   ├── apple-touch-icon.svg    # iOS home screen icon — gold "8" on black, 180×180
-│   └── version.json            # {"version":"1.56"} — auto-update check
+│   └── version.json            # {"version":"1.64"} — auto-update check
 ├── src/
 │   ├── app/
 │   │   ├── layout.tsx          # Root layout, metadata, favicons
 │   │   ├── globals.css         # Global CSS reset + base styles
 │   │   ├── page.tsx            # Main client component (entire UI)
 │   │   └── api/
-│   │       ├── news/route.ts           # GET /api/news — Supabase read + AI analysis
+│   │       ├── news/
+│   │       │   ├── route.ts            # GET /api/news — Supabase read + AI analysis
+│   │       │   ├── all/route.ts        # GET /api/news/all — All articles (lazy load, up to 1000)
+│   │       │   └── top/route.ts        # GET /api/news/top — Top scored articles (homepage feed)
+│   │       ├── cron-stats/route.ts     # GET /api/cron-stats — Cron monitoring KPIs & timeline
 │   │       ├── tts/route.ts            # POST /api/tts — ElevenLabs Text-to-Speech
 │   │       ├── stats/route.ts          # GET /api/stats — Dashboard statistics
 │   │       ├── fetch-feeds/route.ts    # GET /api/fetch-feeds — manual RSS fetch
@@ -59,6 +63,7 @@ newsread/
 │   │       └── topics/
 │   │           ├── route.ts                    # GET/POST /api/topics — list & create
 │   │           ├── generate-scoring/route.ts   # POST — AI-generate scoring criteria
+│   │           ├── reorder/route.ts            # PUT /api/topics/reorder — sort order
 │   │           └── [id]/
 │   │               ├── route.ts                # GET/PATCH/DELETE /api/topics/:id
 │   │               ├── feeds/
@@ -68,7 +73,7 @@ newsread/
 │   └── lib/
 │       ├── types.ts            # TypeScript interfaces (TopicItem, TopicDetail, etc.)
 │       ├── theme.ts            # Design tokens (colors, fonts, shared styles)
-│       ├── i18n.ts             # EN/FR translation strings (60+ keys)
+│       ├── i18n.ts             # EN/FR translation strings (80+ keys)
 │       ├── supabase.ts         # Supabase client, caching, article/topic/feed queries
 │       └── html.ts             # HTML entity decoder
 ├── netlify/
@@ -193,12 +198,14 @@ Articles are fetched and pre-scored by **2 generic round-robin** cron jobs (not 
 
 **`cron-score.ts`** — AI scoring:
 - Runs **every minute** (`* * * * *`)
-- Picks the topic with the oldest `last_scored_at` (round-robin)
-- Updates `last_scored_at` **before** processing (prevents blocking on failure)
-- Fetches up to **100** unscored articles from the last 7 days, most recent first
-- Scores in batches of 50 using `gpt-4.1-nano`
+- Fetches **all active topics** sorted by oldest `last_scored_at`
+- Iterates through topics: for each, does a quick count of unscored articles
+- If no backlog → updates `last_scored_at` and moves to next topic (no wasted cycles)
+- If backlog found → updates `last_scored_at`, scores up to **50** articles (`MAX_ARTICLES_PER_RUN`), then exits
+- Articles from the last **168 hours** (7 days) are eligible (`SCORE_WINDOW_HOURS`)
+- Most recent articles scored first (`pub_date DESC`)
 - Each article gets: relevance score (1-10), reason, AI-generated EN/FR summaries (for score ≥5)
-- Each topic scored approximately every `N` minutes (N = active topics)
+- One batch per invocation ensures execution stays well under Netlify's 15s limit
 
 **Scoring criteria** (stored in `topics` table):
 - **9-10**: Major breaking news
@@ -218,9 +225,11 @@ Main data endpoint. Reads pre-scored articles from Supabase, analyses with AI, r
 | `hours` | float | 24 | Time window (0.25 to 168) |
 | `lang` | `"en"` \| `"fr"` | `"en"` | Language for AI output |
 | `topic` | string | — | Topic ID (validated against DB) |
-| `count` | int | 10 | Target number of relevant articles (3–30) |
+| `count` | int | 20 | Number of articles sent to AI (3–100) |
 
 Analysis prompt is fetched dynamically from the `topics` table (`prompt_en` or `prompt_fr`), with `{{max}}` replaced by the article count.
+
+The `count` parameter directly controls how many articles the AI analyses — there is no hidden multiplier. Articles are pre-filtered by minimum score, sorted by `relevance_score DESC` then `pub_date DESC`, and the top N are sent to the AI.
 
 **Minimum score by time window:**
 
@@ -232,6 +241,50 @@ Analysis prompt is fetched dynamically from the `topics` table (`prompt_en` or `
 | ≤48h | 6 |
 | >48h | 7 |
 
+**Response includes `meta` field:**
+
+```json
+{
+  "meta": {
+    "totalArticles": 1200,
+    "scoredArticles": 980,
+    "analyzedArticles": 20
+  }
+}
+```
+
+#### `GET /api/news/all`
+
+Lazy-loaded endpoint for the "All Articles" tab. Returns up to **1000** articles sorted by `relevance_score DESC NULLS LAST, pub_date DESC`.
+
+| Param | Type | Description |
+|---|---|---|
+| `topic` | string | Topic ID |
+| `since` | string | ISO date string (start of period) |
+| `lang` | `"en"` \| `"fr"` | Language for AI snippets |
+
+#### `GET /api/news/top`
+
+Homepage default feed. Returns top-scored articles across all topics.
+
+| Param | Type | Default | Description |
+|---|---|---|---|
+| `limit` | int | 20 | Max articles (1–50) |
+| `days` | float | 1 | Time window in days |
+
+#### `GET /api/cron-stats`
+
+Cron monitoring endpoint. Returns real-time statistics about fetch and scoring jobs.
+
+**Response** (`CronStatsResponse`):
+- `global`: backlog (7d unscored), fetched24h, scored24h, coverage24h %, avgDelayMinutes
+- `topics[]`: per-topic status (id, label, lastFetchedAt, lastScoredAt, backlog, status: ok/slow/high)
+- `timeline[]`: hourly buckets (hour, fetched, scored) for the last 24h
+
+**Status rules**: `high` if backlog >200 or fetch/score age >30min; `slow` if backlog ≥50 or age >15min; `ok` otherwise.
+
+Uses pagination (10,000 rows per page) to overcome Supabase's default 1000-row limit.
+
 #### `GET /api/stats`
 
 Dashboard statistics endpoint with optional topic and period filtering.
@@ -239,7 +292,7 @@ Dashboard statistics endpoint with optional topic and period filtering.
 | Param | Type | Default | Description |
 |---|---|---|---|
 | `topic` | string | `"all"` | Topic ID or `"all"` |
-| `days` | int | 0 | Period filter (0 = all time, 1 = yesterday, 3, 7, 30) |
+| `days` | number | 0 | Period filter (0 = all time, -1 = today, 1/24 = 1h, 3/24 = 3h, 6/24 = 6h, 1 = yesterday, 3, 7, 30) |
 
 Returns: `global` KPIs, `scoreDistribution`, `feedRanking`, `topArticles`, `topicComparison`.
 
@@ -260,6 +313,7 @@ Text-to-Speech via ElevenLabs `eleven_flash_v2_5`. Returns `audio/mpeg` (MP3).
 | `/api/topics/[id]/feeds/[feedId]` | PATCH | Update feed |
 | `/api/topics/[id]/feeds/[feedId]` | DELETE | Remove feed |
 | `/api/topics/generate-scoring` | POST | AI-generate 5 scoring tiers from domain |
+| `/api/topics/reorder` | PUT | Update sort order (array of `{ id, sortOrder }`) |
 | `/api/topics/[id]/discover-feeds` | POST | AI-discover + validate + insert 10 RSS feeds |
 
 #### `POST /api/topics/generate-scoring`
@@ -322,19 +376,26 @@ The entire UI is in `src/app/page.tsx` (client component, `"use client"`).
 
 ### 8.2 Navigation
 
-The app has **4 pages** managed by `currentPage` state (`"home"` | `"stats"` | `"topics"` | `"settings"`):
+The app has **5 pages** managed by `currentPage` state (`"home"` | `"stats"` | `"crons"` | `"topics"` | `"settings"`):
 
 **Header** (shared across all pages):
-- **Logo**: PNG image (`/logo-8news.png`), responsive height
+- **Logo**: PNG image (`/logo-8news.png`), responsive height — **clicking logo resets to homepage Top 20 feed**
 - **Subtitle**: "AI that decodes the news" / "L'IA qui décrypte l'actualité"
 - **Top-right controls** (left to right):
   - **Language toggle** (EN/FR) — Segmented control
-  - **Home icon** (house SVG)
-  - **Stats icon** (bar chart SVG)
+  - **Home icon** (house SVG) — clicking resets to homepage, deselects topic, reloads Top 20 feed
   - **Topics icon** (RSS signal SVG)
+  - **Stats icon** (bar chart SVG)
+  - **Cron Monitor icon** (activity/pulse SVG)
   - **Settings icon** (gear SVG)
 
 ### 8.3 Home Page
+
+#### Default Homepage Feed (Top 20)
+
+On launch (no topic or period selected), the homepage displays the **Top 20 best-scored articles from the last 24 hours** across all topics, fetched from `/api/news/top`. Includes a "Refresh" button.
+
+When a topic is selected but no period chosen, the Top 20 disappears and a message prompts the user: "Select a time period to start the analysis."
 
 #### Topic Selector (`TopicToggle`)
 
@@ -343,6 +404,7 @@ The app has **4 pages** managed by `currentPage` state (`"home"` | `"stats"` | `
   - Mobile (≤640px): 4 columns → wraps
 - **Data**: Topics loaded dynamically from `/api/topics` on mount and when returning from other pages
 - **Style**: Individual rounded buttons with gold border, gold fill when active
+- **Loading spinner**: Displayed while topics are loading from API, preventing empty state flash
 - **Default**: No topic selected on launch
 
 #### Period Selector
@@ -357,14 +419,20 @@ The app has **4 pages** managed by `currentPage` state (`"home"` | `"stats"` | `
 
 #### Summary Box (`SummaryBox`)
 
+- **Title**: "Summary | {Topic Name}" — displays selected topic name next to Summary, separated by a pipe
 - Up to 8 bullet points with gold "•" prefix and source reference links
+- **Article stats metadata**: shows total articles in period, scored count, and number analyzed by AI
 - Audio player for TTS playback
 - Period display
 
 #### Result Tabs
 
 - **"Relevant articles"** — AI-filtered with generated summaries
-- **"All articles"** — All articles from Supabase, grouped by source
+- **"All articles"** — Up to **1000** articles from Supabase, **lazy-loaded** (fetched only when tab is clicked or preloaded in background). Progressive display: 50 articles shown initially with "Show more" button. Sorted by `relevance_score DESC NULLS LAST, pub_date DESC`. Each article displays its individual score.
+
+#### Scroll-to-Top Button
+
+A floating button appears after scrolling down 400px, allowing quick return to the top of the page.
 
 ### 8.4 Stats Page
 
@@ -372,22 +440,39 @@ Full dashboard with topic selector tabs, period filter, and multiple sections:
 
 **Topic Selector**: Tabs for "All" and each active topic (loaded from DB)
 
-**Period Filter**: All time, Yesterday, 3 days, 7 days, 30 days — all KPIs update dynamically
+**Period Filter**: All time, 1h, 3h, 6h, Today, Yesterday, 3 days, 7 days, 30 days — all KPIs update dynamically
 
 **KPIs** (7 boxes, single compact line):
 - Total articles, Scored, Coverage %, Avg score, New 24h, New 7d, Scored 24h
 
 **Sections**:
 - **Score distribution**: Horizontal bar chart by tier (1-2 through 9-10)
-- **Feed ranking**: Sortable table (source, total, scored, avg, hit rate, tier distribution). Source names are clickable links
+- **Feed ranking**: Sortable table (source, total, scored, avg, Score ≥ 7, tier distribution). Source names are clickable links
 - **Top articles**: Best-scored articles with score, reason, link
-- **Topic comparison**: Table comparing all topics (articles, coverage, avg score, hit rate, feeds)
+- **Topic comparison**: Table comparing all topics (articles, coverage, avg score, Score ≥ 7, active feeds (7d/7j))
 
-### 8.5 Topics Page
+### 8.5 Cron Monitor Page (`CronMonitorPage`)
+
+Real-time monitoring dashboard for fetch and scoring cron jobs. Auto-refreshes every **60 seconds**.
+
+**Global KPIs** (5 boxes):
+- Backlog (7d unscored articles)
+- Fetched 24h
+- Scored 24h
+- Coverage 24h (%)
+- Avg delay (minutes between publication and scoring)
+
+**Topic Status (24h)**: Table with per-topic status:
+- Topic name, last fetched, last scored, backlog count
+- Color-coded status indicator: 🟢 OK, 🟡 Slow, 🔴 High
+
+**Activity Last 24 Hours**: Hourly timeline showing fetched and scored article counts per hour. Displayed in **user's local timezone** (via `Intl.DateTimeFormat`). Future hours are filtered out to avoid displaying erroneous data.
+
+### 8.6 Topics Page
 
 Full CRUD management for topics and feeds, with 3 views:
 
-**List view**: Table of all topics with #, name, feed count, status, click to detail
+**List view**: Table of all topics with #, name, feed count, status, click to detail. Supports **drag & drop reordering** via `/api/topics/reorder` with optimistic UI updates.
 
 **Create view**: Form with:
 - Slug (auto-generated from label EN), Label EN, Label FR
@@ -400,22 +485,23 @@ Full CRUD management for topics and feeds, with 3 views:
   - Displays result summary (✅ X added / ❌ Y rejected)
 
 **Detail view**:
-- Topic info (labels, domain, scoring criteria — read-only with edit toggle)
+- Topic info (labels, domain, scoring criteria displayed in read mode with "Scoring" section header, edit toggle)
 - Analysis prompt (EN/FR tabs, read/edit modes, `{{max}}` validation warning)
 - Feeds list (name, domain link, delete button) + add feed form
+- **"🔍 Discover feeds by AI"** button: discovers and adds 10 new feeds to an existing topic
 
-### 8.6 Settings Page (`SettingsPage`)
+### 8.8 Settings Page (`SettingsPage`)
 
 Two sections:
 
 **1. Preferences**
-- **Max relevant articles** slider: 3–30, default 10, persisted in cookie
+- **Max relevant articles** slider: 3–**100**, default **20**, persisted in cookie. This is the exact number of articles sent to the AI for analysis (no hidden multiplier).
 
 **2. Voice**
 - **Speed** slider: 0.7x–1.2x, default 1.05x
 - **Voice EN** (6 voices), **Voice FR** (6 voices)
 
-### 8.7 Audio Player (`AudioPlayer`)
+### 8.9 Audio Player (`AudioPlayer`)
 
 Text-to-Speech player for the global summary, using ElevenLabs API.
 
@@ -440,13 +526,13 @@ Text-to-Speech player for the global summary, using ElevenLabs API.
 | `thomas` | Thomas | FR | `GBv7mTt0atIp3Br8iCZE` |
 | `callum` | Callum | FR | `N2lVS1w4EtoT3dr4eOWO` |
 
-### 8.8 Auto-Update Banner
+### 8.10 Auto-Update Banner
 
 The app checks `public/version.json` every **5 minutes**. If the version differs from `APP_VERSION`, a gold banner appears at the **top-right** of the screen: "New version available — click to refresh". Clicking reloads the page. No auto-reload.
 
-### 8.9 Version Footer
+### 8.11 Version Footer
 
-Fixed bottom-right: `v1.56` (incremented with each GitHub push).
+Fixed bottom-right: `v1.64` (incremented with each GitHub push).
 
 ---
 
@@ -492,13 +578,18 @@ All state is managed with React hooks (`useState`, `useRef`, `useCallback`) in t
 | `lang` | `"en"` \| `"fr"` | `"en"` | Cookie |
 | `topic` | string \| null | null | None |
 | `topics` | TopicItem[] | [] | Fetched from `/api/topics` |
-| `maxArticles` | number | 10 | Cookie |
+| `maxArticles` | number | 20 | Cookie |
 | `ttsSpeed` | number | 1.05 | Cookie |
 | `ttsVoice` | string | `"sarah"` | Cookie |
 | `ttsVoiceFr` | string | `"george"` | Cookie |
-| `currentPage` | `"home"` \| `"stats"` \| `"topics"` \| `"settings"` | `"home"` | None |
+| `currentPage` | `"home"` \| `"stats"` \| `"crons"` \| `"topics"` \| `"settings"` | `"home"` | None |
 | `data` | SummaryResponse \| null | null | None |
 | `loading` | boolean | false | None |
+| `topFeed` | Array<{title, link, source, topic, pubDate, score}> | [] | None |
+| `topFeedLoading` | boolean | true | None |
+| `allArticles` | ArticleSummary[] | [] | None (lazy-loaded) |
+| `allArticlesLoading` | boolean | false | None |
+| `topicsLoading` | boolean | true | None |
 
 ---
 
@@ -543,6 +634,11 @@ interface SummaryResponse {
   articles: ArticleSummary[];
   allArticles: ArticleSummary[];
   period: { from: string; to: string };
+  meta?: {
+    totalArticles: number;
+    scoredArticles: number;
+    analyzedArticles: number;
+  };
 }
 
 interface StatsResponse {
@@ -551,6 +647,29 @@ interface StatsResponse {
   feedRanking: Array<{ source, topic, total, scored, avgScore, hitRate, pct9_10..pct1_2 }>;
   topArticles: Array<{ title, link, source, topic, pubDate, score, reason }>;
   topicComparison: Array<{ topic, total, scored, pctScored, avgScore, hitRate, activeSources, totalFeeds }>;
+}
+
+interface CronStatsResponse {
+  global: {
+    backlog: number;
+    fetched24h: number;
+    scored24h: number;
+    coverage24h: number;
+    avgDelayMinutes: number;
+  };
+  topics: Array<{
+    id: string;
+    label: string;
+    lastFetchedAt: string | null;
+    lastScoredAt: string | null;
+    backlog: number;
+    status: "ok" | "slow" | "high";
+  }>;
+  timeline: Array<{
+    hour: string;
+    fetched: number;
+    scored: number;
+  }>;
 }
 ```
 
@@ -570,11 +689,12 @@ interface StatsResponse {
           │  - Upsert into Supabase `articles` table         │
           │                                                  │
           │  cron-score.ts (* * * * *)                      │
-          │  - Round-robin: pick topic with oldest score     │
+          │  - Iterate all active topics (oldest score first)│
+          │  - Quick backlog check per topic (skip if empty) │
           │  - Update last_scored_at BEFORE processing      │
-          │  - Fetch ≤100 unscored articles (last 7 days)    │
+          │  - Fetch ≤50 unscored articles (last 7 days)     │
           │  - Most recent articles scored first             │
-          │  - Score with gpt-4.1-nano (batches of 50)       │
+          │  - Score with gpt-4.1-nano (single batch)        │
           │  - Store score + AI summaries in Supabase         │
           └──────────────────────────────────────────────────┘
 
@@ -667,7 +787,7 @@ The topic immediately appears in the homepage topic selector, stats page, and cr
 
 ---
 
-## 17. Changelog (v1.49 → v1.56)
+## 17. Changelog (v1.49 → v1.64)
 
 | Version | Key Changes |
 |---|---|
@@ -679,13 +799,21 @@ The topic immediately appears in the homepage topic selector, stats page, and cr
 | v1.54 | Compact KPI boxes (7 on single line), add Anthropic topic + 20 feeds |
 | v1.55 | AI-powered scoring generation, auto RSS feed discovery on topic creation, refresh topics on homepage return |
 | v1.56 | Fix cron round-robin blocking (update timestamps before processing), limit scoring to 100 articles/run, score every minute |
+| v1.57 | Update banner moved to top-right, add 1h/3h/6h/today period filters to stats, clickable logo → homepage |
+| v1.58 | Loading spinner while topics load, topic active/inactive toggle in UI, drag & drop topic reorder |
+| v1.59 | "Discover feeds by AI" button in topic edit view, AI feed discovery for existing topics |
+| v1.60 | Cron scoring optimization: reduce to 50 articles/batch, smart backlog skip, OpenAI timeout handling |
+| v1.61 | Cron Monitor page (KPIs, per-topic status, hourly timeline). "All Articles" sorted by score DESC. Remove x2 multiplier on maxArticles. Article stats in Summary box. Lazy-loaded "All Articles" tab (1000 limit). Max articles slider up to 100, default 20. Local timezone in timeline. Filter future hours. Cron efficiency: skip topics without backlog |
+| v1.62 | Rename "Hit %" to "Score ≥ 7". Active Feeds column shows "(7d)"/"(7j)". Homepage Top 20 default feed (best scored articles last 24h). Scroll-to-top button |
+| v1.63 | Home icon and logo reset to Top 20 feed (deselects topic). Topic name displayed next to Summary title. Remove standalone Top 20 button |
+| v1.64 | Topic selection clears Top 20 feed and shows "select a period" prompt |
 
 ---
 
 ## 18. Known Limitations
 
 - **No authentication** — The app is public, no user accounts
-- **Serverless timeout** — Netlify functions have ~15s limit; scoring limited to 100 articles/run to stay within bounds
+- **Serverless timeout** — Netlify functions have ~15s limit; scoring limited to 50 articles/run (single batch) to stay well within bounds
 - **RSS availability** — Some feeds may go offline; AI feed discovery validates upfront but feeds can break later
 - **AI cost** — Each request consumes OpenAI tokens (gpt-4.1-nano), each TTS request consumes ElevenLabs credits
 - **No SSR** — The page is a client-only component (`"use client"`)

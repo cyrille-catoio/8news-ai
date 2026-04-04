@@ -39,7 +39,7 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 ## 3. Project Structure
 
 ```
-newsread/
+8news/
 ├── public/
 │   ├── logo-8news.png          # App logo (PNG, "8" gold / "news" light grey)
 │   ├── favicon.svg             # Browser favicon — gold "8" on black, 512×512

@@ -7,7 +7,7 @@ import { color, font, sectionHeading, card } from "@/lib/theme";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.66";
+const APP_VERSION = "1.67";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 const TTS_VOICES_EN = [
@@ -827,9 +827,25 @@ function SummaryBox({ data, locale, lang, hours, topicName, speed, voice }: { da
   const ttsText = raw.trim().length > 0 ? `${ttsIntro(hours, lang, topicName)} ${raw} ${ttsOutro}` : "";
   const bullets = data.bullets ?? [];
   const hasBullets = bullets.length > 0;
+  const loc = lang === "fr" ? "fr-FR" : "en-US";
+  const fmt = (n: number) => n.toLocaleString(loc);
 
   return (
     <div style={{ ...card, borderRadius: 12, padding: 20, marginBottom: 28, position: "relative" }}>
+      <style>{`
+        .summary-meta-line {
+          margin: 0 0 12px;
+          font-size: 12px;
+          line-height: 1.45;
+          color: ${color.textMuted};
+        }
+        @media (max-width: 640px) {
+          .summary-meta-line {
+            font-size: 11px;
+            letter-spacing: -0.01em;
+          }
+        }
+      `}</style>
       <h2 style={sectionHeading}>
         {t("summary", lang)}
         {topicName && (
@@ -837,13 +853,19 @@ function SummaryBox({ data, locale, lang, hours, topicName, speed, voice }: { da
         )}
       </h2>
       {data.meta && (
-        <div style={{ display: "flex", gap: 16, marginBottom: 12, fontSize: 12, color: color.textMuted }}>
-          <span>{data.meta.totalArticles.toLocaleString(lang === "fr" ? "fr-FR" : "en-US")} {lang === "fr" ? "articles sur la période" : "articles in period"}</span>
-          <span style={{ color: color.border }}>|</span>
-          <span>{data.meta.scoredArticles.toLocaleString(lang === "fr" ? "fr-FR" : "en-US")} {lang === "fr" ? "scorés" : "scored"}</span>
-          <span style={{ color: color.border }}>|</span>
-          <span style={{ color: color.gold }}>{data.meta.analyzedArticles} {lang === "fr" ? "analysés par l'IA" : "analyzed by AI"}</span>
-        </div>
+        <p className="summary-meta-line">
+          {lang === "fr" ? (
+            <>
+              {fmt(data.meta.totalArticles)} articles, {fmt(data.meta.scoredArticles)} score,{" "}
+              <span style={{ color: color.gold }}>{fmt(data.meta.analyzedArticles)} analysés par IA</span>
+            </>
+          ) : (
+            <>
+              {fmt(data.meta.totalArticles)} articles, {fmt(data.meta.scoredArticles)} scored,{" "}
+              <span style={{ color: color.gold }}>{fmt(data.meta.analyzedArticles)} analyzed by AI</span>
+            </>
+          )}
+        </p>
       )}
       {ttsText.length > 0 && <div style={{ marginBottom: 12 }}><AudioPlayer text={ttsText} lang={lang} speed={speed} voice={voice} /></div>}
       {hasBullets ? (

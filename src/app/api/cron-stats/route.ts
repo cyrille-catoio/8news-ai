@@ -26,7 +26,8 @@ export async function GET() {
   const since24h = new Date(now - 24 * 3_600_000).toISOString();
   const since7d = new Date(now - 7 * 86_400_000).toISOString();
 
-  const PAGE = 10_000;
+  /** PostgREST max rows per response (Supabase default). Request wider ranges but only get 1000 → must page with this size. */
+  const FETCH_BATCH = 1000;
 
   async function paginateBacklog(since: string): Promise<{ topic: string }[]> {
     const all: { topic: string }[] = [];
@@ -37,11 +38,11 @@ export async function GET() {
         .select("topic")
         .gte("pub_date", since)
         .is("relevance_score", null)
-        .range(from, from + PAGE - 1);
+        .range(from, from + FETCH_BATCH - 1);
       if (!data || data.length === 0) break;
       all.push(...data);
-      if (data.length < PAGE) break;
-      from += PAGE;
+      if (data.length < FETCH_BATCH) break;
+      from += FETCH_BATCH;
     }
     return all;
   }
@@ -54,11 +55,11 @@ export async function GET() {
         .from("articles")
         .select("pub_date, scored_at, topic")
         .gte("pub_date", since)
-        .range(from, from + PAGE - 1);
+        .range(from, from + FETCH_BATCH - 1);
       if (!data || data.length === 0) break;
       all.push(...data);
-      if (data.length < PAGE) break;
-      from += PAGE;
+      if (data.length < FETCH_BATCH) break;
+      from += FETCH_BATCH;
     }
     return all;
   }
@@ -72,11 +73,11 @@ export async function GET() {
         .select("pub_date, scored_at")
         .gte("scored_at", since)
         .not("scored_at", "is", null)
-        .range(from, from + PAGE - 1);
+        .range(from, from + FETCH_BATCH - 1);
       if (!data || data.length === 0) break;
       all.push(...data);
-      if (data.length < PAGE) break;
-      from += PAGE;
+      if (data.length < FETCH_BATCH) break;
+      from += FETCH_BATCH;
     }
     return all;
   }

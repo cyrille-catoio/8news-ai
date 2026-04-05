@@ -7,7 +7,7 @@ import { color, font, sectionHeading, card } from "@/lib/theme";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.67";
+const APP_VERSION = "1.68";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 const TTS_VOICES_EN = [
@@ -2485,6 +2485,18 @@ export default function Home() {
       .finally(() => setTopFeedLoading(false));
   }, []);
 
+  // Auto-refresh Top 20 every 5 minutes when home page is visible and no topic selected
+  useEffect(() => {
+    if (currentPage !== "home" || topic !== null) return;
+    const id = setInterval(() => {
+      fetch("/api/news/top?limit=20&days=1", { cache: "no-store" })
+        .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
+        .then((json) => setTopFeed(json.articles ?? []))
+        .catch(() => {});
+    }, 5 * 60_000);
+    return () => clearInterval(id);
+  }, [currentPage, topic]);
+
   const locale = dateLocale(lang);
   const currentTopicLabel = topicLabels.find((tp) => tp.id === topic)?.label ?? topic ?? "";
 
@@ -2931,6 +2943,21 @@ export default function Home() {
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
                       <a href={art.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
                         <span style={{ color: color.gold, fontSize: 13 }}>
+                          {art.topic && (
+                            <span style={{
+                              display: "inline-block",
+                              fontSize: 10,
+                              fontWeight: 700,
+                              color: color.gold,
+                              border: `1px solid ${color.gold}`,
+                              borderRadius: 4,
+                              padding: "1px 5px",
+                              marginRight: 6,
+                              verticalAlign: "middle",
+                              letterSpacing: 0.3,
+                              opacity: 0.85,
+                            }}>{art.topic}</span>
+                          )}
                           {art.source} · {art.pubDate ? new Date(art.pubDate).toLocaleString(locale) : ""}
                         </span>
                       </a>

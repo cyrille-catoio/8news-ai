@@ -7,7 +7,7 @@ import { color, font, sectionHeading, card } from "@/lib/theme";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.65";
+const APP_VERSION = "1.68";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 const TTS_VOICES_EN = [
@@ -829,6 +829,8 @@ function SummaryBox({ data, locale, lang, hours, topicName, speed, voice }: { da
   const hasBullets = bullets.length > 0;
 
   return (
+    <>
+    <style>{`.sum-meta-hide{display:inline}@media(max-width:640px){.sum-meta-hide{display:none}}`}</style>
     <div style={{ ...card, borderRadius: 12, padding: 20, marginBottom: 28, position: "relative" }}>
       <h2 style={sectionHeading}>
         {t("summary", lang)}
@@ -838,11 +840,11 @@ function SummaryBox({ data, locale, lang, hours, topicName, speed, voice }: { da
       </h2>
       {data.meta && (
         <div style={{ display: "flex", gap: 16, marginBottom: 12, fontSize: 12, color: color.textMuted }}>
-          <span>{data.meta.totalArticles.toLocaleString(lang === "fr" ? "fr-FR" : "en-US")} {lang === "fr" ? "articles sur la période" : "articles in period"}</span>
-          <span style={{ color: color.border }}>|</span>
+          <span className="sum-meta-hide">{data.meta.totalArticles.toLocaleString(lang === "fr" ? "fr-FR" : "en-US")} {lang === "fr" ? "articles sur la période" : "articles in period"}</span>
+          <span className="sum-meta-hide" style={{ color: color.border }}>|</span>
           <span>{data.meta.scoredArticles.toLocaleString(lang === "fr" ? "fr-FR" : "en-US")} {lang === "fr" ? "scorés" : "scored"}</span>
-          <span style={{ color: color.border }}>|</span>
-          <span style={{ color: color.gold }}>{data.meta.analyzedArticles} {lang === "fr" ? "analysés par l'IA" : "analyzed by AI"}</span>
+          <span className="sum-meta-hide" style={{ color: color.border }}>|</span>
+          <span className="sum-meta-hide" style={{ color: color.gold }}>{data.meta.analyzedArticles} {lang === "fr" ? "analysés par l'IA" : "analyzed by AI"}</span>
         </div>
       )}
       {ttsText.length > 0 && <div style={{ marginBottom: 12 }}><AudioPlayer text={ttsText} lang={lang} speed={speed} voice={voice} /></div>}
@@ -900,6 +902,7 @@ function SummaryBox({ data, locale, lang, hours, topicName, speed, voice }: { da
         {new Date(data.period.from).toLocaleString(locale)} → {new Date(data.period.to).toLocaleString(locale)}
       </p>
     </div>
+    </>
   );
 }
 

@@ -70,6 +70,7 @@ export async function GET(request: NextRequest) {
           pub_date: new Date(ms).toISOString(),
           content: decodeHtmlEntities(item.content ?? "").slice(0, SNIPPET_MAX),
           snippet: decodeHtmlEntities(item.contentSnippet ?? "").slice(0, SNIPPET_MAX),
+          fetched_at: new Date().toISOString(),
         });
       }
     }),

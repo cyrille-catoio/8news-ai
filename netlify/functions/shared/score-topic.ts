@@ -105,15 +105,25 @@ async function scoreArticleBatch(
   }
 }
 
+export type ScoreTopicOptions = {
+  /** Limite d’articles à scorer (défaut MAX_ARTICLES_PER_RUN). Utilisé pour le mini-score post-fetch. */
+  maxArticles?: number;
+};
+
 async function scoreCore(
   topicId: string,
   prompt: string,
   supabase: SupabaseClient,
+  opts?: ScoreTopicOptions,
 ): Promise<string> {
   const apiKey = getOpenAIKey();
   const openai = new OpenAI({ apiKey });
 
   const since = new Date(Date.now() - SCORE_WINDOW_HOURS * 3_600_000).toISOString();
+  const limit = Math.min(
+    Math.max(1, opts?.maxArticles ?? MAX_ARTICLES_PER_RUN),
+    MAX_ARTICLES_PER_RUN,
+  );
 
   const { data: unscored, error } = await supabase
     .from("articles")
@@ -122,7 +132,7 @@ async function scoreCore(
     .gte("pub_date", since)
     .is("relevance_score", null)
     .order("pub_date", { ascending: false })
-    .limit(MAX_ARTICLES_PER_RUN);
+    .limit(limit);
 
   if (error) {
     console.error(`[${topicId}] DB error:`, error.message);
@@ -180,8 +190,9 @@ export async function scoreAndStoreTopicDynamic(
   topicId: string,
   criteria: ScoringCriteria,
   supabase: SupabaseClient,
+  opts?: ScoreTopicOptions,
 ): Promise<string> {
   const prompt = buildScoringPrompt(criteria);
-  return scoreCore(topicId, prompt, supabase);
+  return scoreCore(topicId, prompt, supabase, opts);
 }
 

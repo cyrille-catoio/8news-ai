@@ -24,7 +24,8 @@ Créer une nouvelle page **"Cron Monitor"** dans l'interface, accessible via un 
 |--------|---------------------|
 | `topics.last_fetched_at` | Timestamp du dernier fetch réussi par topic |
 | `topics.last_scored_at` | Timestamp du dernier scoring réussi par topic |
-| `articles.pub_date` | Date de publication (≈ date d'insertion) |
+| `articles.pub_date` | Date de publication RSS |
+| `articles.fetched_at` | Timestamp d'insertion en base (= moment du fetch cron) |
 | `articles.scored_at` | Timestamp du scoring effectif |
 | `articles.relevance_score` | `null` = non scoré, 1-10 = scoré |
 | `articles.topic` | Topic associé |
@@ -37,7 +38,7 @@ Créer une nouvelle page **"Cron Monitor"** dans l'interface, accessible via un 
 | **Articles fetchés / heure** | `COUNT(*) WHERE pub_date BETWEEN h AND h+1` groupé par heure |
 | **Articles scorés / heure** | `COUNT(*) WHERE scored_at BETWEEN h AND h+1` groupé par heure |
 | **Backlog non scoré** | `COUNT(*) WHERE relevance_score IS NULL AND pub_date >= now - 7j` |
-| **Délai moyen fetch→score** | `AVG(scored_at - pub_date)` |
+| **Délai moyen fetch→score** | `AVG(scored_at - fetched_at)` sur articles avec pub_date 24h + scorés |
 | **Coverage temps réel** | `scorés / total` sur la dernière heure/journée |
 | **Dernier fetch/score** | `last_fetched_at` / `last_scored_at` depuis `topics` |
 | **Temps depuis dernier passage** | `now() - last_fetched_at` / `now() - last_scored_at` |

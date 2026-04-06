@@ -169,7 +169,7 @@ Users can create new topics from the Topics page. Each topic includes:
 
 ### 5.4 `articles` table
 
-**Columns**: `id`, `topic`, `source`, `title`, `link`, `pub_date`, `content`, `snippet`, `snippet_ai_en`, `snippet_ai_fr`, `relevance_score`, `score_reason`, `scored_at`
+**Columns**: `id`, `topic`, `source`, `title`, `link`, `pub_date`, `fetched_at`, `content`, `snippet`, `snippet_ai_en`, `snippet_ai_fr`, `relevance_score`, `score_reason`, `scored_at`
 
 ### 5.5 Cache TTL (based on time window)
 
@@ -276,7 +276,7 @@ Homepage default feed. Returns top-scored articles across all topics.
 Cron monitoring endpoint. Returns real-time statistics about fetch and scoring jobs.
 
 **Response** (`CronStatsResponse`):
-- `global`: backlog (7d unscored), fetched24h, scored24h, coverage24h %, avgDelayMinutes (mean of `scored_at − pub_date` in minutes, only articles with `pub_date` in the last 24h — same cohort as fetched24h — and with both `relevance_score` and `scored_at` set)
+- `global`: backlog (7d unscored), fetched24h, scored24h, coverage24h %, avgDelayMinutes (mean of `scored_at − fetched_at` in minutes, only articles with `pub_date` in the last 24h and with `relevance_score`, `scored_at`, and `fetched_at` all set)
 - `topics[]`: per-topic status (id, label, lastFetchedAt, lastScoredAt, backlog, status: ok/slow/high, optional **statusReason**: `"backlog"` \| `"fetch"` \| `"score"` for slow/high — used in the Topic Status table **Reason** column)
 - `timeline[]`: hourly buckets (hour, fetched, scored) for the last 24h
 
@@ -461,7 +461,7 @@ Real-time monitoring dashboard for fetch and scoring cron jobs. Auto-refreshes e
 - Fetched 24h
 - Scored 24h
 - Coverage 24h (%)
-- **Avg delay** — mean of **`scored_at − pub_date`** (minutes), only for articles with **`pub_date` in the last 24h** (same cohort as Fetched 24h) **and** both **`relevance_score`** and **`scored_at`** set
+- **Avg delay** — mean of **`scored_at − fetched_at`** (minutes), only for articles with **`pub_date` in the last 24h** (same cohort as Fetched 24h) **and** `relevance_score`, `scored_at`, and `fetched_at` all set
 
 **Topic Status**: Table with per-topic status:
 - Topic name, last fetched, last scored, backlog count, **Reason** (for slow/high: `backlog`, `fetch`, or `score`)

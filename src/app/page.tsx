@@ -7,7 +7,7 @@ import { color, font, sectionHeading, card } from "@/lib/theme";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.70";
+const APP_VERSION = "1.71";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 const TTS_VOICES_EN = [
@@ -1135,15 +1135,25 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
   const [data, setData] = useState<StatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [statsTopic, setStatsTopic] = useState<string>("all");
-  const [days, setDays] = useState(0);
+  const [statsTopic, setStatsTopic] = useState<string | null>(null);
+  const [days, setDays] = useState<number | null>(null);
   const [sortKey, setSortKey] = useState("avgScore");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [visibleArticleCount, setVisibleArticleCount] = useState(50);
   const cache = useRef<Record<string, StatsResponse>>({});
   const locale = dateLocale(lang);
 
+  const isHome = statsTopic === null;
+  const hasSelection = statsTopic !== null && days !== null;
+
   useEffect(() => {
-    const key = `${statsTopic}:${days}`;
+    if (statsTopic !== null && days === null) return;
+    setVisibleArticleCount(50);
+
+    const isInitial = statsTopic === null;
+    const topic = statsTopic ?? "all";
+    const d = days ?? 0;
+    const key = isInitial ? "_kpi_" : `${topic}:${d}`;
     if (cache.current[key]) {
       setData(cache.current[key]);
       setErr(null);
@@ -1153,8 +1163,10 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
     const ac = new AbortController();
     setLoading(true);
     setErr(null);
-    const daysParam = days === -1 ? (Date.now() - new Date().setHours(0, 0, 0, 0)) / 86_400_000 : days;
-    fetch(`/api/stats?topic=${statsTopic}&days=${daysParam}`, { signal: ac.signal, cache: "no-store" })
+    const url = isInitial
+      ? "/api/stats?kpi_only=1"
+      : `/api/stats?topic=${topic}&days=${d === -1 ? (Date.now() - new Date().setHours(0, 0, 0, 0)) / 86_400_000 : d}`;
+    fetch(url, { signal: ac.signal, cache: "no-store" })
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((json: StatsResponse) => {
         if (ac.signal.aborted) return;
@@ -1222,10 +1234,11 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
     );
   }
 
-  if (!data) return null;
-
-  const g = data.global;
-  const { scoreDistribution, feedRanking, topArticles, topicComparison } = data;
+  const g = data?.global;
+  const scoreDistribution = data?.scoreDistribution ?? [];
+  const feedRanking = data?.feedRanking ?? [];
+  const topArticles = data?.topArticles ?? [];
+  const topicComparison = data?.topicComparison ?? [];
   const maxPct = Math.max(...scoreDistribution.map((d) => d.pct), 1);
 
   const sorted = [...feedRanking].sort((a, b) => {
@@ -1267,7 +1280,7 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
             padding: "7px 12px", fontSize: 12, fontWeight: 600, border: "none",
             borderBottom: statsTopic === "all" ? `2px solid ${color.gold}` : "2px solid transparent",
             background: "transparent", color: statsTopic === "all" ? color.gold : color.textMuted,
-            cursor: "pointer", transition: "all 0.15s",
+            cursor: statsTopic === "all" ? "default" : "pointer", transition: "all 0.15s",
           }}
         >
           {t("allTopics", lang)}
@@ -1299,7 +1312,7 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
               border: `1px solid ${days === o.value ? color.gold : color.border}`,
               background: days === o.value ? color.gold : "transparent",
               color: days === o.value ? "#000" : color.textMuted,
-              cursor: "pointer", transition: "all 0.15s",
+              cursor: days === o.value ? "default" : "pointer", transition: "all 0.15s",
             }}
           >
             {o.label}
@@ -1317,7 +1330,31 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
         </div>
       )}
 
-      {/* ── KPIs ─────────────────────────────────── */}
+      {/* ── KPIs (home only) ───────────────────────── */}
+      {isHome && g && (
+        <div className="s-kpi5">
+          <div style={kpiCard}><div style={kpiVal}>{fmt(g.totalArticles)}</div><div style={kpiLbl}>{t("totalArticles", lang)}</div></div>
+          <div style={kpiCard}><div style={kpiVal}>{fmt(g.scoredArticles)}</div><div style={kpiLbl}>{t("scoredArticles", lang)}</div></div>
+          <div style={kpiCard}><div style={{ ...kpiVal, color: covClr(g.pctScored) }}>{g.pctScored}%</div><div style={kpiLbl}>{t("coverage", lang)}</div></div>
+          <div style={kpiCard}><div style={{ ...kpiVal, color: scoreClr(g.avgScore) }}>{g.avgScore}</div><div style={kpiLbl}>{t("avgScore", lang)}</div></div>
+          <div style={kpiCard}><div style={kpiVal}>{g.hitRate}%</div><div style={kpiLbl}>Score ≥ 7</div></div>
+        </div>
+      )}
+
+      {isHome && (
+        <p style={{ color: color.textMuted, fontSize: 14, textAlign: "center", margin: "30px 0" }}>
+          {lang === "fr" ? "Sélectionnez un topic et une période pour afficher les statistiques détaillées." : "Select a topic and a period to display detailed statistics."}
+        </p>
+      )}
+
+      {statsTopic !== null && days === null && (
+        <p style={{ color: color.textMuted, fontSize: 14, textAlign: "center", margin: "30px 0" }}>
+          {lang === "fr" ? "Sélectionnez une période pour lancer le calcul." : "Select a period to start the analysis."}
+        </p>
+      )}
+
+      {hasSelection && g && <>
+      {/* ── KPIs (filtered) ──────────────────────── */}
       <div className="s-kpi5">
         <div style={kpiCard}><div style={kpiVal}>{fmt(g.totalArticles)}</div><div style={kpiLbl}>{t("totalArticles", lang)}</div></div>
         <div style={kpiCard}><div style={kpiVal}>{fmt(g.scoredArticles)}</div><div style={kpiLbl}>{t("scoredArticles", lang)}</div></div>
@@ -1355,7 +1392,7 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
                 <tr>
                   <th>#</th>
                   <th className="col-src">{t("source", lang)}</th>
-                  {statsTopic === "all" && <th>Topic</th>}
+                  {(statsTopic === "all" || statsTopic === null) && <th>Topic</th>}
                   <th className="sc" onClick={() => handleSort("total")}>{t("total", lang)}{sortArrow("total")}</th>
                   <th className="sc" onClick={() => handleSort("scored")}>{t("scored", lang)}{sortArrow("scored")}</th>
                   <th className="sc" onClick={() => handleSort("avgScore")}>{t("average", lang)}{sortArrow("avgScore")}</th>
@@ -1385,7 +1422,7 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
                         f.source
                       )}
                     </td>
-                    {statsTopic === "all" && <td style={{ color: color.textMuted, fontSize: 12 }}>{topicLabel(f.topic)}</td>}
+                    {(statsTopic === "all" || statsTopic === null) && <td style={{ color: color.textMuted, fontSize: 12 }}>{topicLabel(f.topic)}</td>}
                     <td>{fmt(f.total)}</td>
                     <td>{fmt(f.scored)}</td>
                     <td style={{ fontWeight: 700, color: scoreClr(f.avgScore) }}>
@@ -1406,49 +1443,72 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
         )}
       </div>
 
-      {/* ── Top 10 Articles ──────────────────────── */}
+      {/* ── Article Ranking ─────────────────────── */}
       <div style={secStyle}>
         <h4 style={secTitle}>{t("topArticles", lang)}</h4>
         {topArticles.length === 0 ? (
           <p style={{ color: color.textDim, fontSize: 14, margin: 0 }}>—</p>
-        ) : topArticles.map((a, i) => (
-          <div
-            key={`${a.link}-${i}`}
-            style={{
-              display: "flex", gap: 10, alignItems: "flex-start",
-              padding: "10px 0",
-              borderBottom: i < topArticles.length - 1 ? `1px solid ${color.border}` : "none",
-            }}
-          >
-            <span style={{
-              display: "inline-block", padding: "2px 8px", borderRadius: 4,
-              fontSize: 13, fontWeight: 700, color: "#000", flexShrink: 0,
-              background: a.score >= 9 ? "#22c55e" : a.score >= 7 ? color.gold : a.score >= 5 ? "#eab308" : "#f97316",
-            }}>
-              {a.score}
-            </span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <a href={a.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none", color: "inherit" }}>
-                <div style={{ color: color.text, fontWeight: 500, fontSize: 14 }}>{a.title}</div>
-              </a>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 3 }}>
-                <span style={{ color: color.textMuted, fontSize: 12 }}>
-                  {a.source} · {new Date(a.pubDate).toLocaleDateString(locale)}
-                </span>
-                <CopyLinkButton url={a.link} />
-              </div>
-              {a.reason && (
-                <div style={{ color: color.textDim, fontSize: 12, marginTop: 2, whiteSpace: "normal" }}>
-                  {a.reason.length > 80 ? `${a.reason.slice(0, 80)}…` : a.reason}
+        ) : (<>
+          {topArticles.slice(0, visibleArticleCount).map((a, i) => (
+            <div
+              key={`${a.link}-${i}`}
+              style={{
+                display: "flex", gap: 10, alignItems: "flex-start",
+                padding: "10px 0",
+                borderBottom: i < Math.min(visibleArticleCount, topArticles.length) - 1 ? `1px solid ${color.border}` : "none",
+              }}
+            >
+              <span style={{
+                display: "inline-block", padding: "2px 8px", borderRadius: 4,
+                fontSize: 13, fontWeight: 700, color: "#000", flexShrink: 0,
+                background: a.score >= 9 ? "#22c55e" : a.score >= 7 ? color.gold : a.score >= 5 ? "#eab308" : "#f97316",
+              }}>
+                {a.score}
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <a href={a.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none", color: "inherit" }}>
+                  <div style={{ color: color.text, fontWeight: 500, fontSize: 14 }}>{a.title}</div>
+                </a>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 3 }}>
+                  <span style={{ color: color.textMuted, fontSize: 12 }}>
+                    {a.source} · {new Date(a.pubDate).toLocaleDateString(locale)}
+                  </span>
+                  <CopyLinkButton url={a.link} />
                 </div>
-              )}
+                {a.reason && (
+                  <div style={{ color: color.textDim, fontSize: 12, marginTop: 2, whiteSpace: "normal" }}>
+                    {a.reason.length > 80 ? `${a.reason.slice(0, 80)}…` : a.reason}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+          {visibleArticleCount < topArticles.length && (
+            <div style={{ textAlign: "center", paddingTop: 16 }}>
+              <button
+                onClick={() => setVisibleArticleCount((c) => c + 50)}
+                style={{
+                  padding: "8px 24px", borderRadius: 6, fontSize: 13, fontWeight: 600,
+                  border: `1px solid ${color.gold}`, background: "transparent", color: color.gold,
+                  cursor: "pointer", transition: "all 0.15s",
+                }}
+              >
+                {lang === "fr"
+                  ? `Afficher 50 de plus (${Math.min(visibleArticleCount, topArticles.length)}/${topArticles.length})`
+                  : `Show 50 more (${Math.min(visibleArticleCount, topArticles.length)}/${topArticles.length})`}
+              </button>
+            </div>
+          )}
+          {visibleArticleCount >= topArticles.length && topArticles.length > 50 && (
+            <p style={{ color: color.textDim, fontSize: 12, textAlign: "center", margin: "12px 0 0" }}>
+              {lang === "fr" ? `${topArticles.length} articles affichés` : `${topArticles.length} articles displayed`}
+            </p>
+          )}
+        </>)}
       </div>
 
       {/* ── Topic Comparison (All only) ──────────── */}
-      {statsTopic === "all" && topicComparison.length > 0 && (
+      {(statsTopic === "all" || statsTopic === null) && topicComparison.length > 0 && (
         <div style={secStyle}>
           <h4 style={secTitle}>{t("topicComparison", lang)}</h4>
           <div className="s-tw">
@@ -1483,6 +1543,7 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
           </div>
         </div>
       )}
+      </>}
 
       </div>{/* end filtered sections wrapper */}
     </div>
@@ -1606,7 +1667,7 @@ function CronMonitorPage({ lang }: { lang: Lang }) {
           <div style={kpiLbl}>{t("coverage24h", lang)}</div>
         </div>
         <div style={kpiCard}>
-          <div style={{ ...kpiVal, color: kpiColor(data.global.avgDelayMinutes, [15, 60], true) }}>{data.global.avgDelayMinutes} min</div>
+          <div style={{ ...kpiVal, color: kpiColor(data.global.avgDelayMinutes, [15, 60], true) }}>{Math.floor(data.global.avgDelayMinutes)}m{String(Math.round((data.global.avgDelayMinutes % 1) * 60)).padStart(2, "0")}s</div>
           <div style={kpiLbl}>{t("avgDelay", lang)}</div>
         </div>
       </div>

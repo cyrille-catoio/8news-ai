@@ -14,6 +14,7 @@ export interface ParsedArticle {
   pub_date: string;
   content: string;
   snippet: string;
+  fetched_at: string;
 }
 
 export interface ArticleSummary {

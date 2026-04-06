@@ -126,6 +126,44 @@ export interface StatsFeedRow {
   url: string;
 }
 
+export interface GlobalKpis {
+  totalArticles: number;
+  scoredArticles: number;
+  pctScored: number;
+  avgScore: number;
+  hitRate: number;
+}
+
+export async function getGlobalKpis(): Promise<GlobalKpis> {
+  const clientP = getServerClient();
+  if (!clientP) return { totalArticles: 0, scoredArticles: 0, pctScored: 0, avgScore: 0, hitRate: 0 };
+
+  const supabase = await clientP;
+  const countByScore = (score: number) =>
+    supabase.from("articles").select("id", { count: "exact", head: true }).eq("relevance_score", score);
+
+  const [totalRes, ...scoreCountRes] = await Promise.all([
+    supabase.from("articles").select("id", { count: "exact", head: true }),
+    countByScore(1), countByScore(2), countByScore(3), countByScore(4), countByScore(5),
+    countByScore(6), countByScore(7), countByScore(8), countByScore(9), countByScore(10),
+  ]);
+
+  const total = totalRes.count ?? 0;
+  const counts = scoreCountRes.map((r) => r.count ?? 0);
+  const scored = counts.reduce((s, c) => s + c, 0);
+  const hit7 = counts[6] + counts[7] + counts[8] + counts[9];
+  const weightedSum = counts.reduce((s, c, i) => s + c * (i + 1), 0);
+  const avgScore = scored > 0 ? Math.round((weightedSum / scored) * 10) / 10 : 0;
+
+  return {
+    totalArticles: total,
+    scoredArticles: scored,
+    pctScored: total > 0 ? Math.round((scored / total) * 1000) / 10 : 0,
+    avgScore,
+    hitRate: scored > 0 ? Math.round((hit7 / scored) * 1000) / 10 : 0,
+  };
+}
+
 export async function getAllArticlesForStats(): Promise<StatsArticleRow[]> {
   const clientP = getServerClient();
   if (!clientP) return [];

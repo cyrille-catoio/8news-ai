@@ -122,8 +122,8 @@ const strings = {
     fr: "Classement des flux",
   },
   topArticles: {
-    en: "Top articles",
-    fr: "Meilleurs articles",
+    en: "Article ranking",
+    fr: "Classement des articles",
   },
   topicComparison: {
     en: "Topic comparison",

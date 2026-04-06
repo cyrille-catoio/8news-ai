@@ -4,6 +4,7 @@ import {
   getActiveFeedsForStats,
   getTopArticlesForStats,
   getActiveTopics,
+  getGlobalKpis,
   type StatsArticleRow,
 } from "@/lib/supabase";
 import type { StatsResponse } from "@/lib/types";
@@ -138,6 +139,19 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const topic = searchParams.get("topic") || "all";
   const days = Math.max(0, parseFloat(searchParams.get("days") || "0") || 0);
+  const kpiOnly = searchParams.get("kpi_only") === "1";
+
+  if (kpiOnly) {
+    const kpis = await getGlobalKpis();
+    const response: StatsResponse = {
+      global: { ...kpis, new24h: 0, new7d: 0, scored24h: 0 },
+      scoreDistribution: [],
+      feedRanking: [],
+      topArticles: [],
+      topicComparison: [],
+    };
+    return NextResponse.json(response, { headers: { "Cache-Control": "no-store" } });
+  }
 
   const activeTopics = await getActiveTopics();
   const validIds = new Set(activeTopics.map((t) => t.id));
@@ -148,7 +162,7 @@ export async function GET(req: NextRequest) {
 
   const [allArticles, topArticles, activeFeeds] = await Promise.all([
     getAllArticlesForStats(),
-    getTopArticlesForStats(topic === "all" ? null : topic, days),
+    getTopArticlesForStats(topic === "all" ? null : topic, days, 500),
     getActiveFeedsForStats(),
   ]);
 

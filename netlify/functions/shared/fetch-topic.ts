@@ -28,6 +28,8 @@ async function fetchFeedsAndStore(
   let feedsOk = 0;
   let feedsFailed = 0;
 
+  const fetchedAt = new Date().toISOString();
+
   const results = await Promise.allSettled(
     feeds.map(async (feed) => {
       const xml = await fetch(feed.url, {
@@ -54,6 +56,7 @@ async function fetchFeedsAndStore(
           pub_date: new Date(ms).toISOString(),
           content: rawContent.slice(0, SNIPPET_MAX),
           snippet: rawSnippet.slice(0, SNIPPET_MAX),
+          fetched_at: fetchedAt,
         });
       }
     }),

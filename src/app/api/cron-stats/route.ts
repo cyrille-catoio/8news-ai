@@ -64,17 +64,18 @@ export async function GET() {
     return all;
   }
 
-  /** Cohorte « fetch 24h » (même fenêtre que fetched24h : pub_date) + uniquement articles déjà scorés. */
-  async function paginateDelayCohort(since: string): Promise<{ pub_date: string; scored_at: string }[]> {
-    const all: { pub_date: string; scored_at: string }[] = [];
+  /** Cohorte délai fetch→score : articles avec pub_date 24h, scorés, et ayant un fetched_at. */
+  async function paginateDelayCohort(since: string): Promise<{ fetched_at: string; scored_at: string }[]> {
+    const all: { fetched_at: string; scored_at: string }[] = [];
     let from = 0;
     while (true) {
       const { data } = await supabase
         .from("articles")
-        .select("pub_date, scored_at")
+        .select("fetched_at, scored_at")
         .gte("pub_date", since)
         .not("relevance_score", "is", null)
         .not("scored_at", "is", null)
+        .not("fetched_at", "is", null)
         .range(from, from + FETCH_BATCH - 1);
       if (!data || data.length === 0) break;
       all.push(...data);
@@ -100,9 +101,9 @@ export async function GET() {
   if (delayCohortRows.length > 0) {
     const delays = delayCohortRows
       .map((r) => {
-        const pub = new Date(r.pub_date).getTime();
-        const sc = new Date(r.scored_at).getTime();
-        return sc > pub ? (sc - pub) / 60_000 : 0;
+        const fetched = new Date(r.fetched_at).getTime();
+        const scored = new Date(r.scored_at).getTime();
+        return scored > fetched ? (scored - fetched) / 60_000 : 0;
       })
       .filter((d) => d > 0);
     avgDelayMinutes = delays.length > 0

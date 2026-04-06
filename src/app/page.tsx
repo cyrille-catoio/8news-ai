@@ -7,7 +7,7 @@ import { color, font, sectionHeading, card } from "@/lib/theme";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.71";
+const APP_VERSION = "1.72";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 const TTS_VOICES_EN = [
@@ -380,6 +380,81 @@ function VoiceAccordion({
               <br />
               <span style={{ fontSize: 11, opacity: 0.65 }}>{v.desc}</span>
             </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Changelog page ──────────────────────────────────────────────────────
+
+interface ChangelogEntry {
+  id: number;
+  version: string;
+  title_en: string;
+  title_fr: string;
+  body_en: string;
+  body_fr: string;
+  created_at: string;
+}
+
+function ChangelogPage({ lang }: { lang: Lang }) {
+  const [entries, setEntries] = useState<ChangelogEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const locale = dateLocale(lang);
+
+  useEffect(() => {
+    fetch("/api/changelog", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((json) => setEntries(json.entries ?? []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div>
+      <h2 style={{ color: color.gold, fontSize: 20, fontWeight: 600, marginBottom: 20, marginTop: 0 }}>
+        {t("changelog", lang)}
+      </h2>
+
+      {loading ? (
+        <div style={{ padding: "60px 0", textAlign: "center" }}>
+          <SpinKeyframes />
+          <span style={{ display: "inline-block", width: 28, height: 28, border: `3px solid ${color.gold}`, borderTop: "3px solid transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+        </div>
+      ) : entries.length === 0 ? (
+        <p style={{ color: color.textMuted, fontSize: 14, textAlign: "center" }}>{t("changelogEmpty", lang)}</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+          {entries.map((e, i) => (
+            <div
+              key={e.id}
+              style={{
+                padding: "16px 0",
+                borderBottom: i < entries.length - 1 ? `1px solid ${color.border}` : "none",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                <span style={{
+                  display: "inline-block", padding: "2px 10px", borderRadius: 4,
+                  fontSize: 13, fontWeight: 700, color: "#000", background: color.gold,
+                }}>
+                  v{e.version}
+                </span>
+                <span style={{ color: color.textMuted, fontSize: 12 }}>
+                  {new Date(e.created_at).toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" })}
+                </span>
+              </div>
+              <div style={{ color: color.text, fontWeight: 600, fontSize: 15, marginBottom: 4 }}>
+                {lang === "fr" ? e.title_fr : e.title_en}
+              </div>
+              {(lang === "fr" ? e.body_fr : e.body_en) && (
+                <div style={{ color: color.textMuted, fontSize: 13, lineHeight: 1.5 }}>
+                  {lang === "fr" ? e.body_fr : e.body_en}
+                </div>
+              )}
+            </div>
           ))}
         </div>
       )}
@@ -2505,7 +2580,7 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState<"home" | "stats" | "crons" | "topics" | "settings">("home");
+  const [currentPage, setCurrentPage] = useState<"home" | "stats" | "crons" | "topics" | "settings" | "changelog">("home");
   const [resultTab, setResultTab] = useState<"relevant" | "all">("relevant");
   const [allArticles, setAllArticles] = useState<AllArticleEntry[]>([]);
   const [allArticlesLoading, setAllArticlesLoading] = useState(false);
@@ -2739,6 +2814,25 @@ export default function Home() {
               </svg>
             </button>
             <button
+              onClick={() => setCurrentPage("changelog")}
+              aria-label={t("changelog", lang)}
+              style={{
+                padding: 4,
+                border: "none",
+                background: "transparent",
+                color: currentPage === "changelog" ? color.gold : color.textMuted,
+                cursor: currentPage === "changelog" ? "default" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 8v4l3 3" />
+                <circle cx="12" cy="12" r="10" />
+              </svg>
+            </button>
+            <button
               onClick={() => setCurrentPage("settings")}
               aria-label={t("settings", lang)}
               style={{
@@ -2776,6 +2870,8 @@ export default function Home() {
           <CronMonitorPage lang={lang} />
         ) : currentPage === "topics" ? (
           <TopicsPage lang={lang} />
+        ) : currentPage === "changelog" ? (
+          <ChangelogPage lang={lang} />
         ) : currentPage === "settings" ? (
           <SettingsPage
             lang={lang}

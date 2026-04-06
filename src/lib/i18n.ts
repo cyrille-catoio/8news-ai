@@ -445,6 +445,14 @@ const strings = {
     en: "Scored",
     fr: "Scorés",
   },
+  changelog: {
+    en: "Update Log",
+    fr: "Journal des mises à jour",
+  },
+  changelogEmpty: {
+    en: "No updates yet.",
+    fr: "Aucune mise à jour pour le moment.",
+  },
 } as const;
 
 type StringKey = keyof typeof strings;

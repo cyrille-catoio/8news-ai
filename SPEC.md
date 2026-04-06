@@ -1,6 +1,6 @@
 # 8news.ai — Technical Specification
 
-**Version**: v1.70
+**Version**: v1.72
 **Last updated**: April 2026
 
 ---
@@ -44,7 +44,7 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   ├── logo-8news.png          # App logo (PNG, "8" gold / "news" light grey)
 │   ├── favicon.svg             # Browser favicon — gold "8" on black, 512×512
 │   ├── apple-touch-icon.svg    # iOS home screen icon — gold "8" on black, 180×180
-│   └── version.json            # {"version":"1.70"} — auto-update check (bump with each release)
+│   └── version.json            # {"version":"1.72"} — auto-update check (bump with each release)
 ├── src/
 │   ├── app/
 │   │   ├── layout.tsx          # Root layout, metadata, favicons
@@ -292,8 +292,9 @@ Dashboard statistics endpoint with optional topic and period filtering.
 |---|---|---|---|
 | `topic` | string | `"all"` | Topic ID or `"all"` |
 | `days` | number | 0 | Period filter (0 = all time, -1 = today, 1/24 = 1h, 3/24 = 3h, 6/24 = 6h, 1 = yesterday, 3, 7, 30) |
+| `kpi_only` | `"1"` | — | If set, returns only global KPIs via lightweight COUNT queries (no full dataset scan) |
 
-Returns: `global` KPIs, `scoreDistribution`, `feedRanking`, `topArticles`, `topicComparison`.
+Returns: `global` KPIs, `scoreDistribution`, `feedRanking`, `topArticles` (up to 500), `topicComparison`. When `kpi_only=1`, only `global` is populated; other arrays are empty.
 
 #### `POST /api/tts`
 
@@ -437,19 +438,25 @@ A floating button appears after scrolling down 400px, allowing quick return to t
 
 ### 8.4 Stats Page
 
-Full dashboard with topic selector tabs, period filter, and multiple sections:
+Three-state dashboard: **home** (no selection), **topic chosen** (waiting for period), **full view** (topic + period).
+
+**Home state** (initial load): Lightweight KPIs fetched via `/api/stats?kpi_only=1` (11 parallel COUNT queries, no full dataset scan). Shows 5 KPI boxes + prompt message. No topic or period button is highlighted.
+
+**Topic selected, no period**: KPIs hidden, no API call, message "Select a period to start the analysis."
+
+**Topic + period selected**: Full `/api/stats` call with filtered dataset.
 
 **Topic Selector**: Tabs for "All" and each active topic (loaded from DB)
 
-**Period Filter**: All time, 1h, 3h, 6h, Today, Yesterday, 3 days, 7 days, 30 days — all KPIs update dynamically
+**Period Filter**: All time, 1h, 3h, 6h, Today, Yesterday, 3 days, 7 days, 30 days
 
-**KPIs** (7 boxes, single compact line):
-- Total articles, Scored, Coverage %, Avg score, New 24h, New 7d, Scored 24h
+**KPIs** (5 boxes, single compact line):
+- Total articles, Scored, Coverage %, Avg score, Score ≥ 7
 
-**Sections**:
+**Sections** (visible only when topic + period are both selected):
 - **Score distribution**: Horizontal bar chart by tier (1-2 through 9-10)
 - **Feed ranking**: Sortable table (source, total, scored, avg, Score ≥ 7, tier distribution). Source names are clickable links
-- **Top articles**: Best-scored articles with score, reason, link
+- **Article ranking**: Up to **500** best-scored articles with score, reason, link. Displayed **50 at a time** with a "Show 50 more" lazy-load button
 - **Topic comparison**: Table comparing all topics (articles, coverage, avg score, Score ≥ 7, active feeds (7d/7j))
 
 ### 8.5 Cron Monitor Page (`CronMonitorPage`)
@@ -461,7 +468,7 @@ Real-time monitoring dashboard for fetch and scoring cron jobs. Auto-refreshes e
 - Fetched 24h
 - Scored 24h
 - Coverage 24h (%)
-- **Avg delay** — mean of **`scored_at − fetched_at`** (minutes), only for articles with **`pub_date` in the last 24h** (same cohort as Fetched 24h) **and** `relevance_score`, `scored_at`, and `fetched_at` all set
+- **Avg delay** — mean of **`scored_at − fetched_at`**, displayed as **`Xm XXs`** (e.g. `3m25s`), only for articles with **`pub_date` in the last 24h** (same cohort as Fetched 24h) **and** `relevance_score`, `scored_at`, and `fetched_at` all set
 
 **Topic Status**: Table with per-topic status:
 - Topic name, last fetched, last scored, backlog count, **Reason** (for slow/high: `backlog`, `fetch`, or `score`)
@@ -787,7 +794,7 @@ The topic immediately appears in the homepage topic selector, stats page, and cr
 
 ---
 
-## 17. Changelog (v1.49 → v1.70)
+## 17. Changelog (v1.49 → v1.72)
 
 | Version | Key Changes |
 |---|---|
@@ -814,6 +821,7 @@ The topic immediately appears in the homepage topic selector, stats page, and cr
 | v1.69 | Netlify crons: **minute** batched fetch `k=min(ceil(N/15),3)`, ~**12s** run deadline; **cron-score** prioritizes backlog then newest `last_fetched_at`; **post-fetch mini-score** ≤15 articles |
 | v1.70 | Cron Monitor **avg delay**: cohort = `pub_date` in 24h + scored articles only (aligned with Fetched 24h); doc/spec sync |
 | v1.71 | **cron-fetch**: cycle ~10 min (`ceil(N/10)`, cap 4), adaptive mini-score `min(50, max(15, inserted))`, reserve 6s; **cron-score**: multi-topic scoring (12s deadline, threshold 20); `fetchAndStoreTopicDynamic` returns `{ summary, inserted }` |
+| v1.72 | Cron Monitor avg delay uses **`scored_at − fetched_at`** (not `pub_date`), displayed as `Xm XXs`; `fetched_at` column added to article inserts. **Stats page redesign**: 3-state flow (home KPIs → select topic → select period); lightweight `kpi_only` endpoint (11 COUNT queries); **Article ranking** section (renamed) with 500 articles, lazy-loaded 50 at a time |
 
 ---
 

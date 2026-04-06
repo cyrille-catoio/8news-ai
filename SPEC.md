@@ -1,7 +1,7 @@
 # 8news.ai — Technical Specification
 
-**Version**: v1.64
-**Last updated**: March 2026
+**Version**: v1.70
+**Last updated**: April 2026
 
 ---
 
@@ -44,7 +44,7 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   ├── logo-8news.png          # App logo (PNG, "8" gold / "news" light grey)
 │   ├── favicon.svg             # Browser favicon — gold "8" on black, 512×512
 │   ├── apple-touch-icon.svg    # iOS home screen icon — gold "8" on black, 180×180
-│   └── version.json            # {"version":"1.64"} — auto-update check
+│   └── version.json            # {"version":"1.70"} — auto-update check (bump with each release)
 ├── src/
 │   ├── app/
 │   │   ├── layout.tsx          # Root layout, metadata, favicons
@@ -186,24 +186,25 @@ Users can create new topics from the Topics page. Each topic includes:
 
 ### 6.1 Netlify Scheduled Functions (Cron Jobs)
 
-Articles are fetched and pre-scored by **2 generic round-robin** cron jobs (not per-topic files).
+Articles are fetched and pre-scored by **2 scheduled Netlify functions** (not per-topic files): **batched fetch** plus **prioritized score** (see below). Shared logic lives in `netlify/functions/shared/score-topic.ts` (`scoreAndStoreTopicDynamic`, optional `ScoreTopicOptions.maxArticles` for the post-fetch mini-score) and `netlify/functions/shared/fetch-topic.ts` (`fetchAndStoreTopicDynamic`, returns `FetchResult { summary, inserted }`).
 
 **`cron-fetch.ts`** — RSS fetching:
 - Runs **every minute** (`* * * * *`), same cadence as scoring
 - Loads active topics ordered by oldest `last_fetched_at` (nulls first)
-- Processes **`k` topics per run**: `k = min(max(1, ceil(N/15)), 3)` so that, over 15 minutes, each of **N** topics can be visited at least once (cap **3** per invocation to stay within Netlify’s ~**15s** limit; stops early if a **12s** deadline is reached)
-- For each selected topic: updates `last_fetched_at` **before** fetching (same as before), then fetches all active RSS feeds, parses, upserts into `articles`
-- **Post-fetch scoring** (when time remains before the deadline): runs a **light** score pass on the same topic (**≤15** articles via `scoreAndStoreTopicDynamic(..., { maxArticles: 15 })`) to shorten fetch→score latency
+- Processes **`k` topics per run**: `k = min(max(1, ceil(N/10)), 4)` so that, over ~10 minutes, each of **N** topics can be visited at least once (cap **4** per invocation to stay within Netlify’s ~**15s** limit; stops early if a **12s** deadline is reached)
+- For each selected topic: updates `last_fetched_at` **before** fetching, then fetches all active RSS feeds, parses, upserts into `articles`
+- `fetchAndStoreTopicDynamic` returns `{ summary, inserted }` — the inserted count drives the adaptive mini-score
+- **Adaptive post-fetch scoring** (when time remains ≥ 6s before deadline): mini-score caps at `min(50, max(15, inserted))` articles — scales with fetch volume, avoids wasting time when few articles are new
 
 **`cron-score.ts`** — AI scoring:
 - Runs **every minute** (`* * * * *`)
-- Loads **all active topics**, counts unscored articles (7-day window, same as scoring)
+- Loads **all active topics**, counts unscored articles (7-day window)
 - **Sort order**: topics **with backlog first**; among them, **newest `last_fetched_at` first** (freshly fetched topics prioritized); topics with **no backlog** follow, ordered by **`last_scored_at` ASC** (nulls first) for fair rotation
-- Iterates in that order: if no backlog → updates `last_scored_at` and continues; if backlog → updates `last_scored_at`, scores up to **50** articles (`MAX_ARTICLES_PER_RUN`), then **exits**
+- **Multi-topic scoring**: processes multiple topics in a single invocation within a **12s deadline** — after the first topic, continues to the next only if its backlog ≤ **20** articles (`MULTI_TOPIC_BACKLOG_THRESHOLD`); stops if a large-backlog topic is next or time runs out
+- Topics with **no backlog** are skipped quickly (just updates `last_scored_at`), freeing time for topics that need scoring
+- Up to **50** articles per topic per run (`MAX_ARTICLES_PER_RUN`), most recent first (`pub_date DESC`)
 - Articles from the last **168 hours** (7 days) are eligible (`SCORE_WINDOW_HOURS`)
-- Most recent articles scored first (`pub_date DESC`)
 - Each article gets: relevance score (1-10), reason, AI-generated EN/FR summaries (for score ≥5)
-- One “heavy” scoring topic per invocation keeps typical runs under Netlify’s **15s** limit; post-fetch mini-scores use a lower article cap
 
 **Scoring criteria** (stored in `topics` table):
 - **9-10**: Major breaking news
@@ -275,13 +276,13 @@ Homepage default feed. Returns top-scored articles across all topics.
 Cron monitoring endpoint. Returns real-time statistics about fetch and scoring jobs.
 
 **Response** (`CronStatsResponse`):
-- `global`: backlog (7d unscored), fetched24h, scored24h, coverage24h %, avgDelayMinutes
-- `topics[]`: per-topic status (id, label, lastFetchedAt, lastScoredAt, backlog, status: ok/slow/high)
+- `global`: backlog (7d unscored), fetched24h, scored24h, coverage24h %, avgDelayMinutes (mean of `scored_at − pub_date` in minutes, only articles with `pub_date` in the last 24h — same cohort as fetched24h — and with both `relevance_score` and `scored_at` set)
+- `topics[]`: per-topic status (id, label, lastFetchedAt, lastScoredAt, backlog, status: ok/slow/high, optional **statusReason**: `"backlog"` \| `"fetch"` \| `"score"` for slow/high — used in the Topic Status table **Reason** column)
 - `timeline[]`: hourly buckets (hour, fetched, scored) for the last 24h
 
 **Status rules**: `high` if backlog >200 or fetch/score age >30min; `slow` if backlog ≥50 or age >15min; `ok` otherwise.
 
-Uses pagination (10,000 rows per page) to overcome Supabase's default 1000-row limit.
+Uses **pagination in 1000-row batches** (PostgREST max rows per response) so counts and timelines include all matching rows, not only the first page.
 
 #### `GET /api/stats`
 
@@ -391,7 +392,9 @@ The app has **5 pages** managed by `currentPage` state (`"home"` | `"stats"` | `
 
 #### Default Homepage Feed (Top 20)
 
-On launch (no topic or period selected), the homepage displays the **Top 20 best-scored articles from the last 24 hours** across all topics, fetched from `/api/news/top`. Includes a "Refresh" button.
+On launch (no topic or period selected), the homepage displays the **Top 20 best-scored articles from the last 24 hours** across all topics, fetched from `/api/news/top`. Includes a **Refresh** button. While the user stays on **home** with **no topic** selected, the Top 20 list **auto-refreshes every 5 minutes** (`/api/news/top`, `cache: "no-store"`).
+
+Each Top 20 row shows a small **topic ID badge** (gold outline) next to the source line when `topic` is present. Items with `pubDate` in the **last hour** show a **NEW** badge.
 
 When a topic is selected but no period chosen, the Top 20 disappears and a message prompts the user: "Select a time period to start the analysis."
 
@@ -419,14 +422,14 @@ When a topic is selected but no period chosen, the Top 20 disappears and a messa
 
 - **Title**: "Summary | {Topic Name}" — displays selected topic name next to Summary, separated by a pipe
 - Up to 8 bullet points with gold "•" prefix and source reference links
-- **Article stats metadata**: shows total articles in period, scored count, and number analyzed by AI
+- **Article stats metadata** (when `meta` is present): one compact line — e.g. FR: `55 articles, 55 score, 13 analysés par IA` (analyzed count in **gold**); EN: `55 articles, 55 scored, 13 analyzed by AI`. On **viewports ≤640px**, slightly smaller typography for readability
 - Audio player for TTS playback
 - Period display
 
 #### Result Tabs
 
-- **"Relevant articles"** — AI-filtered with generated summaries
-- **"All articles"** — Up to **1000** articles from Supabase, **lazy-loaded** (fetched only when tab is clicked or preloaded in background). Progressive display: 50 articles shown initially with "Show more" button. Sorted by `relevance_score DESC NULLS LAST, pub_date DESC`. Each article displays its individual score.
+- **"Relevant articles"** — AI-filtered with generated summaries; **copy-link** control on each card (writes article URL to clipboard)
+- **"All articles"** — Up to **1000** articles from Supabase, **lazy-loaded** (fetched only when tab is clicked or preloaded in background). Progressive display: 50 articles shown initially with "Show more" button. Sorted by `relevance_score DESC NULLS LAST, pub_date DESC`. Each article displays its individual score and copy-link control
 
 #### Scroll-to-Top Button
 
@@ -458,10 +461,10 @@ Real-time monitoring dashboard for fetch and scoring cron jobs. Auto-refreshes e
 - Fetched 24h
 - Scored 24h
 - Coverage 24h (%)
-- Avg delay (minutes between publication and scoring)
+- **Avg delay** — mean of **`scored_at − pub_date`** (minutes), only for articles with **`pub_date` in the last 24h** (same cohort as Fetched 24h) **and** both **`relevance_score`** and **`scored_at`** set
 
-**Topic Status (24h)**: Table with per-topic status:
-- Topic name, last fetched, last scored, backlog count
+**Topic Status**: Table with per-topic status:
+- Topic name, last fetched, last scored, backlog count, **Reason** (for slow/high: `backlog`, `fetch`, or `score`)
 - Color-coded status indicator: 🟢 OK, 🟡 Slow, 🔴 High
 
 **Activity Last 24 Hours**: Hourly timeline showing fetched and scored article counts per hour. Displayed in **user's local timezone** (via `Intl.DateTimeFormat`). Future hours are filtered out to avoid displaying erroneous data.
@@ -530,13 +533,13 @@ The app checks `public/version.json` every **5 minutes**. If the version differs
 
 ### 8.11 Version Footer
 
-Fixed bottom-right: `v1.64` (incremented with each GitHub push).
+Fixed bottom-right: `v{APP_VERSION}` from `page.tsx`, kept in sync with `public/version.json` (increment with each production release).
 
 ---
 
 ## 9. Internationalisation (i18n)
 
-Defined in `src/lib/i18n.ts` — **60+ translation keys**.
+Defined in `src/lib/i18n.ts` — **80+ translation keys**.
 
 - **Languages**: English (`en`), French (`fr`)
 - **Toggle**: Segmented control in header — sets cookie, reloads page
@@ -662,6 +665,7 @@ interface CronStatsResponse {
     lastScoredAt: string | null;
     backlog: number;
     status: "ok" | "slow" | "high";
+    statusReason?: "backlog" | "fetch" | "score";
   }>;
   timeline: Array<{
     hour: string;
@@ -680,18 +684,17 @@ interface CronStatsResponse {
           │  BACKGROUND (Netlify Scheduled Functions)        │
           │                                                  │
           │  cron-fetch.ts (* * * * *)                       │
-          │  - k topics/run: ceil(N/15), max 3, ~12s budget  │
+          │  - k topics/run: ceil(N/10), max 4, ~12s budget  │
           │  - Oldest last_fetched_at first (nulls first)    │
           │  - Update last_fetched_at BEFORE each fetch      │
           │  - RSS → parse → upsert `articles`               │
-          │  - Optional: mini-score ≤15 articles same topic  │
+          │  - Adaptive mini-score: min(50, max(15, inserted))│
           │                                                  │
-          │  cron-score.ts (* * * * *)                      │
+          │  cron-score.ts (* * * * *, 12s deadline)          │
+          │  - Multi-topic: continues if backlog ≤20        │
           │  - Backlog topics first; newest fetch first      │
-          │  - Then empty topics by last_scored_at ASC      │
-          │  - Quick backlog count per topic                 │
-          │  - Update last_scored_at BEFORE processing      │
-          │  - ≤50 unscored articles (7d), pub_date DESC    │
+          │  - Skip no-backlog (update last_scored_at only)  │
+          │  - ≤50 unscored articles/topic (7d), DESC       │
           │  - gpt-4.1-nano → Supabase                      │
           └──────────────────────────────────────────────────┘
 
@@ -784,7 +787,7 @@ The topic immediately appears in the homepage topic selector, stats page, and cr
 
 ---
 
-## 17. Changelog (v1.49 → v1.64)
+## 17. Changelog (v1.49 → v1.70)
 
 | Version | Key Changes |
 |---|---|
@@ -804,14 +807,20 @@ The topic immediately appears in the homepage topic selector, stats page, and cr
 | v1.62 | Rename "Hit %" to "Score ≥ 7". Active Feeds column shows "(7d)"/"(7j)". Homepage Top 20 default feed (best scored articles last 24h). Scroll-to-top button |
 | v1.63 | Home icon and logo reset to Top 20 feed (deselects topic). Topic name displayed next to Summary title. Remove standalone Top 20 button |
 | v1.64 | Topic selection clears Top 20 feed and shows "select a period" prompt |
-| v1.69 | Cron optimization: fetch every minute with `k=min(ceil(N/15),3)` topics per run and ~12s deadline; score cron prioritizes topics with backlog then newest `last_fetched_at`; optional post-fetch mini-score (≤15 articles) |
+| v1.65 | Copy-to-clipboard on article cards; Cron Monitor **Reason** column (`statusReason`: backlog / fetch / score); **NEW** badge on Top 20 items published within the last hour |
+| v1.66 | Version bump; SPEC project tree folder name corrected to `8news/` |
+| v1.67 | Summary metadata: single compact line (articles, scorés/scored, analysés IA / analyzed by AI); mobile-friendly line height and font size (≤640px) |
+| v1.68 | `/api/cron-stats`: paginate article queries in **1000-row** batches (fixes Supabase 1k row cap on KPIs/timeline). Top 20 **auto-refresh every 5 min** on home without topic. **Topic badge** on Top 20 cards |
+| v1.69 | Netlify crons: **minute** batched fetch `k=min(ceil(N/15),3)`, ~**12s** run deadline; **cron-score** prioritizes backlog then newest `last_fetched_at`; **post-fetch mini-score** ≤15 articles |
+| v1.70 | Cron Monitor **avg delay**: cohort = `pub_date` in 24h + scored articles only (aligned with Fetched 24h); doc/spec sync |
+| v1.71 | **cron-fetch**: cycle ~10 min (`ceil(N/10)`, cap 4), adaptive mini-score `min(50, max(15, inserted))`, reserve 6s; **cron-score**: multi-topic scoring (12s deadline, threshold 20); `fetchAndStoreTopicDynamic` returns `{ summary, inserted }` |
 
 ---
 
 ## 18. Known Limitations
 
 - **No authentication** — The app is public, no user accounts
-- **Serverless timeout** — Netlify functions have ~15s limit; main scoring capped at 50 articles/run; batched fetch + post-fetch mini-score (≤15) must stay within the same budget
+- **Serverless timeout** — Netlify functions have ~15s limit; both crons use a 12s internal deadline; cron-score processes multiple topics if backlog is small (≤20), cron-fetch uses adaptive mini-score (up to 50 articles)
 - **RSS availability** — Some feeds may go offline; AI feed discovery validates upfront but feeds can break later
 - **AI cost** — Each request consumes OpenAI tokens (gpt-4.1-nano), each TTS request consumes ElevenLabs credits
 - **No SSR** — The page is a client-only component (`"use client"`)

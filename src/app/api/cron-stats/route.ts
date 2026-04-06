@@ -64,14 +64,16 @@ export async function GET() {
     return all;
   }
 
-  async function paginateScoredRecent(since: string): Promise<{ pub_date: string; scored_at: string }[]> {
+  /** Cohorte « fetch 24h » (même fenêtre que fetched24h : pub_date) + uniquement articles déjà scorés. */
+  async function paginateDelayCohort(since: string): Promise<{ pub_date: string; scored_at: string }[]> {
     const all: { pub_date: string; scored_at: string }[] = [];
     let from = 0;
     while (true) {
       const { data } = await supabase
         .from("articles")
         .select("pub_date, scored_at")
-        .gte("scored_at", since)
+        .gte("pub_date", since)
+        .not("relevance_score", "is", null)
         .not("scored_at", "is", null)
         .range(from, from + FETCH_BATCH - 1);
       if (!data || data.length === 0) break;
@@ -82,10 +84,10 @@ export async function GET() {
     return all;
   }
 
-  const [backlogRows, recentRows, scoredRecentRows] = await Promise.all([
+  const [backlogRows, recentRows, delayCohortRows] = await Promise.all([
     paginateBacklog(since7d),
     paginateRecent(since24h),
-    paginateScoredRecent(since24h),
+    paginateDelayCohort(since24h),
   ]);
 
   // ── Global KPIs ──
@@ -95,8 +97,8 @@ export async function GET() {
   const coverage24h = fetched24h > 0 ? roundOne((scored24h / fetched24h) * 100) : 0;
 
   let avgDelayMinutes = 0;
-  if (scoredRecentRows.length > 0) {
-    const delays = scoredRecentRows
+  if (delayCohortRows.length > 0) {
+    const delays = delayCohortRows
       .map((r) => {
         const pub = new Date(r.pub_date).getTime();
         const sc = new Date(r.scored_at).getTime();

@@ -2,6 +2,9 @@ import type { Config } from "@netlify/functions";
 import { createClient } from "@supabase/supabase-js";
 import { scoreAndStoreTopicDynamic, SCORE_WINDOW_HOURS } from "./shared/score-topic";
 
+const SCORE_DEADLINE_MS = 12_000;
+const MULTI_TOPIC_BACKLOG_THRESHOLD = 20;
+
 type TopicScoreRow = {
   id: string;
   last_fetched_at: string | null;
@@ -78,19 +81,31 @@ export default async () => {
     return a.topic.id.localeCompare(b.topic.id);
   });
 
+  const deadline = Date.now() + SCORE_DEADLINE_MS;
+  const lines: string[] = [];
+  let topicsProcessed = 0;
+
   for (const { topic, backlog } of withBacklog) {
-    if (backlog === 0) {
-      await supabase
-        .from("topics")
-        .update({ last_scored_at: new Date().toISOString() })
-        .eq("id", topic.id);
-      continue;
+    if (Date.now() >= deadline) {
+      lines.push("[deadline] stopped — time limit reached");
+      break;
+    }
+
+    if (topicsProcessed > 0 && backlog > MULTI_TOPIC_BACKLOG_THRESHOLD) {
+      lines.push(`[skip] ${topic.id} backlog=${backlog} exceeds threshold for multi-topic`);
+      break;
     }
 
     await supabase
       .from("topics")
       .update({ last_scored_at: new Date().toISOString() })
       .eq("id", topic.id);
+
+    if (backlog === 0) {
+      lines.push(`[${topic.id}] no backlog — last_scored_at updated`);
+      topicsProcessed++;
+      continue;
+    }
 
     const criteria = {
       scoring_domain: topic.scoring_domain,
@@ -102,10 +117,15 @@ export default async () => {
     };
 
     const result = await scoreAndStoreTopicDynamic(topic.id, criteria, supabase);
-    return new Response(result);
+    lines.push(result);
+    topicsProcessed++;
   }
 
-  return new Response("All topics up to date — no unscored articles");
+  if (lines.length === 0) {
+    return new Response("All topics up to date — no unscored articles");
+  }
+
+  return new Response(lines.join("\n"));
 };
 
 export const config: Config = { schedule: "* * * * *" };

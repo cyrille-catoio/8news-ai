@@ -14,11 +14,16 @@ function getSupabase() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
+export interface FetchResult {
+  summary: string;
+  inserted: number;
+}
+
 async function fetchFeedsAndStore(
   topicId: string,
   feeds: { name: string; url: string }[],
   supabase: SupabaseClient,
-): Promise<string> {
+): Promise<FetchResult> {
   const articles: ParsedArticle[] = [];
   let feedsOk = 0;
   let feedsFailed = 0;
@@ -60,7 +65,7 @@ async function fetchFeedsAndStore(
   }
 
   if (articles.length === 0) {
-    return `[${topicId}] No articles found. Feeds OK: ${feedsOk}, failed: ${feedsFailed}`;
+    return { summary: `[${topicId}] No articles found. Feeds OK: ${feedsOk}, failed: ${feedsFailed}`, inserted: 0 };
   }
 
   const BATCH_SIZE = 100;
@@ -84,7 +89,7 @@ async function fetchFeedsAndStore(
 
   const summary = `[${topicId}] Done. Feeds OK: ${feedsOk}, failed: ${feedsFailed}. Articles: ${articles.length} parsed, ${inserted} inserted, ${duplicates} duplicates skipped.`;
   console.log(summary);
-  return summary;
+  return { summary, inserted };
 }
 
 /**
@@ -94,7 +99,7 @@ async function fetchFeedsAndStore(
 export async function fetchAndStoreTopicDynamic(
   topicId: string,
   supabase: SupabaseClient,
-): Promise<string> {
+): Promise<FetchResult> {
   const { data: feeds, error } = await supabase
     .from("feeds")
     .select("name, url")
@@ -103,11 +108,11 @@ export async function fetchAndStoreTopicDynamic(
 
   if (error) {
     console.error(`[${topicId}] Failed to load feeds:`, error.message);
-    return `[${topicId}] Failed to load feeds: ${error.message}`;
+    return { summary: `[${topicId}] Failed to load feeds: ${error.message}`, inserted: 0 };
   }
 
   if (!feeds || feeds.length === 0) {
-    return `[${topicId}] No active feeds`;
+    return { summary: `[${topicId}] No active feeds`, inserted: 0 };
   }
 
   return fetchFeedsAndStore(topicId, feeds, supabase);

@@ -117,7 +117,7 @@ Nouvel icône **📈** (graphe en hausse) dans le header, entre l'icône Stats e
 | **Fetched 24h** | Articles avec `pub_date` dans les dernières 24h | Toujours doré |
 | **Scored 24h** | Articles avec `scored_at` dans les dernières 24h | Toujours doré |
 | **Coverage 24h** | `scored_24h / fetched_24h × 100` | Vert >90%, Orange 70-90%, Rouge <70% |
-| **Avg delay** | Délai moyen `scored_at - pub_date` (dernières 24h, en minutes) | Vert <15min, Orange 15-60min, Rouge >60min |
+| **Avg delay** | Moyenne `scored_at - pub_date` (minutes), uniquement articles avec `pub_date` dans les 24h (cohorte fetch 24h) et `relevance_score` + `scored_at` renseignés | Vert <15min, Orange 15-60min, Rouge >60min |
 
 #### Section 2 — Statut par topic (tableau)
 

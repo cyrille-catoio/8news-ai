@@ -4,10 +4,9 @@ import { fetchAndStoreTopicDynamic } from "./shared/fetch-topic";
 import { scoreAndStoreTopicDynamic } from "./shared/score-topic";
 
 const FETCH_DEADLINE_MS = 12_000;
-/** Réserver ~3.5s pour un mini-score OpenAI après fetch si le délai le permet */
-const POST_FETCH_SCORE_RESERVE_MS = 3_500;
-const POST_FETCH_MAX_ARTICLES = 15;
-const MAX_TOPICS_PER_RUN = 3;
+const POST_FETCH_SCORE_RESERVE_MS = 6_000;
+const DEFAULT_MINI_SCORE_ARTICLES = 50;
+const MAX_TOPICS_PER_RUN = 4;
 
 type TopicFetchRow = {
   id: string;
@@ -42,7 +41,7 @@ export default async () => {
   const n = allTopics?.length ?? 0;
   if (n === 0) return new Response("No active topics");
 
-  const k = Math.min(Math.max(1, Math.ceil(n / 15)), MAX_TOPICS_PER_RUN);
+  const k = Math.min(Math.max(1, Math.ceil(n / 10)), MAX_TOPICS_PER_RUN);
   const batch = (allTopics as TopicFetchRow[]).slice(0, k);
 
   const deadline = Date.now() + FETCH_DEADLINE_MS;
@@ -59,10 +58,11 @@ export default async () => {
       .update({ last_fetched_at: new Date().toISOString() })
       .eq("id", topic.id);
 
-    const fetchResult = await fetchAndStoreTopicDynamic(topic.id, supabase);
-    lines.push(fetchResult);
+    const { summary, inserted } = await fetchAndStoreTopicDynamic(topic.id, supabase);
+    lines.push(summary);
 
     if (Date.now() + POST_FETCH_SCORE_RESERVE_MS < deadline) {
+      const miniScoreMax = Math.min(DEFAULT_MINI_SCORE_ARTICLES, Math.max(15, inserted));
       const criteria = {
         scoring_domain: topic.scoring_domain,
         scoring_tier1: topic.scoring_tier1,
@@ -72,7 +72,7 @@ export default async () => {
         scoring_tier5: topic.scoring_tier5,
       };
       const scoreMsg = await scoreAndStoreTopicDynamic(topic.id, criteria, supabase, {
-        maxArticles: POST_FETCH_MAX_ARTICLES,
+        maxArticles: miniScoreMax,
       });
       lines.push(`post-fetch: ${scoreMsg}`);
     }

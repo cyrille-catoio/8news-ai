@@ -118,6 +118,10 @@ export interface TopArticleRow {
   pub_date: string;
   relevance_score: number;
   score_reason: string | null;
+  snippet: string | null;
+  content: string | null;
+  snippet_ai_en: string | null;
+  snippet_ai_fr: string | null;
 }
 
 export interface StatsFeedRow {
@@ -205,7 +209,9 @@ export async function getTopArticlesForStats(
     const supabase = await clientP;
     let query = supabase
       .from("articles")
-      .select("title, link, source, topic, pub_date, relevance_score, score_reason")
+      .select(
+        "title, link, source, topic, pub_date, relevance_score, score_reason, snippet, content, snippet_ai_en, snippet_ai_fr",
+      )
       .not("relevance_score", "is", null);
 
     if (topic && topic !== "all") query = query.eq("topic", topic);

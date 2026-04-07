@@ -1,15 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getTopArticlesForStats } from "@/lib/supabase";
+import { getTopArticlesForStats, type TopArticleRow } from "@/lib/supabase";
+import type { Lang } from "@/lib/i18n";
+
+const SNIPPET_MAX = 600;
+
+function parseLang(raw: string | null): Lang {
+  return raw === "fr" ? "fr" : "en";
+}
+
+function topArticleSnippet(r: TopArticleRow, lang: Lang): string {
+  const aiSnippet = lang === "fr" ? r.snippet_ai_fr : r.snippet_ai_en;
+  const base = (aiSnippet || r.snippet || r.content || "").trim();
+  return base.slice(0, SNIPPET_MAX);
+}
 
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
   const limit = Math.min(50, Math.max(1, parseInt(params.get("limit") ?? "20", 10) || 20));
   const days = Math.max(0, parseFloat(params.get("days") ?? "1") || 1);
+  const lang = parseLang(params.get("lang"));
 
   const rows = await getTopArticlesForStats(null, days, limit);
 
   const articles = rows.map((r) => ({
     title: r.title,
+    snippet: topArticleSnippet(r, lang),
     link: r.link,
     source: r.source,
     topic: r.topic,

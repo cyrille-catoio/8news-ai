@@ -31,7 +31,7 @@ import { useTopFeed } from "@/hooks/useTopFeed";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.75";
+const APP_VERSION = "1.76";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 
@@ -317,7 +317,7 @@ export default function Home() {
     loading: topFeedLoading,
     refresh: refreshTopFeed,
     clear: clearTopFeed,
-  } = useTopFeed({ poll: topFeedPoll });
+  } = useTopFeed({ poll: topFeedPoll, lang });
 
   useEffect(() => {
     const check = async () => {

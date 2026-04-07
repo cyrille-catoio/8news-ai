@@ -1,6 +1,6 @@
 # 8news.ai — Technical Specification
 
-**Version**: v1.75
+**Version**: v1.76
 **Last updated**: April 2026
 
 ---
@@ -44,7 +44,7 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   ├── logo-8news.png          # App logo (PNG, "8" gold / "news" light grey)
 │   ├── favicon.svg             # Browser favicon — gold "8" on black, 512×512
 │   ├── apple-touch-icon.svg    # iOS home screen icon — gold "8" on black, 180×180
-│   └── version.json            # {"version":"1.75"} — auto-update check (bump with each release)
+│   └── version.json            # {"version":"1.76"} — auto-update check (bump with each release)
 ├── src/
 │   ├── app/
 │   │   ├── layout.tsx          # Root layout, metadata, favicons
@@ -77,7 +77,7 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   │               │       └── score/route.ts  # POST — score up to 50 unscored articles (all ages, newest first)
 │   │               └── discover-feeds/route.ts # POST — AI auto-discover RSS feeds
 │   ├── hooks/
-│   │   └── useTopFeed.ts       # Homepage Top 20: GET /api/news/top, refresh, clear, 5 min poll when home + no topic
+│   │   └── useTopFeed.ts       # Homepage Top 20: GET /api/news/top (v1.76+: `?lang=` + localized snippet; refetch on lang change), refresh, clear, 5 min poll when home + no topic
 │   └── lib/
 │       ├── types.ts            # TypeScript interfaces (TopicItem, TopicDetail, etc.)
 │       ├── theme.ts            # Design tokens (colors, fonts, shared styles)
@@ -189,12 +189,12 @@ Users can create new topics from the Topics page. Each topic includes:
 | Column | Type | Description |
 |---|---|---|
 | `id` | serial PK | Row id |
-| `version` | text | Release label (e.g. `1.75`) |
+| `version` | text | Release label (e.g. `1.76`) |
 | `title_en` / `title_fr` | text | Short headline |
 | `body_en` / `body_fr` | text | Detail text |
 | `created_at` | timestamptz | Display order / metadata |
 
-Populated via migration `005-changelog.sql`, which seeds **every version from 1.0 through 1.73** (newest first); **1.49–1.73** carry short EN/FR summaries aligned with §17, earlier versions use a generic placeholder pointing to git history and SPEC. **v1.74+**: add rows manually or extend the migration; keep §17 and `public/version.json` / `APP_VERSION` in sync.
+Populated via migration `005-changelog.sql` (newest first): **1.76 → 1.49** one row per release with short EN/FR summaries aligned with §17; **1.0–1.48** are represented by a **single** row (`version` = `1.0–1.48`, shared generic EN/FR body pointing to git history and SPEC for **1.49+**). For new releases, extend the migration (or `INSERT` manually) and keep §17 and `public/version.json` / `APP_VERSION` in sync.
 
 ### 5.6 Cache TTL (based on time window)
 
@@ -289,12 +289,17 @@ Lazy-loaded endpoint for the "All Articles" tab. Returns up to **1000** articles
 
 #### `GET /api/news/top`
 
-Homepage default feed. Returns top-scored articles across all topics.
+Homepage default feed. Returns top-scored articles across all topics (by `relevance_score`, then `pub_date`).
+
+**v1.76+**: the query selects **`snippet`**, **`content`**, **`snippet_ai_en`**, **`snippet_ai_fr`** from `articles`, accepts **`lang`**, and returns a localized **`snippet`** per row (same selection logic as `GET /api/news`). Earlier versions returned RSS **`title`** only.
 
 | Param | Type | Default | Description |
 |---|---|---|---|
 | `limit` | int | 20 | Max articles (1–50) |
 | `days` | float | 1 | Time window in days |
+| `lang` | `"en"` \| `"fr"` | `en` | **v1.76+**. Chooses AI snippet (`snippet_ai_fr` / `snippet_ai_en`), else RSS `snippet` / `content` (truncated ~600 chars) |
+
+**Response** (`articles[]`): `title`, `link`, `source`, `topic`, `pubDate`, `score`, **`snippet`** (**v1.76+**; empty string if nothing to show).
 
 #### `GET /api/cron-stats`
 
@@ -404,7 +409,7 @@ When creating a topic without custom prompts, defaults are auto-generated based 
 
 ## 8. Frontend — UI Components
 
-The app root is `src/app/page.tsx` (`"use client"`): **home** topic/period flow, global state (lang, TTS cookies, `currentPage`), and composition of feature components. **Header + nav** live in **`AppHeader`**; **Top 20** list UI in **`TopFeedSection`** with data from **`useTopFeed`** (`src/hooks/useTopFeed.ts`). Other screens are separate modules under **`src/app/components/`** (e.g. **`TopicsPage/`** = `index.tsx` + `TopicsPageListView` / `TopicsPageCreateView` / `TopicsPageDetailView`).
+The app root is `src/app/page.tsx` (`"use client"`): **home** topic/period flow, global state (lang, TTS cookies, `currentPage`), and composition of feature components. **Header + nav** live in **`AppHeader`**; **Top 20** list UI in **`TopFeedSection`** with data from **`useTopFeed`** (`src/hooks/useTopFeed.ts`). **v1.76+**: **`useTopFeed({ poll, lang })`** passes UI language to **`/api/news/top`** and refetches when **`lang`** changes. Other screens are separate modules under **`src/app/components/`** (e.g. **`TopicsPage/`** = `index.tsx` + `TopicsPageListView` / `TopicsPageCreateView` / `TopicsPageDetailView`).
 
 ### 8.1 Layout
 
@@ -428,9 +433,9 @@ The app has **7 pages** managed by `currentPage` state (`"home"` | `"stats"` | `
 
 #### Default Homepage Feed (Top 20)
 
-On launch (no topic or period selected), the homepage displays the **Top 20 best-scored articles from the last 24 hours** across all topics, fetched from `/api/news/top`. UI: **`TopFeedSection`** (caption, refresh, sorted rows, NEW badge, topic pill, copy link). Data + polling: **`useTopFeed({ poll })`** with `poll === true` only when **`currentPage === "home"`** and **`topic === null`** (initial fetch on mount, silent 5 min refresh, `refresh()` after logo/home reset, `clear()` when user picks a topic). (`cache: "no-store"` on fetches.)
+On launch (no topic or period selected), the homepage displays the **Top 20 best-scored articles from the last 24 hours** across all topics, fetched from **`/api/news/top`** ( **`v1.76+`**: `?limit=20&days=1&lang={ui lang}` ). UI: **`TopFeedSection`** (caption, refresh, sorted rows, NEW badge, topic pill, copy link). Data + polling: **`useTopFeed`** with `poll === true` only when **`currentPage === "home"`** and **`topic === null`** (initial fetch on mount, silent 5 min refresh, `refresh()` after logo/home reset, `clear()` when user picks a topic). **`v1.76+`**: hook shape **`useTopFeed({ poll, lang })`** — **language change refetches** the Top 20. (`cache: "no-store"` on fetches.)
 
-Each Top 20 row shows a small **topic ID badge** (gold outline) next to the source line when `topic` is present. Items with `pubDate` in the **last hour** show a **NEW** badge.
+Each Top 20 row shows a small **topic ID badge** (gold outline) next to the source line when `topic` is present. Items with `pubDate` in the **last hour** show a **NEW** badge. **`v1.76+` — French UI**: when a non-empty **`snippet`** is returned (typically **`snippet_ai_fr`**), the **main line** is that French text and the **RSS `title`** appears below in muted style; **English** keeps **title** first and **snippet** under it (like **ArticleCard**). If no AI snippet exists, only the RSS title is shown.
 
 When a topic is selected but no period chosen, the Top 20 disappears and a message prompts the user: "Select a time period to start the analysis."
 
@@ -658,7 +663,7 @@ All state is managed with React hooks (`useState`, `useRef`, `useCallback`) in t
 | `currentPage` | `"home"` \| `"stats"` \| `"crons"` \| `"topics"` \| `"feeds"` \| `"changelog"` \| `"settings"` | `"home"` | None |
 | `data` | SummaryResponse \| null | null | None |
 | `loading` | boolean | false | None |
-| Top 20 articles / loading | from **`useTopFeed()`** | — | In-memory; **clear** on topic select; **refresh** on home reset |
+| Top 20 articles / loading | from **`useTopFeed({ poll, lang })`** (**v1.76+**; before: **`{ poll }`** only) | — | In-memory; **clear** on topic select; **refresh** on home reset; **v1.76+**: **refetch** when `lang` changes |
 | `allArticles` | ArticleSummary[] | [] | None (lazy-loaded) |
 | `allArticlesLoading` | boolean | false | None |
 | `topicsLoading` | boolean | true | None |
@@ -858,9 +863,9 @@ The topic immediately appears in the homepage topic selector, stats page, and cr
 
 ---
 
-## 17. Changelog (v1.49 → v1.75)
+## 17. Changelog (v1.49 → v1.76)
 
-Summary table (one line per release). **§17.1** expands **v1.65–v1.73** in detail (aligned with `005-changelog.sql` seeds and current code).
+Summary table (one line per release). **§17.1** expands **v1.65–v1.76** in detail (aligned with `005-changelog.sql` seeds and current code).
 
 | Version | Key Changes |
 |---|---|
@@ -888,11 +893,12 @@ Summary table (one line per release). **§17.1** expands **v1.65–v1.73** in de
 | v1.70 | Cron Monitor **average delay** KPI: cohort = articles with **`pub_date` in last 24h** and **scored** (aligned with “Fetched 24h” semantics); documentation sync |
 | v1.71 | **cron-fetch** (phase 2): ~**10 min** full rotation (`k = min(max(1, ceil(N/10)), 4)`), **adaptive** post-fetch mini-score `min(50, max(15, inserted))`, **6s** reserve before deadline; **cron-score** can touch **multiple topics** per run (12s deadline, backlog threshold **20**). `fetchAndStoreTopicDynamic` exposes **`inserted`** (and full **`FetchResult`** aggregates in shared lib) for mini-score sizing |
 | v1.72 | Cron Monitor avg delay = **`scored_at − fetched_at`** per article, shown as **`Xm XXs`**; **`fetched_at`** populated on article insert/upsert. **Stats** three-step UX: global KPIs → pick topic → pick period; optional **`kpi_only`** stats mode; **Article ranking** (renamed section), **500** rows loaded, UI shows **50** at a time with “load more” |
-| v1.73 | **`changelog`** table + **`GET /api/changelog`** + in-app **Changelog** page. **Feed management**: **`GET /api/feeds-admin`**, sortable table, **POST** `.../feeds/[id]/score`, **DELETE** articles / remove feed, **toasts**. Layout widened to **916px**; **EN/FR** under nav icons; Stats feed-ranking **tooltip `title`** on source; **`/api/fetch-feeds`** / shared RSS path set **`fetched_at`**. *Follow-up UX:* feed table column **Articles** (was “Total articles”), **Coverage** % (scored/total), manual score window **90 days**, up to **50** articles per run |
+| v1.73 | **`changelog`** table + **`GET /api/changelog`** + in-app **Changelog** page. **Feed management**: **`GET /api/feeds-admin`**, sortable table, **POST** `.../feeds/[id]/score`, **DELETE** articles / remove feed, **toasts**. Layout widened to **916px**; **EN/FR** under nav icons; Stats feed-ranking **tooltip `title`** on source; **`/api/fetch-feeds`** / shared RSS path set **`fetched_at`**. *Follow-up UX:* feed table **Articles** / **Coverage** columns; manual score up to **50** articles (initially with a **90-day** unscored window — **removed in v1.75**) |
 | v1.74 | **Housekeeping / architecture**: remove **Tailwind** + `postcss.config`; delete obsolete root **`spec-*.md`**; canonical **`src/lib/fetch-topic-dynamic.ts`** & **`score-topic-dynamic.ts`** (Netlify `shared/*.ts` re-export); **`globals.css`** for shared layout/table/grid/**keyframes**; **`theme.ts`**: `spinnerStyle`, `ghostBtn`, `ghostOutlineBtn`, color helpers; **`cookies.ts`**; move **`TopicLabel`**, **`ChangelogEntry`**, **`FeedAdminRow`** to **`types.ts`**. |
-| v1.75 | **Feed admin — Score action**: manual scoring selects from **all** unscored articles for the feed (newest first), not a 90-day `pub_date` window; still capped at **50** per request. **UI refactor**: `AppHeader`, `TopFeedSection`, **`useTopFeed`**; **`TopicsPage/`** (index + List/Create/Detail views); **`theme.ts`** `sectionCard` + form styles; home copy via **i18n**; **SPEC** tree §3/§8/§10/§11 aligned. |
+| v1.75 | **Feed admin — Score**: manual scoring uses **all** unscored articles for the feed (**newest first**), no **`pub_date`** window; still **≤50** per request. **UI refactor**: `AppHeader`, **`TopFeedSection`**, **`useTopFeed({ poll })`** (Top 20 extracted; **RSS titles only**, no localized snippets yet); **`TopicsPage/`** (index + List/Create/Detail); **`theme.ts`** `sectionCard` + form styles; home strings in **i18n**. **SPEC** §3/§8/§10/§11 aligned. |
+| v1.76 | **Top 20 bilingual**: **`GET /api/news/top?lang=`**; DB reads **`snippet_ai_*`** / RSS → response **`snippet`**; **`useTopFeed({ poll, lang })`** with refetch on language change; **FR** UI: French AI summary as **primary** line when present. **`SPEC.md`** §6/§17 + **`005-changelog.sql`** (rows **1.74–1.76**); **`public/version.json`** / **`APP_VERSION`** **1.76**. |
 
-### 17.1 Release detail — v1.65 through v1.73
+### 17.1 Release detail — v1.65 through v1.76
 
 | Ver. | EN (what shipped) | FR (titre seed migration) |
 |------|-------------------|----------------------------|
@@ -905,8 +911,11 @@ Summary table (one line per release). **§17.1** expands **v1.65–v1.73** in de
 | **1.71** | Fetch cron: **larger** batches (`N/10`, max **4**), **adaptive** mini-score tied to **`inserted`**; score cron: **multi-topic** within 12s if backlogs small. | *Optimisation cron phase 2* |
 | **1.72** | **Latency** metric uses ingest→score timestamps; **`fetched_at`** column; **Stats** navigation + **lazy** article list (50-step). | *Refonte stats & correction délai fetch* |
 | **1.73** | **In-app changelog** + **feeds admin** CRUD/score flows + **toasts**; shell width **916px**; i18n layout tweak; **RSS pipeline** writes **`fetched_at`**. Product tweaks after seed: **Articles** / **Coverage** columns, **90d** manual score, **50** articles cap (see v1.74 for code consolidation). | *Gestion des flux, journal des mises à jour, polish UX* |
+| **1.74** | **Housekeeping**: remove **Tailwind** + `postcss.config`; delete obsolete root **`spec-*.md`**; canonical **`src/lib/fetch-topic-dynamic.ts`** & **`score-topic-dynamic.ts`** (Netlify **`shared/*.ts`** re-export); **`globals.css`** for layout/table/grid/**keyframes**; **`theme.ts`**: `spinnerStyle`, `ghostBtn`, `ghostOutlineBtn`; **`cookies.ts`**; **`TopicLabel`**, **`ChangelogEntry`**, **`FeedAdminRow`** → **`types.ts`**. | *Nettoyage : CSS, libs partagées, types* |
+| **1.75** | **Feed admin score** without **90-day** window (**all** unscored, newest first, cap **50**). **Refactor**: **`AppHeader`**, **`TopFeedSection`**, **`useTopFeed({ poll })`**; **`TopicsPage/`**; **`theme`** section/form tokens; home **i18n**. Top 20 still **title-only** from API. | *Scoring flux, refonte UI accueil* |
+| **1.76** | **Top 20 i18n**: **`/api/news/top?lang=`**, **`snippet`** from **`snippet_ai_*`** / RSS; **`useTopFeed({ poll, lang })`**; **FR** = résumé IA en tête si présent. **SPEC** §6/§17, seed **005**, **`version.json`** / **`APP_VERSION`** **1.76**. | *Top 20 bilingue, doc & version* |
 
-> **Note:** Rows **1.0–1.73** in Supabase `changelog` may still show older wording (e.g. 872px, 30-day score) in **body_fr**; **SPEC** and **runtime** values above are authoritative for the current app. Re-seed or `UPDATE` those rows if the in-app Changelog must match exactly.
+> **Note:** If the in-app Changelog was filled before **1.74/1.75/1.76** rows existed, run new **`INSERT`**s or re-apply **`005-changelog.sql`** (after **`TRUNCATE changelog`** if you need a clean seed). **SPEC** and **runtime** remain authoritative when copy diverges.
 
 ---
 

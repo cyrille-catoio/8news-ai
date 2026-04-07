@@ -69,8 +69,8 @@ export function TopFeedSection({
             rel="noopener noreferrer"
             style={{ textDecoration: "none", color: "inherit", display: "block" }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <span style={{ color: color.text, fontWeight: 500, fontSize: 17, flex: 1 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 {isNew(art.pubDate) && (
                   <span
                     style={{
@@ -89,15 +89,43 @@ export function TopFeedSection({
                     {t("articleNewBadge", lang)}
                   </span>
                 )}
-                {art.title}
-              </span>
+                {lang === "fr" && art.snippet ? (
+                  <>
+                    <span style={{ color: color.text, fontWeight: 500, fontSize: 17, lineHeight: 1.35, display: "block" }}>
+                      {art.snippet}
+                    </span>
+                    <p
+                      style={{
+                        color: color.articleSnippet,
+                        fontSize: 13,
+                        marginTop: 6,
+                        marginBottom: 0,
+                        lineHeight: 1.45,
+                      }}
+                    >
+                      {art.title}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ color: color.text, fontWeight: 500, fontSize: 17, lineHeight: 1.35, display: "block" }}>
+                      {art.title}
+                    </span>
+                    {art.snippet ? (
+                      <p style={{ color: color.articleSnippet, fontSize: 14, marginTop: 6, marginBottom: 0, lineHeight: 1.5 }}>
+                        {art.snippet}
+                      </p>
+                    ) : null}
+                  </>
+                )}
+              </div>
               <span
                 style={{
                   fontSize: 12,
                   fontWeight: 700,
                   color: art.score >= 7 ? "#22c55e" : art.score >= 5 ? color.gold : color.textMuted,
-                  marginLeft: 8,
                   flexShrink: 0,
+                  lineHeight: 1.2,
                 }}
               >
                 {art.score}/10

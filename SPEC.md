@@ -1,6 +1,6 @@
 # 8news.ai — Technical Specification
 
-**Version**: v1.76
+**Version**: v1.77
 **Last updated**: April 2026
 
 ---
@@ -44,7 +44,7 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   ├── logo-8news.png          # App logo (PNG, "8" gold / "news" light grey)
 │   ├── favicon.svg             # Browser favicon — gold "8" on black, 512×512
 │   ├── apple-touch-icon.svg    # iOS home screen icon — gold "8" on black, 180×180
-│   └── version.json            # {"version":"1.76"} — auto-update check (bump with each release)
+│   └── version.json            # {"version":"1.77"} — auto-update check (bump with each release)
 ├── src/
 │   ├── app/
 │   │   ├── layout.tsx          # Root layout, metadata, favicons
@@ -189,12 +189,12 @@ Users can create new topics from the Topics page. Each topic includes:
 | Column | Type | Description |
 |---|---|---|
 | `id` | serial PK | Row id |
-| `version` | text | Release label (e.g. `1.76`) |
+| `version` | text | Release label (e.g. `1.77`) |
 | `title_en` / `title_fr` | text | Short headline |
 | `body_en` / `body_fr` | text | Detail text |
 | `created_at` | timestamptz | Display order / metadata |
 
-Populated via migration `005-changelog.sql` (newest first): **1.76 → 1.49** one row per release with short EN/FR summaries aligned with §17; **1.0–1.48** are represented by a **single** row (`version` = `1.0–1.48`, shared generic EN/FR body pointing to git history and SPEC for **1.49+**). For new releases, extend the migration (or `INSERT` manually) and keep §17 and `public/version.json` / `APP_VERSION` in sync.
+Populated via migration `005-changelog.sql` (newest first): **1.77 → 1.49** one row per release with short EN/FR summaries aligned with §17; **1.0–1.48** are represented by a **single** row (`version` = `1.0–1.48`, shared generic EN/FR body pointing to git history and SPEC for **1.49+**). For new releases, extend the migration (or `INSERT` manually) and keep §17 and `public/version.json` / `APP_VERSION` in sync.
 
 ### 5.6 Cache TTL (based on time window)
 
@@ -863,9 +863,9 @@ The topic immediately appears in the homepage topic selector, stats page, and cr
 
 ---
 
-## 17. Changelog (v1.49 → v1.76)
+## 17. Changelog (v1.49 → v1.77)
 
-Summary table (one line per release). **§17.1** expands **v1.65–v1.76** in detail (aligned with `005-changelog.sql` seeds and current code).
+Summary table (one line per release). **§17.1** expands **v1.65–v1.77** in detail (aligned with `005-changelog.sql` seeds and current code).
 
 | Version | Key Changes |
 |---|---|
@@ -897,8 +897,9 @@ Summary table (one line per release). **§17.1** expands **v1.65–v1.76** in de
 | v1.74 | **Housekeeping / architecture**: remove **Tailwind** + `postcss.config`; delete obsolete root **`spec-*.md`**; canonical **`src/lib/fetch-topic-dynamic.ts`** & **`score-topic-dynamic.ts`** (Netlify `shared/*.ts` re-export); **`globals.css`** for shared layout/table/grid/**keyframes**; **`theme.ts`**: `spinnerStyle`, `ghostBtn`, `ghostOutlineBtn`, color helpers; **`cookies.ts`**; move **`TopicLabel`**, **`ChangelogEntry`**, **`FeedAdminRow`** to **`types.ts`**. |
 | v1.75 | **Feed admin — Score**: manual scoring uses **all** unscored articles for the feed (**newest first**), no **`pub_date`** window; still **≤50** per request. **UI refactor**: `AppHeader`, **`TopFeedSection`**, **`useTopFeed({ poll })`** (Top 20 extracted; **RSS titles only**, no localized snippets yet); **`TopicsPage/`** (index + List/Create/Detail); **`theme.ts`** `sectionCard` + form styles; home strings in **i18n**. **SPEC** §3/§8/§10/§11 aligned. |
 | v1.76 | **Top 20 bilingual**: **`GET /api/news/top?lang=`**; DB reads **`snippet_ai_*`** / RSS → response **`snippet`**; **`useTopFeed({ poll, lang })`** with refetch on language change; **FR** UI: French AI summary as **primary** line when present. **`SPEC.md`** §6/§17 + **`005-changelog.sql`** (rows **1.74–1.76**); **`public/version.json`** / **`APP_VERSION`** **1.76**. |
+| v1.77 | **Local version bump**: **`public/version.json`** and **`APP_VERSION`** → **1.77**; **`005-changelog.sql`** seed row **1.77**; **SPEC** §17 range updated. *(No functional change vs 1.76 unless noted in commit history.)* |
 
-### 17.1 Release detail — v1.65 through v1.76
+### 17.1 Release detail — v1.65 through v1.77
 
 | Ver. | EN (what shipped) | FR (titre seed migration) |
 |------|-------------------|----------------------------|

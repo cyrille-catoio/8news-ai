@@ -1,6 +1,6 @@
 # 8news.ai — Technical Specification
 
-**Version**: v1.78
+**Version**: v1.79
 **Last updated**: April 2026
 
 ---
@@ -44,7 +44,7 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   ├── logo-8news.png          # App logo (PNG, "8" gold / "news" light grey)
 │   ├── favicon.svg             # Browser favicon — gold "8" on black, 512×512
 │   ├── apple-touch-icon.svg    # iOS home screen icon — gold "8" on black, 180×180
-│   └── version.json            # {"version":"1.78"} — auto-update check (bump with each release)
+│   └── version.json            # {"version":"1.79"} — auto-update check (bump with each release)
 ├── src/
 │   ├── app/
 │   │   ├── layout.tsx          # Root layout, metadata, favicons
@@ -101,7 +101,8 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   ├── 004-feeds-anthropic.sql # Add 20 RSS feeds for Anthropic
 │   ├── 005-changelog.sql       # changelog table + seed (in-app update log)
 │   ├── insert-changelog-1.77.sql # one-off INSERT for v1.77 on existing DBs (Supabase SQL Editor)
-│   └── insert-changelog-1.78.sql # one-off INSERT for v1.78 on existing DBs (Supabase SQL Editor)
+│   ├── insert-changelog-1.78.sql # one-off INSERT for v1.78 on existing DBs (Supabase SQL Editor)
+│   └── insert-changelog-1.79.sql # one-off INSERT for v1.79 on existing DBs (Supabase SQL Editor)
 ├── .gitignore                  # Next/Node ignores; **v1.77+**: `.claude/` (local Claude/Cursor worktrees, not committed)
 ├── .env                        # API keys (not committed)
 ├── .env.example                # Placeholder for API keys
@@ -192,12 +193,12 @@ Users can create new topics from the Topics page. Each topic includes:
 | Column | Type | Description |
 |---|---|---|
 | `id` | serial PK | Row id |
-| `version` | text | Release label (e.g. `1.78`) |
+| `version` | text | Release label (e.g. `1.79`) |
 | `title_en` / `title_fr` | text | Short headline |
 | `body_en` / `body_fr` | text | Detail text |
 | `created_at` | timestamptz | Display order / metadata |
 
-Populated via migration `005-changelog.sql` (newest first): **1.78 → 1.49** one row per release with short EN/FR summaries aligned with §17; **1.0–1.48** are represented by a **single** row (`version` = `1.0–1.48`, shared generic EN/FR body pointing to git history and SPEC for **1.49+**). For new releases, extend the migration (or `INSERT` manually) and keep §17 and `public/version.json` / `APP_VERSION` in sync. **Existing database missing the latest row only:** run **`migrations/insert-changelog-1.78.sql`** once in the Supabase SQL Editor (see file header). Older gaps: **`insert-changelog-1.77.sql`**.
+Populated via migration `005-changelog.sql` (newest first): **1.79 → 1.49** one row per release with short EN/FR summaries aligned with §17; **1.0–1.48** are represented by a **single** row (`version` = `1.0–1.48`, shared generic EN/FR body pointing to git history and SPEC for **1.49+**). For new releases, extend the migration (or `INSERT` manually) and keep §17 and `public/version.json` / `APP_VERSION` in sync. **Existing database missing the latest row only:** run **`migrations/insert-changelog-1.79.sql`** once in the Supabase SQL Editor (see file header). Older gaps: **`insert-changelog-1.78.sql`**, **`insert-changelog-1.77.sql`**.
 
 ### 5.6 Cache TTL (based on time window)
 
@@ -346,7 +347,7 @@ Text-to-Speech via ElevenLabs `eleven_flash_v2_5`. Returns `audio/mpeg` (MP3).
 | `/api/topics/[id]/feeds/[feedId]` | PATCH | Update feed |
 | `/api/topics/[id]/feeds/[feedId]` | DELETE | Remove feed |
 | `/api/topics/[id]/feeds/[feedId]/articles` | DELETE | Delete all `articles` rows for this topic + feed `name` (source) |
-| `/api/topics/[id]/feeds/[feedId]/score` | POST | Score up to **50** unscored articles for this feed (`topic` + `source`), **no** `pub_date` window (newest unscored first). OpenAI in batches of **15** (~4 calls), **6s** timeout per call, user prompt asks for exactly N scores; **`maxDuration` 26** to align with **Netlify** synchronous function limits (**~10s** default, **~26s** max on Pro — not 60s like Vercel) |
+| `/api/topics/[id]/feeds/[feedId]/score` | POST | Score up to **50** unscored articles (`topic` + **`source` = trimmed `feeds.name`**). OpenAI batches of **12** run **in parallel** (wall time ≈ one round, avoids Netlify **~10s** cutoff from sequential calls). **8s** timeout per call; **`maxDuration` 26**. Response may include **`errors`** / **`error`** when `candidates > 0` but `scored === 0` (timeout, parse, rate limit). **Feeds admin** shows the first error strings in the toast. |
 | `/api/topics/generate-scoring` | POST | AI-generate 5 scoring tiers from domain |
 | `/api/topics/reorder` | PUT | Update sort order (array of `{ id, sortOrder }`) |
 | `/api/topics/[id]/discover-feeds` | POST | AI-discover + validate + insert 10 RSS feeds |
@@ -866,9 +867,9 @@ The topic immediately appears in the homepage topic selector, stats page, and cr
 
 ---
 
-## 17. Changelog (v1.49 → v1.78)
+## 17. Changelog (v1.49 → v1.79)
 
-Summary table (one line per release). **§17.1** expands **v1.65–v1.78** in detail (aligned with `005-changelog.sql` seeds and current code).
+Summary table (one line per release). **§17.1** expands **v1.65–v1.79** in detail (aligned with `005-changelog.sql` seeds and current code).
 
 | Version | Key Changes |
 |---|---|
@@ -901,9 +902,10 @@ Summary table (one line per release). **§17.1** expands **v1.65–v1.78** in de
 | v1.75 | **Feed admin — Score**: manual scoring uses **all** unscored articles for the feed (**newest first**), no **`pub_date`** window; still **≤50** per request. **UI refactor**: `AppHeader`, **`TopFeedSection`**, **`useTopFeed({ poll })`** (Top 20 extracted; **RSS titles only**, no localized snippets yet); **`TopicsPage/`** (index + List/Create/Detail); **`theme.ts`** `sectionCard` + form styles; home strings in **i18n**. **SPEC** §3/§8/§10/§11 aligned. |
 | v1.76 | **Top 20 bilingual**: **`GET /api/news/top?lang=`**; DB reads **`snippet_ai_*`** / RSS → response **`snippet`**; **`useTopFeed({ poll, lang })`** with refetch on language change; **FR** UI: French AI summary as **primary** line when present. **`SPEC.md`** §6/§17 + **`005-changelog.sql`** (rows **1.74–1.76**); **`public/version.json`** / **`APP_VERSION`** **1.76**. |
 | v1.77 | **Release 1.77**: **`public/version.json`** and **`APP_VERSION`** → **1.77**; **`.gitignore`**: ignore **`.claude/`** (agent worktrees); **SPEC** §17 and **`migrations/005-changelog.sql`** include **1.77** for parity with the in-app Changelog. **No product change** vs **v1.76** (same Top 20 i18n and feed flows). |
-| v1.78 | **Scoring backlog & Netlify limits**: **cron-score** + post-fetch mini-score use **`windowHours: null`** — unscored articles are eligible **regardless of `pub_date`** (previously only last **168h**, which hid old backlog). Backlog counts **all** unscored per topic. **`POST .../feeds/[feedId]/score`**: OpenAI in batches of **15**, **6s** timeout per call, **`maxDuration` 26** for Netlify synchronous functions. **`version.json`** / **`APP_VERSION`** **1.78**; **`insert-changelog-1.78.sql`**. **`GET /api/test-score`** still defaults to **168h** window. |
+| v1.78 | **Scoring backlog & Netlify limits**: **cron-score** + post-fetch mini-score use **`windowHours: null`** — unscored articles are eligible **regardless of `pub_date`** (previously only last **168h**, which hid old backlog). Backlog counts **all** unscored per topic. **`POST .../feeds/[feedId]/score`**: OpenAI batches of **12** in **parallel** (avoids Netlify **~10s** wall timeout from sequential calls), **8s**/call, trimmed **`source`** match, **`maxDuration` 26**. **`version.json`** / **`APP_VERSION`** **1.78**; **`insert-changelog-1.78.sql`**. **`GET /api/test-score`** still defaults to **168h** window. |
+| v1.79 | **Plan B — dev cycle start**: **`version.json`** / **`APP_VERSION`** **1.79** before shipping features; **SPEC** §17 through **1.79**; **`005-changelog.sql`** + **`insert-changelog-1.79.sql`**. *Functional changelog text will be completed when **1.79** is deployed; until then local UI may show a “development bump” row if you run the INSERT on Supabase.* |
 
-### 17.1 Release detail — v1.65 through v1.78
+### 17.1 Release detail — v1.65 through v1.79
 
 | Ver. | EN (what shipped) | FR (titre seed migration) |
 |------|-------------------|----------------------------|
@@ -920,9 +922,10 @@ Summary table (one line per release). **§17.1** expands **v1.65–v1.78** in de
 | **1.75** | **Feed admin score** without **90-day** window (**all** unscored, newest first, cap **50**). **Refactor**: **`AppHeader`**, **`TopFeedSection`**, **`useTopFeed({ poll })`**; **`TopicsPage/`**; **`theme`** section/form tokens; home **i18n**. Top 20 still **title-only** from API. | *Scoring flux, refonte UI accueil* |
 | **1.76** | **Top 20 i18n**: **`/api/news/top?lang=`**, **`snippet`** from **`snippet_ai_*`** / RSS; **`useTopFeed({ poll, lang })`**; **FR** = résumé IA en tête si présent. **SPEC** §6/§17, seed **005**, **`version.json`** / **`APP_VERSION`** **1.76**. | *Top 20 bilingue, doc & version* |
 | **1.77** | **Identifiers** **1.77** (`version.json`, **`APP_VERSION`**). **Repo**: **`.gitignore`** adds **`.claude/`**. **Docs/DB**: SPEC §17 through **1.77**; on Supabase run **`migrations/insert-changelog-1.77.sql`** once if the **1.77** row is missing. | *v1.77, gitignore .claude, journal* |
-| **1.78** | **Cron / mini-score**: `windowHours: null` — no **`pub_date`** cutoff on unscored selection; backlog = all unscored per topic. **Manual feed score**: batches **15**, OpenAI **6s**/call, **`maxDuration` 26** (Netlify). **1.78** identifiers + **`insert-changelog-1.78.sql`**. | *Scoring backlog, limites Netlify, v1.78* |
+| **1.78** | **Cron / mini-score**: `windowHours: null` — no **`pub_date`** cutoff on unscored selection; backlog = all unscored per topic. **Manual feed score**: batches **12** **parallel**, **8s**/call, **`source` trim**, **`maxDuration` 26** (Netlify). **1.78** identifiers + **`insert-changelog-1.78.sql`**. | *Scoring backlog, limites Netlify, v1.78* |
+| **1.79** | **Plan B**: bump **1.79** (`version.json`, **`APP_VERSION`**) at start of cycle; SPEC + seed **005** + **`insert-changelog-1.79.sql`**; enrich §17 / DB row when **1.79** ships. | *Cycle dev 1.79 (bump amont)* |
 
-> **Note:** If the in-app Changelog was filled before **1.74–1.78** rows existed, run the per-version **`INSERT`** statements (e.g. **`insert-changelog-1.78.sql`**) or re-apply **`005-changelog.sql`** (after **`TRUNCATE changelog`** only if you want a full re-seed). **SPEC** and **runtime** remain authoritative when copy diverges.
+> **Note:** If the in-app Changelog was filled before **1.74–1.79** rows existed, run the per-version **`INSERT`** statements (e.g. **`insert-changelog-1.79.sql`**) or re-apply **`005-changelog.sql`** (after **`TRUNCATE changelog`** only if you want a full re-seed). **SPEC** and **runtime** remain authoritative when copy diverges.
 
 ---
 

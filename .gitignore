@@ -42,3 +42,6 @@ next-env.d.ts
 
 # Local Netlify folder
 .netlify
+
+# Claude / Cursor agent worktrees (local only)
+.claude/

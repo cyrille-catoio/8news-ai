@@ -1,6 +1,6 @@
 import type { Config } from "@netlify/functions";
 import { createClient } from "@supabase/supabase-js";
-import { scoreAndStoreTopicDynamic, SCORE_WINDOW_HOURS } from "./shared/score-topic";
+import { scoreAndStoreTopicDynamic } from "./shared/score-topic";
 
 const SCORE_DEADLINE_MS = 12_000;
 const MULTI_TOPIC_BACKLOG_THRESHOLD = 20;
@@ -43,8 +43,6 @@ export default async () => {
 
   if (!topics || topics.length === 0) return new Response("No active topics");
 
-  const since = new Date(Date.now() - SCORE_WINDOW_HOURS * 3_600_000).toISOString();
-
   const rows = topics as TopicScoreRow[];
   const withBacklog = await Promise.all(
     rows.map(async (topic) => {
@@ -52,7 +50,6 @@ export default async () => {
         .from("articles")
         .select("id", { count: "exact", head: true })
         .eq("topic", topic.id)
-        .gte("pub_date", since)
         .is("relevance_score", null);
       return { topic, backlog: count ?? 0 };
     }),
@@ -116,7 +113,9 @@ export default async () => {
       scoring_tier5: topic.scoring_tier5,
     };
 
-    const result = await scoreAndStoreTopicDynamic(topic.id, criteria, supabase);
+    const result = await scoreAndStoreTopicDynamic(topic.id, criteria, supabase, {
+      windowHours: null,
+    });
     lines.push(result);
     topicsProcessed++;
   }

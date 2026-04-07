@@ -4,11 +4,19 @@ import { createClient } from "@supabase/supabase-js";
 import type { ScoreResult } from "@/lib/types";
 import { getFeedById } from "@/lib/supabase";
 
-export const maxDuration = 60;
+/**
+ * Netlify synchronous functions are capped (~10s default, up to ~26s on Pro after support/config).
+ * Up to 4 sequential OpenAI calls × OPENAI_TIMEOUT_MS must fit under that wall (plus DB work).
+ * Vercel can run longer; `maxDuration` here matches the stricter host.
+ */
+export const maxDuration = 26;
 
 /** Max articles scored per request (pool = all unscored for this feed, newest first). */
 const SCORE_LIMIT = 50;
-const BATCH_SIZE = 50;
+/** OpenAI batch size: balance JSON completeness vs number of sequential calls (see maxDuration). */
+const OPENAI_BATCH_SIZE = 15;
+/** Per OpenAI call; keep (ceil(SCORE_LIMIT / OPENAI_BATCH_SIZE) * timeout) under Netlify’s function limit. */
+const OPENAI_TIMEOUT_MS = 6_000;
 
 export async function POST(
   _req: NextRequest,
@@ -110,21 +118,27 @@ For articles scoring below 5, omit summary_en and summary_fr.`;
     let scored = 0;
     const errors: string[] = [];
 
-    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-      const batch = rows.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < rows.length; i += OPENAI_BATCH_SIZE) {
+      const batch = rows.slice(i, i + OPENAI_BATCH_SIZE);
       const articleList = batch
         .map((a, idx) => `[${idx}] ${a.title} | ${(a.snippet || a.content || "").slice(0, 300)}`)
         .join("\n");
 
       try {
-        const completion = await openai.chat.completions.create({
-          model: "gpt-4.1-nano",
-          messages: [
-            { role: "system", content: scoringPrompt },
-            { role: "user", content: articleList },
-          ],
-          response_format: { type: "json_object" },
-        });
+        const completion = await openai.chat.completions.create(
+          {
+            model: "gpt-4.1-nano",
+            messages: [
+              { role: "system", content: scoringPrompt },
+              {
+                role: "user",
+                content: `${articleList}\n\nReturn a JSON object with a "scores" array containing exactly ${batch.length} objects, indices 0 through ${batch.length - 1}, each with index and score (1-10).`,
+              },
+            ],
+            response_format: { type: "json_object" },
+          },
+          { timeout: OPENAI_TIMEOUT_MS },
+        );
 
         const raw = completion.choices[0]?.message?.content;
         if (!raw) continue;

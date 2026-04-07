@@ -31,7 +31,7 @@ import { useTopFeed } from "@/hooks/useTopFeed";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.77";
+const APP_VERSION = "1.78";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 

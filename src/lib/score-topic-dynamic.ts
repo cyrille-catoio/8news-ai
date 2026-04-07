@@ -26,8 +26,11 @@ export interface ScoringCriteria {
 export type ScoreTopicOptions = {
   /** Articles to score this run (capped by maxArticlesCap). */
   maxArticles?: number;
-  /** `pub_date` window in hours (default SCORE_WINDOW_HOURS). */
-  windowHours?: number;
+  /**
+   * Only consider articles with `pub_date` in the last N hours.
+   * Default: `SCORE_WINDOW_HOURS` (168). Pass **`null`** to score any unscored article (newest `pub_date` first) — used by crons to drain backlog.
+   */
+  windowHours?: number | null;
   /** Upper bound for maxArticles (default MAX_ARTICLES_PER_RUN). Admin endpoint uses 200. */
   maxArticlesCap?: number;
   /** Per-batch OpenAI parse debug (admin test-score). */
@@ -155,7 +158,12 @@ async function runScoreTopic(
   supabase: SupabaseClient,
   opts?: ScoreTopicOptions,
 ): Promise<ScoreTopicDetailedResult> {
-  const windowH = opts?.windowHours ?? SCORE_WINDOW_HOURS;
+  const windowH =
+    opts?.windowHours === null
+      ? null
+      : opts?.windowHours !== undefined
+        ? opts.windowHours
+        : SCORE_WINDOW_HOURS;
   const cap = opts?.maxArticlesCap ?? MAX_ARTICLES_PER_RUN;
   const limit = Math.min(Math.max(1, opts?.maxArticles ?? MAX_ARTICLES_PER_RUN), cap);
   const collectAiDebug = opts?.collectAiDebug ?? false;
@@ -164,16 +172,20 @@ async function runScoreTopic(
   const openai = new OpenAI({ apiKey });
   const prompt = buildScoringPrompt(criteria);
 
-  const since = new Date(Date.now() - windowH * 3_600_000).toISOString();
-
-  const { data: unscored, error } = await supabase
+  let articlesQuery = supabase
     .from("articles")
     .select("id, title, snippet, content")
     .eq("topic", topicId)
-    .gte("pub_date", since)
     .is("relevance_score", null)
     .order("pub_date", { ascending: false })
     .limit(limit);
+
+  if (windowH !== null) {
+    const since = new Date(Date.now() - windowH * 3_600_000).toISOString();
+    articlesQuery = articlesQuery.gte("pub_date", since);
+  }
+
+  const { data: unscored, error } = await articlesQuery;
 
   if (error) {
     const message = `[${topicId}] DB error: ${error.message}`;
@@ -261,7 +273,7 @@ export async function scoreTopicForAdmin(
   criteria: ScoringCriteria,
   supabase: SupabaseClient,
   params: {
-    windowHours: number;
+    windowHours: number | null;
     maxArticles: number;
     collectAiDebug: boolean;
   },

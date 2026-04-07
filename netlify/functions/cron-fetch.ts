@@ -73,6 +73,7 @@ export default async () => {
       };
       const scoreMsg = await scoreAndStoreTopicDynamic(topic.id, criteria, supabase, {
         maxArticles: miniScoreMax,
+        windowHours: null,
       });
       lines.push(`post-fetch: ${scoreMsg}`);
     }

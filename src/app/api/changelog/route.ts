@@ -15,17 +15,35 @@ export async function GET() {
     return NextResponse.json({ error: "DB not configured" }, { status: 500 });
   }
 
-  const { data, error } = await supabase
-    .from("changelog")
-    .select("id, version, title_en, title_fr, body_en, body_fr, created_at")
-    .order("created_at", { ascending: false })
-    .limit(50);
+  const PAGE = 1000;
+  const entries: {
+    id: number;
+    version: string;
+    title_en: string;
+    title_fr: string;
+    body_en: string;
+    body_fr: string;
+    created_at: string;
+  }[] = [];
+  let offset = 0;
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  while (true) {
+    const { data, error } = await supabase
+      .from("changelog")
+      .select("id, version, title_en, title_fr, body_en, body_fr, created_at")
+      .order("created_at", { ascending: false })
+      .range(offset, offset + PAGE - 1);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    const batch = data ?? [];
+    entries.push(...batch);
+    if (batch.length < PAGE) break;
+    offset += PAGE;
   }
 
-  return NextResponse.json({ entries: data ?? [] }, {
+  return NextResponse.json({ entries }, {
     headers: { "Cache-Control": "no-store" },
   });
 }

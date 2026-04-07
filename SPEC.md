@@ -1,6 +1,6 @@
 # 8news.ai — Technical Specification
 
-**Version**: v1.73
+**Version**: v1.74
 **Last updated**: April 2026
 
 ---
@@ -25,7 +25,7 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 | Framework | Next.js (App Router) | 16.1.6 |
 | Language | TypeScript | ^5 |
 | Frontend | React | 19.2.3 |
-| CSS | Tailwind CSS v4 + inline styles via `theme.ts` | ^4 |
+| CSS | `globals.css` (tables, grids, keyframes) + `theme.ts` tokens + inline styles | — |
 | RSS Parsing | rss-parser | ^3.13.0 |
 | AI (text analysis) | OpenAI API — `gpt-4.1-nano` | via `openai` ^6.25.0 |
 | AI (text-to-speech) | ElevenLabs API — `eleven_flash_v2_5` model | via REST API |
@@ -44,7 +44,7 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   ├── logo-8news.png          # App logo (PNG, "8" gold / "news" light grey)
 │   ├── favicon.svg             # Browser favicon — gold "8" on black, 512×512
 │   ├── apple-touch-icon.svg    # iOS home screen icon — gold "8" on black, 180×180
-│   └── version.json            # {"version":"1.73"} — auto-update check (bump with each release)
+│   └── version.json            # {"version":"1.74"} — auto-update check (bump with each release)
 ├── src/
 │   ├── app/
 │   │   ├── layout.tsx          # Root layout, metadata, favicons
@@ -73,19 +73,22 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   │               │   └── [feedId]/
 │   │               │       ├── route.ts        # PATCH/DELETE feed
 │   │               │       ├── articles/route.ts # DELETE — remove DB articles for topic+source
-│   │               │       └── score/route.ts  # POST — score up to 10 unscored articles (30d window)
+│   │               │       └── score/route.ts  # POST — score up to 50 unscored articles (90d window)
 │   │               └── discover-feeds/route.ts # POST — AI auto-discover RSS feeds
 │   └── lib/
 │       ├── types.ts            # TypeScript interfaces (TopicItem, TopicDetail, etc.)
 │       ├── theme.ts            # Design tokens (colors, fonts, shared styles)
 │       ├── i18n.ts             # EN/FR translation strings (80+ keys)
 │       ├── supabase.ts         # Supabase client, caching, article/topic/feed queries
-│       └── html.ts             # HTML entity decoder
+│       ├── html.ts             # HTML entity decoder
+│       ├── cookies.ts          # getCookie / setCookie (client prefs: lang, maxArticles, TTS)
+│       ├── fetch-topic-dynamic.ts  # RSS fetch + upsert (used by API + Netlify)
+│       └── score-topic-dynamic.ts # AI scoring batches → Supabase (used by API + Netlify)
 ├── netlify/
 │   └── functions/
 │       ├── shared/
-│       │   ├── fetch-topic.ts  # Shared: fetch RSS → Supabase
-│       │   └── score-topic.ts  # Shared: score articles with AI → Supabase
+│       │   ├── fetch-topic.ts  # Re-exports `@/lib/fetch-topic-dynamic` for cron bundling
+│       │   └── score-topic.ts  # Re-exports `@/lib/score-topic-dynamic` for cron bundling
 │       ├── cron-fetch.ts       # Cron: batched RSS fetch (* * * * *, k topics/run)
 │       └── cron-score.ts       # Cron: prioritized scoring (* * * * *)
 ├── migrations/
@@ -183,12 +186,12 @@ Users can create new topics from the Topics page. Each topic includes:
 | Column | Type | Description |
 |---|---|---|
 | `id` | serial PK | Row id |
-| `version` | text | Release label (e.g. `1.73`) |
+| `version` | text | Release label (e.g. `1.74`) |
 | `title_en` / `title_fr` | text | Short headline |
 | `body_en` / `body_fr` | text | Detail text |
 | `created_at` | timestamptz | Display order / metadata |
 
-Populated via migration `005-changelog.sql` (and manual inserts for new releases).
+Populated via migration `005-changelog.sql`, which seeds **every version from 1.0 through 1.73** (newest first); **1.49–1.73** carry short EN/FR summaries aligned with §17, earlier versions use a generic placeholder pointing to git history and SPEC. **v1.74+**: add rows manually or extend the migration; keep §17 and `public/version.json` / `APP_VERSION` in sync.
 
 ### 5.6 Cache TTL (based on time window)
 
@@ -205,14 +208,14 @@ Populated via migration `005-changelog.sql` (and manual inserts for new releases
 
 ### 6.1 Netlify Scheduled Functions (Cron Jobs)
 
-Articles are fetched and pre-scored by **2 scheduled Netlify functions** (not per-topic files): **batched fetch** plus **prioritized score** (see below). Shared logic lives in `netlify/functions/shared/score-topic.ts` (`scoreAndStoreTopicDynamic`, optional `ScoreTopicOptions.maxArticles` for the post-fetch mini-score) and `netlify/functions/shared/fetch-topic.ts` (`fetchAndStoreTopicDynamic`, returns `FetchResult { summary, inserted }`).
+Articles are fetched and pre-scored by **2 scheduled Netlify functions** (not per-topic files): **batched fetch** plus **prioritized score** (see below). Canonical implementations live in **`src/lib/score-topic-dynamic.ts`** (`scoreAndStoreTopicDynamic`, optional `ScoreTopicOptions.maxArticles` / `windowHours` / `maxArticlesCap`) and **`src/lib/fetch-topic-dynamic.ts`** (`fetchAndStoreTopicDynamic`, returns `FetchResult` with `summary`, `inserted`, `feedsOk`, `feedsFailed`, `totalParsed`, `duplicatesSkipped`). `netlify/functions/shared/*.ts` re-export those modules for the cron bundle. **`GET /api/fetch-feeds`** and **`GET /api/test-score`** call the same libraries (auth via `secret` + `CRON_SECRET`).
 
 **`cron-fetch.ts`** — RSS fetching:
 - Runs **every minute** (`* * * * *`), same cadence as scoring
 - Loads active topics ordered by oldest `last_fetched_at` (nulls first)
 - Processes **`k` topics per run**: `k = min(max(1, ceil(N/10)), 4)` so that, over ~10 minutes, each of **N** topics can be visited at least once (cap **4** per invocation to stay within Netlify’s ~**15s** limit; stops early if a **12s** deadline is reached)
 - For each selected topic: updates `last_fetched_at` **before** fetching, then fetches all active RSS feeds, parses, upserts into `articles`
-- `fetchAndStoreTopicDynamic` returns `{ summary, inserted }` — the inserted count drives the adaptive mini-score
+- `fetchAndStoreTopicDynamic` returns a `FetchResult` (includes `summary`, `inserted`, and aggregate feed/article counts) — `inserted` drives the adaptive mini-score
 - **Adaptive post-fetch scoring** (when time remains ≥ 6s before deadline): mini-score caps at `min(50, max(15, inserted))` articles — scales with fetch volume, avoids wasting time when few articles are new
 
 **`cron-score.ts`** — AI scoring:
@@ -332,7 +335,7 @@ Text-to-Speech via ElevenLabs `eleven_flash_v2_5`. Returns `audio/mpeg` (MP3).
 | `/api/topics/[id]/feeds/[feedId]` | PATCH | Update feed |
 | `/api/topics/[id]/feeds/[feedId]` | DELETE | Remove feed |
 | `/api/topics/[id]/feeds/[feedId]/articles` | DELETE | Delete all `articles` rows for this topic + feed `name` (source) |
-| `/api/topics/[id]/feeds/[feedId]/score` | POST | Score up to **10** unscored articles for this feed (`topic` + `source`), `pub_date` within **30 days**, `gpt-4.1-nano`; `maxDuration` 60s |
+| `/api/topics/[id]/feeds/[feedId]/score` | POST | Score up to **50** unscored articles for this feed (`topic` + `source`), `pub_date` within **90 days**, `gpt-4.1-nano`; `maxDuration` 60s |
 | `/api/topics/generate-scoring` | POST | AI-generate 5 scoring tiers from domain |
 | `/api/topics/reorder` | PUT | Update sort order (array of `{ id, sortOrder }`) |
 | `/api/topics/[id]/discover-feeds` | POST | AI-discover + validate + insert 10 RSS feeds |
@@ -359,7 +362,7 @@ Returns `{ feeds: [...] }`: each row includes `id`, `topicId`, `source`, `url`, 
 
 #### `GET /api/changelog`
 
-Returns `{ entries: [...] }` (up to 50 rows, `created_at` DESC) from the **`changelog`** table for the in-app update log page.
+Returns `{ entries: [...] }` — **all** `changelog` rows, `created_at` DESC, fetched in **1000-row pages** (PostgREST limit) so every version appears on the in-app Changelog page.
 
 ---
 
@@ -403,7 +406,7 @@ The entire UI is in `src/app/page.tsx` (client component, `"use client"`).
 ### 8.1 Layout
 
 - **Background**: Pure black (`#000000`)
-- **Max width**: **872px**, centered (~5% wider than legacy 830px on large viewports)
+- **Max width**: **916px**, centered (~5% wider than 872px; legacy was 830px on large viewports)
 - **Font**: System UI stack
 - **Theme**: Black & gold (`#c9a227`)
 
@@ -534,7 +537,7 @@ Dedicated **RSS / feed operations** view (not the same as Topics CRUD):
 - **Topic filter**: pill buttons — **All** or one topic (labels from homepage topic list)
 - **Table**: source (link to RSS URL), topic, **created at** (`feeds.created_at`), total articles, scored, avg score, Score ≥ 7 % — all numeric/topic columns **sortable** (asc/desc)
 - **Actions** (per row):
-  - **Score** (star icon): `POST /api/topics/:id/feeds/:feedId/score` — up to 10 unscored articles, **30-day** `pub_date` window
+  - **Score** (star icon): `POST /api/topics/:id/feeds/:feedId/score` — up to 50 unscored articles, **90-day** `pub_date` window
   - **Delete articles** (document‑X): `DELETE .../articles` — removes stored articles for that topic + source
   - **Delete feed** (trash): `DELETE .../feeds/:feedId`
 - **Toasts** (fixed bottom center): loading spinner + message while waiting; success / info / error with auto-dismiss (replaces `alert` for these actions)
@@ -840,7 +843,9 @@ The topic immediately appears in the homepage topic selector, stats page, and cr
 
 ---
 
-## 17. Changelog (v1.49 → v1.73)
+## 17. Changelog (v1.49 → v1.74)
+
+Summary table (one line per release). **§17.1** expands **v1.65–v1.73** in detail (aligned with `005-changelog.sql` seeds and current code).
 
 | Version | Key Changes |
 |---|---|
@@ -860,15 +865,32 @@ The topic immediately appears in the homepage topic selector, stats page, and cr
 | v1.62 | Rename "Hit %" to "Score ≥ 7". Active Feeds column shows "(7d)"/"(7j)". Homepage Top 20 default feed (best scored articles last 24h). Scroll-to-top button |
 | v1.63 | Home icon and logo reset to Top 20 feed (deselects topic). Topic name displayed next to Summary title. Remove standalone Top 20 button |
 | v1.64 | Topic selection clears Top 20 feed and shows "select a period" prompt |
-| v1.65 | Copy-to-clipboard on article cards; Cron Monitor **Reason** column (`statusReason`: backlog / fetch / score); **NEW** badge on Top 20 items published within the last hour |
-| v1.66 | Version bump; SPEC project tree folder name corrected to `8news/` |
-| v1.67 | Summary metadata: single compact line (articles, scorés/scored, analysés IA / analyzed by AI); mobile-friendly line height and font size (≤640px) |
-| v1.68 | `/api/cron-stats`: paginate article queries in **1000-row** batches (fixes Supabase 1k row cap on KPIs/timeline). Top 20 **auto-refresh every 5 min** on home without topic. **Topic badge** on Top 20 cards |
-| v1.69 | Netlify crons: **minute** batched fetch `k=min(ceil(N/15),3)`, ~**12s** run deadline; **cron-score** prioritizes backlog then newest `last_fetched_at`; **post-fetch mini-score** ≤15 articles |
-| v1.70 | Cron Monitor **avg delay**: cohort = `pub_date` in 24h + scored articles only (aligned with Fetched 24h); doc/spec sync |
-| v1.71 | **cron-fetch**: cycle ~10 min (`ceil(N/10)`, cap 4), adaptive mini-score `min(50, max(15, inserted))`, reserve 6s; **cron-score**: multi-topic scoring (12s deadline, threshold 20); `fetchAndStoreTopicDynamic` returns `{ summary, inserted }` |
-| v1.72 | Cron Monitor avg delay uses **`scored_at − fetched_at`** (not `pub_date`), displayed as `Xm XXs`; `fetched_at` column added to article inserts. **Stats page redesign**: 3-state flow (home KPIs → select topic → select period); lightweight `kpi_only` endpoint (11 COUNT queries); **Article ranking** section (renamed) with 500 articles, lazy-loaded 50 at a time |
-| v1.73 | **`changelog`** table + **`GET /api/changelog`** + in-app **Changelog** page (clock icon). **Feed management** page (list icon): **`GET /api/feeds-admin`**, per-feed stats table (`created_at`, sortable columns), **POST** `.../feeds/[id]/score` (≤10 articles, **30-day** window), **DELETE** `.../feeds/[id]/articles`, delete feed; **toasts** for async feedback. Layout **872px**; **EN/FR** toggle below icon row (~20% smaller); Stats **feed ranking** `title` on source cell; **`/api/fetch-feeds`** sets `fetched_at` (TS/build parity with `ParsedArticle`) |
+| v1.65 | **Copy link** on article cards; Cron Monitor **Reason** column (`statusReason`: backlog / fetch / score); **NEW** badge on Top 20 when `pubDate` within the last hour |
+| v1.66 | Version bump; SPEC / repo tree folder name standardized to **`8news/`** |
+| v1.67 | Summary **metadata** on one compact line (total / scored / AI-analyzed); tighter **mobile** typography for that line (≤640px) |
+| v1.68 | **`/api/cron-stats`**: paginate heavy article reads in **1000-row** pages (PostgREST cap). **Top 20** auto-refresh every **5 min** on home when no topic selected. **Topic badge** on Top 20 cards |
+| v1.69 | **cron-fetch** (phase 1): per-minute batch size `k = min(ceil(N/15), 3)`, ~**12s** deadline; **cron-score** prioritizes backlog then newest `last_fetched_at`; **post-fetch mini-score** up to **15** articles |
+| v1.70 | Cron Monitor **average delay** KPI: cohort = articles with **`pub_date` in last 24h** and **scored** (aligned with “Fetched 24h” semantics); documentation sync |
+| v1.71 | **cron-fetch** (phase 2): ~**10 min** full rotation (`k = min(max(1, ceil(N/10)), 4)`), **adaptive** post-fetch mini-score `min(50, max(15, inserted))`, **6s** reserve before deadline; **cron-score** can touch **multiple topics** per run (12s deadline, backlog threshold **20**). `fetchAndStoreTopicDynamic` exposes **`inserted`** (and full **`FetchResult`** aggregates in shared lib) for mini-score sizing |
+| v1.72 | Cron Monitor avg delay = **`scored_at − fetched_at`** per article, shown as **`Xm XXs`**; **`fetched_at`** populated on article insert/upsert. **Stats** three-step UX: global KPIs → pick topic → pick period; optional **`kpi_only`** stats mode; **Article ranking** (renamed section), **500** rows loaded, UI shows **50** at a time with “load more” |
+| v1.73 | **`changelog`** table + **`GET /api/changelog`** + in-app **Changelog** page. **Feed management**: **`GET /api/feeds-admin`**, sortable table, **POST** `.../feeds/[id]/score`, **DELETE** articles / remove feed, **toasts**. Layout widened to **916px**; **EN/FR** under nav icons; Stats feed-ranking **tooltip `title`** on source; **`/api/fetch-feeds`** / shared RSS path set **`fetched_at`**. *Follow-up UX:* feed table column **Articles** (was “Total articles”), **Coverage** % (scored/total), manual score window **90 days**, up to **50** articles per run |
+| v1.74 | **Housekeeping / architecture**: remove **Tailwind** + `postcss.config`; delete obsolete root **`spec-*.md`**; canonical **`src/lib/fetch-topic-dynamic.ts`** & **`score-topic-dynamic.ts`** (Netlify `shared/*.ts` re-export); **`globals.css`** for shared layout/table/grid/**keyframes**; **`theme.ts`**: `spinnerStyle`, `ghostBtn`, `ghostOutlineBtn`, color helpers; **`cookies.ts`**; move **`TopicLabel`**, **`ChangelogEntry`**, **`FeedAdminRow`** to **`types.ts`**. |
+
+### 17.1 Release detail — v1.65 through v1.73
+
+| Ver. | EN (what shipped) | FR (titre seed migration) |
+|------|-------------------|----------------------------|
+| **1.65** | Per-article **copy-to-clipboard**; Cron table **Reason** from `statusReason`; **NEW** label on Top 20 items published **within the last hour**. | *Copie lien, raison Cron, badge NEW* |
+| **1.66** | Changelog seed + SPEC path **8news/** consistency. | *Bump version & arbre SPEC* |
+| **1.67** | Single **summary meta** line (counts + “analyzed by AI”); **responsive** font size/line-height for that block. | *Ligne méta résumé (mobile)* |
+| **1.68** | **cron-stats** no longer truncates at 1k rows for aggregates; **Top 20** polling on idle home; **topic** label on each Top 20 card. | *Pagination Supabase & refresh Top 20* |
+| **1.69** | Fetch cron: smaller batches (`N/15`, max 3 topics), strict **12s** budget; score cron: **backlog-first** ordering; **≤15** articles scored immediately after a fetch when time remains. | *Optimisation cron phase 1* |
+| **1.70** | **Avg delay** denominator fixed to 24h-scored cohort matching KPI copy. | *Correction délai moyen & sync doc* |
+| **1.71** | Fetch cron: **larger** batches (`N/10`, max **4**), **adaptive** mini-score tied to **`inserted`**; score cron: **multi-topic** within 12s if backlogs small. | *Optimisation cron phase 2* |
+| **1.72** | **Latency** metric uses ingest→score timestamps; **`fetched_at`** column; **Stats** navigation + **lazy** article list (50-step). | *Refonte stats & correction délai fetch* |
+| **1.73** | **In-app changelog** + **feeds admin** CRUD/score flows + **toasts**; shell width **916px**; i18n layout tweak; **RSS pipeline** writes **`fetched_at`**. Product tweaks after seed: **Articles** / **Coverage** columns, **90d** manual score, **50** articles cap (see v1.74 for code consolidation). | *Gestion des flux, journal des mises à jour, polish UX* |
+
+> **Note:** Rows **1.0–1.73** in Supabase `changelog` may still show older wording (e.g. 872px, 30-day score) in **body_fr**; **SPEC** and **runtime** values above are authoritative for the current app. Re-seed or `UPDATE` those rows if the in-app Changelog must match exactly.
 
 ---
 

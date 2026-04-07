@@ -469,6 +469,10 @@ const strings = {
     en: "Topic",
     fr: "Topic",
   },
+  feedsAdminColArticles: {
+    en: "Articles",
+    fr: "Articles",
+  },
   feedsAdminCreatedAt: {
     en: "Created",
     fr: "Créé le",
@@ -498,16 +502,16 @@ const strings = {
     fr: "Actions",
   },
   feedsAdminScoreFeed: {
-    en: "Score up to 10 unscored articles from this feed (last 30 days window)",
-    fr: "Scorer jusqu’à 10 articles non scorés de ce flux (fenêtre 30 jours)",
+    en: "Score up to 50 unscored articles from this feed (last 90 days window)",
+    fr: "Scorer jusqu’à 50 articles non scorés de ce flux (fenêtre 90 jours)",
   },
   feedsAdminScoreFeedError: {
     en: "Scoring failed.",
     fr: "Échec du scoring.",
   },
   feedsAdminScoreFeedNone: {
-    en: "No unscored articles for this feed in the last 30 days.",
-    fr: "Aucun article non scoré pour ce flux sur les 30 derniers jours.",
+    en: "No unscored articles for this feed in the last 90 days.",
+    fr: "Aucun article non scoré pour ce flux sur les 90 derniers jours.",
   },
   feedsAdminScoreFeedDone: {
     en: "Scored {n} article(s).",

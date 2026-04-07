@@ -97,11 +97,16 @@ async function analyzeWithAI(
   const msg = getServerMessages(lang);
   const openai = new OpenAI({ apiKey });
 
+  const userList =
+    lang === "fr"
+      ? `Article list:\n${formatArticleList(items)}\n\nIMPORTANT — Réponds entièrement en français : pour chaque entrée du tableau "relevant", les champs "title" (titre traduit ou réécrit) et "snippet" (2–3 phrases factuelles) doivent être en français.`
+      : `Article list:\n${formatArticleList(items)}`;
+
   const completion = await openai.chat.completions.create({
     model: "gpt-4.1-nano",
     messages: [
       { role: "system", content: systemPrompt },
-      { role: "user", content: `Article list:\n${formatArticleList(items)}` },
+      { role: "user", content: userList },
     ],
     response_format: { type: "json_object" },
   });
@@ -177,8 +182,10 @@ export async function GET(request: NextRequest) {
 
     // ── Cache check ──────────────────────────────────────────────────
     const apiKey = process.env.OPENAI_API_KEY;
+    /** Bumps when French article card copy logic changes (invalidates stale cached EN snippets). */
+    const cacheLang = lang === "fr" ? "fr@sel-fr" : lang;
     if (isValidApiKey(apiKey)) {
-      const cached = await getCachedResult(topic, lang, hours, maxArticles);
+      const cached = await getCachedResult(topic, cacheLang, hours, maxArticles);
       if (cached) {
         return NextResponse.json(cached satisfies SummaryResponse);
       }
@@ -238,6 +245,17 @@ export async function GET(request: NextRequest) {
 
     const filteredArticles: ArticleSummary[] = items.map((a, i) => {
       const entry = relevant.get(i);
+      const row = scoredRows[i];
+      if (lang === "fr") {
+        const hasDbFrSnippet = !!(row?.snippet_ai_fr && row.snippet_ai_fr.trim());
+        return {
+          ...a,
+          title: (entry?.title && entry.title.trim()) || a.title,
+          snippet: hasDbFrSnippet
+            ? a.snippet
+            : (entry?.snippet && entry.snippet.trim()) || a.snippet,
+        };
+      }
       return {
         ...a,
         title: entry?.title || a.title,
@@ -256,7 +274,7 @@ export async function GET(request: NextRequest) {
 
     // ── Cache write (non-blocking) ──────────────────────────────────
     if (filteredArticles.length > 0) {
-      setCachedResult(topic, lang, hours, maxArticles, result).catch(() => {});
+      setCachedResult(topic, cacheLang, hours, maxArticles, result).catch(() => {});
       if (Math.random() < 0.1) cleanExpiredCache().catch(() => {});
     }
 

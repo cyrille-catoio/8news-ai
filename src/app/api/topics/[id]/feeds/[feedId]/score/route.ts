@@ -6,9 +6,9 @@ import { getFeedById } from "@/lib/supabase";
 
 export const maxDuration = 60;
 
-const SCORE_LIMIT = 10;
-/** Fenêtre de sélection des articles à scorer (30 jours). */
-const WINDOW_HOURS = 30 * 24;
+const SCORE_LIMIT = 50;
+/** Fenêtre de sélection des articles à scorer (90 jours). */
+const WINDOW_HOURS = 90 * 24;
 const BATCH_SIZE = 50;
 
 export async function POST(
@@ -106,7 +106,7 @@ For articles scoring below 5, omit summary_en and summary_fr.`;
       return NextResponse.json({
         scored: 0,
         candidates: 0,
-        message: "No unscored articles for this feed in the time window",
+        message: "No unscored articles for this feed in the last 90 days",
       });
     }
 

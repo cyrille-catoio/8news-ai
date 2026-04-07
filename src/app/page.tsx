@@ -1,13 +1,36 @@
 "use client";
 
 import { type CSSProperties, useState, useEffect, useCallback, useRef, useMemo } from "react";
-import type { SummaryResponse, ArticleSummary, StatsResponse, TopicItem, TopicDetail, FeedItem, CronStatsResponse } from "@/lib/types";
+import type {
+  SummaryResponse,
+  ArticleSummary,
+  StatsResponse,
+  TopicItem,
+  TopicDetail,
+  FeedItem,
+  CronStatsResponse,
+  TopicLabel,
+  ChangelogEntry,
+  FeedAdminRow,
+} from "@/lib/types";
 import { t, dateLocale, type Lang } from "@/lib/i18n";
-import { color, font, sectionHeading, card } from "@/lib/theme";
+import { getCookie, setCookie } from "@/lib/cookies";
+import {
+  color,
+  font,
+  sectionHeading,
+  card,
+  scoreClr,
+  hitClr,
+  covClr,
+  ghostBtn,
+  ghostOutlineBtn,
+  spinnerStyle,
+} from "@/lib/theme";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.73";
+const APP_VERSION = "1.74";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 const TTS_VOICES_EN = [
@@ -41,8 +64,6 @@ const PERIODS = [
   { label: "14 d",  hours: 336 },
   { label: "30 d",  hours: 720 },
 ] as const;
-
-interface TopicLabel { id: string; label: string }
 
 // ── Sub-components ────────────────────────────────────────────────────
 
@@ -93,26 +114,11 @@ function TopicToggle({
   });
 
   return (
-    <>
-      <style>{`
-        .topic-grid {
-          display: grid;
-          gap: 6px;
-          grid-template-columns: repeat(${Math.min(topics.length || 8, 8)}, 1fr);
-        }
-        @media (max-width: 640px) {
-          .topic-grid {
-            grid-template-columns: repeat(4, 1fr);
-            gap: 5px;
-          }
-          .topic-grid button {
-            font-size: 13px !important;
-            padding: 10px 2px !important;
-          }
-        }
-      `}</style>
-      <div className="topic-grid">
-        {topics.map(({ id, label }) => (
+    <div
+      className="topic-grid"
+      style={{ ["--topic-grid-cols" as string]: Math.min(topics.length || 8, 8) } as CSSProperties}
+    >
+      {topics.map(({ id, label }) => (
           <button
             key={id}
             onClick={() => onChange(id)}
@@ -122,14 +128,9 @@ function TopicToggle({
             {label}
           </button>
         ))}
-      </div>
-    </>
+    </div>
   );
 }
-
-const SpinKeyframes = () => (
-  <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
-);
 
 function PeriodButton({
   label,
@@ -143,44 +144,20 @@ function PeriodButton({
   onClick: () => void;
 }) {
   return (
-    <>
-      <style>{`
-        .period-btn {
-          padding: 9px 0;
-          width: 64px;
-          text-align: center;
-          border-radius: 8px;
-          font-size: 15px;
-          font-weight: 600;
-          letter-spacing: 0.02em;
-          transition: all 0.15s;
-        }
-        @media (max-width: 640px) {
-          .period-btn {
-            width: 52px;
-            padding: 7px 0;
-            font-size: 13px;
-          }
-          .period-grid {
-            gap: 6px !important;
-          }
-        }
-      `}</style>
-      <button
-        className="period-btn"
-        onClick={onClick}
-        disabled={disabled}
-        style={{
-          border: `1px solid ${active ? color.gold : "#777"}`,
-          background: active ? color.gold : "#222",
-          color: active ? "#000" : "#e5e5e5",
-          cursor: disabled ? "default" : "pointer",
-          opacity: disabled ? 0.45 : 1,
-        }}
-      >
-        {label}
-      </button>
-    </>
+    <button
+      className="period-btn"
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        border: `1px solid ${active ? color.gold : "#777"}`,
+        background: active ? color.gold : "#222",
+        color: active ? "#000" : "#e5e5e5",
+        cursor: disabled ? "default" : "pointer",
+        opacity: disabled ? 0.45 : 1,
+      }}
+    >
+      {label}
+    </button>
   );
 }
 
@@ -389,16 +366,6 @@ function VoiceAccordion({
 
 // ── Changelog page ──────────────────────────────────────────────────────
 
-interface ChangelogEntry {
-  id: number;
-  version: string;
-  title_en: string;
-  title_fr: string;
-  body_en: string;
-  body_fr: string;
-  created_at: string;
-}
-
 function ChangelogPage({ lang }: { lang: Lang }) {
   const [entries, setEntries] = useState<ChangelogEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -420,8 +387,7 @@ function ChangelogPage({ lang }: { lang: Lang }) {
 
       {loading ? (
         <div style={{ padding: "60px 0", textAlign: "center" }}>
-          <SpinKeyframes />
-          <span style={{ display: "inline-block", width: 28, height: 28, border: `3px solid ${color.gold}`, borderTop: "3px solid transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+          <span style={spinnerStyle(28)} />
         </div>
       ) : entries.length === 0 ? (
         <p style={{ color: color.textMuted, fontSize: 14, textAlign: "center" }}>{t("changelogEmpty", lang)}</p>
@@ -464,23 +430,16 @@ function ChangelogPage({ lang }: { lang: Lang }) {
 
 // ── Feeds admin (per-topic RSS + article stats) ─────────────────────────
 
-interface FeedAdminRow {
-  id: number;
-  topicId: string;
-  source: string;
-  url: string;
-  isActive: boolean;
-  createdAt: string;
-  totalArticles: number;
-  scoredArticles: number;
-  avgScore: number | null;
-  hitRateGte7: number;
+function feedAdminCoveragePct(row: FeedAdminRow): number | null {
+  if (row.totalArticles === 0) return null;
+  return Math.round((row.scoredArticles / row.totalArticles) * 1000) / 10;
 }
 
 type FeedsAdminSortKey =
   | "topicId"
   | "totalArticles"
   | "scoredArticles"
+  | "coverage"
   | "avgScore"
   | "hitRateGte7";
 
@@ -536,6 +495,16 @@ function FeedsAdminPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) 
         if (na == null) return 1;
         if (nb == null) return -1;
         const d = na - nb;
+        return sortDir === "asc" ? d : -d;
+      }
+
+      if (sortKey === "coverage") {
+        const pa = feedAdminCoveragePct(a);
+        const pb = feedAdminCoveragePct(b);
+        if (pa == null && pb == null) return 0;
+        if (pa == null) return 1;
+        if (pb == null) return -1;
+        const d = pa - pb;
         return sortDir === "asc" ? d : -d;
       }
 
@@ -753,19 +722,6 @@ function FeedsAdminPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) 
 
   return (
     <div>
-      <style>{`
-        .fa-tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
-        .fa-tb{width:100%;border-collapse:collapse;font-size:13px;min-width:640px}
-        .fa-tb th{padding:8px 6px;text-align:left;font-weight:600;color:${color.textMuted};border-bottom:1px solid ${color.border};white-space:nowrap;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
-        .fa-tb th.fa-sc{cursor:pointer;user-select:none}
-        .fa-tb th.fa-sc:hover{color:${color.gold}}
-        .fa-tb td{padding:7px 6px;border-bottom:1px solid ${color.border};vertical-align:middle}
-        .fa-tb tr:nth-child(odd) td{background:${color.surface}}
-        .fa-tb tr:nth-child(even) td{background:#0d0d0d}
-        .fa-tb tr:hover td{background:#1a1a1a}
-        .fa-tb .fa-src{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      `}</style>
-
       {feedsToast && (
         <div
           role={feedsToast.variant === "loading" ? "status" : "alert"}
@@ -804,21 +760,7 @@ function FeedsAdminPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) 
           }}
         >
           {feedsToast.variant === "loading" && (
-            <>
-              <SpinKeyframes />
-              <span
-                style={{
-                  display: "inline-block",
-                  width: 22,
-                  height: 22,
-                  flexShrink: 0,
-                  border: `3px solid ${color.gold}`,
-                  borderTop: "3px solid transparent",
-                  borderRadius: "50%",
-                  animation: "spin 0.8s linear infinite",
-                }}
-              />
-            </>
+            <span style={spinnerStyle(22, { flexShrink: 0 })} />
           )}
           {feedsToast.variant === "success" && (
             <span style={{ color: "#4ade80", flexShrink: 0, fontSize: 18, fontWeight: 700 }}>✓</span>
@@ -854,8 +796,7 @@ function FeedsAdminPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) 
 
       {loading && rows.length === 0 ? (
         <div style={{ padding: "60px 0", textAlign: "center" }}>
-          <SpinKeyframes />
-          <span style={{ display: "inline-block", width: 28, height: 28, border: `3px solid ${color.gold}`, borderTop: "3px solid transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+          <span style={spinnerStyle(28)} />
           <p style={{ color: color.textMuted, fontSize: 14, marginTop: 12 }}>{t("feedsAdminLoading", lang)}</p>
         </div>
       ) : err ? (
@@ -874,12 +815,16 @@ function FeedsAdminPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) 
                 </th>
                 <th>{t("feedsAdminCreatedAt", lang)}</th>
                 <th className="fa-sc" onClick={() => handleFeedsSort("totalArticles")}>
-                  {t("totalArticles", lang)}
+                  {t("feedsAdminColArticles", lang)}
                   {feedsSortArrow("totalArticles")}
                 </th>
                 <th className="fa-sc" onClick={() => handleFeedsSort("scoredArticles")}>
                   {t("scoredArticles", lang)}
                   {feedsSortArrow("scoredArticles")}
+                </th>
+                <th className="fa-sc" onClick={() => handleFeedsSort("coverage")}>
+                  {t("coverage", lang)}
+                  {feedsSortArrow("coverage")}
                 </th>
                 <th className="fa-sc" onClick={() => handleFeedsSort("avgScore")}>
                   {t("avgScore", lang)}
@@ -893,7 +838,9 @@ function FeedsAdminPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) 
               </tr>
             </thead>
             <tbody>
-              {sortedRows.map((row) => (
+              {sortedRows.map((row) => {
+                const covPct = feedAdminCoveragePct(row);
+                return (
                 <tr key={row.id}>
                   <td className="fa-src" title={row.source}>
                     <a
@@ -922,6 +869,16 @@ function FeedsAdminPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) 
                   </td>
                   <td>{row.totalArticles.toLocaleString(locale)}</td>
                   <td>{row.scoredArticles.toLocaleString(locale)}</td>
+                  <td
+                    style={{
+                      fontWeight: 600,
+                      color: covPct != null ? covClr(covPct) : color.textDim,
+                    }}
+                  >
+                    {covPct != null
+                      ? `${covPct.toLocaleString(locale, { maximumFractionDigits: 1 })}%`
+                      : "—"}
+                  </td>
                   <td style={{ fontWeight: 600, color: row.avgScore != null ? scoreClr(row.avgScore) : color.textDim }}>
                     {row.avgScore != null ? row.avgScore : "—"}
                   </td>
@@ -981,7 +938,8 @@ function FeedsAdminPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) 
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -1324,7 +1282,6 @@ function AudioPlayer({ text, lang, speed, voice }: { text: string; lang: Lang; s
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <SpinKeyframes />
       <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
         {state === "playing" ? (
           <button onClick={handlePause} style={{ ...btnBase, color: color.gold }}>
@@ -1353,19 +1310,7 @@ function AudioPlayer({ text, lang, speed, voice }: { text: string; lang: Lang; s
         </span>
 
         {spinner && (
-          <span
-            style={{
-              display: "inline-block",
-              width: 18,
-              height: 18,
-              border: `2.5px solid ${color.gold}`,
-              borderTop: "2.5px solid transparent",
-              borderRadius: "50%",
-              animation: "spin 0.8s linear infinite",
-              marginLeft: 6,
-              flexShrink: 0,
-            }}
-          />
+          <span style={spinnerStyle(18, { borderWidth: 2.5, marginLeft: 6, flexShrink: 0 })} />
         )}
       </div>
 
@@ -1435,20 +1380,6 @@ function SummaryBox({ data, locale, lang, hours, topicName, speed, voice }: { da
 
   return (
     <div style={{ ...card, borderRadius: 12, padding: 20, marginBottom: 28, position: "relative" }}>
-      <style>{`
-        .summary-meta-line {
-          margin: 0 0 12px;
-          font-size: 12px;
-          line-height: 1.45;
-          color: ${color.textMuted};
-        }
-        @media (max-width: 640px) {
-          .summary-meta-line {
-            font-size: 11px;
-            letter-spacing: -0.01em;
-          }
-        }
-      `}</style>
       <h2 style={sectionHeading}>
         {t("summary", lang)}
         {topicName && (
@@ -1540,8 +1471,7 @@ function AllArticlesTab({ articles, loading, locale, lang }: { articles: AllArti
   if (loading) {
     return (
       <div style={{ textAlign: "center", padding: "40px 0", color: color.textMuted, fontSize: 14 }}>
-        <SpinKeyframes />
-        <span style={{ display: "inline-block", width: 24, height: 24, border: `3px solid ${color.gold}`, borderTop: "3px solid transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite", marginRight: 10, verticalAlign: "middle" }} />
+        <span style={spinnerStyle(24, { marginRight: 10, verticalAlign: "middle" })} />
         {lang === "fr" ? "Chargement des articles…" : "Loading articles…"}
       </div>
     );
@@ -1725,15 +1655,6 @@ function heatmapBg(pct: number, tier: string): string | undefined {
   return `rgba(${r},${gr},${b},${a})`;
 }
 
-const scoreClr = (s: number) =>
-  s >= 7 ? "#4ade80" : s >= 5 ? "#c9a227" : s >= 3 ? "#f97316" : "#ff8888";
-
-const hitClr = (r: number) =>
-  r >= 50 ? "#4ade80" : r >= 30 ? "#c9a227" : "#ff8888";
-
-const covClr = (p: number) =>
-  p >= 90 ? "#4ade80" : p >= 70 ? "#c9a227" : "#ff8888";
-
 function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
   const [data, setData] = useState<StatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1820,8 +1741,7 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
   if (loading && !data) {
     return (
       <div style={{ padding: "60px 0", textAlign: "center" }}>
-        <SpinKeyframes />
-        <span style={{ display: "inline-block", width: 28, height: 28, border: `3px solid ${color.gold}`, borderTop: "3px solid transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+        <span style={spinnerStyle(28)} />
         <p style={{ color: color.textMuted, fontSize: 14, marginTop: 12 }}>
           {lang === "fr" ? "Chargement des statistiques…" : "Loading statistics…"}
         </p>
@@ -1855,25 +1775,6 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
       <h2 style={{ color: color.gold, fontSize: 20, fontWeight: 600, marginBottom: 20, marginTop: 0 }}>
         {t("statsTitle", lang)}
       </h2>
-
-      <style>{`
-        .s-kpi5{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:20px}
-        @media(max-width:640px){.s-kpi5{grid-template-columns:repeat(2,1fr)}}
-        .s-tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
-        .s-tb{width:100%;border-collapse:collapse;font-size:13px;min-width:700px}
-        .s-tb th{position:sticky;top:0;background:#0d0d0d;padding:8px 6px;text-align:left;font-weight:600;color:${color.textMuted};border-bottom:1px solid ${color.border};white-space:nowrap;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
-        .s-tb th.sc{cursor:pointer;user-select:none}
-        .s-tb th.sc:hover{color:${color.gold}}
-        .s-tb td{padding:7px 6px;border-bottom:1px solid ${color.border};white-space:nowrap}
-        .s-tb tr:nth-child(odd) td{background:${color.surface}}
-        .s-tb tr:nth-child(even) td{background:#0d0d0d}
-        .s-tb tr:hover td{background:#1a1a1a}
-        .s-tb .col-src{position:sticky;left:0;z-index:1}
-        .s-tb tr:nth-child(odd) .col-src{background:${color.surface}}
-        .s-tb tr:nth-child(even) .col-src{background:#0d0d0d}
-        .s-tb tr:hover .col-src{background:#1a1a1a}
-        .s-tb thead .col-src{background:#0d0d0d;z-index:2}
-      `}</style>
 
       {/* ── Topic Selector ───────────────────────── */}
       <div style={{ display: "flex", gap: 0, marginBottom: 12, borderBottom: `1px solid ${color.border}`, flexWrap: "wrap" }}>
@@ -1928,8 +1829,7 @@ function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
 
       {loading && (
         <div style={{ position: "absolute", top: 60, left: 0, right: 0, display: "flex", justifyContent: "center", zIndex: 5 }}>
-          <SpinKeyframes />
-          <span style={{ display: "inline-block", width: 24, height: 24, border: `3px solid ${color.gold}`, borderTop: "3px solid transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+          <span style={spinnerStyle(24)} />
         </div>
       )}
 
@@ -2233,8 +2133,7 @@ function CronMonitorPage({ lang }: { lang: Lang }) {
   if (loading) {
     return (
       <div style={{ textAlign: "center", padding: "60px 0", color: color.textMuted }}>
-        <SpinKeyframes />
-        <span style={{ display: "inline-block", width: 24, height: 24, border: `3px solid ${color.gold}`, borderTop: "3px solid transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+        <span style={spinnerStyle(24)} />
       </div>
     );
   }
@@ -2251,8 +2150,7 @@ function CronMonitorPage({ lang }: { lang: Lang }) {
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
         <h2 style={{ ...sectionHeading, marginBottom: 0 }}>{t("cronMonitor", lang)}</h2>
-        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#22c55e", display: "inline-block", animation: "pulse 2s ease-in-out infinite" }} title="Auto-refresh 60s" />
-        <style>{`@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
+        <span className="cron-pulse-dot" title="Auto-refresh 60s" />
       </div>
 
       {/* ── KPIs ── */}
@@ -2433,10 +2331,6 @@ function TopicsPage({ lang }: { lang: Lang }) {
   const dangerBtn: CSSProperties = {
     padding: "6px 12px", borderRadius: 6, border: "none",
     background: "transparent", color: "#ef4444", fontSize: 13, fontWeight: 600, cursor: "pointer",
-  };
-  const ghostBtn: CSSProperties = {
-    padding: "6px 12px", borderRadius: 6, border: `1px solid ${color.border}`,
-    background: "transparent", color: color.textMuted, fontSize: 13, fontWeight: 500, cursor: "pointer",
   };
 
   async function loadTopics() {
@@ -2650,7 +2544,7 @@ function TopicsPage({ lang }: { lang: Lang }) {
   if (view === "create") {
     return (
       <div>
-        <button onClick={() => setView("list")} style={{ ...ghostBtn, marginBottom: 16 }}>
+        <button onClick={() => setView("list")} style={{ ...ghostOutlineBtn, marginBottom: 16 }}>
           ← {t("back", lang)}
         </button>
         <h2 style={{ color: color.gold, fontSize: 20, fontWeight: 600, marginBottom: 20, marginTop: 0 }}>
@@ -2764,7 +2658,7 @@ function TopicsPage({ lang }: { lang: Lang }) {
     const d = topicDetail;
     return (
       <div>
-        <button onClick={() => { setView("list"); loadTopics(); setDiscoverResult(null); }} style={{ ...ghostBtn, marginBottom: 16 }}>
+        <button onClick={() => { setView("list"); loadTopics(); setDiscoverResult(null); }} style={{ ...ghostOutlineBtn, marginBottom: 16 }}>
           ← {t("back", lang)}
         </button>
         <h2 style={{ color: color.gold, fontSize: 20, fontWeight: 600, marginBottom: 12, marginTop: 0 }}>
@@ -2803,7 +2697,7 @@ function TopicsPage({ lang }: { lang: Lang }) {
         <div style={secStyle}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
             <h4 style={{ ...secTitle, marginBottom: 0 }}>{t("topicInfo", lang)}</h4>
-            <button onClick={() => setEditingTopic(!editingTopic)} style={ghostBtn}>{editingTopic ? t("cancelBtn", lang) : t("editBtn", lang)}</button>
+            <button onClick={() => setEditingTopic(!editingTopic)} style={ghostOutlineBtn}>{editingTopic ? t("cancelBtn", lang) : t("editBtn", lang)}</button>
           </div>
           {editingTopic ? (
             <div style={{ display: "grid", gap: 10 }}>
@@ -2840,7 +2734,7 @@ function TopicsPage({ lang }: { lang: Lang }) {
         <div style={secStyle}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
             <h4 style={{ ...secTitle, marginBottom: 0 }}>{t("analysisPrompt", lang)}</h4>
-            <button onClick={() => { if (editingPrompt) { setEditPromptEn(d.promptEn); setEditPromptFr(d.promptFr); } setEditingPrompt(!editingPrompt); }} style={ghostBtn}>
+            <button onClick={() => { if (editingPrompt) { setEditPromptEn(d.promptEn); setEditPromptFr(d.promptFr); } setEditingPrompt(!editingPrompt); }} style={ghostOutlineBtn}>
               {editingPrompt ? t("cancelBtn", lang) : t("editBtn", lang)}
             </button>
           </div>
@@ -2899,8 +2793,7 @@ function TopicsPage({ lang }: { lang: Lang }) {
 
           {discoveringFeeds && (
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 0", marginBottom: 8 }}>
-              <SpinKeyframes />
-              <span style={{ display: "inline-block", width: 18, height: 18, border: `2px solid ${color.gold}`, borderTop: "2px solid transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+              <span style={spinnerStyle(18, { borderWidth: 2 })} />
               <span style={{ color: color.gold, fontSize: 13, fontWeight: 500 }}>🔍 {t("discoveringFeeds", lang)}</span>
             </div>
           )}
@@ -2989,8 +2882,7 @@ function TopicsPage({ lang }: { lang: Lang }) {
 
       {loading ? (
         <div style={{ padding: "40px 0", textAlign: "center" }}>
-          <SpinKeyframes />
-          <span style={{ display: "inline-block", width: 24, height: 24, border: `3px solid ${color.gold}`, borderTop: "3px solid transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+          <span style={spinnerStyle(24)} />
         </div>
       ) : topics.length === 0 ? (
         <p style={{ color: color.textDim, fontSize: 14, textAlign: "center", padding: "40px 0" }}>
@@ -2998,13 +2890,6 @@ function TopicsPage({ lang }: { lang: Lang }) {
         </p>
       ) : (
         <div style={secStyle}>
-          <style>{`
-            .tp-tb{width:100%;border-collapse:collapse;font-size:13px}
-            .tp-tb th{padding:8px 6px;text-align:left;font-weight:600;color:${color.textMuted};border-bottom:1px solid ${color.border};font-size:11px;text-transform:uppercase;letter-spacing:.05em}
-            .tp-tb td{padding:8px 6px;border-bottom:1px solid ${color.border}}
-            .tp-tb tr:hover td{background:#1a1a1a}
-            @media(max-width:640px){.tp-tb .col-hide{display:none}}
-          `}</style>
           <table className="tp-tb">
             <thead>
               <tr>
@@ -3021,10 +2906,10 @@ function TopicsPage({ lang }: { lang: Lang }) {
                 <tr key={tp.id}>
                   <td style={{ whiteSpace: "nowrap", padding: "4px 2px" }}>
                     {i > 0 && (
-                      <button onClick={() => handleReorder(tp.id, topics[i - 1].id)} title={t("moveUp", lang)} style={{ background: "none", border: "none", color: color.textMuted, fontSize: 14, fontWeight: 700, cursor: "pointer", padding: "2px 5px", borderRadius: 4 }}>↑</button>
+                      <button onClick={() => handleReorder(tp.id, topics[i - 1].id)} title={t("moveUp", lang)} style={ghostBtn}>↑</button>
                     )}
                     {i < topics.length - 1 && (
-                      <button onClick={() => handleReorder(tp.id, topics[i + 1].id)} title={t("moveDown", lang)} style={{ background: "none", border: "none", color: color.textMuted, fontSize: 14, fontWeight: 700, cursor: "pointer", padding: "2px 5px", borderRadius: 4 }}>↓</button>
+                      <button onClick={() => handleReorder(tp.id, topics[i + 1].id)} title={t("moveDown", lang)} style={ghostBtn}>↓</button>
                     )}
                   </td>
                   <td style={{ color: color.textDim, fontSize: 11 }}>{i + 1}</td>
@@ -3039,7 +2924,7 @@ function TopicsPage({ lang }: { lang: Lang }) {
                     {tp.isActive ? t("statusActive", lang) : t("statusInactive", lang)}
                   </td>
                   <td>
-                    <button onClick={() => loadDetail(tp.id)} style={ghostBtn}>{t("editBtn", lang)}</button>
+                    <button onClick={() => loadDetail(tp.id)} style={ghostOutlineBtn}>{t("editBtn", lang)}</button>
                   </td>
                 </tr>
               ))}
@@ -3056,11 +2941,11 @@ function TopicsPage({ lang }: { lang: Lang }) {
 export default function Home() {
   const [lang, setLang] = useState<Lang>("en");
   useEffect(() => {
-    const match = document.cookie.match(/(?:^|; )lang=(en|fr)/);
-    if (match && match[1] !== "en") setLang(match[1] as Lang);
+    const l = getCookie("lang");
+    if (l === "fr") setLang("fr");
   }, []);
   const handleLangChange = useCallback((newLang: Lang) => {
-    document.cookie = `lang=${newLang};max-age=${365 * 86400};path=/;SameSite=Lax`;
+    setCookie("lang", newLang);
     window.location.reload();
   }, []);
   const [topics, setTopics] = useState<TopicItem[]>([]);
@@ -3069,42 +2954,44 @@ export default function Home() {
   const [topic, setTopic] = useState<string | null>(null);
   const [maxArticles, setMaxArticles] = useState(() => {
     if (typeof document === "undefined") return 20;
-    const match = document.cookie.match(/(?:^|; )maxArticles=(\d+)/);
-    return match ? Math.min(100, Math.max(3, Number(match[1]))) : 20;
+    const raw = getCookie("maxArticles");
+    if (raw && /^\d+$/.test(raw)) return Math.min(100, Math.max(3, Number(raw)));
+    return 20;
   });
 
   const updateMaxArticles = useCallback((value: number) => {
     setMaxArticles(value);
-    document.cookie = `maxArticles=${value};max-age=${365 * 86400};path=/;SameSite=Lax`;
+    setCookie("maxArticles", String(value));
   }, []);
   const [ttsSpeed, setTtsSpeed] = useState(() => {
     if (typeof document === "undefined") return 1.05;
-    const match = document.cookie.match(/(?:^|; )ttsSpeed=([\d.]+)/);
-    return match ? Math.min(1.2, Math.max(0.7, Number(match[1]))) : 1.05;
+    const raw = getCookie("ttsSpeed");
+    if (raw && /^[\d.]+$/.test(raw)) return Math.min(1.2, Math.max(0.7, Number(raw)));
+    return 1.05;
   });
   const updateTtsSpeed = useCallback((value: number) => {
     setTtsSpeed(value);
-    document.cookie = `ttsSpeed=${value};max-age=${365 * 86400};path=/;SameSite=Lax`;
+    setCookie("ttsSpeed", String(value));
   }, []);
   const [ttsVoice, setTtsVoice] = useState(() => {
     if (typeof document === "undefined") return "sarah";
-    const match = document.cookie.match(/(?:^|; )ttsVoice=(\w+)/);
-    const v = match ? match[1] : "sarah";
+    const raw = getCookie("ttsVoice");
+    const v = raw && /^\w+$/.test(raw) ? raw : "sarah";
     return TTS_VOICES_EN.some((voice) => voice.id === v) ? v : "sarah";
   });
   const updateTtsVoice = useCallback((value: string) => {
     setTtsVoice(value);
-    document.cookie = `ttsVoice=${value};max-age=${365 * 86400};path=/;SameSite=Lax`;
+    setCookie("ttsVoice", value);
   }, []);
   const [ttsVoiceFr, setTtsVoiceFr] = useState(() => {
     if (typeof document === "undefined") return "george";
-    const match = document.cookie.match(/(?:^|; )ttsVoiceFr=(\w+)/);
-    const v = match ? match[1] : "george";
+    const raw = getCookie("ttsVoiceFr");
+    const v = raw && /^\w+$/.test(raw) ? raw : "george";
     return TTS_VOICES_FR.some((voice) => voice.id === v) ? v : "george";
   });
   const updateTtsVoiceFr = useCallback((value: string) => {
     setTtsVoiceFr(value);
-    document.cookie = `ttsVoiceFr=${value};max-age=${365 * 86400};path=/;SameSite=Lax`;
+    setCookie("ttsVoiceFr", value);
   }, []);
   const [selected, setSelected] = useState<number | null>(null);
   const [data, setData] = useState<SummaryResponse | null>(null);
@@ -3262,7 +3149,7 @@ export default function Home() {
 
   return (
     <div style={{ minHeight: "100vh", background: color.bg, color: color.text, fontFamily: font.base }}>
-      <div style={{ maxWidth: 872, margin: "0 auto", padding: "40px 20px" }}>
+      <div style={{ maxWidth: 916, margin: "0 auto", padding: "40px 20px" }}>
 
         {/* ── Header ─────────────────────────────────────────── */}
         <header style={{ paddingBottom: 12, marginBottom: 20, position: "relative" }}>
@@ -3445,8 +3332,7 @@ export default function Home() {
           />
         ) : topicsLoading ? (
         <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "80px 0" }}>
-          <SpinKeyframes />
-          <span style={{ display: "inline-block", width: 28, height: 28, border: `3px solid ${color.gold}`, borderTop: "3px solid transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+          <span style={spinnerStyle(28)} />
         </div>
         ) : (
         <>
@@ -3580,8 +3466,7 @@ export default function Home() {
               </p>
             ) : topFeedLoading ? (
               <div style={{ textAlign: "center", padding: "40px 0" }}>
-                <SpinKeyframes />
-                <span style={{ display: "inline-block", width: 24, height: 24, border: `3px solid ${color.gold}`, borderTop: "3px solid transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                <span style={spinnerStyle(24)} />
               </div>
             ) : topFeed.length > 0 ? (
               <>

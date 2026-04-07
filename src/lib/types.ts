@@ -164,3 +164,36 @@ export interface CronStatsResponse {
     scored: number;
   }>;
 }
+
+// ── In-app UI rows (from API, used by page.tsx) ─────────────────────────
+
+/** Topic id + display label for toggles and admin pages. */
+export interface TopicLabel {
+  id: string;
+  label: string;
+}
+
+/** Row from GET /api/changelog. */
+export interface ChangelogEntry {
+  id: number;
+  version: string;
+  title_en: string;
+  title_fr: string;
+  body_en: string;
+  body_fr: string;
+  created_at: string;
+}
+
+/** Row from GET /api/feeds-admin. */
+export interface FeedAdminRow {
+  id: number;
+  topicId: string;
+  source: string;
+  url: string;
+  isActive: boolean;
+  createdAt: string;
+  totalArticles: number;
+  scoredArticles: number;
+  avgScore: number | null;
+  hitRateGte7: number;
+}

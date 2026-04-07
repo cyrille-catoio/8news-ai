@@ -464,6 +464,67 @@ export async function deleteFeed(feedId: number): Promise<boolean> {
   }
 }
 
+export async function getFeedById(feedId: number): Promise<FeedRow | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("feeds")
+      .select("*")
+      .eq("id", feedId)
+      .single();
+
+    if (error || !data) return null;
+    return data as FeedRow;
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteArticlesByTopicAndSource(
+  topicId: string,
+  source: string,
+): Promise<{ ok: boolean; deleted: number }> {
+  const clientP = getServerClient();
+  if (!clientP) return { ok: false, deleted: 0 };
+
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("articles")
+      .delete()
+      .eq("topic", topicId)
+      .eq("source", source)
+      .select("id");
+
+    if (error) return { ok: false, deleted: 0 };
+    return { ok: true, deleted: data?.length ?? 0 };
+  } catch {
+    return { ok: false, deleted: 0 };
+  }
+}
+
+export async function getAllFeedsRows(): Promise<FeedRow[]> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
+
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("feeds")
+      .select("*")
+      .order("topic_id", { ascending: true })
+      .order("name", { ascending: true });
+
+    if (error || !data) return [];
+    return data as FeedRow[];
+  } catch {
+    return [];
+  }
+}
+
 export async function getTopicPrompt(
   id: string,
 ): Promise<{ prompt_en: string; prompt_fr: string } | null> {

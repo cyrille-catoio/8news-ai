@@ -453,6 +453,86 @@ const strings = {
     en: "No updates yet.",
     fr: "Aucune mise à jour pour le moment.",
   },
+  feedsAdminTitle: {
+    en: "Feed management",
+    fr: "Gestion des flux",
+  },
+  feedsAdminAria: {
+    en: "Feed management",
+    fr: "Gestion des flux",
+  },
+  feedsAdminLoading: {
+    en: "Loading feeds…",
+    fr: "Chargement des flux…",
+  },
+  feedsAdminColTopic: {
+    en: "Topic",
+    fr: "Topic",
+  },
+  feedsAdminCreatedAt: {
+    en: "Created",
+    fr: "Créé le",
+  },
+  feedsAdminInactive: {
+    en: "Inactive",
+    fr: "Inactif",
+  },
+  feedsAdminDeleteFeed: {
+    en: "Remove feed",
+    fr: "Supprimer le flux",
+  },
+  feedsAdminDeleteArticles: {
+    en: "Delete stored articles for this feed",
+    fr: "Supprimer les articles de ce flux",
+  },
+  feedsAdminDeleteFeedConfirm: {
+    en: "Remove the feed \"{source}\" from its topic?",
+    fr: "Supprimer le flux « {source} » de son topic ?",
+  },
+  feedsAdminDeleteArticlesConfirm: {
+    en: "Delete every stored article from \"{source}\" for this topic? This cannot be undone.",
+    fr: "Supprimer tous les articles stockés pour « {source} » sur ce topic ? Irréversible.",
+  },
+  feedsAdminActions: {
+    en: "Actions",
+    fr: "Actions",
+  },
+  feedsAdminScoreFeed: {
+    en: "Score up to 10 unscored articles from this feed (last 30 days window)",
+    fr: "Scorer jusqu’à 10 articles non scorés de ce flux (fenêtre 30 jours)",
+  },
+  feedsAdminScoreFeedError: {
+    en: "Scoring failed.",
+    fr: "Échec du scoring.",
+  },
+  feedsAdminScoreFeedNone: {
+    en: "No unscored articles for this feed in the last 30 days.",
+    fr: "Aucun article non scoré pour ce flux sur les 30 derniers jours.",
+  },
+  feedsAdminScoreFeedDone: {
+    en: "Scored {n} article(s).",
+    fr: "{n} article(s) scoré(s).",
+  },
+  feedsAdminToastLoadingScore: {
+    en: "Scoring articles…",
+    fr: "Scoring des articles en cours…",
+  },
+  feedsAdminToastLoadingDeleteArticles: {
+    en: "Deleting articles…",
+    fr: "Suppression des articles en cours…",
+  },
+  feedsAdminToastLoadingDeleteFeed: {
+    en: "Removing feed…",
+    fr: "Suppression du flux en cours…",
+  },
+  feedsAdminToastSuccessFeedRemoved: {
+    en: "Feed removed.",
+    fr: "Flux supprimé.",
+  },
+  feedsAdminToastSuccessArticlesRemoved: {
+    en: "{n} article(s) removed.",
+    fr: "{n} article(s) supprimé(s).",
+  },
 } as const;
 
 type StringKey = keyof typeof strings;

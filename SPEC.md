@@ -1,6 +1,6 @@
 # 8news.ai — Technical Specification
 
-**Version**: v1.72
+**Version**: v1.73
 **Last updated**: April 2026
 
 ---
@@ -44,7 +44,7 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   ├── logo-8news.png          # App logo (PNG, "8" gold / "news" light grey)
 │   ├── favicon.svg             # Browser favicon — gold "8" on black, 512×512
 │   ├── apple-touch-icon.svg    # iOS home screen icon — gold "8" on black, 180×180
-│   └── version.json            # {"version":"1.72"} — auto-update check (bump with each release)
+│   └── version.json            # {"version":"1.73"} — auto-update check (bump with each release)
 ├── src/
 │   ├── app/
 │   │   ├── layout.tsx          # Root layout, metadata, favicons
@@ -59,6 +59,8 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   │       ├── tts/route.ts            # POST /api/tts — ElevenLabs Text-to-Speech
 │   │       ├── stats/route.ts          # GET /api/stats — Dashboard statistics
 │   │       ├── fetch-feeds/route.ts    # GET /api/fetch-feeds — manual RSS fetch
+│   │       ├── feeds-admin/route.ts    # GET /api/feeds-admin — feeds + per-source article stats (admin UI)
+│   │       ├── changelog/route.ts      # GET /api/changelog — update log entries from DB
 │   │       ├── test-score/route.ts     # GET /api/test-score — manual scoring
 │   │       └── topics/
 │   │           ├── route.ts                    # GET/POST /api/topics — list & create
@@ -68,7 +70,10 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   │               ├── route.ts                # GET/PATCH/DELETE /api/topics/:id
 │   │               ├── feeds/
 │   │               │   ├── route.ts            # POST /api/topics/:id/feeds
-│   │               │   └── [feedId]/route.ts   # PATCH/DELETE feed
+│   │               │   └── [feedId]/
+│   │               │       ├── route.ts        # PATCH/DELETE feed
+│   │               │       ├── articles/route.ts # DELETE — remove DB articles for topic+source
+│   │               │       └── score/route.ts  # POST — score up to 10 unscored articles (30d window)
 │   │               └── discover-feeds/route.ts # POST — AI auto-discover RSS feeds
 │   └── lib/
 │       ├── types.ts            # TypeScript interfaces (TopicItem, TopicDetail, etc.)
@@ -87,7 +92,8 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   ├── 001-topics-feeds.sql    # Create topics + feeds tables, seed 8 topics + ~160 feeds
 │   ├── 002-prompts.sql         # Add prompt_en/prompt_fr columns, seed prompts
 │   ├── 003-topic-anthropic.sql # Add Anthropic topic with scoring + prompts
-│   └── 004-feeds-anthropic.sql # Add 20 RSS feeds for Anthropic
+│   ├── 004-feeds-anthropic.sql # Add 20 RSS feeds for Anthropic
+│   └── 005-changelog.sql       # changelog table + seed (in-app update log)
 ├── .env                        # API keys (not committed)
 ├── .env.example                # Placeholder for API keys
 ├── netlify.toml                # Netlify build + redirect config
@@ -135,6 +141,7 @@ Users can create new topics from the Topics page. Each topic includes:
 | `topics` | Topic definitions, scoring criteria, prompts, round-robin timestamps |
 | `feeds` | RSS feed URLs per topic |
 | `articles` | All fetched articles with scores, AI summaries |
+| `changelog` | In-app release notes (version, bilingual title/body, `created_at`) |
 | `news_cache` | Cached API responses (TTL-based) |
 
 ### 5.2 `topics` table
@@ -171,7 +178,19 @@ Users can create new topics from the Topics page. Each topic includes:
 
 **Columns**: `id`, `topic`, `source`, `title`, `link`, `pub_date`, `fetched_at`, `content`, `snippet`, `snippet_ai_en`, `snippet_ai_fr`, `relevance_score`, `score_reason`, `scored_at`
 
-### 5.5 Cache TTL (based on time window)
+### 5.5 `changelog` table
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | serial PK | Row id |
+| `version` | text | Release label (e.g. `1.73`) |
+| `title_en` / `title_fr` | text | Short headline |
+| `body_en` / `body_fr` | text | Detail text |
+| `created_at` | timestamptz | Display order / metadata |
+
+Populated via migration `005-changelog.sql` (and manual inserts for new releases).
+
+### 5.6 Cache TTL (based on time window)
 
 | Hours | Cache duration |
 |---|---|
@@ -312,6 +331,8 @@ Text-to-Speech via ElevenLabs `eleven_flash_v2_5`. Returns `audio/mpeg` (MP3).
 | `/api/topics/[id]/feeds` | POST | Add feed to topic |
 | `/api/topics/[id]/feeds/[feedId]` | PATCH | Update feed |
 | `/api/topics/[id]/feeds/[feedId]` | DELETE | Remove feed |
+| `/api/topics/[id]/feeds/[feedId]/articles` | DELETE | Delete all `articles` rows for this topic + feed `name` (source) |
+| `/api/topics/[id]/feeds/[feedId]/score` | POST | Score up to **10** unscored articles for this feed (`topic` + `source`), `pub_date` within **30 days**, `gpt-4.1-nano`; `maxDuration` 60s |
 | `/api/topics/generate-scoring` | POST | AI-generate 5 scoring tiers from domain |
 | `/api/topics/reorder` | PUT | Update sort order (array of `{ id, sortOrder }`) |
 | `/api/topics/[id]/discover-feeds` | POST | AI-discover + validate + insert 10 RSS feeds |
@@ -327,6 +348,18 @@ Uses GPT-4.1-nano to generate 5 scoring tier descriptions from a domain descript
 3. Validates each in parallel (HTTP fetch, XML check, ≥1 `<item>`/`<entry>`, 8s timeout)
 4. Inserts valid feeds into DB, deduplicates against existing
 5. Returns `{ added: [...], rejected: [...] }`
+
+#### `GET /api/feeds-admin`
+
+| Param | Type | Description |
+|---|---|---|
+| `topic` | string | `all` or a topic id — filters which `feeds` rows are returned |
+
+Returns `{ feeds: [...] }`: each row includes `id`, `topicId`, `source`, `url`, `isActive`, `createdAt`, and aggregates from **`articles`** (`totalArticles`, `scoredArticles`, `avgScore`, `hitRateGte7`) keyed by `topic` + `source` (same scan pattern as stats: paginated article read). Used by **Feed management** UI.
+
+#### `GET /api/changelog`
+
+Returns `{ entries: [...] }` (up to 50 rows, `created_at` DESC) from the **`changelog`** table for the in-app update log page.
 
 ---
 
@@ -370,24 +403,20 @@ The entire UI is in `src/app/page.tsx` (client component, `"use client"`).
 ### 8.1 Layout
 
 - **Background**: Pure black (`#000000`)
-- **Max width**: 830px, centered
+- **Max width**: **872px**, centered (~5% wider than legacy 830px on large viewports)
 - **Font**: System UI stack
 - **Theme**: Black & gold (`#c9a227`)
 
 ### 8.2 Navigation
 
-The app has **5 pages** managed by `currentPage` state (`"home"` | `"stats"` | `"crons"` | `"topics"` | `"settings"`):
+The app has **7 pages** managed by `currentPage` state (`"home"` | `"stats"` | `"crons"` | `"topics"` | `"feeds"` | `"changelog"` | `"settings"`):
 
 **Header** (shared across all pages):
 - **Logo**: PNG image (`/logo-8news.png`), responsive height — **clicking logo resets to homepage Top 20 feed**
 - **Subtitle**: "AI that decodes the news" / "L'IA qui décrypte l'actualité"
-- **Top-right controls** (left to right):
-  - **Language toggle** (EN/FR) — Segmented control
-  - **Home icon** (house SVG) — clicking resets to homepage, deselects topic, reloads Top 20 feed
-  - **Topics icon** (RSS signal SVG)
-  - **Stats icon** (bar chart SVG)
-  - **Cron Monitor icon** (activity/pulse SVG)
-  - **Settings icon** (gear SVG)
+- **Top-right controls**:
+  - **Icon row** (left to right): **Home** (house), **Topics** (RSS arcs), **Feed management** (list icon), **Stats** (bars), **Cron Monitor** (pulse), **Changelog** (clock), **Settings** (gear)
+  - **Language toggle** (EN/FR) — **below** the icon row, right-aligned, ~20% smaller than before
 
 ### 8.3 Home Page
 
@@ -455,7 +484,7 @@ Three-state dashboard: **home** (no selection), **topic chosen** (waiting for pe
 
 **Sections** (visible only when topic + period are both selected):
 - **Score distribution**: Horizontal bar chart by tier (1-2 through 9-10)
-- **Feed ranking**: Sortable table (source, total, scored, avg, Score ≥ 7, tier distribution). Source names are clickable links
+- **Feed ranking**: Sortable table (source, total, scored, avg, Score ≥ 7, tier distribution). Source names are clickable links; **full source name** on hover (`title` on truncated cells)
 - **Article ranking**: Up to **500** best-scored articles with score, reason, link. Displayed **50 at a time** with a "Show 50 more" lazy-load button
 - **Topic comparison**: Table comparing all topics (articles, coverage, avg score, Score ≥ 7, active feeds (7d/7j))
 
@@ -498,7 +527,24 @@ Full CRUD management for topics and feeds, with 3 views:
 - Feeds list (name, domain link, delete button) + add feed form
 - **"🔍 Discover feeds by AI"** button: discovers and adds 10 new feeds to an existing topic
 
-### 8.8 Settings Page (`SettingsPage`)
+### 8.7 Feed management (`FeedsAdminPage`)
+
+Dedicated **RSS / feed operations** view (not the same as Topics CRUD):
+
+- **Topic filter**: pill buttons — **All** or one topic (labels from homepage topic list)
+- **Table**: source (link to RSS URL), topic, **created at** (`feeds.created_at`), total articles, scored, avg score, Score ≥ 7 % — all numeric/topic columns **sortable** (asc/desc)
+- **Actions** (per row):
+  - **Score** (star icon): `POST /api/topics/:id/feeds/:feedId/score` — up to 10 unscored articles, **30-day** `pub_date` window
+  - **Delete articles** (document‑X): `DELETE .../articles` — removes stored articles for that topic + source
+  - **Delete feed** (trash): `DELETE .../feeds/:feedId`
+- **Toasts** (fixed bottom center): loading spinner + message while waiting; success / info / error with auto-dismiss (replaces `alert` for these actions)
+
+### 8.8 Changelog page (`ChangelogPage`)
+
+- Loads **`GET /api/changelog`**
+- Lists version badge, date, bilingual title/body from **`changelog`** table
+
+### 8.9 Settings Page (`SettingsPage`)
 
 Two sections:
 
@@ -509,7 +555,7 @@ Two sections:
 - **Speed** slider: 0.7x–1.2x, default 1.05x
 - **Voice EN** (6 voices), **Voice FR** (6 voices)
 
-### 8.9 Audio Player (`AudioPlayer`)
+### 8.10 Audio Player (`AudioPlayer`)
 
 Text-to-Speech player for the global summary, using ElevenLabs API.
 
@@ -534,11 +580,11 @@ Text-to-Speech player for the global summary, using ElevenLabs API.
 | `thomas` | Thomas | FR | `GBv7mTt0atIp3Br8iCZE` |
 | `callum` | Callum | FR | `N2lVS1w4EtoT3dr4eOWO` |
 
-### 8.10 Auto-Update Banner
+### 8.11 Auto-Update Banner
 
 The app checks `public/version.json` every **5 minutes**. If the version differs from `APP_VERSION`, a gold banner appears at the **top-right** of the screen: "New version available — click to refresh". Clicking reloads the page. No auto-reload.
 
-### 8.11 Version Footer
+### 8.12 Version Footer
 
 Fixed bottom-right: `v{APP_VERSION}` from `page.tsx`, kept in sync with `public/version.json` (increment with each production release).
 
@@ -546,7 +592,7 @@ Fixed bottom-right: `v{APP_VERSION}` from `page.tsx`, kept in sync with `public/
 
 ## 9. Internationalisation (i18n)
 
-Defined in `src/lib/i18n.ts` — **80+ translation keys**.
+Defined in `src/lib/i18n.ts` — **100+ translation keys** (includes feed admin, changelog, toasts).
 
 - **Languages**: English (`en`), French (`fr`)
 - **Toggle**: Segmented control in header — sets cookie, reloads page
@@ -794,7 +840,7 @@ The topic immediately appears in the homepage topic selector, stats page, and cr
 
 ---
 
-## 17. Changelog (v1.49 → v1.72)
+## 17. Changelog (v1.49 → v1.73)
 
 | Version | Key Changes |
 |---|---|
@@ -822,6 +868,7 @@ The topic immediately appears in the homepage topic selector, stats page, and cr
 | v1.70 | Cron Monitor **avg delay**: cohort = `pub_date` in 24h + scored articles only (aligned with Fetched 24h); doc/spec sync |
 | v1.71 | **cron-fetch**: cycle ~10 min (`ceil(N/10)`, cap 4), adaptive mini-score `min(50, max(15, inserted))`, reserve 6s; **cron-score**: multi-topic scoring (12s deadline, threshold 20); `fetchAndStoreTopicDynamic` returns `{ summary, inserted }` |
 | v1.72 | Cron Monitor avg delay uses **`scored_at − fetched_at`** (not `pub_date`), displayed as `Xm XXs`; `fetched_at` column added to article inserts. **Stats page redesign**: 3-state flow (home KPIs → select topic → select period); lightweight `kpi_only` endpoint (11 COUNT queries); **Article ranking** section (renamed) with 500 articles, lazy-loaded 50 at a time |
+| v1.73 | **`changelog`** table + **`GET /api/changelog`** + in-app **Changelog** page (clock icon). **Feed management** page (list icon): **`GET /api/feeds-admin`**, per-feed stats table (`created_at`, sortable columns), **POST** `.../feeds/[id]/score` (≤10 articles, **30-day** window), **DELETE** `.../feeds/[id]/articles`, delete feed; **toasts** for async feedback. Layout **872px**; **EN/FR** toggle below icon row (~20% smaller); Stats **feed ranking** `title` on source cell; **`/api/fetch-feeds`** sets `fetched_at` (TS/build parity with `ParsedArticle`) |
 
 ---
 

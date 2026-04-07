@@ -15,6 +15,11 @@ CREATE INDEX IF NOT EXISTS changelog_version_idx ON changelog (created_at DESC);
 
 -- Seed with recent versions
 INSERT INTO changelog (version, title_en, title_fr, body_en, body_fr, created_at) VALUES
+  ('1.73', 'Feed management, changelog UI, UX polish',
+   'Gestion des flux, journal des mises à jour, polish UX',
+   'Feed management page: stats per feed, sortable columns, created_at; score up to 10 articles (30-day window), delete articles, delete feed; bottom toasts. Changelog page + GET /api/changelog + changelog table. Layout 872px; EN/FR toggle below nav icons (~20% smaller). Stats feed ranking: full source on hover. GET /api/fetch-feeds sets fetched_at.',
+   'Page gestion des flux : stats par flux, colonnes triables, date de création ; scorer jusqu’à 10 articles (30 jours), supprimer articles ou flux ; toasts. Page changelog + API + table. Largeur 872px ; EN/FR sous les icônes. Classement des flux : nom complet au survol. fetch-feeds renseigne fetched_at.',
+   '2026-04-07T12:00:00Z'),
   ('1.72', 'Stats redesign & fetch delay fix',
    'Refonte stats & correction délai fetch',
    'Stats page: 3-state flow (home KPIs → select topic → select period), lightweight kpi_only endpoint. Article ranking with lazy load (50 at a time). Cron Monitor avg delay now uses fetched_at instead of pub_date, displayed as Xm XXs.',

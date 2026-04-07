@@ -41,6 +41,66 @@ export const card: CSSProperties = {
   marginBottom: 12,
 };
 
+/** Section panel (stats, cron monitor, topics admin blocks). */
+export const sectionCard: CSSProperties = {
+  background: color.surface,
+  border: `1px solid ${color.border}`,
+  borderRadius: 10,
+  padding: "16px 20px",
+  marginBottom: 16,
+};
+
+/** Uppercase gold heading inside `sectionCard` (topics forms). */
+export const formSectionTitle: CSSProperties = {
+  color: color.gold,
+  fontSize: 12,
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: "0.08em",
+  marginBottom: 14,
+  marginTop: 0,
+};
+
+/** Full-width inputs in topic create/edit forms. */
+export const formInputStyle: CSSProperties = {
+  width: "100%",
+  padding: "8px 10px",
+  borderRadius: 6,
+  border: `1px solid ${color.border}`,
+  background: color.surface,
+  color: color.text,
+  fontSize: 13,
+  boxSizing: "border-box",
+};
+
+export const formTextareaStyle: CSSProperties = {
+  ...formInputStyle,
+  minHeight: 60,
+  resize: "vertical",
+};
+
+export const primaryButtonStyle: CSSProperties = {
+  padding: "8px 20px",
+  borderRadius: 6,
+  border: "none",
+  background: color.gold,
+  color: "#000",
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: "pointer",
+};
+
+export const dangerButtonStyle: CSSProperties = {
+  padding: "6px 12px",
+  borderRadius: 6,
+  border: "none",
+  background: "transparent",
+  color: "#ef4444",
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: "pointer",
+};
+
 /** Relevance score 1–10 (stats KPIs, feed admin, rankings). */
 export function scoreClr(s: number): string {
   return s >= 7 ? "#4ade80" : s >= 5 ? color.gold : s >= 3 ? "#f97316" : "#ff8888";

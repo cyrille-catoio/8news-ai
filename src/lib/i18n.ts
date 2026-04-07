@@ -502,16 +502,16 @@ const strings = {
     fr: "Actions",
   },
   feedsAdminScoreFeed: {
-    en: "Score up to 50 unscored articles from this feed (last 90 days window)",
-    fr: "Scorer jusqu’à 50 articles non scorés de ce flux (fenêtre 90 jours)",
+    en: "Score up to 50 unscored articles from this feed (all ages, newest first)",
+    fr: "Scorer jusqu’à 50 articles non scorés de ce flux (tous âges, plus récents d’abord)",
   },
   feedsAdminScoreFeedError: {
     en: "Scoring failed.",
     fr: "Échec du scoring.",
   },
   feedsAdminScoreFeedNone: {
-    en: "No unscored articles for this feed in the last 90 days.",
-    fr: "Aucun article non scoré pour ce flux sur les 90 derniers jours.",
+    en: "No unscored articles for this feed.",
+    fr: "Aucun article non scoré pour ce flux.",
   },
   feedsAdminScoreFeedDone: {
     en: "Scored {n} article(s).",
@@ -536,6 +536,54 @@ const strings = {
   feedsAdminToastSuccessArticlesRemoved: {
     en: "{n} article(s) removed.",
     fr: "{n} article(s) supprimé(s).",
+  },
+  homeLoadingReading: {
+    en: "Reading articles…",
+    fr: "Lecture des articles…",
+  },
+  homeLoadingAi: {
+    en: "AI analysis…",
+    fr: "Analyse IA…",
+  },
+  homeSelectPeriodPrompt: {
+    en: "Select a time period to start the analysis.",
+    fr: "Sélectionnez une durée pour lancer l'analyse.",
+  },
+  homeTop20Subtitle: {
+    en: "Top 20 articles from the last 24h",
+    fr: "Top 20 articles des dernières 24h",
+  },
+  actionRefresh: {
+    en: "Refresh",
+    fr: "Rafraîchir",
+  },
+  homeNewVersionBanner: {
+    en: "New version available — click to refresh",
+    fr: "Nouvelle version disponible — cliquer pour rafraîchir",
+  },
+  scrollToTopAria: {
+    en: "Scroll to top",
+    fr: "Retour en haut",
+  },
+  navHomeAria: {
+    en: "Home",
+    fr: "Accueil",
+  },
+  navTopicsAria: {
+    en: "Topics",
+    fr: "Topics",
+  },
+  navStatsAria: {
+    en: "Stats",
+    fr: "Stats",
+  },
+  articleNewBadge: {
+    en: "NEW",
+    fr: "NEW",
+  },
+  topicsEmptyList: {
+    en: "No topics",
+    fr: "Aucun topic",
   },
 } as const;
 

@@ -1,6 +1,6 @@
 # 8news.ai — Technical Specification
 
-**Version**: v1.74
+**Version**: v1.75
 **Last updated**: April 2026
 
 ---
@@ -44,12 +44,13 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   ├── logo-8news.png          # App logo (PNG, "8" gold / "news" light grey)
 │   ├── favicon.svg             # Browser favicon — gold "8" on black, 512×512
 │   ├── apple-touch-icon.svg    # iOS home screen icon — gold "8" on black, 180×180
-│   └── version.json            # {"version":"1.74"} — auto-update check (bump with each release)
+│   └── version.json            # {"version":"1.75"} — auto-update check (bump with each release)
 ├── src/
 │   ├── app/
 │   │   ├── layout.tsx          # Root layout, metadata, favicons
 │   │   ├── globals.css         # Global CSS reset + base styles
-│   │   ├── page.tsx            # Main client component (entire UI)
+│   │   ├── page.tsx            # Main client shell: home flow + `currentPage` router to feature components
+│   │   ├── components/         # Feature UI: AppHeader, TopFeedSection, TopicsPage/, StatsPage, FeedsAdminPage, …
 │   │   └── api/
 │   │       ├── news/
 │   │       │   ├── route.ts            # GET /api/news — Supabase read + AI analysis
@@ -73,12 +74,14 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   │               │   └── [feedId]/
 │   │               │       ├── route.ts        # PATCH/DELETE feed
 │   │               │       ├── articles/route.ts # DELETE — remove DB articles for topic+source
-│   │               │       └── score/route.ts  # POST — score up to 50 unscored articles (90d window)
+│   │               │       └── score/route.ts  # POST — score up to 50 unscored articles (all ages, newest first)
 │   │               └── discover-feeds/route.ts # POST — AI auto-discover RSS feeds
+│   ├── hooks/
+│   │   └── useTopFeed.ts       # Homepage Top 20: GET /api/news/top, refresh, clear, 5 min poll when home + no topic
 │   └── lib/
 │       ├── types.ts            # TypeScript interfaces (TopicItem, TopicDetail, etc.)
 │       ├── theme.ts            # Design tokens (colors, fonts, shared styles)
-│       ├── i18n.ts             # EN/FR translation strings (80+ keys)
+│       ├── i18n.ts             # EN/FR translation strings (100+ keys)
 │       ├── supabase.ts         # Supabase client, caching, article/topic/feed queries
 │       ├── html.ts             # HTML entity decoder
 │       ├── cookies.ts          # getCookie / setCookie (client prefs: lang, maxArticles, TTS)
@@ -186,7 +189,7 @@ Users can create new topics from the Topics page. Each topic includes:
 | Column | Type | Description |
 |---|---|---|
 | `id` | serial PK | Row id |
-| `version` | text | Release label (e.g. `1.74`) |
+| `version` | text | Release label (e.g. `1.75`) |
 | `title_en` / `title_fr` | text | Short headline |
 | `body_en` / `body_fr` | text | Detail text |
 | `created_at` | timestamptz | Display order / metadata |
@@ -335,7 +338,7 @@ Text-to-Speech via ElevenLabs `eleven_flash_v2_5`. Returns `audio/mpeg` (MP3).
 | `/api/topics/[id]/feeds/[feedId]` | PATCH | Update feed |
 | `/api/topics/[id]/feeds/[feedId]` | DELETE | Remove feed |
 | `/api/topics/[id]/feeds/[feedId]/articles` | DELETE | Delete all `articles` rows for this topic + feed `name` (source) |
-| `/api/topics/[id]/feeds/[feedId]/score` | POST | Score up to **50** unscored articles for this feed (`topic` + `source`), `pub_date` within **90 days**, `gpt-4.1-nano`; `maxDuration` 60s |
+| `/api/topics/[id]/feeds/[feedId]/score` | POST | Score up to **50** unscored articles for this feed (`topic` + `source`), **no** `pub_date` window (newest unscored first), `gpt-4.1-nano`; `maxDuration` 60s |
 | `/api/topics/generate-scoring` | POST | AI-generate 5 scoring tiers from domain |
 | `/api/topics/reorder` | PUT | Update sort order (array of `{ id, sortOrder }`) |
 | `/api/topics/[id]/discover-feeds` | POST | AI-discover + validate + insert 10 RSS feeds |
@@ -401,7 +404,7 @@ When creating a topic without custom prompts, defaults are auto-generated based 
 
 ## 8. Frontend — UI Components
 
-The entire UI is in `src/app/page.tsx` (client component, `"use client"`).
+The app root is `src/app/page.tsx` (`"use client"`): **home** topic/period flow, global state (lang, TTS cookies, `currentPage`), and composition of feature components. **Header + nav** live in **`AppHeader`**; **Top 20** list UI in **`TopFeedSection`** with data from **`useTopFeed`** (`src/hooks/useTopFeed.ts`). Other screens are separate modules under **`src/app/components/`** (e.g. **`TopicsPage/`** = `index.tsx` + `TopicsPageListView` / `TopicsPageCreateView` / `TopicsPageDetailView`).
 
 ### 8.1 Layout
 
@@ -414,9 +417,9 @@ The entire UI is in `src/app/page.tsx` (client component, `"use client"`).
 
 The app has **7 pages** managed by `currentPage` state (`"home"` | `"stats"` | `"crons"` | `"topics"` | `"feeds"` | `"changelog"` | `"settings"`):
 
-**Header** (shared across all pages):
+**Header** (`AppHeader`, shared across all pages):
 - **Logo**: PNG image (`/logo-8news.png`), responsive height — **clicking logo resets to homepage Top 20 feed**
-- **Subtitle**: "AI that decodes the news" / "L'IA qui décrypte l'actualité"
+- **Subtitle**: "AI that decodes the news" / "L'IA qui décrypte l'actualité" (`t("subtitle", lang)`)
 - **Top-right controls**:
   - **Icon row** (left to right): **Home** (house), **Topics** (RSS arcs), **Feed management** (list icon), **Stats** (bars), **Cron Monitor** (pulse), **Changelog** (clock), **Settings** (gear)
   - **Language toggle** (EN/FR) — **below** the icon row, right-aligned, ~20% smaller than before
@@ -425,7 +428,7 @@ The app has **7 pages** managed by `currentPage` state (`"home"` | `"stats"` | `
 
 #### Default Homepage Feed (Top 20)
 
-On launch (no topic or period selected), the homepage displays the **Top 20 best-scored articles from the last 24 hours** across all topics, fetched from `/api/news/top`. Includes a **Refresh** button. While the user stays on **home** with **no topic** selected, the Top 20 list **auto-refreshes every 5 minutes** (`/api/news/top`, `cache: "no-store"`).
+On launch (no topic or period selected), the homepage displays the **Top 20 best-scored articles from the last 24 hours** across all topics, fetched from `/api/news/top`. UI: **`TopFeedSection`** (caption, refresh, sorted rows, NEW badge, topic pill, copy link). Data + polling: **`useTopFeed({ poll })`** with `poll === true` only when **`currentPage === "home"`** and **`topic === null`** (initial fetch on mount, silent 5 min refresh, `refresh()` after logo/home reset, `clear()` when user picks a topic). (`cache: "no-store"` on fetches.)
 
 Each Top 20 row shows a small **topic ID badge** (gold outline) next to the source line when `topic` is present. Items with `pubDate` in the **last hour** show a **NEW** badge.
 
@@ -448,7 +451,7 @@ When a topic is selected but no period chosen, the Top 20 disappears and a messa
 #### Loading State
 
 - Progress bar with simulated two-phase animation
-- Dynamic loading message ("Reading articles..." → "AI analysis...")
+- Dynamic loading message (`homeLoadingReading` → `homeLoadingAi` in `i18n.ts`)
 - Notification double beep on completion (880Hz + 1050Hz)
 
 #### Summary Box (`SummaryBox`)
@@ -508,9 +511,9 @@ Real-time monitoring dashboard for fetch and scoring cron jobs. Auto-refreshes e
 
 **Activity Last 24 Hours**: Hourly timeline showing fetched and scored article counts per hour. Displayed in **user's local timezone** (via `Intl.DateTimeFormat`). Future hours are filtered out to avoid displaying erroneous data.
 
-### 8.6 Topics Page
+### 8.6 Topics Page (`TopicsPage/`)
 
-Full CRUD management for topics and feeds, with 3 views:
+Full CRUD management for topics and feeds. **`index.tsx`** holds state and API handlers; **three view components**: `TopicsPageListView`, `TopicsPageCreateView`, `TopicsPageDetailView`.
 
 **List view**: Table of all topics with #, name, feed count, status, click to detail. Supports **drag & drop reordering** via `/api/topics/reorder` with optimistic UI updates.
 
@@ -537,7 +540,7 @@ Dedicated **RSS / feed operations** view (not the same as Topics CRUD):
 - **Topic filter**: pill buttons — **All** or one topic (labels from homepage topic list)
 - **Table**: source (link to RSS URL), topic, **created at** (`feeds.created_at`), total articles, scored, avg score, Score ≥ 7 % — all numeric/topic columns **sortable** (asc/desc)
 - **Actions** (per row):
-  - **Score** (star icon): `POST /api/topics/:id/feeds/:feedId/score` — up to 50 unscored articles, **90-day** `pub_date` window
+  - **Score** (star icon): `POST /api/topics/:id/feeds/:feedId/score` — up to 50 unscored articles, **all** unscored for the feed (newest `pub_date` first; no day window)
   - **Delete articles** (document‑X): `DELETE .../articles` — removes stored articles for that topic + source
   - **Delete feed** (trash): `DELETE .../feeds/:feedId`
 - **Toasts** (fixed bottom center): loading spinner + message while waiting; success / info / error with auto-dismiss (replaces `alert` for these actions)
@@ -585,7 +588,7 @@ Text-to-Speech player for the global summary, using ElevenLabs API.
 
 ### 8.11 Auto-Update Banner
 
-The app checks `public/version.json` every **5 minutes**. If the version differs from `APP_VERSION`, a gold banner appears at the **top-right** of the screen: "New version available — click to refresh". Clicking reloads the page. No auto-reload.
+The app checks `public/version.json` every **5 minutes**. If the version differs from `APP_VERSION`, a gold banner appears at the **top-right** of the screen (copy: `homeNewVersionBanner` in `i18n.ts`). Clicking reloads the page. No auto-reload.
 
 ### 8.12 Version Footer
 
@@ -595,7 +598,7 @@ Fixed bottom-right: `v{APP_VERSION}` from `page.tsx`, kept in sync with `public/
 
 ## 9. Internationalisation (i18n)
 
-Defined in `src/lib/i18n.ts` — **100+ translation keys** (includes feed admin, changelog, toasts).
+Defined in `src/lib/i18n.ts` — **100+ translation keys** (includes feed admin, changelog, toasts, home loading / Top 20 / version banner / nav aria-labels).
 
 - **Languages**: English (`en`), French (`fr`)
 - **Toggle**: Segmented control in header — sets cookie, reloads page
@@ -624,6 +627,19 @@ Defined in `src/lib/i18n.ts` — **100+ translation keys** (includes feed admin,
 | `textDim` | `#666` | Tertiary/metadata |
 | `errorText` | `#ff8888` | Error text |
 
+### Shared layout & form styles
+
+Re-exported from `theme.ts` for **Stats**, **Cron Monitor**, and **Topics** admin UIs:
+
+| Export | Role |
+|---|---|
+| `sectionCard` | Bordered panel (`surface` bg, padding, radius) — replaces per-file `secStyle` |
+| `formSectionTitle` | Uppercase gold heading inside panels |
+| `formInputStyle` / `formTextareaStyle` | Full-width topic create/edit inputs |
+| `primaryButtonStyle` / `dangerButtonStyle` | Primary / destructive actions |
+
+Also: `sectionHeading`, `card`, `ghostBtn`, `ghostOutlineBtn`, `spinnerStyle`, and score/coverage colour helpers (`scoreClr`, `hitClr`, `covClr`).
+
 ---
 
 ## 11. State Management
@@ -639,11 +655,10 @@ All state is managed with React hooks (`useState`, `useRef`, `useCallback`) in t
 | `ttsSpeed` | number | 1.05 | Cookie |
 | `ttsVoice` | string | `"sarah"` | Cookie |
 | `ttsVoiceFr` | string | `"george"` | Cookie |
-| `currentPage` | `"home"` \| `"stats"` \| `"crons"` \| `"topics"` \| `"settings"` | `"home"` | None |
+| `currentPage` | `"home"` \| `"stats"` \| `"crons"` \| `"topics"` \| `"feeds"` \| `"changelog"` \| `"settings"` | `"home"` | None |
 | `data` | SummaryResponse \| null | null | None |
 | `loading` | boolean | false | None |
-| `topFeed` | Array<{title, link, source, topic, pubDate, score}> | [] | None |
-| `topFeedLoading` | boolean | true | None |
+| Top 20 articles / loading | from **`useTopFeed()`** | — | In-memory; **clear** on topic select; **refresh** on home reset |
 | `allArticles` | ArticleSummary[] | [] | None (lazy-loaded) |
 | `allArticlesLoading` | boolean | false | None |
 | `topicsLoading` | boolean | true | None |
@@ -843,7 +858,7 @@ The topic immediately appears in the homepage topic selector, stats page, and cr
 
 ---
 
-## 17. Changelog (v1.49 → v1.74)
+## 17. Changelog (v1.49 → v1.75)
 
 Summary table (one line per release). **§17.1** expands **v1.65–v1.73** in detail (aligned with `005-changelog.sql` seeds and current code).
 
@@ -875,6 +890,7 @@ Summary table (one line per release). **§17.1** expands **v1.65–v1.73** in de
 | v1.72 | Cron Monitor avg delay = **`scored_at − fetched_at`** per article, shown as **`Xm XXs`**; **`fetched_at`** populated on article insert/upsert. **Stats** three-step UX: global KPIs → pick topic → pick period; optional **`kpi_only`** stats mode; **Article ranking** (renamed section), **500** rows loaded, UI shows **50** at a time with “load more” |
 | v1.73 | **`changelog`** table + **`GET /api/changelog`** + in-app **Changelog** page. **Feed management**: **`GET /api/feeds-admin`**, sortable table, **POST** `.../feeds/[id]/score`, **DELETE** articles / remove feed, **toasts**. Layout widened to **916px**; **EN/FR** under nav icons; Stats feed-ranking **tooltip `title`** on source; **`/api/fetch-feeds`** / shared RSS path set **`fetched_at`**. *Follow-up UX:* feed table column **Articles** (was “Total articles”), **Coverage** % (scored/total), manual score window **90 days**, up to **50** articles per run |
 | v1.74 | **Housekeeping / architecture**: remove **Tailwind** + `postcss.config`; delete obsolete root **`spec-*.md`**; canonical **`src/lib/fetch-topic-dynamic.ts`** & **`score-topic-dynamic.ts`** (Netlify `shared/*.ts` re-export); **`globals.css`** for shared layout/table/grid/**keyframes**; **`theme.ts`**: `spinnerStyle`, `ghostBtn`, `ghostOutlineBtn`, color helpers; **`cookies.ts`**; move **`TopicLabel`**, **`ChangelogEntry`**, **`FeedAdminRow`** to **`types.ts`**. |
+| v1.75 | **Feed admin — Score action**: manual scoring selects from **all** unscored articles for the feed (newest first), not a 90-day `pub_date` window; still capped at **50** per request. **UI refactor**: `AppHeader`, `TopFeedSection`, **`useTopFeed`**; **`TopicsPage/`** (index + List/Create/Detail views); **`theme.ts`** `sectionCard` + form styles; home copy via **i18n**; **SPEC** tree §3/§8/§10/§11 aligned. |
 
 ### 17.1 Release detail — v1.65 through v1.73
 

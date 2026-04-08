@@ -397,6 +397,22 @@ const strings = {
     en: "Avg delay",
     fr: "Délai moy.",
   },
+  delayP95: {
+    en: "Delay p95",
+    fr: "Délai p95",
+  },
+  slaUnder5m: {
+    en: "SLA < 5m",
+    fr: "SLA < 5m",
+  },
+  freshBacklog5m: {
+    en: "Fresh backlog 5m",
+    fr: "Backlog frais 5m",
+  },
+  alerts: {
+    en: "Alerts",
+    fr: "Alertes",
+  },
   lastFetch: {
     en: "Last fetch",
     fr: "Dernier fetch",
@@ -516,6 +532,10 @@ const strings = {
   feedsAdminScoreFeedDone: {
     en: "Scored {n} article(s).",
     fr: "{n} article(s) scoré(s).",
+  },
+  feedsAdminScoreFeedDonePartial: {
+    en: "Scored {n}/{total} article(s) before timeout. Run again for the rest.",
+    fr: "{n}/{total} article(s) scoré(s) avant timeout. Relancez pour le reste.",
   },
   feedsAdminToastLoadingScore: {
     en: "Scoring articles…",

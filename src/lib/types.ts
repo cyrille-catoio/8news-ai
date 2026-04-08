@@ -148,6 +148,10 @@ export interface CronStatsResponse {
     scored24h: number;
     coverage24h: number;
     avgDelayMinutes: number;
+    delayP50Minutes?: number;
+    delayP95Minutes?: number;
+    slaUnder5mPct?: number;
+    freshBacklog5m?: number;
   };
   topics: Array<{
     id: string;
@@ -163,6 +167,7 @@ export interface CronStatsResponse {
     fetched: number;
     scored: number;
   }>;
+  alerts?: string[];
 }
 
 // ── In-app UI rows (from API, used by page.tsx) ─────────────────────────

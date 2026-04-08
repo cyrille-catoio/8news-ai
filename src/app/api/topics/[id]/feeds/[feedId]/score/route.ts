@@ -5,23 +5,27 @@ import type { ScoreResult } from "@/lib/types";
 import { getFeedById } from "@/lib/supabase";
 
 /**
- * Netlify synchronous functions are capped (~10s default, up to ~26s on Pro after support/config).
- * Up to 4 sequential OpenAI calls × OPENAI_TIMEOUT_MS must fit under that wall (plus DB work).
- * Vercel can run longer; `maxDuration` here matches the stricter host.
+ * Keep this route under Netlify's observed ~13s wall-time cap.
+ * We score batches sequentially with a hard elapsed budget to return
+ * partial results instead of being terminated by the platform timeout.
  */
-export const maxDuration = 26;
+export const maxDuration = 13;
+
+/** Max wall time from request start; leaves safety room for overhead. */
+const FEED_SCORE_MAX_ELAPSED_MS = 12_000;
 
 /** Max articles scored per request (pool = all unscored for this feed, newest first). */
 const SCORE_LIMIT = 50;
-/** OpenAI batch size: balance JSON completeness vs number of sequential calls (see maxDuration). */
-const OPENAI_BATCH_SIZE = 15;
-/** Per OpenAI call; keep (ceil(SCORE_LIMIT / OPENAI_BATCH_SIZE) * timeout) under Netlify’s function limit. */
-const OPENAI_TIMEOUT_MS = 6_000;
+/** OpenAI batch size: smaller payloads → more reliable JSON; parallel waves keep total time low. */
+const OPENAI_BATCH_SIZE = 12;
+/** Per OpenAI call; batches run sequentially within FEED_SCORE_MAX_ELAPSED_MS. */
+const OPENAI_TIMEOUT_MS = 6_500;
 
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string; feedId: string }> },
 ) {
+  const requestT0 = Date.now();
   try {
     const { id: topicId, feedId: feedIdStr } = await params;
     const fid = parseInt(feedIdStr, 10);
@@ -86,11 +90,12 @@ Respond ONLY with a JSON object containing a "scores" array. No markdown, no exp
 
 For articles scoring below 5, omit summary_en and summary_fr.`;
 
+    const sourceKey = feed.name.trim();
     const { data: unscored, error: dbError } = await supabase
       .from("articles")
       .select("id, title, snippet, content")
       .eq("topic", topicId)
-      .eq("source", feed.name)
+      .eq("source", sourceKey)
       .is("relevance_score", null)
       .order("pub_date", { ascending: false })
       .limit(SCORE_LIMIT);
@@ -118,8 +123,13 @@ For articles scoring below 5, omit summary_en and summary_fr.`;
     let scored = 0;
     const errors: string[] = [];
 
+    type ArticleRow = (typeof rows)[number];
+    const batches: ArticleRow[][] = [];
     for (let i = 0; i < rows.length; i += OPENAI_BATCH_SIZE) {
-      const batch = rows.slice(i, i + OPENAI_BATCH_SIZE);
+      batches.push(rows.slice(i, i + OPENAI_BATCH_SIZE));
+    }
+
+    async function scoreOneBatch(batch: ArticleRow[]): Promise<{ n: number; err?: string }> {
       const articleList = batch
         .map((a, idx) => `[${idx}] ${a.title} | ${(a.snippet || a.content || "").slice(0, 300)}`)
         .join("\n");
@@ -141,7 +151,7 @@ For articles scoring below 5, omit summary_en and summary_fr.`;
         );
 
         const raw = completion.choices[0]?.message?.content;
-        if (!raw) continue;
+        if (!raw) return { n: 0, err: "Empty OpenAI response" };
 
         const parsed = JSON.parse(raw);
         const keys = Object.keys(parsed);
@@ -177,17 +187,38 @@ For articles scoring below 5, omit summary_en and summary_fr.`;
         });
 
         await Promise.all(updates);
-        scored += updates.length;
+        return { n: updates.length };
       } catch (err) {
-        errors.push(err instanceof Error ? err.message : String(err));
+        return { n: 0, err: err instanceof Error ? err.message : String(err) };
       }
     }
 
-    return NextResponse.json({
+    const reservePerBatchMs = OPENAI_TIMEOUT_MS + 1_200;
+    let batchesRan = 0;
+    for (const batch of batches) {
+      const elapsed = Date.now() - requestT0;
+      if (elapsed > FEED_SCORE_MAX_ELAPSED_MS - reservePerBatchMs) break;
+      const r = await scoreOneBatch(batch);
+      batchesRan += 1;
+      scored += r.n;
+      if (r.err) errors.push(r.err);
+    }
+
+    const partialDueToWall = batchesRan < batches.length && rows.length > 0;
+
+    const payload: Record<string, unknown> = {
       scored,
       candidates: rows.length,
-      ...(errors.length > 0 ? { errors } : {}),
-    });
+    };
+    if (partialDueToWall) payload.partial = true;
+    if (errors.length > 0) payload.errors = errors;
+    if (scored === 0 && rows.length > 0) {
+      payload.error =
+        errors[0] ??
+        "No rows updated (check OpenAI response). If this persists, verify Netlify function timeout (~13s) and OPENAI_API_KEY.";
+    }
+
+    return NextResponse.json(payload);
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Scoring failed" },

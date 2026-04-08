@@ -231,7 +231,9 @@ export function FeedsAdminPage({ lang, topics }: { lang: Lang; topics: TopicLabe
       const j = (await r.json()) as {
         scored?: number;
         candidates?: number;
+        partial?: boolean;
         error?: string;
+        errors?: string[];
       };
       if (!r.ok) {
         showFeedsToast(
@@ -244,15 +246,26 @@ export function FeedsAdminPage({ lang, topics }: { lang: Lang; topics: TopicLabe
       if ((j.candidates ?? 0) === 0) {
         showFeedsToast({ variant: "info", message: t("feedsAdminScoreFeedNone", lang) }, 4500);
       } else if ((j.scored ?? 0) > 0) {
+        const scored = j.scored ?? 0;
+        const candidates = j.candidates ?? scored;
+        const message = j.partial
+          ? t("feedsAdminScoreFeedDonePartial", lang)
+              .replace("{n}", String(scored))
+              .replace("{total}", String(candidates))
+          : t("feedsAdminScoreFeedDone", lang).replace("{n}", String(scored));
         showFeedsToast(
           {
             variant: "success",
-            message: t("feedsAdminScoreFeedDone", lang).replace("{n}", String(j.scored)),
+            message,
           },
           3800,
         );
       } else {
-        showFeedsToast({ variant: "error", message: t("feedsAdminScoreFeedError", lang) }, 5200);
+        const detail =
+          j.error ||
+          (j.errors?.length ? j.errors.slice(0, 2).join(" · ") : "") ||
+          t("feedsAdminScoreFeedError", lang);
+        showFeedsToast({ variant: "error", message: detail }, 7200);
       }
     } catch {
       showFeedsToast({ variant: "error", message: t("feedsAdminScoreFeedError", lang) }, 5200);

@@ -15,6 +15,13 @@ function roundOne(n: number): number {
   return Math.round(n * 10) / 10;
 }
 
+function percentile(values: number[], p: number): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const idx = Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1));
+  return sorted[idx];
+}
+
 export async function GET() {
   const supabase = getServerClient();
   if (!supabase) {
@@ -25,6 +32,7 @@ export async function GET() {
   const now = Date.now();
   const since24h = new Date(now - 24 * 3_600_000).toISOString();
   const since7d = new Date(now - 7 * 86_400_000).toISOString();
+  const since5m = new Date(now - 5 * 60_000).toISOString();
 
   /** PostgREST max rows per response (Supabase default). Request wider ranges but only get 1000 → must page with this size. */
   const FETCH_BATCH = 1000;
@@ -91,6 +99,12 @@ export async function GET() {
     paginateDelayCohort(since24h),
   ]);
 
+  const { count: freshBacklog5m } = await supabase
+    .from("articles")
+    .select("id", { count: "exact", head: true })
+    .is("relevance_score", null)
+    .gte("fetched_at", since5m);
+
   // ── Global KPIs ──
   const totalBacklog = backlogRows.length;
   const fetched24h = recentRows.length;
@@ -98,6 +112,9 @@ export async function GET() {
   const coverage24h = fetched24h > 0 ? roundOne((scored24h / fetched24h) * 100) : 0;
 
   let avgDelayMinutes = 0;
+  let delayP50Minutes = 0;
+  let delayP95Minutes = 0;
+  let slaUnder5mPct = 0;
   if (delayCohortRows.length > 0) {
     const delays = delayCohortRows
       .map((r) => {
@@ -109,6 +126,12 @@ export async function GET() {
     avgDelayMinutes = delays.length > 0
       ? roundOne(delays.reduce((s, v) => s + v, 0) / delays.length)
       : 0;
+    if (delays.length > 0) {
+      delayP50Minutes = roundOne(percentile(delays, 50));
+      delayP95Minutes = roundOne(percentile(delays, 95));
+      const under5 = delays.filter((d) => d < 5).length;
+      slaUnder5mPct = roundOne((under5 / delays.length) * 100);
+    }
   }
 
   // ── Backlog per topic ──
@@ -176,6 +199,11 @@ export async function GET() {
       scored: scoreBuckets.get(hour) ?? 0,
     }));
 
+  const alerts: string[] = [];
+  if (delayP95Minutes > 5) alerts.push("p95(fetch_to_score)>5m");
+  if ((freshBacklog5m ?? 0) > 150) alerts.push("fresh_backlog_5m_high");
+  if (coverage24h < 70) alerts.push("coverage24h_low");
+
   const response: CronStatsResponse = {
     global: {
       backlog: totalBacklog,
@@ -183,9 +211,14 @@ export async function GET() {
       scored24h,
       coverage24h,
       avgDelayMinutes,
+      delayP50Minutes,
+      delayP95Minutes,
+      slaUnder5mPct,
+      freshBacklog5m: freshBacklog5m ?? 0,
     },
     topics: topicStatuses,
     timeline,
+    alerts,
   };
 
   return NextResponse.json(response, {

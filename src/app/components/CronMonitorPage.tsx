@@ -98,7 +98,7 @@ export function CronMonitorPage({ lang }: { lang: Lang }) {
       </div>
 
       {/* ── KPIs ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 8, marginBottom: 20 }}>
         <div style={kpiCard}>
           <div style={{ ...kpiVal, color: kpiColor(data.global.backlog, [50, 200], true) }}>{fmt(data.global.backlog)}</div>
           <div style={kpiLbl}>{t("backlog", lang)}</div>
@@ -119,7 +119,48 @@ export function CronMonitorPage({ lang }: { lang: Lang }) {
           <div style={{ ...kpiVal, color: kpiColor(data.global.avgDelayMinutes, [15, 60], true) }}>{Math.floor(data.global.avgDelayMinutes)}m{String(Math.round((data.global.avgDelayMinutes % 1) * 60)).padStart(2, "0")}s</div>
           <div style={kpiLbl}>{t("avgDelay", lang)}</div>
         </div>
+        <div style={kpiCard}>
+          <div style={{ ...kpiVal, color: kpiColor(data.global.delayP95Minutes ?? 0, [5, 8], true) }}>
+            {(data.global.delayP95Minutes ?? 0).toLocaleString(lang === "fr" ? "fr-FR" : "en-US", { maximumFractionDigits: 1 })}m
+          </div>
+          <div style={kpiLbl}>{t("delayP95", lang)}</div>
+        </div>
+        <div style={kpiCard}>
+          <div style={{ ...kpiVal, color: kpiColor(data.global.slaUnder5mPct ?? 0, [80, 95]) }}>
+            {(data.global.slaUnder5mPct ?? 0).toLocaleString(lang === "fr" ? "fr-FR" : "en-US", { maximumFractionDigits: 1 })}%
+          </div>
+          <div style={kpiLbl}>{t("slaUnder5m", lang)}</div>
+        </div>
+        <div style={kpiCard}>
+          <div style={{ ...kpiVal, color: kpiColor(data.global.freshBacklog5m ?? 0, [40, 150], true) }}>
+            {fmt(data.global.freshBacklog5m ?? 0)}
+          </div>
+          <div style={kpiLbl}>{t("freshBacklog5m", lang)}</div>
+        </div>
       </div>
+
+      {(data.alerts?.length ?? 0) > 0 && (
+        <div
+          style={{
+            marginBottom: 14,
+            border: `1px solid ${color.errorBorder}`,
+            background: color.errorBg,
+            color: color.errorText,
+            borderRadius: 8,
+            padding: "10px 12px",
+            fontSize: 12,
+            display: "flex",
+            gap: 10,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          <strong style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            {t("alerts", lang)}
+          </strong>
+          <span>{data.alerts?.join(" · ")}</span>
+        </div>
+      )}
 
       {/* ── Topic Status ── */}
       <div style={sectionCard}>

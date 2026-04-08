@@ -35,6 +35,8 @@ export type ScoreTopicOptions = {
   maxArticlesCap?: number;
   /** Per-batch OpenAI parse debug (admin test-score). */
   collectAiDebug?: boolean;
+  /** Hard wall-time budget for this scoring run (ms). */
+  maxElapsedMs?: number;
 };
 
 export type AiBatchDebug = {
@@ -49,6 +51,8 @@ export type ScoreTopicDetailedResult = {
   scored: number;
   candidateCount: number;
   errors: string[];
+  partial: boolean;
+  elapsedMs: number;
   aiDebug?: AiBatchDebug[];
   dbError?: string;
 };
@@ -158,6 +162,7 @@ async function runScoreTopic(
   supabase: SupabaseClient,
   opts?: ScoreTopicOptions,
 ): Promise<ScoreTopicDetailedResult> {
+  const startedAt = Date.now();
   const windowH =
     opts?.windowHours === null
       ? null
@@ -167,6 +172,7 @@ async function runScoreTopic(
   const cap = opts?.maxArticlesCap ?? MAX_ARTICLES_PER_RUN;
   const limit = Math.min(Math.max(1, opts?.maxArticles ?? MAX_ARTICLES_PER_RUN), cap);
   const collectAiDebug = opts?.collectAiDebug ?? false;
+  const maxElapsedMs = opts?.maxElapsedMs ?? null;
 
   const apiKey = getOpenAIKey();
   const openai = new OpenAI({ apiKey });
@@ -195,6 +201,8 @@ async function runScoreTopic(
       scored: 0,
       candidateCount: 0,
       errors: [],
+      partial: false,
+      elapsedMs: Date.now() - startedAt,
       dbError: error.message,
     };
   }
@@ -203,14 +211,30 @@ async function runScoreTopic(
   if (rows.length === 0) {
     const message = `[${topicId}] No unscored articles`;
     console.log(message);
-    return { message, scored: 0, candidateCount: 0, errors: [] };
+    return {
+      message,
+      scored: 0,
+      candidateCount: 0,
+      errors: [],
+      partial: false,
+      elapsedMs: Date.now() - startedAt,
+    };
   }
 
   let scored = 0;
   const errors: string[] = [];
   const aiDebug: AiBatchDebug[] = [];
+  let partial = false;
 
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+    if (maxElapsedMs != null) {
+      const elapsed = Date.now() - startedAt;
+      // Keep a safety reserve so this helper can return before caller timeout.
+      if (elapsed >= maxElapsedMs - 300) {
+        partial = i < rows.length;
+        break;
+      }
+    }
     const batch = rows.slice(i, i + BATCH_SIZE);
 
     try {
@@ -245,6 +269,8 @@ async function runScoreTopic(
     scored,
     candidateCount: rows.length,
     errors,
+    partial,
+    elapsedMs: Date.now() - startedAt,
     ...(collectAiDebug && aiDebug.length > 0 ? { aiDebug } : {}),
   };
 }
@@ -263,6 +289,19 @@ export async function scoreAndStoreTopicDynamic(
     collectAiDebug: false,
   });
   return r.message;
+}
+
+/** Cron helper: detailed scoring result with optional elapsed budget. */
+export async function scoreTopicForCron(
+  topicId: string,
+  criteria: ScoringCriteria,
+  supabase: SupabaseClient,
+  opts?: ScoreTopicOptions,
+): Promise<ScoreTopicDetailedResult> {
+  return runScoreTopic(topicId, criteria, supabase, {
+    ...opts,
+    collectAiDebug: false,
+  });
 }
 
 /**

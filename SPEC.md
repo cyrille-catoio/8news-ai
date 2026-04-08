@@ -1,6 +1,6 @@
 # 8news.ai — Technical Specification
 
-**Version**: v1.79
+**Version**: v1.80
 **Last updated**: April 2026
 
 ---
@@ -44,7 +44,7 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   ├── logo-8news.png          # App logo (PNG, "8" gold / "news" light grey)
 │   ├── favicon.svg             # Browser favicon — gold "8" on black, 512×512
 │   ├── apple-touch-icon.svg    # iOS home screen icon — gold "8" on black, 180×180
-│   └── version.json            # {"version":"1.79"} — auto-update check (bump with each release)
+│   └── version.json            # {"version":"1.80"} — auto-update check (bump with each release)
 ├── src/
 │   ├── app/
 │   │   ├── layout.tsx          # Root layout, metadata, favicons
@@ -102,7 +102,10 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   ├── 005-changelog.sql       # changelog table + seed (in-app update log)
 │   ├── insert-changelog-1.77.sql # one-off INSERT for v1.77 on existing DBs (Supabase SQL Editor)
 │   ├── insert-changelog-1.78.sql # one-off INSERT for v1.78 on existing DBs (Supabase SQL Editor)
-│   └── insert-changelog-1.79.sql # one-off INSERT for v1.79 on existing DBs (Supabase SQL Editor)
+│   ├── insert-changelog-1.77.sql # one-off INSERT for v1.77 on existing DBs (Supabase SQL Editor)
+│   ├── insert-changelog-1.78.sql # one-off INSERT for v1.78 on existing DBs (Supabase SQL Editor)
+│   ├── insert-changelog-1.79.sql # one-off INSERT for v1.79 on existing DBs (Supabase SQL Editor)
+│   └── insert-changelog-1.80.sql # one-off INSERT for v1.80 on existing DBs (Supabase SQL Editor)
 ├── .gitignore                  # Next/Node ignores; **v1.77+**: `.claude/` (local Claude/Cursor worktrees, not committed)
 ├── .env                        # API keys (not committed)
 ├── .env.example                # Placeholder for API keys
@@ -193,12 +196,12 @@ Users can create new topics from the Topics page. Each topic includes:
 | Column | Type | Description |
 |---|---|---|
 | `id` | serial PK | Row id |
-| `version` | text | Release label (e.g. `1.79`) |
+| `version` | text | Release label (e.g. `1.80`) |
 | `title_en` / `title_fr` | text | Short headline |
 | `body_en` / `body_fr` | text | Detail text |
 | `created_at` | timestamptz | Display order / metadata |
 
-Populated via migration `005-changelog.sql` (newest first): **1.79 → 1.49** one row per release with short EN/FR summaries aligned with §17; **1.0–1.48** are represented by a **single** row (`version` = `1.0–1.48`, shared generic EN/FR body pointing to git history and SPEC for **1.49+**). For new releases, extend the migration (or `INSERT` manually) and keep §17 and `public/version.json` / `APP_VERSION` in sync. **Existing database missing the latest row only:** run **`migrations/insert-changelog-1.79.sql`** once in the Supabase SQL Editor (see file header). Older gaps: **`insert-changelog-1.78.sql`**, **`insert-changelog-1.77.sql`**.
+Populated via migration `005-changelog.sql` (newest first): **1.80 → 1.49** one row per release with short EN/FR summaries aligned with §17; **1.0–1.48** are represented by a **single** row (`version` = `1.0–1.48`, shared generic EN/FR body pointing to git history and SPEC for **1.49+**). For new releases, extend the migration (or `INSERT` manually) and keep §17 and `public/version.json` / `APP_VERSION` in sync. **Existing database missing the latest row only:** run **`migrations/insert-changelog-1.80.sql`** once in the Supabase SQL Editor (see file header). Older gaps: **`insert-changelog-1.79.sql`**, **`insert-changelog-1.78.sql`**, **`insert-changelog-1.77.sql`**.
 
 ### 5.6 Cache TTL (based on time window)
 
@@ -215,25 +218,28 @@ Populated via migration `005-changelog.sql` (newest first): **1.79 → 1.49** on
 
 ### 6.1 Netlify Scheduled Functions (Cron Jobs)
 
-Articles are fetched and pre-scored by **2 scheduled Netlify functions** (not per-topic files): **batched fetch** plus **prioritized score** (see below). Canonical implementations live in **`src/lib/score-topic-dynamic.ts`** (`scoreAndStoreTopicDynamic`, optional `ScoreTopicOptions.maxArticles` / `windowHours` / `maxArticlesCap`) and **`src/lib/fetch-topic-dynamic.ts`** (`fetchAndStoreTopicDynamic`, returns `FetchResult` with `summary`, `inserted`, `feedsOk`, `feedsFailed`, `totalParsed`, `duplicatesSkipped`). `netlify/functions/shared/*.ts` re-export those modules for the cron bundle. **`GET /api/fetch-feeds`** and **`GET /api/test-score`** call the same libraries (auth via `secret` + `CRON_SECRET`).
+Articles are fetched and pre-scored by **2 scheduled Netlify functions** (not per-topic files): **batched fetch** plus **prioritized score** (see below). Canonical implementations live in **`src/lib/score-topic-dynamic.ts`** (`scoreAndStoreTopicDynamic`, `scoreTopicForCron`, optional `ScoreTopicOptions.maxArticles` / `windowHours` / `maxArticlesCap` / `maxElapsedMs`) and **`src/lib/fetch-topic-dynamic.ts`** (`fetchAndStoreTopicDynamic`, returns `FetchResult` with `summary`, `inserted`, `feedsOk`, `feedsFailed`, `totalParsed`, `duplicatesSkipped`). `netlify/functions/shared/*.ts` re-export those modules for the cron bundle. **`GET /api/fetch-feeds`** and **`GET /api/test-score`** call the same libraries (auth via `secret` + `CRON_SECRET`).
 
 **`cron-fetch.ts`** — RSS fetching:
 - Runs **every minute** (`* * * * *`), same cadence as scoring
 - Loads active topics ordered by oldest `last_fetched_at` (nulls first)
-- Processes **`k` topics per run**: `k = min(max(1, ceil(N/10)), 4)` so that, over ~10 minutes, each of **N** topics can be visited at least once (cap **4** per invocation to stay within Netlify’s ~**15s** limit; stops early if a **12s** deadline is reached)
+- Uses a strict runtime budget aligned with Netlify cap: `CRON_WALL_MS=13000`, internal default `CRON_BUDGET_MS=11800`, `CRON_SAFETY_RESERVE_MS=1200`
+- Processes **`k` topics per run**: `k = min(max(1, ceil(N/10)), FETCH_TOPICS_MAX_PER_RUN)` with default cap **3** (env configurable)
 - For each selected topic: updates `last_fetched_at` **before** fetching, then fetches all active RSS feeds, parses, upserts into `articles`
 - `fetchAndStoreTopicDynamic` returns a `FetchResult` (includes `summary`, `inserted`, and aggregate feed/article counts) — `inserted` drives the adaptive mini-score
-- **Adaptive post-fetch scoring** (when time remains ≥ 6s before deadline): mini-score caps at `min(50, max(15, inserted))` articles — scales with fetch volume, avoids wasting time when few articles are new
+- **Adaptive post-fetch scoring** runs only when budget allows (`remaining > FETCH_SCORE_CALL_RESERVE_MS + reserve`): uses `scoreTopicForCron(..., maxElapsedMs=...)` and adaptive `maxArticles` clamped between **15** and **50**
+- Emits structured run metrics (`elapsed_ms`, inserted, mini_scored, deadline stops)
 
 **`cron-score.ts`** — AI scoring:
 - Runs **every minute** (`* * * * *`)
-- Loads **all active topics**, counts **all** unscored articles (`relevance_score IS NULL`, **no `pub_date` cutoff**) so backlog matches the DB
-- **Sort order**: topics **with backlog first**; among them, **newest `last_fetched_at` first** (freshly fetched topics prioritized); topics with **no backlog** follow, ordered by **`last_scored_at` ASC** (nulls first) for fair rotation
-- **Multi-topic scoring**: processes multiple topics in a single invocation within a **12s deadline** — after the first topic, continues to the next only if its backlog ≤ **20** articles (`MULTI_TOPIC_BACKLOG_THRESHOLD`); stops if a large-backlog topic is next or time runs out
-- Topics with **no backlog** are skipped quickly (just updates `last_scored_at`), freeing time for topics that need scoring
-- Up to **50** articles per topic per run (`MAX_ARTICLES_PER_RUN`), **newest `pub_date` first among all unscored** — crons pass **`windowHours: null`** to `scoreAndStoreTopicDynamic` so **older** backlog articles are eligible (not only the last 7 days)
-- **`GET /api/test-score`** and default **`runScoreTopic`** without `windowHours: null` still use **`SCORE_WINDOW_HOURS`** (**168** h) unless you override — useful to limit scope when testing
-- Each article gets: relevance score (1-10), reason, AI-generated EN/FR summaries (for score ≥5)
+- Uses the same strict budget model (`CRON_WALL_MS=13000`, default internal budget **11.8s** + reserve)
+- Loads **all active topics**, counts **all** unscored articles (`relevance_score IS NULL`, **no `pub_date` cutoff**) and computes a **fresh backlog** (`fetched_at >= now - 5min`, configurable via `SCORE_FRESH_WINDOW_MIN`)
+- **Sort order (fresh-first)**: topics with fresh backlog first (largest first, then newest `last_fetched_at`), then remaining backlog topics, then idle topics
+- **Adaptive per-topic quota**: `maxArticles` is adjusted from remaining budget + backlog pressure (defaults around **12–80** bounds, env-configurable)
+- **Fairness guard**: periodically forces one least-recently-scored backlog topic (`SCORE_FAIRNESS_EVERY_N_TOPICS`) to avoid starvation
+- Stops cleanly before deadline and logs per-topic metrics (`fresh_backlog`, backlog, scored/candidates, partial, elapsed, remaining budget)
+- Crons still pass **`windowHours: null`** so older backlog remains eligible; `GET /api/test-score` keeps default **168h** unless overridden
+- Each scored article stores: relevance score (1-10), reason, AI EN/FR summaries (score ≥5)
 
 **Scoring criteria** (stored in `topics` table):
 - **9-10**: Major breaking news
@@ -347,7 +353,7 @@ Text-to-Speech via ElevenLabs `eleven_flash_v2_5`. Returns `audio/mpeg` (MP3).
 | `/api/topics/[id]/feeds/[feedId]` | PATCH | Update feed |
 | `/api/topics/[id]/feeds/[feedId]` | DELETE | Remove feed |
 | `/api/topics/[id]/feeds/[feedId]/articles` | DELETE | Delete all `articles` rows for this topic + feed `name` (source) |
-| `/api/topics/[id]/feeds/[feedId]/score` | POST | Score up to **50** unscored articles (`topic` + **`source` = trimmed `feeds.name`**). OpenAI batches of **12** run **in parallel** (wall time ≈ one round, avoids Netlify **~10s** cutoff from sequential calls). **8s** timeout per call; **`maxDuration` 26**. Response may include **`errors`** / **`error`** when `candidates > 0` but `scored === 0` (timeout, parse, rate limit). **Feeds admin** shows the first error strings in the toast. |
+| `/api/topics/[id]/feeds/[feedId]/score` | POST | Score up to **50** unscored articles (`topic` + **`source` = trimmed `feeds.name`**). Route is capped to Netlify constraints: **`maxDuration` 13**, global elapsed budget (~12s), sequential batches (**12**) with per-call timeout (~6.5s). Returns **`partial: true`** if budget stops remaining batches; may include **`errors`** / **`error`** when scoring fails. **Feeds admin** shows partial-success toast and error details. |
 | `/api/topics/generate-scoring` | POST | AI-generate 5 scoring tiers from domain |
 | `/api/topics/reorder` | PUT | Update sort order (array of `{ id, sortOrder }`) |
 | `/api/topics/[id]/discover-feeds` | POST | AI-discover + validate + insert 10 RSS feeds |
@@ -764,13 +770,13 @@ interface CronStatsResponse {
           │  BACKGROUND (Netlify Scheduled Functions)        │
           │                                                  │
           │  cron-fetch.ts (* * * * *)                       │
-          │  - k topics/run: ceil(N/10), max 4, ~12s budget  │
+          │  - k topics/run: ceil(N/10), max 3, ~13s budget  │
           │  - Oldest last_fetched_at first (nulls first)    │
           │  - Update last_fetched_at BEFORE each fetch      │
           │  - RSS → parse → upsert `articles`               │
           │  - Adaptive mini-score: min(50, max(15, inserted))│
           │                                                  │
-          │  cron-score.ts (* * * * *, 12s deadline)          │
+          │  cron-score.ts (* * * * *, ~13s budget)             │
           │  - Multi-topic: continues if backlog ≤20        │
           │  - Backlog topics first; newest fetch first      │
           │  - Skip no-backlog (update last_scored_at only)  │
@@ -867,9 +873,9 @@ The topic immediately appears in the homepage topic selector, stats page, and cr
 
 ---
 
-## 17. Changelog (v1.49 → v1.79)
+## 17. Changelog (v1.49 → v1.80)
 
-Summary table (one line per release). **§17.1** expands **v1.65–v1.79** in detail (aligned with `005-changelog.sql` seeds and current code).
+Summary table (one line per release). **§17.1** expands **v1.65–v1.80** in detail (aligned with `005-changelog.sql` seeds and current code).
 
 | Version | Key Changes |
 |---|---|
@@ -903,9 +909,10 @@ Summary table (one line per release). **§17.1** expands **v1.65–v1.79** in de
 | v1.76 | **Top 20 bilingual**: **`GET /api/news/top?lang=`**; DB reads **`snippet_ai_*`** / RSS → response **`snippet`**; **`useTopFeed({ poll, lang })`** with refetch on language change; **FR** UI: French AI summary as **primary** line when present. **`SPEC.md`** §6/§17 + **`005-changelog.sql`** (rows **1.74–1.76**); **`public/version.json`** / **`APP_VERSION`** **1.76**. |
 | v1.77 | **Release 1.77**: **`public/version.json`** and **`APP_VERSION`** → **1.77**; **`.gitignore`**: ignore **`.claude/`** (agent worktrees); **SPEC** §17 and **`migrations/005-changelog.sql`** include **1.77** for parity with the in-app Changelog. **No product change** vs **v1.76** (same Top 20 i18n and feed flows). |
 | v1.78 | **Scoring backlog & Netlify limits**: **cron-score** + post-fetch mini-score use **`windowHours: null`** — unscored articles are eligible **regardless of `pub_date`** (previously only last **168h**, which hid old backlog). Backlog counts **all** unscored per topic. **`POST .../feeds/[feedId]/score`**: OpenAI batches of **12** in **parallel** (avoids Netlify **~10s** wall timeout from sequential calls), **8s**/call, trimmed **`source`** match, **`maxDuration` 26**. **`version.json`** / **`APP_VERSION`** **1.78**; **`insert-changelog-1.78.sql`**. **`GET /api/test-score`** still defaults to **168h** window. |
-| v1.79 | **Plan B — dev cycle start**: **`version.json`** / **`APP_VERSION`** **1.79** before shipping features; **SPEC** §17 through **1.79**; **`005-changelog.sql`** + **`insert-changelog-1.79.sql`**. *Functional changelog text will be completed when **1.79** is deployed; until then local UI may show a “development bump” row if you run the INSERT on Supabase.* |
+| v1.79 | **Netlify 13s cron optimization**: unify cron runtime budget around **13s** cap; **fresh-first** scoring priority (`fetched_at` last 5m), adaptive scoring quotas, fairness anti-starvation, structured cron metrics. **Feed manual score** route updated to **`maxDuration` 13** with elapsed-budget partial responses (`partial`). **Cron Monitor** adds `delay p95`, `SLA <5m`, `fresh backlog 5m`, and alerts. |
+| v1.80 | **Plan B — dev cycle start**: **`version.json`** / **`APP_VERSION`** **1.80** before shipping features; **SPEC** §17 through **1.80**; **`005-changelog.sql`** + **`insert-changelog-1.80.sql`**. *Functional changelog text will be completed when **1.80** is deployed; until then local UI may show a “development bump” row if you run the INSERT on Supabase.* |
 
-### 17.1 Release detail — v1.65 through v1.79
+### 17.1 Release detail — v1.65 through v1.80
 
 | Ver. | EN (what shipped) | FR (titre seed migration) |
 |------|-------------------|----------------------------|
@@ -923,16 +930,17 @@ Summary table (one line per release). **§17.1** expands **v1.65–v1.79** in de
 | **1.76** | **Top 20 i18n**: **`/api/news/top?lang=`**, **`snippet`** from **`snippet_ai_*`** / RSS; **`useTopFeed({ poll, lang })`**; **FR** = résumé IA en tête si présent. **SPEC** §6/§17, seed **005**, **`version.json`** / **`APP_VERSION`** **1.76**. | *Top 20 bilingue, doc & version* |
 | **1.77** | **Identifiers** **1.77** (`version.json`, **`APP_VERSION`**). **Repo**: **`.gitignore`** adds **`.claude/`**. **Docs/DB**: SPEC §17 through **1.77**; on Supabase run **`migrations/insert-changelog-1.77.sql`** once if the **1.77** row is missing. | *v1.77, gitignore .claude, journal* |
 | **1.78** | **Cron / mini-score**: `windowHours: null` — no **`pub_date`** cutoff on unscored selection; backlog = all unscored per topic. **Manual feed score**: batches **12** **parallel**, **8s**/call, **`source` trim**, **`maxDuration` 26** (Netlify). **1.78** identifiers + **`insert-changelog-1.78.sql`**. | *Scoring backlog, limites Netlify, v1.78* |
-| **1.79** | **Plan B**: bump **1.79** (`version.json`, **`APP_VERSION`**) at start of cycle; SPEC + seed **005** + **`insert-changelog-1.79.sql`**; enrich §17 / DB row when **1.79** ships. | *Cycle dev 1.79 (bump amont)* |
+| **1.79** | **Cron orchestration for Netlify 13s**: shared runtime budget (`CRON_BUDGET_MS`, reserve), fetch cap default **3 topics/run**, adaptive post-fetch mini-score with remaining-time gate, score cron **fresh-first** with adaptive `maxArticles` and fairness injection. **Manual feed score** route now **`maxDuration` 13** with sequential batches and `partial` response when budget ends. **Cron Monitor**: add `delayP95`, `SLA<5m`, `freshBacklog5m`, and `alerts`. | *Optimisation crons 13s Netlify & SLA <5 min* |
+| **1.80** | **Plan B**: bump **1.80** (`version.json`, **`APP_VERSION`**) at start of cycle; SPEC + seed **005** + **`insert-changelog-1.80.sql`**; enrich §17 / DB row when **1.80** ships. | *Cycle dev 1.80 (bump amont)* |
 
-> **Note:** If the in-app Changelog was filled before **1.74–1.79** rows existed, run the per-version **`INSERT`** statements (e.g. **`insert-changelog-1.79.sql`**) or re-apply **`005-changelog.sql`** (after **`TRUNCATE changelog`** only if you want a full re-seed). **SPEC** and **runtime** remain authoritative when copy diverges.
+> **Note:** If the in-app Changelog was filled before **1.74–1.80** rows existed, run the per-version **`INSERT`** statements (e.g. **`insert-changelog-1.80.sql`**) or re-apply **`005-changelog.sql`** (after **`TRUNCATE changelog`** only if you want a full re-seed). **SPEC** and **runtime** remain authoritative when copy diverges.
 
 ---
 
 ## 18. Known Limitations
 
 - **No authentication** — The app is public, no user accounts
-- **Serverless timeout** — Netlify **synchronous** routes/functions are often **~10s** default, **up to ~26s** on Pro (not 60s). **`POST .../feeds/[feedId]/score`** is capped at **`maxDuration` 26** with short per-call OpenAI timeouts. Scheduled crons use a **12s** internal deadline; cron-score may process multiple topics if per-topic backlog ≤ **20**; cron-fetch uses adaptive mini-score (up to 50 articles)
+- **Serverless timeout** — Netlify runtime is constrained around **13s wall-time** on this project. `POST .../feeds/[feedId]/score` is capped at **`maxDuration` 13** with a shorter internal elapsed budget and may return `partial` when time is exhausted. Scheduled crons also enforce internal budget + reserve and stop early before platform timeout.
 - **RSS availability** — Some feeds may go offline; AI feed discovery validates upfront but feeds can break later
 - **AI cost** — Each request consumes OpenAI tokens (gpt-4.1-nano), each TTS request consumes ElevenLabs credits
 - **No SSR** — The page is a client-only component (`"use client"`)

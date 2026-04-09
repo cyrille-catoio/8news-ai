@@ -1,7 +1,7 @@
 # 8news.ai — Technical Specification
 
-**Version**: v1.80
-**Last updated**: 8 April 2026
+**Version**: v1.81
+**Last updated**: 16 April 2026
 
 ---
 
@@ -11,7 +11,7 @@
 
 Users can **create custom topics** from the UI, with AI-assisted generation of scoring criteria and automatic RSS feed discovery.
 
-**v1.80+**: The app remains **fully usable without signing in** (home, stats, crons, changelog, settings). **Supabase Auth** (email + password) is required only for **Topics** administration and **Feed management**; those nav icons and API mutations are gated server-side (`401` without a valid session cookie).
+**v1.80+**: Optional **Supabase Auth** (email + password). **v1.81+**: **`user_type`** in **`user_metadata`** — **`member`** (default at sign-up) or **`owner`**. The app remains **fully usable without signing in** (home, stats, crons, changelog, settings). Signed-in **members** use the same public areas as guests. **Topics** and **Feed management** are **`owner`**-only (promote in **Supabase Dashboard → Authentication → Users**; user must sign in again for JWT refresh). Admin APIs: **`401`** unsigned, **`403`** **`member`**.
 
 **Tagline**: "AI that decodes the news" / "L'IA qui décrypte l'actualité"
 
@@ -48,7 +48,7 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   ├── logo-8news.png          # App logo (PNG, "8" gold / "news" light grey)
 │   ├── favicon.svg             # Browser favicon — gold "8" on black, 512×512
 │   ├── apple-touch-icon.svg    # iOS home screen icon — gold "8" on black, 180×180
-│   └── version.json            # {"version":"1.80"} — auto-update check (bump with each release)
+│   └── version.json            # {"version":"1.81"} — auto-update check (bump with each release)
 ├── src/
 │   ├── app/
 │   │   ├── layout.tsx          # Root layout, metadata, favicons, **v1.80+** `AuthProvider` wrapper
@@ -89,7 +89,8 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │       ├── i18n.ts             # EN/FR translation strings (100+ keys)
 │       ├── supabase.ts         # Supabase **service-role** client, caching, article/topic/feed queries (not for browser auth)
 │       ├── supabase-browser.ts # **v1.80+**: `createBrowserSupabaseClient()` — anon key, sign-in / sign-up
-│       ├── auth-api.ts         # **v1.80+**: `getSessionUser()` for Route Handlers (cookie session)
+│       ├── auth-api.ts         # **v1.80+**: `getSessionUser()`, `requireOwnerSession()` (cookie session)
+│       ├── user-type.ts        # **v1.81+**: `user_type` metadata — `member` | `owner`; `isOwnerUser()`
 │       ├── html.ts             # HTML entity decoder
 │       ├── cookies.ts          # getCookie / setCookie (client prefs: lang, maxArticles, TTS)
 │       ├── fetch-topic-dynamic.ts  # RSS fetch + upsert (used by API + Netlify)
@@ -110,7 +111,8 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   ├── insert-changelog-1.77.sql # one-off INSERT for v1.77 on existing DBs (Supabase SQL Editor)
 │   ├── insert-changelog-1.78.sql # one-off INSERT for v1.78 on existing DBs (Supabase SQL Editor)
 │   ├── insert-changelog-1.79.sql # one-off INSERT for v1.79 on existing DBs (Supabase SQL Editor)
-│   └── insert-changelog-1.80.sql # one-off INSERT for v1.80 on existing DBs (Supabase SQL Editor)
+│   ├── insert-changelog-1.80.sql # one-off INSERT for v1.80 on existing DBs (Supabase SQL Editor)
+│   └── insert-changelog-1.81.sql # one-off INSERT for v1.81 on existing DBs (Supabase SQL Editor)
 ├── .gitignore                  # Next/Node ignores; **v1.77+**: `.claude/` (local Claude/Cursor worktrees, not committed)
 ├── .env                        # API keys (not committed)
 ├── .env.example                # Placeholder for API keys
@@ -201,12 +203,12 @@ Users can create new topics from the Topics page. Each topic includes:
 | Column | Type | Description |
 |---|---|---|
 | `id` | serial PK | Row id |
-| `version` | text | Release label (e.g. `1.80`) |
+| `version` | text | Release label (e.g. `1.81`) |
 | `title_en` / `title_fr` | text | Short headline |
 | `body_en` / `body_fr` | text | Detail text |
 | `created_at` | timestamptz | Display order / metadata |
 
-Populated via migration `005-changelog.sql` (newest first): **1.80 → 1.49** one row per release with short EN/FR summaries aligned with §17; **1.0–1.48** are represented by a **single** row (`version` = `1.0–1.48`, shared generic EN/FR body pointing to git history and SPEC for **1.49+**). For new releases, extend the migration (or `INSERT` manually) and keep §17 and `public/version.json` / `APP_VERSION` in sync. **Existing database missing the latest row only:** run **`migrations/insert-changelog-1.80.sql`** once in the Supabase SQL Editor (see file header). Older gaps: **`insert-changelog-1.79.sql`**, **`insert-changelog-1.78.sql`**, **`insert-changelog-1.77.sql`**.
+Populated via migration `005-changelog.sql` (newest first): **1.81 → 1.49** one row per release with short EN/FR summaries aligned with §17; **1.0–1.48** are represented by a **single** row (`version` = `1.0–1.48`, shared generic EN/FR body pointing to git history and SPEC for **1.49+**). For new releases, extend the migration (or `INSERT` manually) and keep §17 and `public/version.json` / `APP_VERSION` in sync. **Existing database missing the latest row only:** run **`migrations/insert-changelog-1.81.sql`** once in the Supabase SQL Editor (see file header). Older gaps: **`insert-changelog-1.80.sql`**, **`insert-changelog-1.79.sql`**, etc.
 
 ### 5.6 Cache TTL (based on time window)
 
@@ -257,11 +259,12 @@ Articles are fetched and pre-scored by **2 scheduled Netlify functions** (not pe
 
 #### User authentication (v1.80+)
 
-- **Supabase Auth** with email + password; sign-up stores **`first_name`** / **`last_name`** in **`user_metadata`**.
+- **Supabase Auth** with email + password; sign-up stores **`first_name`**, **`last_name`**, and **`user_type: "member"`** in **`user_metadata`** (**v1.81+** explicit default; earlier accounts without **`user_type`** are treated as **`member`**).
+- **User type** (`src/lib/user-type.ts`): **`member`** (default) or **`owner`**. Only **`owner`** may use **Topics** and **Feed management** (UI + admin APIs). Promote a user to **`owner`** in **Supabase Dashboard → Authentication → Users →** select user → **User Metadata**: set **`user_type`** to **`owner`** (string). The user must **sign out and sign in again** (or refresh the session) so the JWT includes the new claim.
 - **`middleware.ts`** refreshes the auth cookie on each matched request.
-- **Route Handlers** call **`getSessionUser()`** (`src/lib/auth-api.ts`, anon key + `cookies()` from Next) and return **`401`** when no user.
+- **Route Handlers** use **`requireOwnerSession()`** (`src/lib/auth-api.ts`): **`401`** if not signed in, **`403`** if signed in as **`member`**, success only for **`owner`**.
 - **Public without session**: `GET /api/topics` **without** `all=1` (homepage topic list), plus existing public endpoints (news, stats, changelog, cron-stats, etc.).
-- **Session required**: `GET /api/topics?all=1`, `POST /api/topics`, all **`/api/topics/[id]`** methods, **`/api/topics/reorder`**, **`generate-scoring`**, **`discover-feeds`**, all **`/api/topics/[id]/feeds/...`**, **`GET /api/feeds-admin`**.
+- **Owner session required**: `GET /api/topics?all=1`, `POST /api/topics`, all **`/api/topics/[id]`** methods, **`/api/topics/reorder`**, **`generate-scoring`**, **`discover-feeds`**, all **`/api/topics/[id]/feeds/...`**, **`GET /api/feeds-admin`**.
 
 #### `GET /api/news`
 
@@ -355,12 +358,12 @@ Text-to-Speech via ElevenLabs `eleven_flash_v2_5`. Returns `audio/mpeg` (MP3).
 
 #### Topics API
 
-**v1.80+**: Unless noted **public**, routes below require a **Supabase session** (see §6.2 introduction).
+**v1.80+**: Unless noted **public**, routes below require a signed-in **`owner`** (`403` for **`member`**, `401` if unsigned — see §6.2).
 
 | Route | Method | Description |
 |---|---|---|
-| `/api/topics` | GET | **Public** without `?all=1`: active topics + feed counts for homepage. **`?all=1`**: includes inactive topics (**session**). |
-| `/api/topics` | POST | Create topic (auto-generates prompts if empty) |
+| `/api/topics` | GET | **Public** without `?all=1`: active topics + feed counts for homepage. **`?all=1`**: includes inactive topics (**owner** only). |
+| `/api/topics` | POST | Create topic (auto-generates prompts if empty) (**owner**) |
 | `/api/topics/[id]` | GET | Topic detail with feeds, scoring, prompts |
 | `/api/topics/[id]` | PATCH | Update topic (labels, scoring, prompts) |
 | `/api/topics/[id]` | DELETE | Soft-delete topic (`is_active = false`) |
@@ -387,7 +390,7 @@ Uses GPT-4.1-nano to generate 5 scoring tier descriptions from a domain descript
 
 #### `GET /api/feeds-admin`
 
-**v1.80+**: **Session required** (`401` if unsigned).
+**v1.80+**: **`owner` only** (`401` unsigned, `403` member).
 
 | Param | Type | Description |
 |---|---|---|
@@ -447,14 +450,14 @@ The app root is `src/app/page.tsx` (`"use client"`): **home** topic/period flow,
 
 ### 8.2 Navigation
 
-The app has **7 pages** managed by `currentPage` state (`"home"` | `"stats"` | `"crons"` | `"topics"` | `"feeds"` | `"changelog"` | `"settings"`). **v1.80+**: **`topics`** and **`feeds`** are reachable only when signed in (icons hidden for guests; leaving those pages without a session returns to **home**).
+The app has **7 pages** managed by `currentPage` state (`"home"` | `"stats"` | `"crons"` | `"topics"` | `"feeds"` | `"changelog"` | `"settings"`). **v1.80+**: **`topics`** and **`feeds`** are reachable only for **`owner`** users (icons hidden for guests and **members**; leaving those pages without **owner** returns to **home**).
 
 **Header** (`AppHeader`, shared across all pages):
 - **Logo**: PNG image (`/logo-8news.png`), responsive height — **clicking logo resets to homepage Top 20 feed**
 - **Subtitle**: "AI that decodes the news" / "L'IA qui décrypte l'actualité" (`t("subtitle", lang)`)
 - **Top-right controls**:
-  - **Icon row** (left to right): **Home** (house); **Topics** and **Feed management** only if **signed in** (**v1.80+**); **Stats** (bars), **Cron Monitor** (pulse), **Changelog** (clock), **Settings** (gear)
-  - **Row below icons**: **Sign in** / **Sign out** (**v1.80+**, `AuthModal` for email/password + register with first/last name) **to the left of** the **language toggle** (EN/FR), right-aligned
+  - **Icon row** (left to right): **Home** (house); **Topics** and **Feed management** only if **`user_type` is `owner`** (**v1.80+**); **Stats** (bars), **Cron Monitor** (pulse), **Changelog** (clock), **Settings** (gear)
+  - **Row below icons**: **Sign in** / **Sign out** (**v1.80+**, `AuthModal` for email/password + register with first/last name + default **`member`**) **to the left of** the **language toggle** (EN/FR), right-aligned
 
 ### 8.3 Home Page
 
@@ -891,9 +894,9 @@ The topic immediately appears in the homepage topic selector, stats page, and cr
 
 ---
 
-## 17. Changelog (v1.49 → v1.80)
+## 17. Changelog (v1.49 → v1.81)
 
-Summary table (one line per release). **§17.1** expands **v1.65–v1.80** in detail (aligned with `005-changelog.sql` seeds and current code).
+Summary table (one line per release). **§17.1** expands **v1.65–v1.81** in detail (aligned with `005-changelog.sql` seeds and current code).
 
 | Version | Key Changes |
 |---|---|
@@ -929,8 +932,9 @@ Summary table (one line per release). **§17.1** expands **v1.65–v1.80** in de
 | v1.78 | **Scoring backlog & Netlify limits**: **cron-score** + post-fetch mini-score use **`windowHours: null`** — unscored articles are eligible **regardless of `pub_date`** (previously only last **168h**, which hid old backlog). Backlog counts **all** unscored per topic. **`POST .../feeds/[feedId]/score`**: OpenAI batches of **12** in **parallel** (avoids Netlify **~10s** wall timeout from sequential calls), **8s**/call, trimmed **`source`** match, **`maxDuration` 26**. **`version.json`** / **`APP_VERSION`** **1.78**; **`insert-changelog-1.78.sql`**. **`GET /api/test-score`** still defaults to **168h** window. |
 | v1.79 | **Netlify 13s cron optimization**: unify cron runtime budget around **13s** cap; **fresh-first** scoring priority (`fetched_at` last 5m), adaptive scoring quotas, fairness anti-starvation, structured cron metrics. **Feed manual score** route updated to **`maxDuration` 13** with elapsed-budget partial responses (`partial`). **Cron Monitor** adds `delay p95`, `SLA <5m`, `fresh backlog 5m`, and alerts. |
 | v1.80 | **Supabase user authentication**: optional **email + password** sign-in; **Topics** + **Feed management** (UI + APIs) require a session; rest of the app stays public. **`@supabase/ssr`**, **`middleware.ts`**, **`AuthProvider`** / **`AuthModal`**, **`auth-api.ts`** + **`supabase-browser.ts`**. Register: first name, last name, email, password → **`user_metadata`**. **`GET /api/topics`** without `?all=1` remains public for the homepage selector. |
+| v1.81 | **`member` vs `owner` roles**: **`user_type`** in **`user_metadata`** (`member` at sign-up; **`owner`** set in Supabase Dashboard). **Topics** and **Feed management** are **`owner`**-only; **members** keep guest-level access to other screens. **`requireOwnerSession()`** returns **401** / **403**. **`src/lib/user-type.ts`**. **`version.json`** / **`APP_VERSION`** **1.81**; **`insert-changelog-1.81.sql`**. |
 
-### 17.1 Release detail — v1.65 through v1.80
+### 17.1 Release detail — v1.65 through v1.81
 
 | Ver. | EN (what shipped) | FR (titre seed migration) |
 |------|-------------------|----------------------------|
@@ -950,14 +954,15 @@ Summary table (one line per release). **§17.1** expands **v1.65–v1.80** in de
 | **1.78** | **Cron / mini-score**: `windowHours: null` — no **`pub_date`** cutoff on unscored selection; backlog = all unscored per topic. **Manual feed score**: batches **12** **parallel**, **8s**/call, **`source` trim**, **`maxDuration` 26** (Netlify). **1.78** identifiers + **`insert-changelog-1.78.sql`**. | *Scoring backlog, limites Netlify, v1.78* |
 | **1.79** | **Cron orchestration for Netlify 13s**: shared runtime budget (`CRON_BUDGET_MS`, reserve), fetch cap default **3 topics/run**, adaptive post-fetch mini-score with remaining-time gate, score cron **fresh-first** with adaptive `maxArticles` and fairness injection. **Manual feed score** route now **`maxDuration` 13** with sequential batches and `partial` response when budget ends. **Cron Monitor**: add `delayP95`, `SLA<5m`, `freshBacklog5m`, and `alerts`. | *Optimisation crons 13s Netlify & SLA <5 min* |
 | **1.80** | **Supabase Auth** (optional): **Sign in / Sign out** next to language toggle; **Topics** + **Feeds** nav + admin APIs gated (`401` without session); **`middleware`** cookie refresh; homepage **`GET /api/topics`** still public. Registration: prénom, nom, e-mail, MDP → metadata. | *Authentification Supabase, accès Topics/Feeds réservé* |
+| **1.81** | **`user_type`**: **`member`** (default) / **`owner`** (dashboard). Only **`owner`** sees Topics + Feed management; **`403`** for **`member`** on admin APIs. **`requireOwnerSession()`**, **`user-type.ts`**. | *Rôles member/owner, admin réservé aux owners* |
 
-> **Note:** If the in-app Changelog was filled before **1.74–1.80** rows existed, run the per-version **`INSERT`** statements (e.g. **`insert-changelog-1.80.sql`**) or re-apply **`005-changelog.sql`** (after **`TRUNCATE changelog`** only if you want a full re-seed). **SPEC** and **runtime** remain authoritative when copy diverges.
+> **Note:** If the in-app Changelog was filled before **1.74–1.81** rows existed, run the per-version **`INSERT`** statements (e.g. **`insert-changelog-1.81.sql`**) or re-apply **`005-changelog.sql`** (after **`TRUNCATE changelog`** only if you want a full re-seed). **SPEC** and **runtime** remain authoritative when copy diverges.
 
 ---
 
 ## 18. Known Limitations
 
-- **Partial authentication (v1.80+)** — **Supabase Auth** protects **Topics** and **Feed management** only. The homepage, stats, crons, changelog, and settings remain usable **without** an account. There is no per-user data partitioning in the database (topics/feeds/articles are still shared); auth is an **admin gate** for those screens.
+- **Partial authentication (v1.80+ / roles v1.81+)** — **Supabase Auth** with **`member`** (default) vs **`owner`**. **Topics** and **Feed management** are **`owner`**-only (UI + APIs). Guests and **members** still use the homepage, stats, crons, changelog, and settings. No per-user data partitioning in the database; **`owner`** is an **admin role** for those screens.
 - **Serverless timeout** — Netlify runtime is constrained around **13s wall-time** on this project. `POST .../feeds/[feedId]/score` is capped at **`maxDuration` 13** with a shorter internal elapsed budget and may return `partial` when time is exhausted. Scheduled crons also enforce internal budget + reserve and stop early before platform timeout.
 - **RSS availability** — Some feeds may go offline; AI feed discovery validates upfront but feeds can break later
 - **AI cost** — Each request consumes OpenAI tokens (gpt-4.1-nano), each TTS request consumes ElevenLabs credits

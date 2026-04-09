@@ -29,10 +29,11 @@ import { AppHeader, type AppNavPage } from "@/app/components/AppHeader";
 import { TopFeedSection } from "@/app/components/TopFeedSection";
 import { useTopFeed } from "@/hooks/useTopFeed";
 import { useAuth } from "@/app/providers";
+import { isOwnerUser } from "@/lib/user-type";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.80";
+const APP_VERSION = "1.81";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 
@@ -309,13 +310,14 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState<AppNavPage>("home");
   const { session, loading: authLoading } = useAuth();
   const authUser = session?.user ?? null;
+  const authOwner = Boolean(authUser && isOwnerUser(authUser));
 
   useEffect(() => {
     if (authLoading) return;
-    if (!authUser && (currentPage === "topics" || currentPage === "feeds")) {
+    if (!authOwner && (currentPage === "topics" || currentPage === "feeds")) {
       setCurrentPage("home");
     }
-  }, [authLoading, authUser, currentPage]);
+  }, [authLoading, authOwner, currentPage]);
 
   const [resultTab, setResultTab] = useState<"relevant" | "all">("relevant");
   const [allArticles, setAllArticles] = useState<AllArticleEntry[]>([]);
@@ -465,7 +467,7 @@ export default function Home() {
             <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "80px 0" }}>
               <span style={spinnerStyle(28)} />
             </div>
-          ) : authUser ? (
+          ) : authOwner ? (
             <TopicsPage lang={lang} />
           ) : null
         ) : currentPage === "changelog" ? (
@@ -475,7 +477,7 @@ export default function Home() {
             <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "80px 0" }}>
               <span style={spinnerStyle(28)} />
             </div>
-          ) : authUser ? (
+          ) : authOwner ? (
             <FeedsAdminPage lang={lang} topics={topicLabels} />
           ) : null
         ) : currentPage === "settings" ? (

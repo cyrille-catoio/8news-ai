@@ -85,7 +85,7 @@ export function AuthModal({
         password,
         options: {
           emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
-          data: { first_name: fn, last_name: ln },
+          data: { first_name: fn, last_name: ln, user_type: "member" },
         },
       });
 

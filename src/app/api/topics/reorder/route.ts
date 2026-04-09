@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { getSessionUser, unauthorizedResponse } from "@/lib/auth-api";
+import { requireOwnerSession } from "@/lib/auth-api";
 
 export async function POST(req: Request) {
-  const user = await getSessionUser();
-  if (!user) return unauthorizedResponse();
+  const auth = await requireOwnerSession();
+  if (!auth.ok) return auth.response;
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;

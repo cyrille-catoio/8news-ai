@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
-import { getSessionUser, unauthorizedResponse } from "@/lib/auth-api";
+import { requireOwnerSession } from "@/lib/auth-api";
 
 export async function POST(req: Request) {
-  const user = await getSessionUser();
-  if (!user) return unauthorizedResponse();
+  const auth = await requireOwnerSession();
+  if (!auth.ok) return auth.response;
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {

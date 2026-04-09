@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import type { User } from "@supabase/supabase-js";
+import { isOwnerUser } from "@/lib/user-type";
 
 export async function getSessionUser(): Promise<User | null> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -34,4 +35,18 @@ export async function getSessionUser(): Promise<User | null> {
 
 export function unauthorizedResponse() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+}
+
+export function forbiddenResponse() {
+  return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+}
+
+/** Signed-in **owner** only (Topics / Feed management APIs). */
+export async function requireOwnerSession(): Promise<
+  { ok: true; user: User } | { ok: false; response: NextResponse }
+> {
+  const user = await getSessionUser();
+  if (!user) return { ok: false, response: unauthorizedResponse() };
+  if (!isOwnerUser(user)) return { ok: false, response: forbiddenResponse() };
+  return { ok: true, user };
 }

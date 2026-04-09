@@ -5,6 +5,7 @@ import { color } from "@/lib/theme";
 import { t, type Lang } from "@/lib/i18n";
 import { useAuth } from "@/app/providers";
 import { AuthModal } from "@/app/components/AuthModal";
+import { isOwnerUser } from "@/lib/user-type";
 
 export type AppNavPage =
   | "home"
@@ -84,6 +85,7 @@ export function AppHeader({
   const { session, loading: authLoading, signOut } = useAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const authed = Boolean(session?.user);
+  const canManageTopicsAndFeeds = isOwnerUser(session?.user);
 
   const authBtnStyle: CSSProperties = {
     padding: "4px 10px",
@@ -121,7 +123,7 @@ export function AppHeader({
               <polyline points="9 21 9 14 15 14 15 21" />
             </svg>
           </NavIconButton>
-          {authed && (
+          {canManageTopicsAndFeeds && (
             <NavIconButton
               active={currentPage === "topics"}
               onClick={() => onNavigate("topics")}
@@ -134,7 +136,7 @@ export function AppHeader({
               </svg>
             </NavIconButton>
           )}
-          {authed && (
+          {canManageTopicsAndFeeds && (
             <NavIconButton
               active={currentPage === "feeds"}
               onClick={() => onNavigate("feeds")}

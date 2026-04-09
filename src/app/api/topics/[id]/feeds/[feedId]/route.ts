@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateFeed, deleteFeed } from "@/lib/supabase";
-import { getSessionUser, unauthorizedResponse } from "@/lib/auth-api";
+import { requireOwnerSession } from "@/lib/auth-api";
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; feedId: string }> },
 ) {
-  const user = await getSessionUser();
-  if (!user) return unauthorizedResponse();
+  const auth = await requireOwnerSession();
+  if (!auth.ok) return auth.response;
   try {
     const { feedId } = await params;
     const fid = parseInt(feedId, 10);
@@ -71,8 +71,8 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string; feedId: string }> },
 ) {
-  const user = await getSessionUser();
-  if (!user) return unauthorizedResponse();
+  const auth = await requireOwnerSession();
+  if (!auth.ok) return auth.response;
   try {
     const { feedId } = await params;
     const fid = parseInt(feedId, 10);

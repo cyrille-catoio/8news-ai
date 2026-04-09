@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createFeed, getTopicWithFeeds } from "@/lib/supabase";
+import { getSessionUser, unauthorizedResponse } from "@/lib/auth-api";
 
 const URL_RE = /^https?:\/\/.+/;
 
@@ -7,6 +8,8 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const user = await getSessionUser();
+  if (!user) return unauthorizedResponse();
   try {
     const { id } = await params;
 

@@ -28,6 +28,7 @@ import { TTS_VOICES_EN, TTS_VOICES_FR } from "@/app/components/VoiceAccordion";
 import { AppHeader, type AppNavPage } from "@/app/components/AppHeader";
 import { TopFeedSection } from "@/app/components/TopFeedSection";
 import { useTopFeed } from "@/hooks/useTopFeed";
+import { useAuth } from "@/app/providers";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
@@ -306,6 +307,16 @@ export default function Home() {
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState<AppNavPage>("home");
+  const { session, loading: authLoading } = useAuth();
+  const authUser = session?.user ?? null;
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!authUser && (currentPage === "topics" || currentPage === "feeds")) {
+      setCurrentPage("home");
+    }
+  }, [authLoading, authUser, currentPage]);
+
   const [resultTab, setResultTab] = useState<"relevant" | "all">("relevant");
   const [allArticles, setAllArticles] = useState<AllArticleEntry[]>([]);
   const [allArticlesLoading, setAllArticlesLoading] = useState(false);
@@ -450,11 +461,23 @@ export default function Home() {
         ) : currentPage === "crons" ? (
           <CronMonitorPage lang={lang} />
         ) : currentPage === "topics" ? (
-          <TopicsPage lang={lang} />
+          authLoading ? (
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "80px 0" }}>
+              <span style={spinnerStyle(28)} />
+            </div>
+          ) : authUser ? (
+            <TopicsPage lang={lang} />
+          ) : null
         ) : currentPage === "changelog" ? (
           <ChangelogPage lang={lang} />
         ) : currentPage === "feeds" ? (
-          <FeedsAdminPage lang={lang} topics={topicLabels} />
+          authLoading ? (
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "80px 0" }}>
+              <span style={spinnerStyle(28)} />
+            </div>
+          ) : authUser ? (
+            <FeedsAdminPage lang={lang} topics={topicLabels} />
+          ) : null
         ) : currentPage === "settings" ? (
           <SettingsPage
             lang={lang}

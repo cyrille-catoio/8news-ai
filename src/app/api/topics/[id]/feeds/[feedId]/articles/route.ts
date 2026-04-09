@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteArticlesByTopicAndSource, getFeedById } from "@/lib/supabase";
+import { getSessionUser, unauthorizedResponse } from "@/lib/auth-api";
 
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string; feedId: string }> },
 ) {
+  const user = await getSessionUser();
+  if (!user) return unauthorizedResponse();
   try {
     const { id: topicId, feedId } = await params;
     const fid = parseInt(feedId, 10);

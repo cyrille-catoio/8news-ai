@@ -5,11 +5,14 @@ import {
   deleteTopic,
 } from "@/lib/supabase";
 import type { TopicDetail, FeedItem } from "@/lib/types";
+import { getSessionUser, unauthorizedResponse } from "@/lib/auth-api";
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const user = await getSessionUser();
+  if (!user) return unauthorizedResponse();
   try {
     const { id } = await params;
     const row = await getTopicWithFeeds(id);
@@ -57,6 +60,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const user = await getSessionUser();
+  if (!user) return unauthorizedResponse();
   try {
     const { id } = await params;
     const body = await req.json();
@@ -112,6 +117,8 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const user = await getSessionUser();
+  if (!user) return unauthorizedResponse();
   try {
     const { id } = await params;
     const ok = await deleteTopic(id);

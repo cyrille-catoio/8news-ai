@@ -1,8 +1,10 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import { color } from "@/lib/theme";
 import { t, type Lang } from "@/lib/i18n";
+import { useAuth } from "@/app/providers";
+import { AuthModal } from "@/app/components/AuthModal";
 
 export type AppNavPage =
   | "home"
@@ -79,6 +81,22 @@ export function AppHeader({
   onHomeReset: () => void;
   onLangChange: (l: Lang) => void;
 }) {
+  const { session, loading: authLoading, signOut } = useAuth();
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const authed = Boolean(session?.user);
+
+  const authBtnStyle: CSSProperties = {
+    padding: "4px 10px",
+    fontSize: 11,
+    fontWeight: 600,
+    border: `1px solid ${color.gold}`,
+    borderRadius: 5,
+    background: "transparent",
+    color: color.gold,
+    cursor: "pointer",
+    fontFamily: "inherit",
+  };
+
   return (
     <header style={{ paddingBottom: 12, marginBottom: 20, position: "relative" }}>
       <div
@@ -103,31 +121,35 @@ export function AppHeader({
               <polyline points="9 21 9 14 15 14 15 21" />
             </svg>
           </NavIconButton>
-          <NavIconButton
-            active={currentPage === "topics"}
-            onClick={() => onNavigate("topics")}
-            ariaLabel={t("navTopicsAria", lang)}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 11a9 9 0 0 1 9 9" />
-              <path d="M4 4a16 16 0 0 1 16 16" />
-              <circle cx="5" cy="19" r="1" fill="currentColor" />
-            </svg>
-          </NavIconButton>
-          <NavIconButton
-            active={currentPage === "feeds"}
-            onClick={() => onNavigate("feeds")}
-            ariaLabel={t("feedsAdminAria", lang)}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="8" y1="6" x2="21" y2="6" />
-              <line x1="8" y1="12" x2="21" y2="12" />
-              <line x1="8" y1="18" x2="21" y2="18" />
-              <line x1="3" y1="6" x2="3.01" y2="6" />
-              <line x1="3" y1="12" x2="3.01" y2="12" />
-              <line x1="3" y1="18" x2="3.01" y2="18" />
-            </svg>
-          </NavIconButton>
+          {authed && (
+            <NavIconButton
+              active={currentPage === "topics"}
+              onClick={() => onNavigate("topics")}
+              ariaLabel={t("navTopicsAria", lang)}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 11a9 9 0 0 1 9 9" />
+                <path d="M4 4a16 16 0 0 1 16 16" />
+                <circle cx="5" cy="19" r="1" fill="currentColor" />
+              </svg>
+            </NavIconButton>
+          )}
+          {authed && (
+            <NavIconButton
+              active={currentPage === "feeds"}
+              onClick={() => onNavigate("feeds")}
+              ariaLabel={t("feedsAdminAria", lang)}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="8" y1="6" x2="21" y2="6" />
+                <line x1="8" y1="12" x2="21" y2="12" />
+                <line x1="8" y1="18" x2="21" y2="18" />
+                <line x1="3" y1="6" x2="3.01" y2="6" />
+                <line x1="3" y1="12" x2="3.01" y2="12" />
+                <line x1="3" y1="18" x2="3.01" y2="18" />
+              </svg>
+            </NavIconButton>
+          )}
           <NavIconButton
             active={currentPage === "stats"}
             onClick={() => onNavigate("stats")}
@@ -169,7 +191,21 @@ export function AppHeader({
             </svg>
           </NavIconButton>
         </div>
-        <LangToggle lang={lang} onChange={onLangChange} />
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {!authLoading && (
+            authed ? (
+              <button type="button" onClick={() => void signOut()} style={authBtnStyle}>
+                {t("authSignOut", lang)}
+              </button>
+            ) : (
+              <button type="button" onClick={() => setAuthModalOpen(true)} style={authBtnStyle}>
+                {t("authSignIn", lang)}
+              </button>
+            )
+          )}
+          <LangToggle lang={lang} onChange={onLangChange} />
+        </div>
+        <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} lang={lang} />
       </div>
 
       <img

@@ -481,6 +481,10 @@ const strings = {
     en: "Loading feeds…",
     fr: "Chargement des flux…",
   },
+  feedsAdminSelectFilterPrompt: {
+    en: "Choose “All” or a topic above to load feeds.",
+    fr: "Choisissez « Tous » ou un topic ci-dessus pour charger les flux.",
+  },
   feedsAdminColTopic: {
     en: "Topic",
     fr: "Topic",
@@ -604,6 +608,66 @@ const strings = {
   topicsEmptyList: {
     en: "No topics",
     fr: "Aucun topic",
+  },
+  authSignIn: {
+    en: "Sign in",
+    fr: "Connexion",
+  },
+  authSignOut: {
+    en: "Sign out",
+    fr: "Déconnexion",
+  },
+  authModalTitleSignIn: {
+    en: "Sign in",
+    fr: "Connexion",
+  },
+  authModalTitleSignUp: {
+    en: "Create account",
+    fr: "Créer un compte",
+  },
+  authEmail: {
+    en: "Email",
+    fr: "E-mail",
+  },
+  authPassword: {
+    en: "Password",
+    fr: "Mot de passe",
+  },
+  authFirstName: {
+    en: "First name",
+    fr: "Prénom",
+  },
+  authLastName: {
+    en: "Last name",
+    fr: "Nom",
+  },
+  authSubmitSignIn: {
+    en: "Sign in",
+    fr: "Se connecter",
+  },
+  authSubmitSignUp: {
+    en: "Register",
+    fr: "S'inscrire",
+  },
+  authSwitchToSignUp: {
+    en: "No account? Register",
+    fr: "Pas de compte ? S'inscrire",
+  },
+  authSwitchToSignIn: {
+    en: "Already have an account? Sign in",
+    fr: "Déjà un compte ? Se connecter",
+  },
+  authCloseAria: {
+    en: "Close",
+    fr: "Fermer",
+  },
+  authErrorGeneric: {
+    en: "Something went wrong. Check your details and try again.",
+    fr: "Une erreur s'est produite. Vérifiez vos informations et réessayez.",
+  },
+  authSignUpCheckEmail: {
+    en: "Check your email to confirm your account, then sign in.",
+    fr: "Consultez vos e-mails pour confirmer votre compte, puis connectez-vous.",
   },
 } as const;
 

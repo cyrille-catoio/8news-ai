@@ -24,6 +24,16 @@ function heatmapBg(pct: number, tier: string): string | undefined {
   return `rgba(${r},${gr},${b},${a})`;
 }
 
+type TopicCompSortKey =
+  | "topic"
+  | "total"
+  | "scored"
+  | "pctScored"
+  | "avgScore"
+  | "hitRate"
+  | "totalFeeds"
+  | "activeSources";
+
 export function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
   const [data, setData] = useState<StatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -32,6 +42,8 @@ export function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }
   const [days, setDays] = useState<number | null>(null);
   const [sortKey, setSortKey] = useState("avgScore");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [tcSortKey, setTcSortKey] = useState<TopicCompSortKey>("total");
+  const [tcSortDir, setTcSortDir] = useState<"asc" | "desc">("desc");
   const [visibleArticleCount, setVisibleArticleCount] = useState(50);
   const cache = useRef<Record<string, StatsResponse>>({});
   const locale = dateLocale(lang);
@@ -87,6 +99,16 @@ export function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }
   };
   const sortArrow = (key: string) => (key === sortKey ? (sortDir === "desc" ? " ▼" : " ▲") : "");
 
+  const handleTcSort = (key: TopicCompSortKey) => {
+    if (key === tcSortKey) setTcSortDir((d) => (d === "desc" ? "asc" : "desc"));
+    else {
+      setTcSortKey(key);
+      setTcSortDir(key === "topic" ? "asc" : "desc");
+    }
+  };
+  const tcSortArrow = (key: TopicCompSortKey) =>
+    key === tcSortKey ? (tcSortDir === "desc" ? " ▼" : " ▲") : "";
+
   // ── Shared styles ──
   const kpiCard: CSSProperties = { background: color.surface, border: `1px solid ${color.border}`, borderRadius: 8, padding: "10px 6px", textAlign: "center" };
   const kpiVal: CSSProperties = { fontSize: 17, fontWeight: 700, color: color.gold };
@@ -134,6 +156,40 @@ export function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }
     const va = (a as Record<string, unknown>)[sortKey] as number;
     const vb = (b as Record<string, unknown>)[sortKey] as number;
     return sortDir === "desc" ? vb - va : va - vb;
+  });
+
+  const sortedTopicComparison = [...topicComparison].sort((a, b) => {
+    const lbl = (tp: string) => topics.find((item) => item.id === tp)?.label ?? tp;
+    let cmp = 0;
+    switch (tcSortKey) {
+      case "topic":
+        cmp = lbl(a.topic).localeCompare(lbl(b.topic), locale, { sensitivity: "base" });
+        break;
+      case "total":
+        cmp = a.total - b.total;
+        break;
+      case "scored":
+        cmp = a.scored - b.scored;
+        break;
+      case "pctScored":
+        cmp = a.pctScored - b.pctScored;
+        break;
+      case "avgScore":
+        cmp = a.avgScore - b.avgScore;
+        break;
+      case "hitRate":
+        cmp = a.hitRate - b.hitRate;
+        break;
+      case "totalFeeds":
+        cmp = a.totalFeeds - b.totalFeeds;
+        break;
+      case "activeSources":
+        cmp = a.activeSources - b.activeSources;
+        break;
+      default:
+        break;
+    }
+    return tcSortDir === "desc" ? -cmp : cmp;
   });
 
   return (
@@ -248,6 +304,59 @@ export function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }
           ))}
         </div>
       </div>
+
+      {/* ── Topic Comparison (All only) ──────────── */}
+      {(statsTopic === "all" || statsTopic === null) && topicComparison.length > 0 && (
+        <div style={sectionCard}>
+          <h4 style={formSectionTitle}>{t("topicComparison", lang)}</h4>
+          <div className="s-tw">
+            <table className="s-tb">
+              <thead>
+                <tr>
+                  <th className="sc" onClick={() => handleTcSort("topic")}>
+                    Topic{tcSortArrow("topic")}
+                  </th>
+                  <th className="sc" onClick={() => handleTcSort("total")}>
+                    {t("total", lang)}{tcSortArrow("total")}
+                  </th>
+                  <th className="sc" onClick={() => handleTcSort("scored")}>
+                    {t("scored", lang)}{tcSortArrow("scored")}
+                  </th>
+                  <th className="sc" onClick={() => handleTcSort("pctScored")}>
+                    {t("coverage", lang)}{tcSortArrow("pctScored")}
+                  </th>
+                  <th className="sc" onClick={() => handleTcSort("avgScore")}>
+                    {t("avgScore", lang)}{tcSortArrow("avgScore")}
+                  </th>
+                  <th className="sc" onClick={() => handleTcSort("hitRate")}>
+                    Score ≥ 7{tcSortArrow("hitRate")}
+                  </th>
+                  <th className="sc" onClick={() => handleTcSort("totalFeeds")}>
+                    {t("feeds", lang)}{tcSortArrow("totalFeeds")}
+                  </th>
+                  <th className="sc" onClick={() => handleTcSort("activeSources")}>
+                    {t("activeFeeds", lang)} ({lang === "fr" ? "7j" : "7d"}){tcSortArrow("activeSources")}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedTopicComparison.map((tc) => (
+                  <tr key={tc.topic}>
+                    <td style={{ fontWeight: 500, color: color.gold }}>{topicLabel(tc.topic)}</td>
+                    <td>{fmt(tc.total)}</td>
+                    <td>{fmt(tc.scored)}</td>
+                    <td style={{ color: covClr(tc.pctScored) }}>{tc.pctScored}%</td>
+                    <td style={{ fontWeight: 700, color: scoreClr(tc.avgScore) }}>{tc.avgScore}</td>
+                    <td style={{ color: hitClr(tc.hitRate), fontWeight: 600 }}>{tc.hitRate}%</td>
+                    <td>{tc.totalFeeds}</td>
+                    <td>{tc.activeSources}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* ── Feed Ranking Table ────────────────────── */}
       <div style={sectionCard}>
@@ -380,42 +489,6 @@ export function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }
         </>)}
       </div>
 
-      {/* ── Topic Comparison (All only) ──────────── */}
-      {(statsTopic === "all" || statsTopic === null) && topicComparison.length > 0 && (
-        <div style={sectionCard}>
-          <h4 style={formSectionTitle}>{t("topicComparison", lang)}</h4>
-          <div className="s-tw">
-            <table className="s-tb">
-              <thead>
-                <tr>
-                  <th>Topic</th>
-                  <th>{t("total", lang)}</th>
-                  <th>{t("scored", lang)}</th>
-                  <th>{t("coverage", lang)}</th>
-                  <th>{t("avgScore", lang)}</th>
-                  <th>Score ≥ 7</th>
-                  <th>{t("feeds", lang)}</th>
-                  <th>{t("activeFeeds", lang)} ({lang === "fr" ? "7j" : "7d"})</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topicComparison.map((tc) => (
-                  <tr key={tc.topic}>
-                    <td style={{ fontWeight: 500, color: color.gold }}>{topicLabel(tc.topic)}</td>
-                    <td>{fmt(tc.total)}</td>
-                    <td>{fmt(tc.scored)}</td>
-                    <td style={{ color: covClr(tc.pctScored) }}>{tc.pctScored}%</td>
-                    <td style={{ fontWeight: 700, color: scoreClr(tc.avgScore) }}>{tc.avgScore}</td>
-                    <td style={{ color: hitClr(tc.hitRate), fontWeight: 600 }}>{tc.hitRate}%</td>
-                    <td>{tc.totalFeeds}</td>
-                    <td>{tc.activeSources}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
       </>}
 
       </div>{/* end filtered sections wrapper */}

@@ -4,6 +4,7 @@ import {
   getAllFeedsRows,
   type StatsArticleRow,
 } from "@/lib/supabase";
+import { getSessionUser, unauthorizedResponse } from "@/lib/auth-api";
 
 function roundOne(n: number): number {
   return Math.round(n * 10) / 10;
@@ -30,6 +31,8 @@ function buildBuckets(articles: StatsArticleRow[]) {
 }
 
 export async function GET(req: NextRequest) {
+  const user = await getSessionUser();
+  if (!user) return unauthorizedResponse();
   try {
     const topic = req.nextUrl.searchParams.get("topic") ?? "all";
     if (topic !== "all" && !/^[a-z0-9_-]+$/i.test(topic)) {

@@ -115,6 +115,8 @@ export async function GET() {
   let delayP50Minutes = 0;
   let delayP95Minutes = 0;
   let slaUnder5mPct = 0;
+  /** Count of valid fetch→score delays in the 24h cohort (for SLA / alerts only when sampled). */
+  let fetchToScoreDelaySamples = 0;
   if (delayCohortRows.length > 0) {
     const delays = delayCohortRows
       .map((r) => {
@@ -123,6 +125,7 @@ export async function GET() {
         return scored > fetched ? (scored - fetched) / 60_000 : 0;
       })
       .filter((d) => d > 0);
+    fetchToScoreDelaySamples = delays.length;
     avgDelayMinutes = delays.length > 0
       ? roundOne(delays.reduce((s, v) => s + v, 0) / delays.length)
       : 0;
@@ -200,7 +203,10 @@ export async function GET() {
     }));
 
   const alerts: string[] = [];
-  if (delayP95Minutes > 5) alerts.push("p95(fetch_to_score)>5m");
+  if (delayP95Minutes > 30) alerts.push("p95(fetch_to_score)>30m");
+  if (fetchToScoreDelaySamples > 0 && slaUnder5mPct < 80) {
+    alerts.push("sla(fetch_to_score_under_5m)<80pct");
+  }
   if ((freshBacklog5m ?? 0) > 150) alerts.push("fresh_backlog_5m_high");
   if (coverage24h < 70) alerts.push("coverage24h_low");
 

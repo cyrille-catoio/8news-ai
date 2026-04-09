@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
 import type { ScoreResult } from "@/lib/types";
 import { getFeedById } from "@/lib/supabase";
+import { getSessionUser, unauthorizedResponse } from "@/lib/auth-api";
 
 /**
  * Keep this route under Netlify's observed ~13s wall-time cap.
@@ -25,6 +26,9 @@ export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string; feedId: string }> },
 ) {
+  const user = await getSessionUser();
+  if (!user) return unauthorizedResponse();
+
   const requestT0 = Date.now();
   try {
     const { id: topicId, feedId: feedIdStr } = await params;

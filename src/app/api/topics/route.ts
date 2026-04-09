@@ -4,10 +4,15 @@ import {
   createTopic,
 } from "@/lib/supabase";
 import type { TopicItem } from "@/lib/types";
+import { getSessionUser, unauthorizedResponse } from "@/lib/auth-api";
 
 export async function GET(req: NextRequest) {
   try {
     const includeAll = req.nextUrl.searchParams.get("all") === "1";
+    if (includeAll) {
+      const user = await getSessionUser();
+      if (!user) return unauthorizedResponse();
+    }
     const rows = await getActiveTopics(includeAll);
 
     const topics: TopicItem[] = rows.map((r) => ({
@@ -81,6 +86,8 @@ Les valeurs "index" correspondent aux positions (à partir de 0) dans la liste. 
 const SLUG_RE = /^[a-z0-9-]{2,30}$/;
 
 export async function POST(req: NextRequest) {
+  const user = await getSessionUser();
+  if (!user) return unauthorizedResponse();
   try {
     const body = await req.json();
     const {

@@ -1,7 +1,7 @@
 # 8news.ai — Technical Specification
 
 **Version**: v1.80
-**Last updated**: April 2026
+**Last updated**: 8 April 2026
 
 ---
 
@@ -10,6 +10,8 @@
 **8news.ai** is an AI-powered news aggregation and summarisation platform. It fetches articles from curated RSS feeds across multiple **dynamic, database-driven topics**, pre-scores them with AI via scheduled Netlify cron jobs (stored in Supabase), then analyses the top-scoring articles with OpenAI's GPT-4.1-nano for structured summarisation. Results are presented in a dark-themed, bilingual (EN/FR) web interface with ElevenLabs text-to-speech playback.
 
 Users can **create custom topics** from the UI, with AI-assisted generation of scoring criteria and automatic RSS feed discovery.
+
+**v1.80+**: The app remains **fully usable without signing in** (home, stats, crons, changelog, settings). **Supabase Auth** (email + password) is required only for **Topics** administration and **Feed management**; those nav icons and API mutations are gated server-side (`401` without a valid session cookie).
 
 **Tagline**: "AI that decodes the news" / "L'IA qui décrypte l'actualité"
 
@@ -30,6 +32,7 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 | AI (text analysis) | OpenAI API — `gpt-4.1-nano` | via `openai` ^6.25.0 |
 | AI (text-to-speech) | ElevenLabs API — `eleven_flash_v2_5` model | via REST API |
 | Database | Supabase (PostgreSQL) | via `@supabase/supabase-js` |
+| Auth (session cookies) | Supabase Auth + `@supabase/ssr` | **v1.80+** — browser anon client + `middleware.ts` refresh |
 | Hosting | Netlify | via `@netlify/plugin-nextjs` ^5.15.8 |
 | Cron Jobs | Netlify Scheduled Functions | `@netlify/functions` |
 | Domain | 8news.ai (redirect from 8news.netlify.app) | |
@@ -40,6 +43,7 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 
 ```
 8news/
+├── middleware.ts               # **v1.80+**: Supabase session cookie refresh on each request
 ├── public/
 │   ├── logo-8news.png          # App logo (PNG, "8" gold / "news" light grey)
 │   ├── favicon.svg             # Browser favicon — gold "8" on black, 512×512
@@ -47,10 +51,11 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   └── version.json            # {"version":"1.80"} — auto-update check (bump with each release)
 ├── src/
 │   ├── app/
-│   │   ├── layout.tsx          # Root layout, metadata, favicons
+│   │   ├── layout.tsx          # Root layout, metadata, favicons, **v1.80+** `AuthProvider` wrapper
+│   │   ├── providers.tsx       # **v1.80+**: `AuthProvider` / `useAuth` (Supabase session)
 │   │   ├── globals.css         # Global CSS reset + base styles
 │   │   ├── page.tsx            # Main client shell: home flow + `currentPage` router to feature components
-│   │   ├── components/         # Feature UI: AppHeader, TopFeedSection, TopicsPage/, StatsPage, FeedsAdminPage, …
+│   │   ├── components/         # Feature UI: AppHeader, AuthModal, TopFeedSection, TopicsPage/, StatsPage, FeedsAdminPage, …
 │   │   └── api/
 │   │       ├── news/
 │   │       │   ├── route.ts            # GET /api/news — Supabase read + AI analysis
@@ -60,13 +65,13 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   │       ├── tts/route.ts            # POST /api/tts — ElevenLabs Text-to-Speech
 │   │       ├── stats/route.ts          # GET /api/stats — Dashboard statistics
 │   │       ├── fetch-feeds/route.ts    # GET /api/fetch-feeds — manual RSS fetch
-│   │       ├── feeds-admin/route.ts    # GET /api/feeds-admin — feeds + per-source article stats (admin UI)
+│   │       ├── feeds-admin/route.ts    # GET /api/feeds-admin — feeds + stats (**v1.80+**: session required)
 │   │       ├── changelog/route.ts      # GET /api/changelog — update log entries from DB
 │   │       ├── test-score/route.ts     # GET /api/test-score — manual scoring
 │   │       └── topics/
-│   │           ├── route.ts                    # GET/POST /api/topics — list & create
+│   │           ├── route.ts                    # GET/POST /api/topics — list (public without `?all=1`) & create (session **v1.80+**)
 │   │           ├── generate-scoring/route.ts   # POST — AI-generate scoring criteria
-│   │           ├── reorder/route.ts            # PUT /api/topics/reorder — sort order
+│   │           ├── reorder/route.ts            # POST /api/topics/reorder — swap sort order between two topics
 │   │           └── [id]/
 │   │               ├── route.ts                # GET/PATCH/DELETE /api/topics/:id
 │   │               ├── feeds/
@@ -82,7 +87,9 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │       ├── types.ts            # TypeScript interfaces (TopicItem, TopicDetail, etc.)
 │       ├── theme.ts            # Design tokens (colors, fonts, shared styles)
 │       ├── i18n.ts             # EN/FR translation strings (100+ keys)
-│       ├── supabase.ts         # Supabase client, caching, article/topic/feed queries
+│       ├── supabase.ts         # Supabase **service-role** client, caching, article/topic/feed queries (not for browser auth)
+│       ├── supabase-browser.ts # **v1.80+**: `createBrowserSupabaseClient()` — anon key, sign-in / sign-up
+│       ├── auth-api.ts         # **v1.80+**: `getSessionUser()` for Route Handlers (cookie session)
 │       ├── html.ts             # HTML entity decoder
 │       ├── cookies.ts          # getCookie / setCookie (client prefs: lang, maxArticles, TTS)
 │       ├── fetch-topic-dynamic.ts  # RSS fetch + upsert (used by API + Netlify)
@@ -100,8 +107,6 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   ├── 003-topic-anthropic.sql # Add Anthropic topic with scoring + prompts
 │   ├── 004-feeds-anthropic.sql # Add 20 RSS feeds for Anthropic
 │   ├── 005-changelog.sql       # changelog table + seed (in-app update log)
-│   ├── insert-changelog-1.77.sql # one-off INSERT for v1.77 on existing DBs (Supabase SQL Editor)
-│   ├── insert-changelog-1.78.sql # one-off INSERT for v1.78 on existing DBs (Supabase SQL Editor)
 │   ├── insert-changelog-1.77.sql # one-off INSERT for v1.77 on existing DBs (Supabase SQL Editor)
 │   ├── insert-changelog-1.78.sql # one-off INSERT for v1.78 on existing DBs (Supabase SQL Editor)
 │   ├── insert-changelog-1.79.sql # one-off INSERT for v1.79 on existing DBs (Supabase SQL Editor)
@@ -250,6 +255,14 @@ Articles are fetched and pre-scored by **2 scheduled Netlify functions** (not pe
 
 ### 6.2 API Routes
 
+#### User authentication (v1.80+)
+
+- **Supabase Auth** with email + password; sign-up stores **`first_name`** / **`last_name`** in **`user_metadata`**.
+- **`middleware.ts`** refreshes the auth cookie on each matched request.
+- **Route Handlers** call **`getSessionUser()`** (`src/lib/auth-api.ts`, anon key + `cookies()` from Next) and return **`401`** when no user.
+- **Public without session**: `GET /api/topics` **without** `all=1` (homepage topic list), plus existing public endpoints (news, stats, changelog, cron-stats, etc.).
+- **Session required**: `GET /api/topics?all=1`, `POST /api/topics`, all **`/api/topics/[id]`** methods, **`/api/topics/reorder`**, **`generate-scoring`**, **`discover-feeds`**, all **`/api/topics/[id]/feeds/...`**, **`GET /api/feeds-admin`**.
+
 #### `GET /api/news`
 
 Main data endpoint. Reads pre-scored articles from Supabase, analyses with AI, returns structured summary.
@@ -342,9 +355,11 @@ Text-to-Speech via ElevenLabs `eleven_flash_v2_5`. Returns `audio/mpeg` (MP3).
 
 #### Topics API
 
+**v1.80+**: Unless noted **public**, routes below require a **Supabase session** (see §6.2 introduction).
+
 | Route | Method | Description |
 |---|---|---|
-| `/api/topics` | GET | List active topics with feed counts |
+| `/api/topics` | GET | **Public** without `?all=1`: active topics + feed counts for homepage. **`?all=1`**: includes inactive topics (**session**). |
 | `/api/topics` | POST | Create topic (auto-generates prompts if empty) |
 | `/api/topics/[id]` | GET | Topic detail with feeds, scoring, prompts |
 | `/api/topics/[id]` | PATCH | Update topic (labels, scoring, prompts) |
@@ -355,7 +370,7 @@ Text-to-Speech via ElevenLabs `eleven_flash_v2_5`. Returns `audio/mpeg` (MP3).
 | `/api/topics/[id]/feeds/[feedId]/articles` | DELETE | Delete all `articles` rows for this topic + feed `name` (source) |
 | `/api/topics/[id]/feeds/[feedId]/score` | POST | Score up to **50** unscored articles (`topic` + **`source` = trimmed `feeds.name`**). Route is capped to Netlify constraints: **`maxDuration` 13**, global elapsed budget (~12s), sequential batches (**12**) with per-call timeout (~6.5s). Returns **`partial: true`** if budget stops remaining batches; may include **`errors`** / **`error`** when scoring fails. **Feeds admin** shows partial-success toast and error details. |
 | `/api/topics/generate-scoring` | POST | AI-generate 5 scoring tiers from domain |
-| `/api/topics/reorder` | PUT | Update sort order (array of `{ id, sortOrder }`) |
+| `/api/topics/reorder` | POST | Swap **`sort_order`** between two topic IDs (`topicA`, `topicB` in JSON body) |
 | `/api/topics/[id]/discover-feeds` | POST | AI-discover + validate + insert 10 RSS feeds |
 
 #### `POST /api/topics/generate-scoring`
@@ -371,6 +386,8 @@ Uses GPT-4.1-nano to generate 5 scoring tier descriptions from a domain descript
 5. Returns `{ added: [...], rejected: [...] }`
 
 #### `GET /api/feeds-admin`
+
+**v1.80+**: **Session required** (`401` if unsigned).
 
 | Param | Type | Description |
 |---|---|---|
@@ -430,14 +447,14 @@ The app root is `src/app/page.tsx` (`"use client"`): **home** topic/period flow,
 
 ### 8.2 Navigation
 
-The app has **7 pages** managed by `currentPage` state (`"home"` | `"stats"` | `"crons"` | `"topics"` | `"feeds"` | `"changelog"` | `"settings"`):
+The app has **7 pages** managed by `currentPage` state (`"home"` | `"stats"` | `"crons"` | `"topics"` | `"feeds"` | `"changelog"` | `"settings"`). **v1.80+**: **`topics`** and **`feeds`** are reachable only when signed in (icons hidden for guests; leaving those pages without a session returns to **home**).
 
 **Header** (`AppHeader`, shared across all pages):
 - **Logo**: PNG image (`/logo-8news.png`), responsive height — **clicking logo resets to homepage Top 20 feed**
 - **Subtitle**: "AI that decodes the news" / "L'IA qui décrypte l'actualité" (`t("subtitle", lang)`)
 - **Top-right controls**:
-  - **Icon row** (left to right): **Home** (house), **Topics** (RSS arcs), **Feed management** (list icon), **Stats** (bars), **Cron Monitor** (pulse), **Changelog** (clock), **Settings** (gear)
-  - **Language toggle** (EN/FR) — **below** the icon row, right-aligned, ~20% smaller than before
+  - **Icon row** (left to right): **Home** (house); **Topics** and **Feed management** only if **signed in** (**v1.80+**); **Stats** (bars), **Cron Monitor** (pulse), **Changelog** (clock), **Settings** (gear)
+  - **Row below icons**: **Sign in** / **Sign out** (**v1.80+**, `AuthModal` for email/password + register with first/last name) **to the left of** the **language toggle** (EN/FR), right-aligned
 
 ### 8.3 Home Page
 
@@ -835,6 +852,7 @@ User clicks period button
 | `OPENAI_API_KEY` | Yes | OpenAI API key for GPT-4.1-nano |
 | `ELEVENLABS_API_KEY` | Yes | ElevenLabs API key for TTS |
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anon (public) key — **v1.80+** browser auth + session validation in API routes |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key |
 | `CRON_SECRET` | Yes | Secret for manual API route invocation |
 
@@ -910,7 +928,7 @@ Summary table (one line per release). **§17.1** expands **v1.65–v1.80** in de
 | v1.77 | **Release 1.77**: **`public/version.json`** and **`APP_VERSION`** → **1.77**; **`.gitignore`**: ignore **`.claude/`** (agent worktrees); **SPEC** §17 and **`migrations/005-changelog.sql`** include **1.77** for parity with the in-app Changelog. **No product change** vs **v1.76** (same Top 20 i18n and feed flows). |
 | v1.78 | **Scoring backlog & Netlify limits**: **cron-score** + post-fetch mini-score use **`windowHours: null`** — unscored articles are eligible **regardless of `pub_date`** (previously only last **168h**, which hid old backlog). Backlog counts **all** unscored per topic. **`POST .../feeds/[feedId]/score`**: OpenAI batches of **12** in **parallel** (avoids Netlify **~10s** wall timeout from sequential calls), **8s**/call, trimmed **`source`** match, **`maxDuration` 26**. **`version.json`** / **`APP_VERSION`** **1.78**; **`insert-changelog-1.78.sql`**. **`GET /api/test-score`** still defaults to **168h** window. |
 | v1.79 | **Netlify 13s cron optimization**: unify cron runtime budget around **13s** cap; **fresh-first** scoring priority (`fetched_at` last 5m), adaptive scoring quotas, fairness anti-starvation, structured cron metrics. **Feed manual score** route updated to **`maxDuration` 13** with elapsed-budget partial responses (`partial`). **Cron Monitor** adds `delay p95`, `SLA <5m`, `fresh backlog 5m`, and alerts. |
-| v1.80 | **Plan B — dev cycle start**: **`version.json`** / **`APP_VERSION`** **1.80** before shipping features; **SPEC** §17 through **1.80**; **`005-changelog.sql`** + **`insert-changelog-1.80.sql`**. *Functional changelog text will be completed when **1.80** is deployed; until then local UI may show a “development bump” row if you run the INSERT on Supabase.* |
+| v1.80 | **Supabase user authentication**: optional **email + password** sign-in; **Topics** + **Feed management** (UI + APIs) require a session; rest of the app stays public. **`@supabase/ssr`**, **`middleware.ts`**, **`AuthProvider`** / **`AuthModal`**, **`auth-api.ts`** + **`supabase-browser.ts`**. Register: first name, last name, email, password → **`user_metadata`**. **`GET /api/topics`** without `?all=1` remains public for the homepage selector. |
 
 ### 17.1 Release detail — v1.65 through v1.80
 
@@ -931,7 +949,7 @@ Summary table (one line per release). **§17.1** expands **v1.65–v1.80** in de
 | **1.77** | **Identifiers** **1.77** (`version.json`, **`APP_VERSION`**). **Repo**: **`.gitignore`** adds **`.claude/`**. **Docs/DB**: SPEC §17 through **1.77**; on Supabase run **`migrations/insert-changelog-1.77.sql`** once if the **1.77** row is missing. | *v1.77, gitignore .claude, journal* |
 | **1.78** | **Cron / mini-score**: `windowHours: null` — no **`pub_date`** cutoff on unscored selection; backlog = all unscored per topic. **Manual feed score**: batches **12** **parallel**, **8s**/call, **`source` trim**, **`maxDuration` 26** (Netlify). **1.78** identifiers + **`insert-changelog-1.78.sql`**. | *Scoring backlog, limites Netlify, v1.78* |
 | **1.79** | **Cron orchestration for Netlify 13s**: shared runtime budget (`CRON_BUDGET_MS`, reserve), fetch cap default **3 topics/run**, adaptive post-fetch mini-score with remaining-time gate, score cron **fresh-first** with adaptive `maxArticles` and fairness injection. **Manual feed score** route now **`maxDuration` 13** with sequential batches and `partial` response when budget ends. **Cron Monitor**: add `delayP95`, `SLA<5m`, `freshBacklog5m`, and `alerts`. | *Optimisation crons 13s Netlify & SLA <5 min* |
-| **1.80** | **Plan B**: bump **1.80** (`version.json`, **`APP_VERSION`**) at start of cycle; SPEC + seed **005** + **`insert-changelog-1.80.sql`**; enrich §17 / DB row when **1.80** ships. | *Cycle dev 1.80 (bump amont)* |
+| **1.80** | **Supabase Auth** (optional): **Sign in / Sign out** next to language toggle; **Topics** + **Feeds** nav + admin APIs gated (`401` without session); **`middleware`** cookie refresh; homepage **`GET /api/topics`** still public. Registration: prénom, nom, e-mail, MDP → metadata. | *Authentification Supabase, accès Topics/Feeds réservé* |
 
 > **Note:** If the in-app Changelog was filled before **1.74–1.80** rows existed, run the per-version **`INSERT`** statements (e.g. **`insert-changelog-1.80.sql`**) or re-apply **`005-changelog.sql`** (after **`TRUNCATE changelog`** only if you want a full re-seed). **SPEC** and **runtime** remain authoritative when copy diverges.
 
@@ -939,7 +957,7 @@ Summary table (one line per release). **§17.1** expands **v1.65–v1.80** in de
 
 ## 18. Known Limitations
 
-- **No authentication** — The app is public, no user accounts
+- **Partial authentication (v1.80+)** — **Supabase Auth** protects **Topics** and **Feed management** only. The homepage, stats, crons, changelog, and settings remain usable **without** an account. There is no per-user data partitioning in the database (topics/feeds/articles are still shared); auth is an **admin gate** for those screens.
 - **Serverless timeout** — Netlify runtime is constrained around **13s wall-time** on this project. `POST .../feeds/[feedId]/score` is capped at **`maxDuration` 13** with a shorter internal elapsed budget and may return `partial` when time is exhausted. Scheduled crons also enforce internal budget + reserve and stop early before platform timeout.
 - **RSS availability** — Some feeds may go offline; AI feed discovery validates upfront but feeds can break later
 - **AI cost** — Each request consumes OpenAI tokens (gpt-4.1-nano), each TTS request consumes ElevenLabs credits

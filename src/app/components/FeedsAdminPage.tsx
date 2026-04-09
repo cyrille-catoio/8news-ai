@@ -19,9 +19,10 @@ type FeedsAdminSortKey =
   | "hitRateGte7";
 
 export function FeedsAdminPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
-  const [filter, setFilter] = useState<"all" | string>("all");
+  /** `null` until the user picks a filter — no initial `/api/feeds-admin` request. */
+  const [filter, setFilter] = useState<"all" | string | null>(null);
   const [rows, setRows] = useState<FeedAdminRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [refresh, setRefresh] = useState(0);
@@ -126,6 +127,12 @@ export function FeedsAdminPage({ lang, topics }: { lang: Lang; topics: TopicLabe
   }, [filter]);
 
   useEffect(() => {
+    if (filter === null) {
+      setLoading(false);
+      setErr(null);
+      return;
+    }
+
     const ac = new AbortController();
     setLoading(true);
     setErr(null);
@@ -382,7 +389,11 @@ export function FeedsAdminPage({ lang, topics }: { lang: Lang; topics: TopicLabe
         )}
       </div>
 
-      {loading && rows.length === 0 ? (
+      {filter === null ? (
+        <p style={{ color: color.textMuted, fontSize: 14, lineHeight: 1.5 }}>
+          {t("feedsAdminSelectFilterPrompt", lang)}
+        </p>
+      ) : loading && rows.length === 0 ? (
         <div style={{ padding: "60px 0", textAlign: "center" }}>
           <span style={spinnerStyle(28)} />
           <p style={{ color: color.textMuted, fontSize: 14, marginTop: 12 }}>{t("feedsAdminLoading", lang)}</p>

@@ -97,8 +97,16 @@ export function CronMonitorPage({ lang }: { lang: Lang }) {
         <span className="cron-pulse-dot" title="Auto-refresh 60s" />
       </div>
 
-      {/* ── KPIs ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 8, marginBottom: 20 }}>
+      {/* ── KPIs (wrap on narrow viewports) ── */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 132px), 1fr))",
+          gap: 8,
+          marginBottom: 20,
+          width: "100%",
+        }}
+      >
         <div style={kpiCard}>
           <div style={{ ...kpiVal, color: kpiColor(data.global.backlog, [50, 200], true) }}>{fmt(data.global.backlog)}</div>
           <div style={kpiLbl}>{t("backlog", lang)}</div>
@@ -120,7 +128,7 @@ export function CronMonitorPage({ lang }: { lang: Lang }) {
           <div style={kpiLbl}>{t("avgDelay", lang)}</div>
         </div>
         <div style={kpiCard}>
-          <div style={{ ...kpiVal, color: kpiColor(data.global.delayP95Minutes ?? 0, [5, 8], true) }}>
+          <div style={{ ...kpiVal, color: kpiColor(data.global.delayP95Minutes ?? 0, [15, 30], true) }}>
             {(data.global.delayP95Minutes ?? 0).toLocaleString(lang === "fr" ? "fr-FR" : "en-US", { maximumFractionDigits: 1 })}m
           </div>
           <div style={kpiLbl}>{t("delayP95", lang)}</div>

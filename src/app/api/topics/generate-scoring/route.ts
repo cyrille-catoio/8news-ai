@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { getSessionUser, unauthorizedResponse } from "@/lib/auth-api";
 
 export async function POST(req: Request) {
+  const user = await getSessionUser();
+  if (!user) return unauthorizedResponse();
+
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: "OPENAI_API_KEY not configured" }, { status: 500 });

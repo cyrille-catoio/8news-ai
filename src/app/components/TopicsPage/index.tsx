@@ -48,6 +48,7 @@ export function TopicsPage({ lang }: { lang: Lang }) {
   const [formPromptFr, setFormPromptFr] = useState("");
   const [formPromptLang, setFormPromptLang] = useState<"en" | "fr">("en");
   const [generatingScoring, setGeneratingScoring] = useState(false);
+  const [generatingLabels, setGeneratingLabels] = useState(false);
   const [autoFeeds, setAutoFeeds] = useState(true);
   const [discoveringFeeds, setDiscoveringFeeds] = useState(false);
   const [discoverResult, setDiscoverResult] = useState<{
@@ -266,6 +267,31 @@ export function TopicsPage({ lang }: { lang: Lang }) {
     }
   }
 
+  async function handleGenerateLabels() {
+    if (!formLabelEn.trim()) return;
+    setGeneratingLabels(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/topics/generate-labels", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ labelEn: formLabelEn.trim() }),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error((e as { error?: string }).error || "Failed");
+      }
+      const data = await res.json();
+      if (data.slug) setFormId(data.slug);
+      if (data.labelFr) setFormLabelFr(data.labelFr);
+      if (data.domain) setFormDomain(data.domain);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to generate");
+    } finally {
+      setGeneratingLabels(false);
+    }
+  }
+
   async function handleAddFeed() {
     if (!topicDetail || !feedName.trim() || !feedUrl.trim()) return;
     setAddingFeed(true);
@@ -374,10 +400,12 @@ export function TopicsPage({ lang }: { lang: Lang }) {
         formPromptLang={formPromptLang}
         setFormPromptLang={setFormPromptLang}
         generatingScoring={generatingScoring}
+        generatingLabels={generatingLabels}
         autoFeeds={autoFeeds}
         setAutoFeeds={setAutoFeeds}
         saving={saving}
         onGenerateScoring={handleGenerateScoring}
+        onGenerateLabels={handleGenerateLabels}
         onCreate={handleCreate}
       />
     );

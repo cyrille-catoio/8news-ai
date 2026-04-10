@@ -159,13 +159,13 @@ export async function GET() {
       status = "high"; statusReason = "backlog";
     } else if (fetchAge > 30) {
       status = "high"; statusReason = "fetch";
-    } else if (scoreAge > 30) {
+    } else if (backlog > 0 && scoreAge > 30) {
       status = "high"; statusReason = "score";
     } else if (backlog >= 50) {
       status = "slow"; statusReason = "backlog";
     } else if (fetchAge > 15) {
       status = "slow"; statusReason = "fetch";
-    } else if (scoreAge > 15) {
+    } else if (backlog > 0 && scoreAge > 15) {
       status = "slow"; statusReason = "score";
     }
 

@@ -4,6 +4,10 @@ import { type CSSProperties, useState } from "react";
 import { t, type Lang } from "@/lib/i18n";
 import { color } from "@/lib/theme";
 import { VoiceAccordion, TTS_VOICES_EN, TTS_VOICES_FR } from "@/app/components/VoiceAccordion";
+import { useAuth } from "@/app/providers";
+import { isOwnerUser, getAppUserType } from "@/lib/user-type";
+import { UsersSection } from "@/app/components/UsersSection";
+import { MyAccountSection } from "@/app/components/MyAccountSection";
 
 export function SettingsPage({
   lang,
@@ -26,6 +30,10 @@ export function SettingsPage({
   ttsVoiceFr: string;
   onTtsVoiceFrChange: (v: string) => void;
 }) {
+  const { session } = useAuth();
+  const user = session?.user ?? null;
+  const showUsers = isOwnerUser(user);
+  const isSignedIn = Boolean(user);
   const [voiceEnOpen, setVoiceEnOpen] = useState(false);
   const [voiceFrOpen, setVoiceFrOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
@@ -53,6 +61,10 @@ export function SettingsPage({
       <h2 style={{ color: color.gold, fontSize: 20, fontWeight: 600, marginBottom: 20, marginTop: 0 }}>
         {t("settingsTitle", lang)}
       </h2>
+
+          {/* ── My account (signed-in users) ─────────────── */}
+          {isSignedIn && <MyAccountSection lang={lang} />}
+
           {/* ── Preferences section ──────────────────────── */}
           <div style={sectionStyle}>
             <h4 style={sectionTitle}>{t("preferencesSection", lang)}</h4>
@@ -158,6 +170,9 @@ export function SettingsPage({
               onToggle={() => setVoiceFrOpen(!voiceFrOpen)}
             />
           </div>
+
+          {/* ── Users section (owner only) ──────────────────── */}
+          {showUsers && <UsersSection lang={lang} />}
 
     </div>
   );

@@ -33,7 +33,7 @@ import { isOwnerUser } from "@/lib/user-type";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.81";
+const APP_VERSION = "1.82";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 
@@ -330,6 +330,7 @@ export default function Home() {
     loading: topFeedLoading,
     refresh: refreshTopFeed,
     clear: clearTopFeed,
+    lastUpdatedAt: topFeedUpdatedAt,
   } = useTopFeed({ poll: topFeedPoll, lang });
 
   useEffect(() => {
@@ -630,9 +631,9 @@ export default function Home() {
               <TopFeedSection
                 articles={topFeed}
                 loading={topFeedLoading}
-                onRefresh={refreshTopFeed}
                 lang={lang}
                 locale={locale}
+                lastUpdatedAt={topFeedUpdatedAt}
               />
             ) : (
               <p style={{ color: color.textDim, padding: "32px 0", fontSize: 15, textAlign: "center" }}>

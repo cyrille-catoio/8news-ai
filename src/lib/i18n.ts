@@ -6,8 +6,8 @@ const strings = {
     fr: "8news",
   },
   subtitle: {
-    en: "AI that decodes the news",
-    fr: "L'IA qui décrypte l'actualité",
+    en: "Tech intelligence, powered by AI.",
+    fr: "La tech décodée par l'IA",
   },
   selectPeriod: {
     en: "Select a time period:",
@@ -668,6 +668,66 @@ const strings = {
   authSignUpCheckEmail: {
     en: "Check your email to confirm your account, then sign in.",
     fr: "Consultez vos e-mails pour confirmer votre compte, puis connectez-vous.",
+  },
+  usersSection: {
+    en: "Users",
+    fr: "Utilisateurs",
+  },
+  usersFirstName: {
+    en: "First name",
+    fr: "Prénom",
+  },
+  usersLastName: {
+    en: "Last name",
+    fr: "Nom",
+  },
+  usersEmail: {
+    en: "Email",
+    fr: "E-mail",
+  },
+  usersType: {
+    en: "Type",
+    fr: "Type",
+  },
+  usersCreatedAt: {
+    en: "Registered",
+    fr: "Inscrit le",
+  },
+  usersActions: {
+    en: "Edit",
+    fr: "Modifier",
+  },
+  usersSaveAria: {
+    en: "Save",
+    fr: "Enregistrer",
+  },
+  usersCancelAria: {
+    en: "Cancel",
+    fr: "Annuler",
+  },
+  usersLoading: {
+    en: "Loading users…",
+    fr: "Chargement des utilisateurs…",
+  },
+  usersLoadError: {
+    en: "Failed to load users.",
+    fr: "Impossible de charger les utilisateurs.",
+  },
+  usersSaveError: {
+    en: "Failed to save changes.",
+    fr: "Impossible d'enregistrer les modifications.",
+  },
+  myAccountSection: {
+    en: "My account",
+    fr: "Mon compte",
+  },
+  myAccountSaveSuccess: {
+    en: "Saved.",
+    fr: "Enregistré.",
+  },
+  myAccountSaveError: {
+    en: "Failed to save.",
+    fr: "Impossible d'enregistrer.",
   },
 } as const;
 

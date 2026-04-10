@@ -23,6 +23,7 @@ export function useTopFeed(options: { poll: boolean; lang: Lang }) {
   const { poll, lang } = options;
   const [articles, setArticles] = useState<TopFeedArticle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
   const refresh = useCallback(() => {
     setLoading(true);
@@ -31,7 +32,10 @@ export function useTopFeed(options: { poll: boolean; lang: Lang }) {
         if (!r.ok) throw new Error();
         return r.json();
       })
-      .then((json: { articles?: TopFeedArticle[] }) => setArticles(json.articles ?? []))
+      .then((json: { articles?: TopFeedArticle[] }) => {
+        setArticles(json.articles ?? []);
+        setLastUpdatedAt(new Date());
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [lang]);
@@ -45,7 +49,10 @@ export function useTopFeed(options: { poll: boolean; lang: Lang }) {
         return r.json();
       })
       .then((json: { articles?: TopFeedArticle[] }) => {
-        if (!cancelled) setArticles(json.articles ?? []);
+        if (!cancelled) {
+          setArticles(json.articles ?? []);
+          setLastUpdatedAt(new Date());
+        }
       })
       .catch(() => {})
       .finally(() => {
@@ -64,13 +71,19 @@ export function useTopFeed(options: { poll: boolean; lang: Lang }) {
           if (!r.ok) throw new Error();
           return r.json();
         })
-        .then((json: { articles?: TopFeedArticle[] }) => setArticles(json.articles ?? []))
+        .then((json: { articles?: TopFeedArticle[] }) => {
+          setArticles(json.articles ?? []);
+          setLastUpdatedAt(new Date());
+        })
         .catch(() => {});
     }, POLL_MS);
     return () => clearInterval(id);
   }, [poll, lang]);
 
-  const clear = useCallback(() => setArticles([]), []);
+  const clear = useCallback(() => {
+    setArticles([]);
+    setLastUpdatedAt(null);
+  }, []);
 
-  return { articles, loading, refresh, clear };
+  return { articles, loading, refresh, clear, lastUpdatedAt };
 }

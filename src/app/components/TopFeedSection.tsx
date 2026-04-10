@@ -14,15 +14,15 @@ function isNew(pubDate: string | undefined): boolean {
 export function TopFeedSection({
   articles,
   loading,
-  onRefresh,
   lang,
   locale,
+  lastUpdatedAt,
 }: {
   articles: TopFeedArticle[];
   loading: boolean;
-  onRefresh: () => void;
   lang: Lang;
   locale: string;
+  lastUpdatedAt: Date | null;
 }) {
   const sorted = [...articles].sort((a, b) => {
     const aNew = isNew(a.pubDate) ? 1 : 0;
@@ -32,34 +32,17 @@ export function TopFeedSection({
 
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <p style={{ color: color.textMuted, fontSize: 12, margin: 0 }}>{t("homeTop20Subtitle", lang)}</p>
-        <button
-          type="button"
-          onClick={onRefresh}
-          disabled={loading}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 5,
-            padding: "4px 10px",
-            border: `1px solid ${color.border}`,
-            borderRadius: 6,
-            background: color.surface,
-            color: color.gold,
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: loading ? "default" : "pointer",
-            opacity: loading ? 0.5 : 1,
-            transition: "opacity 0.15s",
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="23 4 23 10 17 10" />
-            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-          </svg>
-          {t("actionRefresh", lang)}
-        </button>
+      <div style={{ marginBottom: 16 }}>
+        <p style={{ color: color.textMuted, fontSize: 12, margin: 0 }}>
+          {t("homeTop20Subtitle", lang)}
+          {lastUpdatedAt && (
+            <>
+              {" — "}
+              {lang === "fr" ? "Mise à jour" : "Updated"}{" "}
+              {lastUpdatedAt.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}
+            </>
+          )}
+        </p>
       </div>
       {sorted.map((art, i) => (
         <div key={`${art.link}-${i}`} style={{ ...card, display: "block" }}>

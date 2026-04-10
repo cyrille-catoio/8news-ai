@@ -1,7 +1,7 @@
 # 8news.ai — Technical Specification
 
-**Version**: v1.81
-**Last updated**: 16 April 2026
+**Version**: v1.82
+**Last updated**: 10 April 2026
 
 ---
 
@@ -11,9 +11,9 @@
 
 Users can **create custom topics** from the UI, with AI-assisted generation of scoring criteria and automatic RSS feed discovery.
 
-**v1.80+**: Optional **Supabase Auth** (email + password). **v1.81+**: **`user_type`** in **`user_metadata`** — **`member`** (default at sign-up) or **`owner`**. The app remains **fully usable without signing in** (home, stats, crons, changelog, settings). Signed-in **members** use the same public areas as guests. **Topics** and **Feed management** are **`owner`**-only (promote in **Supabase Dashboard → Authentication → Users**; user must sign in again for JWT refresh). Admin APIs: **`401`** unsigned, **`403`** **`member`**.
+**v1.80+**: Optional **Supabase Auth** (email + password). **v1.81+**: **`user_type`** in **`user_metadata`** — **`member`** (default at sign-up) or **`owner`**. The app remains **fully usable without signing in** (home, stats, crons, changelog, settings). Signed-in **members** use the same public areas as guests. **Topics** and **Feed management** are **`owner`**-only (promote in **Supabase Dashboard → Authentication → Users**; user must sign in again for JWT refresh). Admin APIs: **`401`** unsigned, **`403`** **`member`**. **v1.82+**: Settings **My Account** (any authenticated user, editable name) + **Users** management (`owner`-only, inline edit of name and user type).
 
-**Tagline**: "AI that decodes the news" / "L'IA qui décrypte l'actualité"
+**Tagline**: "Tech intelligence, powered by AI." / "La tech décodée par l'IA"
 
 **Live URL**: https://8news.ai
 **Repository**: https://github.com/cyrille-catoio/8news-ai
@@ -48,14 +48,14 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   ├── logo-8news.png          # App logo (PNG, "8" gold / "news" light grey)
 │   ├── favicon.svg             # Browser favicon — gold "8" on black, 512×512
 │   ├── apple-touch-icon.svg    # iOS home screen icon — gold "8" on black, 180×180
-│   └── version.json            # {"version":"1.81"} — auto-update check (bump with each release)
+│   └── version.json            # {"version":"1.82"} — auto-update check (bump with each release)
 ├── src/
 │   ├── app/
-│   │   ├── layout.tsx          # Root layout, metadata, favicons, **v1.80+** `AuthProvider` wrapper
+│   │   ├── layout.tsx          # Root layout, metadata, favicons, **v1.80+** `AuthProvider` wrapper, **v1.82+** Google Analytics
 │   │   ├── providers.tsx       # **v1.80+**: `AuthProvider` / `useAuth` (Supabase session)
 │   │   ├── globals.css         # Global CSS reset + base styles
 │   │   ├── page.tsx            # Main client shell: home flow + `currentPage` router to feature components
-│   │   ├── components/         # Feature UI: AppHeader, AuthModal, TopFeedSection, TopicsPage/, StatsPage, FeedsAdminPage, …
+│   │   ├── components/         # Feature UI: AppHeader, AuthModal, TopFeedSection, TopicsPage/, StatsPage, FeedsAdminPage, MyAccountSection, UsersSection, …
 │   │   └── api/
 │   │       ├── news/
 │   │       │   ├── route.ts            # GET /api/news — Supabase read + AI analysis
@@ -71,6 +71,7 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   │       └── topics/
 │   │           ├── route.ts                    # GET/POST /api/topics — list (public without `?all=1`) & create (session **v1.80+**)
 │   │           ├── generate-scoring/route.ts   # POST — AI-generate scoring criteria
+│   │           ├── generate-labels/route.ts    # **v1.82+**: POST — AI-generate slug, label FR, domain from label EN
 │   │           ├── reorder/route.ts            # POST /api/topics/reorder — swap sort order between two topics
 │   │           └── [id]/
 │   │               ├── route.ts                # GET/PATCH/DELETE /api/topics/:id
@@ -81,8 +82,11 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   │               │       ├── articles/route.ts # DELETE — remove DB articles for topic+source
 │   │               │       └── score/route.ts  # POST — score up to 50 unscored articles (all ages, newest first)
 │   │               └── discover-feeds/route.ts # POST — AI auto-discover RSS feeds
+│   │       └── users/
+│   │           ├── route.ts                   # **v1.82+**: GET — list all users (**owner** only, service role)
+│   │           └── [id]/route.ts              # **v1.82+**: PATCH — update user name / type (**owner** only)
 │   ├── hooks/
-│   │   └── useTopFeed.ts       # Homepage Top 20: GET /api/news/top (v1.76+: `?lang=` + localized snippet; refetch on lang change), refresh, clear, 5 min poll when home + no topic
+│   │   └── useTopFeed.ts       # Homepage Top 20: GET /api/news/top (v1.76+: `?lang=` + localized snippet; refetch on lang change), refresh, clear, 5 min poll when home + no topic, **v1.82+** `lastUpdatedAt` timestamp
 │   └── lib/
 │       ├── types.ts            # TypeScript interfaces (TopicItem, TopicDetail, etc.)
 │       ├── theme.ts            # Design tokens (colors, fonts, shared styles)
@@ -112,7 +116,8 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   ├── insert-changelog-1.78.sql # one-off INSERT for v1.78 on existing DBs (Supabase SQL Editor)
 │   ├── insert-changelog-1.79.sql # one-off INSERT for v1.79 on existing DBs (Supabase SQL Editor)
 │   ├── insert-changelog-1.80.sql # one-off INSERT for v1.80 on existing DBs (Supabase SQL Editor)
-│   └── insert-changelog-1.81.sql # one-off INSERT for v1.81 on existing DBs (Supabase SQL Editor)
+│   ├── insert-changelog-1.81.sql # one-off INSERT for v1.81 on existing DBs (Supabase SQL Editor)
+│   └── insert-changelog-1.82.sql # one-off INSERT for v1.82 on existing DBs (Supabase SQL Editor)
 ├── .gitignore                  # Next/Node ignores; **v1.77+**: `.claude/` (local Claude/Cursor worktrees, not committed)
 ├── .env                        # API keys (not committed)
 ├── .env.example                # Placeholder for API keys
@@ -208,7 +213,7 @@ Users can create new topics from the Topics page. Each topic includes:
 | `body_en` / `body_fr` | text | Detail text |
 | `created_at` | timestamptz | Display order / metadata |
 
-Populated via migration `005-changelog.sql` (newest first): **1.81 → 1.49** one row per release with short EN/FR summaries aligned with §17; **1.0–1.48** are represented by a **single** row (`version` = `1.0–1.48`, shared generic EN/FR body pointing to git history and SPEC for **1.49+**). For new releases, extend the migration (or `INSERT` manually) and keep §17 and `public/version.json` / `APP_VERSION` in sync. **Existing database missing the latest row only:** run **`migrations/insert-changelog-1.81.sql`** once in the Supabase SQL Editor (see file header). Older gaps: **`insert-changelog-1.80.sql`**, **`insert-changelog-1.79.sql`**, etc.
+Populated via migration `005-changelog.sql` (newest first): **1.82 → 1.49** one row per release with short EN/FR summaries aligned with §17; **1.0–1.48** are represented by a **single** row (`version` = `1.0–1.48`, shared generic EN/FR body pointing to git history and SPEC for **1.49+**). For new releases, extend the migration (or `INSERT` manually) and keep §17 and `public/version.json` / `APP_VERSION` in sync. **Existing database missing the latest row only:** run **`migrations/insert-changelog-1.82.sql`** once in the Supabase SQL Editor (see file header). Older gaps: **`insert-changelog-1.81.sql`**, **`insert-changelog-1.80.sql`**, etc.
 
 ### 5.6 Cache TTL (based on time window)
 
@@ -336,7 +341,7 @@ Cron monitoring endpoint. Returns real-time statistics about fetch and scoring j
 - `topics[]`: per-topic status (id, label, lastFetchedAt, lastScoredAt, backlog, status: ok/slow/high, optional **statusReason**: `"backlog"` \| `"fetch"` \| `"score"` for slow/high — used in the Topic Status table **Reason** column)
 - `timeline[]`: hourly buckets (hour, fetched, scored) for the last 24h
 
-**Status rules**: `high` if backlog >200 or fetch/score age >30min; `slow` if backlog ≥50 or age >15min; `ok` otherwise.
+**Status rules**: `high` if backlog >200, fetch age >30min, or (backlog >0 **and** score age >30min); `slow` if backlog ≥50, fetch age >15min, or (backlog >0 **and** score age >15min); `ok` otherwise. **v1.82+**: score age is only penalized when there are unscored articles to process.
 
 Uses **pagination in 1000-row batches** (PostgREST max rows per response) so counts and timelines include all matching rows, not only the first page.
 
@@ -373,6 +378,7 @@ Text-to-Speech via ElevenLabs `eleven_flash_v2_5`. Returns `audio/mpeg` (MP3).
 | `/api/topics/[id]/feeds/[feedId]/articles` | DELETE | Delete all `articles` rows for this topic + feed `name` (source) |
 | `/api/topics/[id]/feeds/[feedId]/score` | POST | Score up to **50** unscored articles (`topic` + **`source` = trimmed `feeds.name`**). Route is capped to Netlify constraints: **`maxDuration` 13**, global elapsed budget (~12s), sequential batches (**12**) with per-call timeout (~6.5s). Returns **`partial: true`** if budget stops remaining batches; may include **`errors`** / **`error`** when scoring fails. **Feeds admin** shows partial-success toast and error details. |
 | `/api/topics/generate-scoring` | POST | AI-generate 5 scoring tiers from domain |
+| `/api/topics/generate-labels` | POST | **v1.82+**: AI-generate slug, label FR, and domain from label EN |
 | `/api/topics/reorder` | POST | Swap **`sort_order`** between two topic IDs (`topicA`, `topicB` in JSON body) |
 | `/api/topics/[id]/discover-feeds` | POST | AI-discover + validate + insert 10 RSS feeds |
 
@@ -397,6 +403,15 @@ Uses GPT-4.1-nano to generate 5 scoring tier descriptions from a domain descript
 | `topic` | string | `all` or a topic id — filters which `feeds` rows are returned |
 
 Returns `{ feeds: [...] }`: each row includes `id`, `topicId`, `source`, `url`, `isActive`, `createdAt`, and aggregates from **`articles`** (`totalArticles`, `scoredArticles`, `avgScore`, `hitRateGte7`) keyed by `topic` + `source` (same scan pattern as stats: paginated article read). Used by **Feed management** UI.
+
+#### Users API (v1.82+)
+
+**`owner`-only** — uses Supabase **service role** to access `auth.admin`.
+
+| Route | Method | Description |
+|---|---|---|
+| `/api/users` | GET | List all registered users (id, email, firstName, lastName, userType, createdAt) |
+| `/api/users/[id]` | PATCH | Update user `first_name`, `last_name`, and/or `user_type` in user_metadata |
 
 #### `GET /api/changelog`
 
@@ -454,7 +469,7 @@ The app has **7 pages** managed by `currentPage` state (`"home"` | `"stats"` | `
 
 **Header** (`AppHeader`, shared across all pages):
 - **Logo**: PNG image (`/logo-8news.png`), responsive height — **clicking logo resets to homepage Top 20 feed**
-- **Subtitle**: "AI that decodes the news" / "L'IA qui décrypte l'actualité" (`t("subtitle", lang)`)
+- **Subtitle**: "Tech intelligence, powered by AI." / "La tech décodée par l'IA" (`t("subtitle", lang)`)
 - **Top-right controls**:
   - **Icon row** (left to right): **Home** (house); **Topics** and **Feed management** only if **`user_type` is `owner`** (**v1.80+**); **Stats** (bars), **Cron Monitor** (pulse), **Changelog** (clock), **Settings** (gear)
   - **Row below icons**: **Sign in** / **Sign out** (**v1.80+**, `AuthModal` for email/password + register with first/last name + default **`member`**) **to the left of** the **language toggle** (EN/FR), right-aligned
@@ -463,7 +478,7 @@ The app has **7 pages** managed by `currentPage` state (`"home"` | `"stats"` | `
 
 #### Default Homepage Feed (Top 20)
 
-On launch (no topic or period selected), the homepage displays the **Top 20 best-scored articles from the last 24 hours** across all topics, fetched from **`/api/news/top`** ( **`v1.76+`**: `?limit=20&days=1&lang={ui lang}` ). UI: **`TopFeedSection`** (caption, refresh, sorted rows, NEW badge, topic pill, copy link). Data + polling: **`useTopFeed`** with `poll === true` only when **`currentPage === "home"`** and **`topic === null`** (initial fetch on mount, silent 5 min refresh, `refresh()` after logo/home reset, `clear()` when user picks a topic). **`v1.76+`**: hook shape **`useTopFeed({ poll, lang })`** — **language change refetches** the Top 20. (`cache: "no-store"` on fetches.)
+On launch (no topic or period selected), the homepage displays the **Top 20 best-scored articles from the last 24 hours** across all topics, fetched from **`/api/news/top`** ( **`v1.76+`**: `?limit=20&days=1&lang={ui lang}` ). UI: **`TopFeedSection`** (caption, sorted rows, NEW badge, topic pill, copy link, **v1.82+** last-updated timestamp `— Mise à jour HH:MM` / `— Updated HH:MM`). Data + polling: **`useTopFeed`** with `poll === true` only when **`currentPage === "home"`** and **`topic === null`** (initial fetch on mount, silent 5 min refresh, `refresh()` after logo/home reset, `clear()` when user picks a topic). **`v1.76+`**: hook shape **`useTopFeed({ poll, lang })`** — **language change refetches** the Top 20. **v1.82+**: hook also exposes **`lastUpdatedAt`** (`Date | null`), updated on every successful fetch. (`cache: "no-store"` on fetches.)
 
 Each Top 20 row shows a small **topic ID badge** (gold outline) next to the source line when `topic` is present. Items with `pubDate` in the **last hour** show a **NEW** badge. **`v1.76+` — French UI**: when a non-empty **`snippet`** is returned (typically **`snippet_ai_fr`**), the **main line** is that French text and the **RSS `title`** appears below in muted style; **English** keeps **title** first and **snippet** under it (like **ArticleCard**). If no AI snippet exists, only the RSS title is shown.
 
@@ -553,14 +568,14 @@ Full CRUD management for topics and feeds. **`index.tsx`** holds state and API h
 **List view**: Table of all topics with #, name, feed count, status, click to detail. Supports **drag & drop reordering** via `/api/topics/reorder` with optimistic UI updates.
 
 **Create view**: Form with:
-- Slug (auto-generated from label EN), Label EN, Label FR
-- Scoring criteria: Domain + 5 tiers
+- **Identity box** (**v1.82+ layout**): Label EN, Label FR, Slug (3-column row); Domain textarea below; **"✨ Generate with AI"** button calls `/api/topics/generate-labels` to auto-fill slug, label FR, and domain from label EN
+- Scoring criteria: 5 tiers
   - **"✨ Generate with AI"** button: calls `/api/topics/generate-scoring` to auto-fill tiers from domain
 - Analysis Prompt (optional): EN/FR tabs, monospace textarea, `{{max}}` info
 - **"🔍 Find 10 RSS feeds automatically"** checkbox (checked by default):
   - After topic creation, calls `/api/topics/[id]/discover-feeds`
   - Shows spinner "Searching for RSS feeds…" in the detail view
-  - Displays result summary (✅ X added / ❌ Y rejected)
+  - Displays result summary (added / rejected)
 
 **Detail view**:
 - Topic info (labels, domain, scoring criteria displayed in read mode with "Scoring" section header, edit toggle)
@@ -587,14 +602,23 @@ Dedicated **RSS / feed operations** view (not the same as Topics CRUD):
 
 ### 8.9 Settings Page (`SettingsPage`)
 
-Two sections:
+Up to four sections depending on auth status:
 
-**1. Preferences**
+**1. My Account** (**v1.82+**, any authenticated user — `MyAccountSection`)
+- Displays first name, last name (editable), email (read-only), user type badge (read-only)
+- Edit/Save/Cancel inline; uses `supabase.auth.updateUser()` to persist name changes in `user_metadata`
+
+**2. Preferences**
 - **Max relevant articles** slider: 3–**100**, default **20**, persisted in cookie. This is the exact number of articles sent to the AI for analysis (no hidden multiplier).
 
-**2. Voice**
+**3. Voice**
 - **Speed** slider: 0.7x–1.2x, default 1.05x
 - **Voice EN** (6 voices), **Voice FR** (6 voices)
+
+**4. Users** (**v1.82+**, `owner` only — `UsersSection`)
+- Table of all registered users: last name, first name, email, type (badge), created at
+- Inline editing per row (first name, last name, user type dropdown) via `PATCH /api/users/[id]`
+- Data fetched from `GET /api/users` (service role)
 
 ### 8.10 Audio Player (`AudioPlayer`)
 
@@ -883,9 +907,9 @@ User clicks period button
 From the **Topics page** in the UI:
 
 1. Click **"+ New Topic"**
-2. Enter slug, EN/FR labels
-3. Enter scoring domain description
-4. Click **"✨ Generate with AI"** to auto-fill scoring criteria (optional)
+2. Enter the **Label EN**
+3. Click **"✨ Generate with AI"** (identity box) to auto-fill slug, label FR, and domain — or fill them manually
+4. Click **"✨ Generate with AI"** (scoring criteria) to auto-fill the 5 scoring tiers from domain (optional)
 5. Optionally customize the analysis prompt (EN/FR)
 6. Leave **"🔍 Find 10 RSS feeds automatically"** checked (or uncheck to add feeds manually later)
 7. Click **"Create"**
@@ -894,12 +918,13 @@ The topic immediately appears in the homepage topic selector, stats page, and cr
 
 ---
 
-## 17. Changelog (v1.49 → v1.81)
+## 17. Changelog (v1.49 → v1.82)
 
-Summary table (one line per release). **§17.1** expands **v1.65–v1.81** in detail (aligned with `005-changelog.sql` seeds and current code).
+Summary table (one line per release). **§17.1** expands **v1.65–v1.82** in detail (aligned with `005-changelog.sql` seeds and current code).
 
 | Version | Key Changes |
 |---|---|
+| v1.82 | Settings **My Account** (editable name, read-only email/type) + **Users** management (owner-only table with inline edit). Homepage refresh button removed; **last-updated timestamp** on Top 20. Baselines updated (EN: "Tech intelligence, powered by AI." / FR: "La tech décodée par l'IA"). Topic creation reorganized (Label EN/FR/Slug row + Domain + AI label generation via `/api/topics/generate-labels`). Cron status: score age only penalized when backlog > 0. Google Analytics integration. |
 | v1.49 | Full Stats dashboard (KPIs, score distribution, feed ranking, top articles, topic comparison) |
 | v1.50 | Replace auto-reload with update banner, add period filters to stats (yesterday, 3d, 7d, 30d) |
 | v1.51 | Boost scoring throughput, fix KPIs period filter |
@@ -934,10 +959,11 @@ Summary table (one line per release). **§17.1** expands **v1.65–v1.81** in de
 | v1.80 | **Supabase user authentication**: optional **email + password** sign-in; **Topics** + **Feed management** (UI + APIs) require a session; rest of the app stays public. **`@supabase/ssr`**, **`middleware.ts`**, **`AuthProvider`** / **`AuthModal`**, **`auth-api.ts`** + **`supabase-browser.ts`**. Register: first name, last name, email, password → **`user_metadata`**. **`GET /api/topics`** without `?all=1` remains public for the homepage selector. |
 | v1.81 | **`member` vs `owner` roles**: **`user_type`** in **`user_metadata`** (`member` at sign-up; **`owner`** set in Supabase Dashboard). **Topics** and **Feed management** are **`owner`**-only; **members** keep guest-level access to other screens. **`requireOwnerSession()`** returns **401** / **403**. **`src/lib/user-type.ts`**. **`version.json`** / **`APP_VERSION`** **1.81**; **`insert-changelog-1.81.sql`**. |
 
-### 17.1 Release detail — v1.65 through v1.81
+### 17.1 Release detail — v1.65 through v1.82
 
 | Ver. | EN (what shipped) | FR (titre seed migration) |
 |------|-------------------|----------------------------|
+| **1.82** | Settings: **My Account** section for any authenticated user (editable first/last name, read-only email + user type badge); **Users** management for `owner` (inline edit name + type, service-role API). Homepage: removed manual refresh button; added **last-updated timestamp** on Top 20 subtitle. Baselines: EN "Tech intelligence, powered by AI." / FR "La tech décodée par l'IA". Topic creation: 3-column row (Label EN, Label FR, Slug) + Domain moved up + **"Generate with AI"** for labels via `/api/topics/generate-labels`. Cron status: score age only flags slow/high when backlog > 0. **Google Analytics** (`G-X8RR3FMCR0`) in `layout.tsx`. | *Mon compte, gestion utilisateurs, timestamp Top 20, GA, labels IA* |
 | **1.65** | Per-article **copy-to-clipboard**; Cron table **Reason** from `statusReason`; **NEW** label on Top 20 items published **within the last hour**. | *Copie lien, raison Cron, badge NEW* |
 | **1.66** | Changelog seed + SPEC path **8news/** consistency. | *Bump version & arbre SPEC* |
 | **1.67** | Single **summary meta** line (counts + “analyzed by AI”); **responsive** font size/line-height for that block. | *Ligne méta résumé (mobile)* |
@@ -956,7 +982,7 @@ Summary table (one line per release). **§17.1** expands **v1.65–v1.81** in de
 | **1.80** | **Supabase Auth** (optional): **Sign in / Sign out** next to language toggle; **Topics** + **Feeds** nav + admin APIs gated (`401` without session); **`middleware`** cookie refresh; homepage **`GET /api/topics`** still public. Registration: prénom, nom, e-mail, MDP → metadata. | *Authentification Supabase, accès Topics/Feeds réservé* |
 | **1.81** | **`user_type`**: **`member`** (default) / **`owner`** (dashboard). Only **`owner`** sees Topics + Feed management; **`403`** for **`member`** on admin APIs. **`requireOwnerSession()`**, **`user-type.ts`**. | *Rôles member/owner, admin réservé aux owners* |
 
-> **Note:** If the in-app Changelog was filled before **1.74–1.81** rows existed, run the per-version **`INSERT`** statements (e.g. **`insert-changelog-1.81.sql`**) or re-apply **`005-changelog.sql`** (after **`TRUNCATE changelog`** only if you want a full re-seed). **SPEC** and **runtime** remain authoritative when copy diverges.
+> **Note:** If the in-app Changelog was filled before **1.74–1.82** rows existed, run the per-version **`INSERT`** statements (e.g. **`insert-changelog-1.82.sql`**) or re-apply **`005-changelog.sql`** (after **`TRUNCATE changelog`** only if you want a full re-seed). **SPEC** and **runtime** remain authoritative when copy diverges.
 
 ---
 

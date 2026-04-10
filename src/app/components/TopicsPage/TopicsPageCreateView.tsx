@@ -44,10 +44,12 @@ export function TopicsPageCreateView({
   formPromptLang,
   setFormPromptLang,
   generatingScoring,
+  generatingLabels,
   autoFeeds,
   setAutoFeeds,
   saving,
   onGenerateScoring,
+  onGenerateLabels,
   onCreate,
 }: {
   lang: Lang;
@@ -78,10 +80,12 @@ export function TopicsPageCreateView({
   formPromptLang: "en" | "fr";
   setFormPromptLang: (v: "en" | "fr") => void;
   generatingScoring: boolean;
+  generatingLabels: boolean;
   autoFeeds: boolean;
   setAutoFeeds: (v: boolean) => void;
   saving: boolean;
   onGenerateScoring: () => void;
+  onGenerateLabels: () => void;
   onCreate: () => void;
 }) {
   return (
@@ -94,13 +98,7 @@ export function TopicsPageCreateView({
 
       <div style={sectionCard}>
         <div style={{ display: "grid", gap: 12 }}>
-          <div>
-            <label style={{ color: color.textMuted, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              {t("topicSlug", lang)}
-            </label>
-            <input value={formId} onChange={(e) => setFormId(slugify(e.target.value))} placeholder="my-topic" style={formInputStyle} />
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
             <div>
               <label style={{ color: color.textMuted, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>{t("labelEn", lang)}</label>
               <input
@@ -117,6 +115,37 @@ export function TopicsPageCreateView({
               <label style={{ color: color.textMuted, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>{t("labelFr", lang)}</label>
               <input value={formLabelFr} onChange={(e) => setFormLabelFr(e.target.value)} placeholder="Mon topic" style={formInputStyle} />
             </div>
+            <div>
+              <label style={{ color: color.textMuted, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                {t("topicSlug", lang)}
+              </label>
+              <input value={formId} onChange={(e) => setFormId(slugify(e.target.value))} placeholder="my-topic" style={formInputStyle} />
+            </div>
+          </div>
+          <div>
+            <label style={{ color: color.textMuted, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>{t("scoringDomainLabel", lang)}</label>
+            <textarea value={formDomain} onChange={(e) => setFormDomain(e.target.value)} style={formTextareaStyle} placeholder="Description of the domain..." />
+          </div>
+          <div>
+            <button
+              type="button"
+              onClick={onGenerateLabels}
+              disabled={generatingLabels || !formLabelEn.trim()}
+              style={{
+                padding: "6px 14px",
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 600,
+                border: `1px solid ${color.gold}`,
+                background: "transparent",
+                color: color.gold,
+                cursor: generatingLabels || !formLabelEn.trim() ? "not-allowed" : "pointer",
+                opacity: generatingLabels || !formLabelEn.trim() ? 0.5 : 1,
+                transition: "all 0.15s",
+              }}
+            >
+              {generatingLabels ? `⏳ ${t("generatingAi", lang)}` : `✨ ${t("generateAi", lang)}`}
+            </button>
           </div>
         </div>
       </div>
@@ -125,14 +154,11 @@ export function TopicsPageCreateView({
         <h4 style={formSectionTitle}>{t("scoringCriteria", lang)}</h4>
         <div style={{ display: "grid", gap: 10 }}>
           <div>
-            <label style={{ color: color.textMuted, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>{t("scoringDomainLabel", lang)}</label>
-            <textarea value={formDomain} onChange={(e) => setFormDomain(e.target.value)} style={formTextareaStyle} placeholder="Description of the domain..." />
             <button
               type="button"
               onClick={onGenerateScoring}
               disabled={generatingScoring || !formDomain.trim()}
               style={{
-                marginTop: 8,
                 padding: "6px 14px",
                 borderRadius: 6,
                 fontSize: 12,

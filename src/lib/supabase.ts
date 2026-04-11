@@ -201,6 +201,7 @@ export async function getTopArticlesForStats(
   topic: string | null,
   days: number,
   limit = 10,
+  excludeTopics?: string[],
 ): Promise<TopArticleRow[]> {
   const clientP = getServerClient();
   if (!clientP) return [];
@@ -215,6 +216,9 @@ export async function getTopArticlesForStats(
       .not("relevance_score", "is", null);
 
     if (topic && topic !== "all") query = query.eq("topic", topic);
+    if (excludeTopics && excludeTopics.length > 0) {
+      query = query.not("topic", "in", `(${excludeTopics.join(",")})`);
+    }
     if (days > 0) {
       const since = new Date(Date.now() - days * 86_400_000).toISOString();
       query = query.gte("pub_date", since);
@@ -249,6 +253,24 @@ export async function getActiveFeedsForStats(): Promise<StatsFeedRow[]> {
   }
 }
 
+export async function getHiddenTopicIds(): Promise<string[]> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
+
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("topics")
+      .select("id")
+      .eq("is_displayed", false);
+
+    if (error || !data) return [];
+    return data.map((r) => r.id);
+  } catch {
+    return [];
+  }
+}
+
 // ── Topics & Feeds CRUD ─────────────────────────────────────────────────
 
 export interface TopicRow {
@@ -264,6 +286,7 @@ export interface TopicRow {
   prompt_en: string;
   prompt_fr: string;
   is_active: boolean;
+  is_displayed: boolean;
   sort_order: number;
   last_fetched_at: string | null;
   last_scored_at: string | null;
@@ -294,7 +317,9 @@ export async function getActiveTopics(includeInactive = false): Promise<
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true });
 
-    if (!includeInactive) query = query.eq("is_active", true);
+    if (!includeInactive) {
+      query = query.eq("is_active", true).eq("is_displayed", true);
+    }
 
     const { data: topics, error } = await query;
 
@@ -351,7 +376,7 @@ export async function getTopicWithFeeds(
 }
 
 export async function createTopic(
-  data: Omit<TopicRow, "is_active" | "last_fetched_at" | "last_scored_at" | "created_at">,
+  data: Omit<TopicRow, "is_active" | "is_displayed" | "last_fetched_at" | "last_scored_at" | "created_at">,
 ): Promise<TopicRow | null> {
   const clientP = getServerClient();
   if (!clientP) return null;

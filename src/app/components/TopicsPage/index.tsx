@@ -346,6 +346,20 @@ export function TopicsPage({ lang }: { lang: Lang }) {
     }
   }
 
+  async function handleToggleDisplay(id: string, value: boolean) {
+    setTopics((prev) => prev.map((tp) => (tp.id === id ? { ...tp, isDisplayed: value } : tp)));
+    try {
+      const res = await fetch(`/api/topics/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isDisplayed: value }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      loadTopics();
+    }
+  }
+
   async function handleReorder(idA: string, idB: string) {
     const newTopics = [...topics];
     const iA = newTopics.findIndex((tp) => tp.id === idA);
@@ -476,6 +490,7 @@ export function TopicsPage({ lang }: { lang: Lang }) {
       onNewTopic={() => setView("create")}
       onLoadDetail={loadDetail}
       onReorder={handleReorder}
+      onToggleDisplay={handleToggleDisplay}
     />
   );
 }

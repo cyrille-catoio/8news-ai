@@ -37,7 +37,10 @@ function ttsIntro(hours: number, lang: Lang, topicName: string): string {
 export function SummaryBox({ data, locale, lang, hours, topicName, speed, voice }: { data: SummaryResponse; locale: string; lang: Lang; hours: number; topicName: string; speed: number; voice: string }) {
   const raw = typeof data.summary === "string" ? data.summary : String(data.summary ?? "");
   const ttsOutro = lang === "fr" ? "... ... Analyse terminée. Vous pouvez reprendre une activité normale." : "... ... That's all folks!";
-  const ttsText = raw.trim().length > 0 ? `${ttsIntro(hours, lang, topicName)} ${raw} ${ttsOutro}` : "";
+  const intro = ttsIntro(hours, lang, topicName);
+  const maxTtsBody = 4800 - intro.length - ttsOutro.length;
+  const ttsBody = raw.trim().length > maxTtsBody ? raw.trim().slice(0, maxTtsBody) + "…" : raw.trim();
+  const ttsText = ttsBody.length > 0 ? `${intro} ${ttsBody} ${ttsOutro}` : "";
   const bullets = data.bullets ?? [];
   const hasBullets = bullets.length > 0;
   const loc = lang === "fr" ? "fr-FR" : "en-US";

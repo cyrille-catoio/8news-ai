@@ -19,6 +19,7 @@ export function TopicsPageListView({
   onNewTopic,
   onLoadDetail,
   onReorder,
+  onToggleDisplay,
 }: {
   lang: Lang;
   topics: TopicItem[];
@@ -27,6 +28,7 @@ export function TopicsPageListView({
   onNewTopic: () => void;
   onLoadDetail: (id: string) => void;
   onReorder: (idA: string, idB: string) => void;
+  onToggleDisplay: (id: string, value: boolean) => void;
 }) {
   return (
     <div>
@@ -55,6 +57,7 @@ export function TopicsPageListView({
                 <th>Topic</th>
                 <th>{t("feeds", lang)}</th>
                 <th className="col-hide">Status</th>
+                <th className="col-hide" style={{ textAlign: "center" }}>{t("displayColumn", lang)}</th>
                 <th></th>
               </tr>
             </thead>
@@ -105,6 +108,23 @@ export function TopicsPageListView({
                       }}
                     />
                     {tp.isActive ? t("statusActive", lang) : t("statusInactive", lang)}
+                  </td>
+                  <td className="col-hide" style={{ textAlign: "center" }}>
+                    <button
+                      type="button"
+                      onClick={() => onToggleDisplay(tp.id, !tp.isDisplayed)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        fontSize: 16,
+                        padding: "2px 6px",
+                        opacity: tp.isDisplayed ? 1 : 0.4,
+                      }}
+                      title={tp.isDisplayed ? "Visible on homepage" : "Hidden from homepage"}
+                    >
+                      {tp.isDisplayed ? "👁" : "👁‍🗨"}
+                    </button>
                   </td>
                   <td>
                     <button type="button" onClick={() => onLoadDetail(tp.id)} style={ghostOutlineBtn}>

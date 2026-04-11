@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const maxDuration = 60;
+
 const VALID_VOICES: Record<string, string> = {
   sarah:     "Xb7hH8MSUJpSbSDYk0k2",
   alice:     "NDTYOmYEjbDIVCKB35i3",

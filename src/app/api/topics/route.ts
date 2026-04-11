@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
       labelFr: r.label_fr,
       feedCount: r.feed_count,
       isActive: r.is_active,
+      isDisplayed: r.is_displayed ?? true,
       sortOrder: r.sort_order,
     }));
 

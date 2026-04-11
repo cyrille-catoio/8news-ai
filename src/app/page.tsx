@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, useState, useEffect, useCallback, useRef } from "react";
+import { type CSSProperties, useState, useEffect, useCallback, useRef, useLayoutEffect } from "react";
 import type {
   SummaryResponse,
   ArticleSummary,
@@ -33,7 +33,7 @@ import { isOwnerUser } from "@/lib/user-type";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.82";
+const APP_VERSION = "1.83";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 
@@ -123,6 +123,48 @@ function PeriodButton({
     >
       {label}
     </button>
+  );
+}
+
+function RevealBox({ children, active }: { children: React.ReactNode; active: boolean }) {
+  const outerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const outer = outerRef.current;
+    const inner = contentRef.current;
+    if (!outer || !inner) return;
+
+    if (active) {
+      const h = inner.scrollHeight;
+      outer.style.maxHeight = `${h}px`;
+      outer.style.opacity = "1";
+
+      const onEnd = () => {
+        outer.style.overflow = "visible";
+        outer.style.maxHeight = "none";
+      };
+      outer.addEventListener("transitionend", onEnd, { once: true });
+      return () => outer.removeEventListener("transitionend", onEnd);
+    } else {
+      outer.style.overflow = "hidden";
+      outer.style.maxHeight = "0";
+      outer.style.opacity = "0";
+    }
+  }, [active]);
+
+  return (
+    <div
+      ref={outerRef}
+      style={{
+        overflow: "hidden",
+        maxHeight: 0,
+        opacity: 0,
+        transition: "max-height 6.6s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 3s ease-out",
+      }}
+    >
+      <div ref={contentRef}>{children}</div>
+    </div>
   );
 }
 
@@ -324,6 +366,10 @@ export default function Home() {
   const [allArticlesLoading, setAllArticlesLoading] = useState(false);
   const [newVersionAvailable, setNewVersionAvailable] = useState(false);
 
+  const [topSummary, setTopSummary] = useState<SummaryResponse | null>(null);
+  const [topSummaryLoading, setTopSummaryLoading] = useState(false);
+  const topSummaryKeyRef = useRef<string>("");
+
   const topFeedPoll = currentPage === "home" && topic === null;
   const {
     articles: topFeed,
@@ -332,6 +378,33 @@ export default function Home() {
     clear: clearTopFeed,
     lastUpdatedAt: topFeedUpdatedAt,
   } = useTopFeed({ poll: topFeedPoll, lang });
+
+  useEffect(() => {
+    if (currentPage !== "home" || topic !== null || topFeed.length === 0) return;
+    const key = topFeed.map((a) => a.link).join("|");
+    if (key === topSummaryKeyRef.current) return;
+    topSummaryKeyRef.current = key;
+    setTopSummaryLoading(true);
+    setTopSummary(null);
+    fetch("/api/news/top-summary", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        articles: topFeed.map((a) => ({
+          title: a.title,
+          snippet: a.snippet,
+          link: a.link,
+          source: a.source,
+          pubDate: a.pubDate,
+        })),
+        lang,
+      }),
+    })
+      .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
+      .then((json: SummaryResponse) => setTopSummary(json))
+      .catch(() => {})
+      .finally(() => setTopSummaryLoading(false));
+  }, [currentPage, topic, topFeed, lang]);
 
   useEffect(() => {
     const check = async () => {
@@ -429,6 +502,9 @@ export default function Home() {
     setError(null);
     setAllArticles([]);
     setAllArticlesLoading(false);
+    setTopSummary(null);
+    setTopSummaryLoading(false);
+    topSummaryKeyRef.current = "";
     clearTopFeed();
   }
 
@@ -441,6 +517,9 @@ export default function Home() {
     setResultTab("relevant");
     setAllArticles([]);
     setAllArticlesLoading(false);
+    setTopSummary(null);
+    setTopSummaryLoading(false);
+    topSummaryKeyRef.current = "";
     refreshTopFeed();
   }
 
@@ -628,13 +707,36 @@ export default function Home() {
                 <span style={spinnerStyle(24)} />
               </div>
             ) : topFeed.length > 0 ? (
-              <TopFeedSection
-                articles={topFeed}
-                loading={topFeedLoading}
-                lang={lang}
-                locale={locale}
-                lastUpdatedAt={topFeedUpdatedAt}
-              />
+              <>
+                {topSummaryLoading && (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "24px 0" }}>
+                    <span style={spinnerStyle(24)} />
+                    <span style={{ color: color.gold, fontSize: 14, fontWeight: 600 }}>
+                      {lang === "fr" ? "Analyse IA" : "AI Analysis"}
+                    </span>
+                  </div>
+                )}
+                <RevealBox active={!!topSummary && !topSummaryLoading}>
+                  {topSummary && (
+                    <SummaryBox
+                      data={topSummary}
+                      locale={locale}
+                      lang={lang}
+                      hours={24}
+                      topicName="Top 50"
+                      speed={ttsSpeed}
+                      voice={lang === "fr" ? ttsVoiceFr : ttsVoice}
+                    />
+                  )}
+                </RevealBox>
+                <TopFeedSection
+                  articles={topFeed}
+                  loading={topFeedLoading}
+                  lang={lang}
+                  locale={locale}
+                  lastUpdatedAt={topFeedUpdatedAt}
+                />
+              </>
             ) : (
               <p style={{ color: color.textDim, padding: "32px 0", fontSize: 15, textAlign: "center" }}>
                 {t("initialMessage", lang)}

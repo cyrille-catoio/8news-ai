@@ -59,6 +59,7 @@ export interface TopicItem {
   labelFr: string;
   feedCount: number;
   isActive: boolean;
+  isDisplayed: boolean;
   sortOrder: number;
 }
 
@@ -75,6 +76,7 @@ export interface TopicDetail {
   promptEn: string;
   promptFr: string;
   isActive: boolean;
+  isDisplayed: boolean;
   sortOrder: number;
   feeds: FeedItem[];
 }

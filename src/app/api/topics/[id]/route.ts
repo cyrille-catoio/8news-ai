@@ -34,6 +34,7 @@ export async function GET(
       promptEn: row.prompt_en ?? "",
       promptFr: row.prompt_fr ?? "",
       isActive: row.is_active,
+      isDisplayed: row.is_displayed ?? true,
       sortOrder: row.sort_order,
       feeds: row.feeds.map(
         (f): FeedItem => ({
@@ -78,6 +79,7 @@ export async function PATCH(
       promptEn: "prompt_en",
       promptFr: "prompt_fr",
       isActive: "is_active",
+      isDisplayed: "is_displayed",
       sortOrder: "sort_order",
     };
 

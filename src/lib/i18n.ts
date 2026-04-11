@@ -26,8 +26,8 @@ const strings = {
     fr: "Erreur inconnue",
   },
   summary: {
-    en: "Summary",
-    fr: "Résumé",
+    en: "AI Summary",
+    fr: "Résumé IA",
   },
   relevantArticles: {
     en: "Relevant articles",
@@ -313,6 +313,10 @@ const strings = {
     en: "Inactive",
     fr: "Inactif",
   },
+  displayColumn: {
+    en: "Display",
+    fr: "Affichage",
+  },
   enableTopic: {
     en: "Enable",
     fr: "Activer",
@@ -574,8 +578,8 @@ const strings = {
     fr: "Sélectionnez une durée pour lancer l'analyse.",
   },
   homeTop20Subtitle: {
-    en: "Top 20 articles from the last 24h",
-    fr: "Top 20 articles des dernières 24h",
+    en: "Top 50 articles from the last 24h",
+    fr: "Top 50 articles des dernières 24h",
   },
   actionRefresh: {
     en: "Refresh",

@@ -1,6 +1,6 @@
 "use client";
 
-import { color, card } from "@/lib/theme";
+import { color, card, sectionHeading } from "@/lib/theme";
 import { t, type Lang } from "@/lib/i18n";
 import { CopyLinkButton } from "@/app/components/CopyLinkButton";
 import type { TopFeedArticle } from "@/hooks/useTopFeed";
@@ -33,16 +33,15 @@ export function TopFeedSection({
   return (
     <>
       <div style={{ marginBottom: 16 }}>
-        <p style={{ color: color.textMuted, fontSize: 12, margin: 0 }}>
+        <h2 style={sectionHeading}>
           {t("homeTop20Subtitle", lang)}
-          {lastUpdatedAt && (
-            <>
-              {" — "}
-              {lang === "fr" ? "Mise à jour" : "Updated"}{" "}
-              {lastUpdatedAt.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}
-            </>
-          )}
-        </p>
+        </h2>
+        {lastUpdatedAt && (
+          <p style={{ color: color.textMuted, fontSize: 12, margin: 0 }}>
+            {lang === "fr" ? "Mise à jour" : "Updated"}{" "}
+            {lastUpdatedAt.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}
+          </p>
+        )}
       </div>
       {sorted.map((art, i) => (
         <div key={`${art.link}-${i}`} style={{ ...card, display: "block" }}>
@@ -54,24 +53,6 @@ export function TopFeedSection({
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                {isNew(art.pubDate) && (
-                  <span
-                    style={{
-                      display: "inline-block",
-                      fontSize: 10,
-                      fontWeight: 700,
-                      color: "#000",
-                      background: "#22c55e",
-                      borderRadius: 4,
-                      padding: "1px 5px",
-                      marginRight: 6,
-                      verticalAlign: "middle",
-                      letterSpacing: 0.5,
-                    }}
-                  >
-                    {t("articleNewBadge", lang)}
-                  </span>
-                )}
                 {lang === "fr" && art.snippet ? (
                   <>
                     <span style={{ color: color.text, fontWeight: 500, fontSize: 17, lineHeight: 1.35, display: "block" }}>
@@ -118,6 +99,24 @@ export function TopFeedSection({
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
             <a href={art.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
               <span style={{ color: color.gold, fontSize: 13 }}>
+                {isNew(art.pubDate) && (
+                  <span
+                    style={{
+                      display: "inline-block",
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: "#000",
+                      background: "#22c55e",
+                      borderRadius: 4,
+                      padding: "1px 5px",
+                      marginRight: 6,
+                      verticalAlign: "middle",
+                      letterSpacing: 0.5,
+                    }}
+                  >
+                    {t("articleNewBadge", lang)}
+                  </span>
+                )}
                 {art.topic && (
                   <span
                     style={{
@@ -137,7 +136,7 @@ export function TopFeedSection({
                     {art.topic}
                   </span>
                 )}
-                {art.source} · {art.pubDate ? new Date(art.pubDate).toLocaleString(locale) : ""}
+                {art.source} · {art.pubDate ? new Date(art.pubDate).toLocaleString(locale, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}
               </span>
             </a>
             <CopyLinkButton url={art.link} />

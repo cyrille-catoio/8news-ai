@@ -16,7 +16,7 @@ export type TopFeedArticle = {
 const POLL_MS = 5 * 60_000;
 
 function topFeedUrl(lang: Lang) {
-  return `/api/news/top?limit=20&days=1&lang=${lang}`;
+  return `/api/news/top?limit=50&days=1&lang=${lang}`;
 }
 
 export function useTopFeed(options: { poll: boolean; lang: Lang }) {

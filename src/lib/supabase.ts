@@ -678,3 +678,97 @@ export async function countArticlesForPeriod(
     return { total: 0, scored: 0 };
   }
 }
+
+// ── User Topic Preferences ─────────────────────────────────────────────
+
+/**
+ * Returns the user's preferred topic IDs, or null if no preference is set.
+ * null means "show all topics" (default behavior).
+ */
+export async function getUserTopicPreferences(
+  userId: string,
+): Promise<string[] | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("user_topic_preferences")
+      .select("topic_ids")
+      .eq("user_id", userId)
+      .single();
+
+    if (error || !data) return null;
+    // Return the actual array: [] means "set but no filter" (onboarding done),
+    // null means "no row" (onboarding not done yet).
+    return (data as { topic_ids: string[] }).topic_ids;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Upserts the user's preferred topic IDs.
+ * Pass an empty array to clear preferences (show all topics).
+ */
+export async function setUserTopicPreferences(
+  userId: string,
+  topicIds: string[],
+): Promise<boolean> {
+  const clientP = getServerClient();
+  if (!clientP) return false;
+
+  try {
+    const supabase = await clientP;
+    const { error } = await supabase
+      .from("user_topic_preferences")
+      .upsert(
+        { user_id: userId, topic_ids: topicIds, updated_at: new Date().toISOString() },
+        { onConflict: "user_id" },
+      );
+
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Fetches top articles restricted to a specific set of topic IDs.
+ * Used when a user has personalized their topic list.
+ */
+export async function getTopArticlesForTopics(
+  topicIds: string[],
+  days: number,
+  limit = 50,
+): Promise<TopArticleRow[]> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
+
+  try {
+    const supabase = await clientP;
+    let query = supabase
+      .from("articles")
+      .select(
+        "title, link, source, topic, pub_date, relevance_score, score_reason, snippet, content, snippet_ai_en, snippet_ai_fr",
+      )
+      .not("relevance_score", "is", null)
+      .in("topic", topicIds);
+
+    if (days > 0) {
+      const since = new Date(Date.now() - days * 86_400_000).toISOString();
+      query = query.gte("pub_date", since);
+    }
+
+    const { data, error } = await query
+      .order("relevance_score", { ascending: false })
+      .order("pub_date", { ascending: false })
+      .limit(limit);
+
+    if (error || !data) return [];
+    return data as TopArticleRow[];
+  } catch {
+    return [];
+  }
+}

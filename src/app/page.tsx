@@ -27,7 +27,10 @@ import { TopicsPage } from "@/app/components/TopicsPage";
 import { TTS_VOICES_EN, TTS_VOICES_FR } from "@/app/components/VoiceAccordion";
 import { AppHeader, type AppNavPage } from "@/app/components/AppHeader";
 import { TopFeedSection } from "@/app/components/TopFeedSection";
+import { TopicPersonalizationBar } from "@/app/components/TopicPersonalizationBar";
+import { TopicOnboardingModal } from "@/app/components/TopicOnboardingModal";
 import { useTopFeed } from "@/hooks/useTopFeed";
+import { useUserTopics } from "@/hooks/useUserTopics";
 import { useAuth } from "@/app/providers";
 import { isOwnerUser } from "@/lib/user-type";
 
@@ -58,25 +61,49 @@ function TopicToggle({
   topic,
   disabled,
   onChange,
+  personalizationMode = false,
+  preferredTopicIds,
+  onTogglePreference,
 }: {
   topics: TopicLabel[];
   topic: string | null;
   disabled: boolean;
   onChange: (t: string) => void;
+  personalizationMode?: boolean;
+  preferredTopicIds: string[] | null;
+  onTogglePreference: (id: string) => void;
 }) {
-  const btnStyle = (value: string): CSSProperties => ({
-    padding: "8px 0",
-    fontSize: 14,
-    fontWeight: 600,
-    border: `1px solid ${color.gold}`,
-    cursor: disabled ? "wait" : "pointer",
-    background: topic === value ? color.gold : "transparent",
-    color: topic === value ? "#000" : color.gold,
-    transition: "all 0.15s",
-    opacity: disabled ? 0.6 : 1,
-    borderRadius: 6,
-    textAlign: "center",
-  });
+  const btnStyle = (value: string): CSSProperties => {
+    if (personalizationMode) {
+      const inPrefs = preferredTopicIds === null || preferredTopicIds.includes(value);
+      return {
+        padding: "8px 0",
+        fontSize: 14,
+        fontWeight: 600,
+        border: `1px solid ${color.gold}`,
+        cursor: "pointer",
+        background: inPrefs ? color.gold : "transparent",
+        color: inPrefs ? "#000" : color.gold,
+        transition: "all 0.15s",
+        opacity: inPrefs ? 1 : 0.45,
+        borderRadius: 6,
+        textAlign: "center",
+      };
+    }
+    return {
+      padding: "8px 0",
+      fontSize: 14,
+      fontWeight: 600,
+      border: `1px solid ${color.gold}`,
+      cursor: disabled ? "wait" : "pointer",
+      background: topic === value ? color.gold : "transparent",
+      color: topic === value ? "#000" : color.gold,
+      transition: "all 0.15s",
+      opacity: disabled ? 0.6 : 1,
+      borderRadius: 6,
+      textAlign: "center",
+    };
+  };
 
   return (
     <div
@@ -86,8 +113,8 @@ function TopicToggle({
       {topics.map(({ id, label }) => (
           <button
             key={id}
-            onClick={() => onChange(id)}
-            disabled={disabled}
+            onClick={() => personalizationMode ? onTogglePreference(id) : onChange(id)}
+            disabled={!personalizationMode && disabled}
             style={btnStyle(id)}
           >
             {label}
@@ -350,9 +377,23 @@ export default function Home() {
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState<AppNavPage>("home");
+  const [authModalOpen, setAuthModalOpen] = useState(false);
   const { session, loading: authLoading } = useAuth();
   const authUser = session?.user ?? null;
   const authOwner = Boolean(authUser && isOwnerUser(authUser));
+  const isAuthenticated = Boolean(authUser);
+
+  const {
+    preferredTopicIds,
+    draftTopicIds,
+    onboardingNeeded,
+    isPersonalizationMode,
+    saveStatus,
+    enterPersonalizationMode,
+    exitPersonalizationMode,
+    toggleTopicPreference,
+    completeOnboarding,
+  } = useUserTopics(isAuthenticated);
 
   useEffect(() => {
     if (authLoading) return;
@@ -360,6 +401,20 @@ export default function Home() {
       setCurrentPage("home");
     }
   }, [authLoading, authOwner, currentPage]);
+
+  // Guard: if the selected topic is removed from user's preferred topics, reset
+  useEffect(() => {
+    if (
+      topic &&
+      !isPersonalizationMode &&
+      preferredTopicIds !== null &&
+      preferredTopicIds.length > 0 &&
+      !preferredTopicIds.includes(topic)
+    ) {
+      handleReset();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preferredTopicIds, isPersonalizationMode]);
 
   const [resultTab, setResultTab] = useState<"relevant" | "all">("relevant");
   const [allArticles, setAllArticles] = useState<AllArticleEntry[]>([]);
@@ -370,6 +425,14 @@ export default function Home() {
   const [topSummaryLoading, setTopSummaryLoading] = useState(false);
   const topSummaryKeyRef = useRef<string>("");
 
+  // Topics to display: all in personalization mode (so user can toggle any),
+  // filtered by committed prefs otherwise (no change until "Done" is clicked)
+  const displayedTopicLabels: TopicLabel[] = isPersonalizationMode
+    ? topicLabels
+    : (preferredTopicIds?.length ?? 0) > 0
+    ? topicLabels.filter((tp) => preferredTopicIds!.includes(tp.id))
+    : topicLabels;
+
   const topFeedPoll = currentPage === "home" && topic === null;
   const {
     articles: topFeed,
@@ -377,7 +440,7 @@ export default function Home() {
     refresh: refreshTopFeed,
     clear: clearTopFeed,
     lastUpdatedAt: topFeedUpdatedAt,
-  } = useTopFeed({ poll: topFeedPoll, lang });
+  } = useTopFeed({ poll: topFeedPoll, lang, preferredTopics: preferredTopicIds });
 
   useEffect(() => {
     if (currentPage !== "home" || topic !== null || topFeed.length === 0) return;
@@ -536,6 +599,8 @@ export default function Home() {
             handleReset();
           }}
           onLangChange={handleLangChange}
+          authModalOpen={authModalOpen}
+          onAuthModalChange={setAuthModalOpen}
         />
 
         {currentPage === "stats" ? (
@@ -580,7 +645,30 @@ export default function Home() {
         <>
         {/* ── Topic selector ──────────────────────────────────── */}
         <section style={{ marginBottom: 24 }}>
-          <TopicToggle topics={topicLabels} topic={topic} disabled={loading} onChange={handleTopicChange} />
+          <TopicToggle
+            topics={displayedTopicLabels}
+            topic={topic}
+            disabled={loading}
+            onChange={handleTopicChange}
+            personalizationMode={isPersonalizationMode}
+            preferredTopicIds={isPersonalizationMode ? draftTopicIds : preferredTopicIds}
+            onTogglePreference={(id) => toggleTopicPreference(id, topics)}
+          />
+          <TopicPersonalizationBar
+            lang={lang}
+            isAuthenticated={isAuthenticated}
+            hasPreferences={(preferredTopicIds?.length ?? 0) > 0}
+            preferenceCount={
+              isPersonalizationMode
+                ? (draftTopicIds?.length ?? 0)
+                : (preferredTopicIds?.length ?? 0)
+            }
+            isPersonalizationMode={isPersonalizationMode}
+            saveStatus={saveStatus}
+            onEnterEdit={enterPersonalizationMode}
+            onExitEdit={exitPersonalizationMode}
+            onRequestAuth={() => setAuthModalOpen(true)}
+          />
         </section>
 
         {/* ── Period selector ────────────────────────────────── */}
@@ -634,7 +722,7 @@ export default function Home() {
         {/* ── Results ────────────────────────────────────────── */}
         {!loading && data && (
           <div>
-            <SummaryBox data={data} locale={locale} lang={lang} hours={selected ?? 24} topicName={currentTopicLabel} speed={ttsSpeed} voice={lang === "fr" ? ttsVoiceFr : ttsVoice} />
+            <SummaryBox data={data} locale={locale} lang={lang} hours={selected ?? 24} topicName={currentTopicLabel} speed={ttsSpeed} voice={lang === "fr" ? ttsVoiceFr : ttsVoice} showAnalyzedCount={true} />
 
             {/* Tab bar */}
             <div style={{ display: "flex", borderBottom: `1px solid ${color.border}`, marginBottom: 20, gap: 0 }}>
@@ -761,6 +849,13 @@ export default function Home() {
           {t("homeNewVersionBanner", lang)}
         </div>
       )}
+
+      <TopicOnboardingModal
+        open={onboardingNeeded && !topicsLoading && topics.length > 0}
+        topics={topics}
+        lang={lang}
+        onComplete={completeOnboarding}
+      />
 
       <ScrollToTop lang={lang} />
 

@@ -15,19 +15,23 @@ export type TopFeedArticle = {
 
 const POLL_MS = 5 * 60_000;
 
-function topFeedUrl(lang: Lang) {
-  return `/api/news/top?limit=50&days=1&lang=${lang}`;
+function buildTopFeedUrl(lang: Lang, preferredTopics: string[] | null): string {
+  const base = `/api/news/top?limit=50&days=1&lang=${lang}`;
+  if (preferredTopics && preferredTopics.length > 0) {
+    return `${base}&topics=${encodeURIComponent(preferredTopics.join(","))}`;
+  }
+  return base;
 }
 
-export function useTopFeed(options: { poll: boolean; lang: Lang }) {
-  const { poll, lang } = options;
+export function useTopFeed(options: { poll: boolean; lang: Lang; preferredTopics: string[] | null }) {
+  const { poll, lang, preferredTopics } = options;
   const [articles, setArticles] = useState<TopFeedArticle[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
   const refresh = useCallback(() => {
     setLoading(true);
-    fetch(topFeedUrl(lang), { cache: "no-store" })
+    fetch(buildTopFeedUrl(lang, preferredTopics), { cache: "no-store" })
       .then((r) => {
         if (!r.ok) throw new Error();
         return r.json();
@@ -38,12 +42,12 @@ export function useTopFeed(options: { poll: boolean; lang: Lang }) {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [lang]);
+  }, [lang, preferredTopics]);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetch(topFeedUrl(lang), { cache: "no-store" })
+    fetch(buildTopFeedUrl(lang, preferredTopics), { cache: "no-store" })
       .then((r) => {
         if (!r.ok) throw new Error();
         return r.json();
@@ -61,12 +65,12 @@ export function useTopFeed(options: { poll: boolean; lang: Lang }) {
     return () => {
       cancelled = true;
     };
-  }, [lang]);
+  }, [lang, preferredTopics]);
 
   useEffect(() => {
     if (!poll) return;
     const id = setInterval(() => {
-      fetch(topFeedUrl(lang), { cache: "no-store" })
+      fetch(buildTopFeedUrl(lang, preferredTopics), { cache: "no-store" })
         .then((r) => {
           if (!r.ok) throw new Error();
           return r.json();
@@ -78,7 +82,7 @@ export function useTopFeed(options: { poll: boolean; lang: Lang }) {
         .catch(() => {});
     }, POLL_MS);
     return () => clearInterval(id);
-  }, [poll, lang]);
+  }, [poll, lang, preferredTopics]);
 
   const clear = useCallback(() => {
     setArticles([]);

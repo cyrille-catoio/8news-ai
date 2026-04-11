@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type CSSProperties, type ReactNode } from "react";
+import { type CSSProperties, type ReactNode } from "react";
 import { color } from "@/lib/theme";
 import { t, type Lang } from "@/lib/i18n";
 import { useAuth } from "@/app/providers";
@@ -75,15 +75,18 @@ export function AppHeader({
   onNavigate,
   onHomeReset,
   onLangChange,
+  authModalOpen,
+  onAuthModalChange,
 }: {
   currentPage: AppNavPage;
   lang: Lang;
   onNavigate: (page: AppNavPage) => void;
   onHomeReset: () => void;
   onLangChange: (l: Lang) => void;
+  authModalOpen: boolean;
+  onAuthModalChange: (open: boolean) => void;
 }) {
   const { session, loading: authLoading, signOut } = useAuth();
-  const [authModalOpen, setAuthModalOpen] = useState(false);
   const authed = Boolean(session?.user);
   const canManageTopicsAndFeeds = isOwnerUser(session?.user);
 
@@ -200,14 +203,14 @@ export function AppHeader({
                 {t("authSignOut", lang)}
               </button>
             ) : (
-              <button type="button" onClick={() => setAuthModalOpen(true)} style={authBtnStyle}>
+              <button type="button" onClick={() => onAuthModalChange(true)} style={authBtnStyle}>
                 {t("authSignIn", lang)}
               </button>
             )
           )}
           <LangToggle lang={lang} onChange={onLangChange} />
         </div>
-        <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} lang={lang} />
+        <AuthModal open={authModalOpen} onClose={() => onAuthModalChange(false)} lang={lang} />
       </div>
 
       <img

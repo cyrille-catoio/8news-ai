@@ -5,6 +5,20 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+[context.production.environment]
+  CRON_BUDGET_MS = "27500"
+  CRON_SAFETY_RESERVE_MS = "2000"
+  FETCH_SCORE_CALL_RESERVE_MS = "8000"
+  FETCH_TOPICS_MAX_PER_RUN = "3"
+  FETCH_MINI_SCORE_MIN = "15"
+  FETCH_MINI_SCORE_MAX = "50"
+  SCORE_MIN_ARTICLES_PER_RUN = "12"
+  SCORE_MAX_ARTICLES_PER_RUN = "50"
+  SCORE_HARD_ARTICLE_CAP = "80"
+  MULTI_TOPIC_BACKLOG_THRESHOLD = "20"
+  SCORE_FAIRNESS_EVERY_N_TOPICS = "4"
+  SCORE_FRESH_WINDOW_MIN = "5"
+
 [[redirects]]
   from = "https://8news.netlify.app/*"
   to = "https://8news.ai/:splat"

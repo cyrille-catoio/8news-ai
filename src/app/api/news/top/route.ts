@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getTopArticlesForStats, getHiddenTopicIds, type TopArticleRow } from "@/lib/supabase";
+import { getTopArticlesForStats, getHiddenTopicIds, getTopArticlesForTopics, type TopArticleRow } from "@/lib/supabase";
 import type { Lang } from "@/lib/i18n";
 
 const SNIPPET_MAX = 600;
@@ -20,8 +20,20 @@ export async function GET(request: NextRequest) {
   const days = Math.max(0, parseFloat(params.get("days") ?? "1") || 1);
   const lang = parseLang(params.get("lang"));
 
-  const hiddenIds = await getHiddenTopicIds();
-  const rows = await getTopArticlesForStats(null, days, limit, hiddenIds.length > 0 ? hiddenIds : undefined);
+  // Optional: comma-separated topic IDs from user's personalized list.
+  // If present and non-empty, fetch only those topics (no exclusion list needed).
+  const topicsParam = params.get("topics");
+  const includeTopics = topicsParam
+    ? topicsParam.split(",").map((s) => s.trim()).filter(Boolean)
+    : null;
+
+  let rows: TopArticleRow[];
+  if (includeTopics && includeTopics.length > 0) {
+    rows = await getTopArticlesForTopics(includeTopics, days, limit);
+  } else {
+    const hiddenIds = await getHiddenTopicIds();
+    rows = await getTopArticlesForStats(null, days, limit, hiddenIds.length > 0 ? hiddenIds : undefined);
+  }
 
   const articles = rows.map((r) => ({
     title: r.title,

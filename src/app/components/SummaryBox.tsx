@@ -34,7 +34,7 @@ function ttsIntro(hours: number, lang: Lang, topicName: string): string {
   return `${topicName}. Here is the news analyzed for ${period}.`;
 }
 
-export function SummaryBox({ data, locale, lang, hours, topicName, speed, voice }: { data: SummaryResponse; locale: string; lang: Lang; hours: number; topicName: string; speed: number; voice: string }) {
+export function SummaryBox({ data, locale, lang, hours, topicName, speed, voice, showAnalyzedCount = false }: { data: SummaryResponse; locale: string; lang: Lang; hours: number; topicName: string; speed: number; voice: string; showAnalyzedCount?: boolean }) {
   const raw = typeof data.summary === "string" ? data.summary : String(data.summary ?? "");
   const ttsOutro = lang === "fr" ? "... ... Analyse terminée. Vous pouvez reprendre une activité normale." : "... ... That's all folks!";
   const intro = ttsIntro(hours, lang, topicName);
@@ -64,11 +64,13 @@ export function SummaryBox({ data, locale, lang, hours, topicName, speed, voice 
             {lang === "fr" ? (
               <>
               {fmt(data.meta.totalArticles)} articles,{" "}
+              {showAnalyzedCount ? `${fmt(data.meta.analyzedArticles)} ` : ""}
               <span style={{ color: color.gold }}>scorés et analysés par IA</span>
               </>
             ) : (
               <>
                 {fmt(data.meta.totalArticles)} articles,{" "}
+                {showAnalyzedCount ? `${fmt(data.meta.analyzedArticles)} ` : ""}
                 <span style={{ color: color.gold }}>scored and analyzed by AI</span>
               </>
             )}

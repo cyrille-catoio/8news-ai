@@ -50,3 +50,12 @@ export async function requireOwnerSession(): Promise<
   if (!isOwnerUser(user)) return { ok: false, response: forbiddenResponse() };
   return { ok: true, user };
 }
+
+/** Any signed-in user (member or owner). Used for personalization APIs. */
+export async function requireSession(): Promise<
+  { ok: true; user: User } | { ok: false; response: NextResponse }
+> {
+  const user = await getSessionUser();
+  if (!user) return { ok: false, response: unauthorizedResponse() };
+  return { ok: true, user };
+}

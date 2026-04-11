@@ -3,10 +3,10 @@ import { createClient } from "@supabase/supabase-js";
 import { fetchAndStoreTopicDynamic } from "./shared/fetch-topic";
 import { scoreTopicForCron } from "./shared/score-topic";
 
-const CRON_WALL_MS = 13_000;
-const CRON_BUDGET_MS = Number(process.env.CRON_BUDGET_MS ?? 11_800);
-const CRON_SAFETY_RESERVE_MS = Number(process.env.CRON_SAFETY_RESERVE_MS ?? 1_200);
-const SCORE_CALL_RESERVE_MS = Number(process.env.FETCH_SCORE_CALL_RESERVE_MS ?? 4_500);
+const CRON_WALL_MS = 30_000;
+const CRON_BUDGET_MS = Number(process.env.CRON_BUDGET_MS ?? 27_500);
+const CRON_SAFETY_RESERVE_MS = Number(process.env.CRON_SAFETY_RESERVE_MS ?? 2_000);
+const SCORE_CALL_RESERVE_MS = Number(process.env.FETCH_SCORE_CALL_RESERVE_MS ?? 8_000);
 const FETCH_TOPICS_MAX_PER_RUN = Number(process.env.FETCH_TOPICS_MAX_PER_RUN ?? 3);
 const FETCH_MINI_SCORE_MAX = Number(process.env.FETCH_MINI_SCORE_MAX ?? 50);
 const FETCH_MINI_SCORE_MIN = Number(process.env.FETCH_MINI_SCORE_MIN ?? 15);
@@ -101,8 +101,8 @@ export default async () => {
         maxArticlesCap: FETCH_MINI_SCORE_MAX,
         windowHours: null,
         maxElapsedMs: Math.max(
-          1_500,
-          Math.min(5_500, budgetRemaining() - CRON_SAFETY_RESERVE_MS),
+          2_500,
+          Math.min(12_000, budgetRemaining() - CRON_SAFETY_RESERVE_MS),
         ),
       });
       totalMiniScored += scoreResult.scored;

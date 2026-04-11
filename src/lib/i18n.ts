@@ -733,6 +733,50 @@ const strings = {
     en: "Failed to save.",
     fr: "Impossible d'enregistrer.",
   },
+  myTopicsCustomize: {
+    en: "Customize my topics",
+    fr: "Personnaliser mes topics",
+  },
+  myTopicsEdit: {
+    en: "Edit",
+    fr: "Modifier",
+  },
+  myTopicsShowAll: {
+    en: "Show all topics",
+    fr: "Voir tous les topics",
+  },
+  myTopicsDone: {
+    en: "Done",
+    fr: "Terminé",
+  },
+  myTopicsHint: {
+    en: "Click topics to select/deselect",
+    fr: "Cliquez sur les topics pour les sélectionner",
+  },
+  myTopicsSaving: {
+    en: "Saving…",
+    fr: "Enregistrement…",
+  },
+  myTopicsSaved: {
+    en: "Saved",
+    fr: "Enregistré",
+  },
+  myTopicsSignInPrompt: {
+    en: "Sign in to personalize",
+    fr: "Connectez-vous pour personnaliser",
+  },
+  onboardingTitle: {
+    en: "Choose your topics",
+    fr: "Choisissez vos topics",
+  },
+  onboardingSubtitle: {
+    en: "Select the topics you want to follow. You can change this anytime.",
+    fr: "Sélectionnez les topics que vous souhaitez suivre. Vous pourrez les modifier à tout moment.",
+  },
+  onboardingContinue: {
+    en: "Continue",
+    fr: "Continuer",
+  },
 } as const;
 
 type StringKey = keyof typeof strings;

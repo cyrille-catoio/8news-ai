@@ -36,7 +36,7 @@ import { isOwnerUser } from "@/lib/user-type";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.84";
+const APP_VERSION = "1.85";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 

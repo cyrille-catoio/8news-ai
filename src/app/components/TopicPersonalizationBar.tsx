@@ -14,6 +14,10 @@ export function TopicPersonalizationBar({
   saveStatus,
   onEnterEdit,
   onExitEdit,
+  onCreateTopic,
+  showAnalyzeTopButton,
+  analyzeTopLoading,
+  onAnalyzeTop,
   onRequestAuth,
 }: {
   lang: Lang;
@@ -24,6 +28,10 @@ export function TopicPersonalizationBar({
   saveStatus: SaveStatus;
   onEnterEdit: () => void;
   onExitEdit: () => void;
+  onCreateTopic: () => void;
+  showAnalyzeTopButton: boolean;
+  analyzeTopLoading: boolean;
+  onAnalyzeTop: () => void;
   onRequestAuth: () => void;
 }) {
   const barWrap: CSSProperties = {
@@ -50,8 +58,8 @@ export function TopicPersonalizationBar({
   };
 
   const actionBtn: CSSProperties = {
-    border: `1px solid ${color.border}`,
-    background: "rgba(255,255,255,0.03)",
+    border: `1px solid ${color.borderLight}`,
+    background: "rgba(255,255,255,0.05)",
     color: color.textSecondary,
     fontSize: 12,
     fontWeight: 600,
@@ -91,6 +99,16 @@ export function TopicPersonalizationBar({
         <button type="button" onClick={onExitEdit} style={primaryBtn}>
           {t("myTopicsDone", lang)}
         </button>
+        {isAuthenticated && (
+          <button type="button" onClick={onCreateTopic} style={actionBtn}>
+            {t("myTopicsAddNew", lang)}
+          </button>
+        )}
+        {showAnalyzeTopButton && (
+          <button type="button" onClick={onAnalyzeTop} style={actionBtn} disabled={analyzeTopLoading}>
+            {t("analyzeTopArticlesBtn", lang)}
+          </button>
+        )}
         <span style={statusSlot}>
           {statusLabel ? (
             <span style={{ ...badge, color: statusColor }}>
@@ -114,6 +132,11 @@ export function TopicPersonalizationBar({
         <button type="button" onClick={onEnterEdit} style={actionBtn}>
           {t("myTopicsEdit", lang)}
         </button>
+        {showAnalyzeTopButton && (
+          <button type="button" onClick={onAnalyzeTop} style={actionBtn} disabled={analyzeTopLoading}>
+            {t("analyzeTopArticlesBtn", lang)}
+          </button>
+        )}
       </div>
     );
   }
@@ -124,11 +147,16 @@ export function TopicPersonalizationBar({
       <button
         type="button"
         onClick={isAuthenticated ? onEnterEdit : onRequestAuth}
-        style={primaryBtn}
+        style={actionBtn}
         title={!isAuthenticated ? t("myTopicsSignInPrompt", lang) : undefined}
       >
         {t("myTopicsCustomize", lang)}
       </button>
+      {showAnalyzeTopButton && (
+        <button type="button" onClick={onAnalyzeTop} style={actionBtn} disabled={analyzeTopLoading}>
+          {t("analyzeTopArticlesBtn", lang)}
+        </button>
+      )}
     </div>
   );
 }

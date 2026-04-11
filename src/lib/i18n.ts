@@ -31,7 +31,7 @@ const strings = {
   },
   relevantArticles: {
     en: "Relevant articles",
-    fr: "Articles retenus",
+    fr: "Articles sélectionnés",
   },
   allArticles: {
     en: "All articles",
@@ -577,6 +577,14 @@ const strings = {
     en: "Select a time period to start the analysis.",
     fr: "Sélectionnez une durée pour lancer l'analyse.",
   },
+  homeSelectTopicFirstToast: {
+    en: "Please select a topic first.",
+    fr: "Veuillez d'abord sélectionner un topic.",
+  },
+  homeSelectPeriodAfterTopicToast: {
+    en: "Select a time period to start AI analysis.",
+    fr: "Sélectionner une durée pour lancer l'analyse IA",
+  },
   homeTop20Subtitle: {
     en: "Top Articles from the last 24h",
     fr: "Top Articles des dernières 24h",
@@ -737,6 +745,10 @@ const strings = {
     en: "Customize my topics",
     fr: "Personnaliser mes topics",
   },
+  analyzeTopArticlesBtn: {
+    en: "Analyze top articles",
+    fr: "Analyse des top articles",
+  },
   myTopicsEdit: {
     en: "Edit",
     fr: "Modifier",
@@ -748,6 +760,10 @@ const strings = {
   myTopicsDone: {
     en: "Done",
     fr: "Terminé",
+  },
+  myTopicsAddNew: {
+    en: "New topic +",
+    fr: "+ Nouveau topic",
   },
   myTopicsHint: {
     en: "Click topics to select/deselect",
@@ -776,6 +792,10 @@ const strings = {
   onboardingContinue: {
     en: "Continue",
     fr: "Continuer",
+  },
+  topicPendingValidation: {
+    en: "Your topic will be available after validation within 24 hours maximum.",
+    fr: "Votre topic sera disponible après validation dans un délai maximal de 24 heures",
   },
 } as const;
 

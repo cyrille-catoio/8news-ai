@@ -377,6 +377,7 @@ export default function Home() {
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState<AppNavPage>("home");
+  const [topicsStartInCreate, setTopicsStartInCreate] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const { session, loading: authLoading } = useAuth();
   const authUser = session?.user ?? null;
@@ -397,10 +398,13 @@ export default function Home() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!authOwner && (currentPage === "topics" || currentPage === "feeds")) {
+    if (!authOwner && currentPage === "feeds") {
       setCurrentPage("home");
     }
-  }, [authLoading, authOwner, currentPage]);
+    if (!isAuthenticated && currentPage === "topics") {
+      setCurrentPage("home");
+    }
+  }, [authLoading, authOwner, isAuthenticated, currentPage]);
 
   // Guard: if the selected topic is removed from user's preferred topics, reset
   useEffect(() => {
@@ -420,10 +424,13 @@ export default function Home() {
   const [allArticles, setAllArticles] = useState<AllArticleEntry[]>([]);
   const [allArticlesLoading, setAllArticlesLoading] = useState(false);
   const [newVersionAvailable, setNewVersionAvailable] = useState(false);
+  const [periodToast, setPeriodToast] = useState<string | null>(null);
+  const periodToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [topSummary, setTopSummary] = useState<SummaryResponse | null>(null);
   const [topSummaryLoading, setTopSummaryLoading] = useState(false);
   const topSummaryKeyRef = useRef<string>("");
+  const [topAnalysisEnabled, setTopAnalysisEnabled] = useState(false);
 
   // Topics to display: all in personalization mode (so user can toggle any),
   // filtered by committed prefs otherwise (no change until "Done" is clicked)
@@ -433,14 +440,18 @@ export default function Home() {
     ? topicLabels.filter((tp) => preferredTopicIds!.includes(tp.id))
     : topicLabels;
 
-  const topFeedPoll = currentPage === "home" && topic === null;
+  const topFeedPoll = currentPage === "home" && topic === null && topAnalysisEnabled;
   const {
     articles: topFeed,
     loading: topFeedLoading,
-    refresh: refreshTopFeed,
     clear: clearTopFeed,
     lastUpdatedAt: topFeedUpdatedAt,
-  } = useTopFeed({ poll: topFeedPoll, lang, preferredTopics: preferredTopicIds });
+  } = useTopFeed({
+    poll: topFeedPoll,
+    lang,
+    preferredTopics: preferredTopicIds,
+    enabled: topAnalysisEnabled && currentPage === "home" && topic === null,
+  });
 
   useEffect(() => {
     if (currentPage !== "home" || topic !== null || topFeed.length === 0) return;
@@ -482,6 +493,12 @@ export default function Home() {
     };
     const id = setInterval(check, VERSION_CHECK_INTERVAL_MS);
     return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (periodToastTimerRef.current) clearTimeout(periodToastTimerRef.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -560,6 +577,12 @@ export default function Home() {
   function handleTopicChange(newTopic: string) {
     if (newTopic === topic) return;
     setTopic(newTopic);
+    setPeriodToast(t("homeSelectPeriodAfterTopicToast", lang));
+    if (periodToastTimerRef.current) clearTimeout(periodToastTimerRef.current);
+    periodToastTimerRef.current = setTimeout(() => {
+      setPeriodToast(null);
+      periodToastTimerRef.current = null;
+    }, 2200);
     setSelected(null);
     setData(null);
     setError(null);
@@ -567,6 +590,7 @@ export default function Home() {
     setAllArticlesLoading(false);
     setTopSummary(null);
     setTopSummaryLoading(false);
+    setTopAnalysisEnabled(false);
     topSummaryKeyRef.current = "";
     clearTopFeed();
   }
@@ -582,8 +606,18 @@ export default function Home() {
     setAllArticlesLoading(false);
     setTopSummary(null);
     setTopSummaryLoading(false);
+    setTopAnalysisEnabled(false);
     topSummaryKeyRef.current = "";
-    refreshTopFeed();
+    clearTopFeed();
+  }
+
+  function showSelectTopicToast() {
+    setPeriodToast(t("homeSelectTopicFirstToast", lang));
+    if (periodToastTimerRef.current) clearTimeout(periodToastTimerRef.current);
+    periodToastTimerRef.current = setTimeout(() => {
+      setPeriodToast(null);
+      periodToastTimerRef.current = null;
+    }, 2200);
   }
 
   return (
@@ -593,7 +627,10 @@ export default function Home() {
         <AppHeader
           currentPage={currentPage}
           lang={lang}
-          onNavigate={setCurrentPage}
+          onNavigate={(page) => {
+            setTopicsStartInCreate(false);
+            setCurrentPage(page);
+          }}
           onHomeReset={() => {
             setCurrentPage("home");
             handleReset();
@@ -612,8 +649,16 @@ export default function Home() {
             <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "80px 0" }}>
               <span style={spinnerStyle(28)} />
             </div>
-          ) : authOwner ? (
-            <TopicsPage lang={lang} />
+          ) : isAuthenticated ? (
+            <TopicsPage
+              lang={lang}
+              canManage={authOwner}
+              startInCreate={topicsStartInCreate}
+              onExit={() => {
+                setCurrentPage("home");
+                setTopicsStartInCreate(false);
+              }}
+            />
           ) : null
         ) : currentPage === "changelog" ? (
           <ChangelogPage lang={lang} />
@@ -667,6 +712,16 @@ export default function Home() {
             saveStatus={saveStatus}
             onEnterEdit={enterPersonalizationMode}
             onExitEdit={exitPersonalizationMode}
+            onCreateTopic={() => {
+              setTopicsStartInCreate(true);
+              setCurrentPage("topics");
+            }}
+            showAnalyzeTopButton={true}
+            analyzeTopLoading={topFeedLoading || topSummaryLoading}
+            onAnalyzeTop={() => {
+              handleReset();
+              setTopAnalysisEnabled(true);
+            }}
             onRequestAuth={() => setAuthModalOpen(true)}
           />
         </section>
@@ -679,8 +734,14 @@ export default function Home() {
                 key={hours}
                 label={label}
                 active={selected === hours}
-                disabled={loading || !topic}
-                onClick={() => fetchNews(hours)}
+                disabled={loading}
+                onClick={() => {
+                  if (!topic) {
+                    showSelectTopicToast();
+                    return;
+                  }
+                  fetchNews(hours);
+                }}
               />
             ))}
           </div>
@@ -787,9 +848,7 @@ export default function Home() {
         {!loading && !data && !error && (
           <div>
             {topic ? (
-              <p style={{ color: color.textDim, padding: "32px 0", fontSize: 15, textAlign: "center" }}>
-                {t("homeSelectPeriodPrompt", lang)}
-              </p>
+              null
             ) : topFeedLoading ? (
               <div style={{ textAlign: "center", padding: "40px 0" }}>
                 <span style={spinnerStyle(24)} />
@@ -847,6 +906,27 @@ export default function Home() {
           }}
         >
           {t("homeNewVersionBanner", lang)}
+        </div>
+      )}
+
+      {periodToast && (
+        <div
+          style={{
+            position: "fixed",
+            left: "50%",
+            top: 20,
+            transform: "translateX(-50%)",
+            background: color.surface,
+            color: color.textSecondary,
+            border: `1px solid ${color.border}`,
+            borderRadius: 8,
+            padding: "10px 14px",
+            fontSize: 13,
+            zIndex: 1000,
+            boxShadow: "0 6px 24px rgba(0,0,0,0.45)",
+          }}
+        >
+          {periodToast}
         </div>
       )}
 

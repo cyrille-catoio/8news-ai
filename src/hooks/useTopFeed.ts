@@ -23,13 +23,14 @@ function buildTopFeedUrl(lang: Lang, preferredTopics: string[] | null): string {
   return base;
 }
 
-export function useTopFeed(options: { poll: boolean; lang: Lang; preferredTopics: string[] | null }) {
-  const { poll, lang, preferredTopics } = options;
+export function useTopFeed(options: { poll: boolean; lang: Lang; preferredTopics: string[] | null; enabled: boolean }) {
+  const { poll, lang, preferredTopics, enabled } = options;
   const [articles, setArticles] = useState<TopFeedArticle[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
   const refresh = useCallback(() => {
+    if (!enabled) return;
     setLoading(true);
     fetch(buildTopFeedUrl(lang, preferredTopics), { cache: "no-store" })
       .then((r) => {
@@ -42,9 +43,13 @@ export function useTopFeed(options: { poll: boolean; lang: Lang; preferredTopics
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [lang, preferredTopics]);
+  }, [enabled, lang, preferredTopics]);
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     fetch(buildTopFeedUrl(lang, preferredTopics), { cache: "no-store" })
@@ -65,10 +70,10 @@ export function useTopFeed(options: { poll: boolean; lang: Lang; preferredTopics
     return () => {
       cancelled = true;
     };
-  }, [lang, preferredTopics]);
+  }, [enabled, lang, preferredTopics]);
 
   useEffect(() => {
-    if (!poll) return;
+    if (!enabled || !poll) return;
     const id = setInterval(() => {
       fetch(buildTopFeedUrl(lang, preferredTopics), { cache: "no-store" })
         .then((r) => {
@@ -82,7 +87,7 @@ export function useTopFeed(options: { poll: boolean; lang: Lang; preferredTopics
         .catch(() => {});
     }, POLL_MS);
     return () => clearInterval(id);
-  }, [poll, lang, preferredTopics]);
+  }, [enabled, poll, lang, preferredTopics]);
 
   const clear = useCallback(() => {
     setArticles([]);

@@ -227,6 +227,7 @@ export async function getTopArticlesForStats(
     const { data, error } = await query
       .order("relevance_score", { ascending: false })
       .order("pub_date", { ascending: false })
+      .order("link", { ascending: true })
       .limit(limit);
 
     if (error || !data) return [];
@@ -764,6 +765,7 @@ export async function getTopArticlesForTopics(
     const { data, error } = await query
       .order("relevance_score", { ascending: false })
       .order("pub_date", { ascending: false })
+      .order("link", { ascending: true })
       .limit(limit);
 
     if (error || !data) return [];

@@ -54,9 +54,18 @@ interface TopSummaryBody {
 }
 
 function buildHomepageCacheKey(items: ArticleSummary[]): string {
+  // Normalize ordering to avoid cache misses caused by tie-order
+  // differences in top-article queries.
+  const normalized = [...items].sort((a, b) => {
+    const lk = a.link.localeCompare(b.link);
+    if (lk !== 0) return lk;
+    const pk = a.pubDate.localeCompare(b.pubDate);
+    if (pk !== 0) return pk;
+    return a.source.localeCompare(b.source);
+  });
   const digest = createHash("sha256")
     .update(
-      items
+      normalized
         .map((a) => `${a.link}|${a.pubDate}|${a.source}`)
         .join("\n"),
     )

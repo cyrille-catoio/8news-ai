@@ -7,8 +7,18 @@ import { TopicsPageListView } from "./TopicsPageListView";
 import { TopicsPageCreateView } from "./TopicsPageCreateView";
 import { TopicsPageDetailView } from "./TopicsPageDetailView";
 
-export function TopicsPage({ lang }: { lang: Lang }) {
-  const [view, setView] = useState<"list" | "detail" | "create">("list");
+export function TopicsPage({
+  lang,
+  canManage = true,
+  startInCreate = false,
+  onExit,
+}: {
+  lang: Lang;
+  canManage?: boolean;
+  startInCreate?: boolean;
+  onExit?: () => void;
+}) {
+  const [view, setView] = useState<"list" | "detail" | "create">(startInCreate ? "create" : "list");
   const [topics, setTopics] = useState<TopicItem[]>([]);
   const [topicDetail, setTopicDetail] = useState<TopicDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -55,6 +65,7 @@ export function TopicsPage({ lang }: { lang: Lang }) {
     added: { name: string; url: string }[];
     rejected: { name: string; url: string; reason: string }[];
   } | null>(null);
+  const [createNotice, setCreateNotice] = useState<string | null>(null);
 
   async function loadTopics() {
     setLoading(true);
@@ -101,6 +112,7 @@ export function TopicsPage({ lang }: { lang: Lang }) {
   async function handleCreate() {
     setSaving(true);
     setError(null);
+    setCreateNotice(null);
     const wantFeeds = autoFeeds && !!formDomain.trim();
     try {
       const res = await fetch("/api/topics", {
@@ -126,6 +138,9 @@ export function TopicsPage({ lang }: { lang: Lang }) {
       }
       const created = await res.json();
       const createdId = created.id;
+      const showPendingApproval =
+        typeof created.is_active === "boolean" ? !created.is_active : true;
+      const pendingMessage = t("topicPendingValidation", lang);
       setFormId("");
       setFormLabelEn("");
       setFormLabelFr("");
@@ -138,8 +153,22 @@ export function TopicsPage({ lang }: { lang: Lang }) {
       setFormPromptEn("");
       setFormPromptFr("");
       setAutoFeeds(true);
+      if (!canManage) {
+        setSaving(false);
+        if (showPendingApproval) {
+          setCreateNotice(pendingMessage);
+          window.alert(pendingMessage);
+        }
+        return;
+      }
+
       await loadDetail(createdId);
       setSaving(false);
+
+      if (showPendingApproval) {
+        setCreateNotice(pendingMessage);
+        window.alert(pendingMessage);
+      }
 
       if (wantFeeds) {
         setDiscoveringFeeds(true);
@@ -380,15 +409,22 @@ export function TopicsPage({ lang }: { lang: Lang }) {
   }
 
   useEffect(() => {
+    if (!canManage) {
+      setLoading(false);
+      return;
+    }
     loadTopics();
-  }, []);
+  }, [canManage]);
 
   if (view === "create") {
     return (
       <TopicsPageCreateView
         lang={lang}
         error={error}
-        onBack={() => setView("list")}
+        onBack={() => {
+          if (canManage) setView("list");
+          else onExit?.();
+        }}
         formId={formId}
         setFormId={setFormId}
         formLabelEn={formLabelEn}
@@ -417,6 +453,7 @@ export function TopicsPage({ lang }: { lang: Lang }) {
         generatingLabels={generatingLabels}
         autoFeeds={autoFeeds}
         setAutoFeeds={setAutoFeeds}
+        createNotice={createNotice}
         saving={saving}
         onGenerateScoring={handleGenerateScoring}
         onGenerateLabels={handleGenerateLabels}
@@ -424,6 +461,8 @@ export function TopicsPage({ lang }: { lang: Lang }) {
       />
     );
   }
+
+  if (!canManage) return null;
 
   if (view === "detail" && topicDetail) {
     return (

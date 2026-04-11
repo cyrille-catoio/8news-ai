@@ -47,6 +47,7 @@ export function TopicsPageCreateView({
   generatingLabels,
   autoFeeds,
   setAutoFeeds,
+  createNotice,
   saving,
   onGenerateScoring,
   onGenerateLabels,
@@ -83,6 +84,7 @@ export function TopicsPageCreateView({
   generatingLabels: boolean;
   autoFeeds: boolean;
   setAutoFeeds: (v: boolean) => void;
+  createNotice: string | null;
   saving: boolean;
   onGenerateScoring: () => void;
   onGenerateLabels: () => void;
@@ -95,6 +97,21 @@ export function TopicsPageCreateView({
       </button>
       <h2 style={{ color: color.gold, fontSize: 20, fontWeight: 600, marginBottom: 20, marginTop: 0 }}>{t("newTopic", lang)}</h2>
       {error && <div style={{ color: "#ef4444", fontSize: 13, marginBottom: 12 }}>{error}</div>}
+      {createNotice && (
+        <div
+          style={{
+            marginBottom: 12,
+            fontSize: 13,
+            color: color.gold,
+            border: `1px solid ${color.gold}`,
+            borderRadius: 8,
+            padding: "8px 10px",
+            background: "rgba(201,162,39,0.08)",
+          }}
+        >
+          {createNotice}
+        </div>
+      )}
 
       <div style={sectionCard}>
         <div style={{ display: "grid", gap: 12 }}>

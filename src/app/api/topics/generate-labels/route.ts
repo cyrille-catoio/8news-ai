@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
-import { requireOwnerSession } from "@/lib/auth-api";
+import { requireSession } from "@/lib/auth-api";
 
 export async function POST(req: Request) {
-  const auth = await requireOwnerSession();
+  const auth = await requireSession();
   if (!auth.ok) return auth.response;
 
   const apiKey = process.env.OPENAI_API_KEY;

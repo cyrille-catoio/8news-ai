@@ -65,7 +65,7 @@ export function SummaryBox({ data, locale, lang, hours, topicName, speed, voice,
               <>
               {fmt(data.meta.totalArticles)} articles,{" "}
               {showAnalyzedCount ? `${fmt(data.meta.analyzedArticles)} ` : ""}
-              <span style={{ color: color.gold }}>scorés et analysés par IA</span>
+              <span style={{ color: color.gold }}>sélectionnés et analysés par IA</span>
               </>
             ) : (
               <>

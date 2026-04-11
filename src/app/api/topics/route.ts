@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getActiveTopics,
   createTopic,
+  updateTopic,
 } from "@/lib/supabase";
 import type { TopicItem } from "@/lib/types";
-import { requireOwnerSession } from "@/lib/auth-api";
+import { requireOwnerSession, requireSession } from "@/lib/auth-api";
 
 export async function GET(req: NextRequest) {
   try {
@@ -87,7 +88,7 @@ Les valeurs "index" correspondent aux positions (à partir de 0) dans la liste. 
 const SLUG_RE = /^[a-z0-9-]{2,30}$/;
 
 export async function POST(req: NextRequest) {
-  const auth = await requireOwnerSession();
+  const auth = await requireSession();
   if (!auth.ok) return auth.response;
   try {
     const body = await req.json();
@@ -179,7 +180,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json(row, { status: 201 });
+    const deactivated = await updateTopic(row.id, {
+      is_active: false,
+      is_displayed: false,
+    });
+
+    return NextResponse.json(deactivated ?? row, { status: 201 });
   } catch {
     return NextResponse.json(
       { error: "Failed to create topic" },

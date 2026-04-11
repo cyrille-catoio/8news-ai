@@ -56,6 +56,22 @@ body {
   grid-template-columns: repeat(var(--topic-grid-cols, 8), 1fr);
 }
 
+.topic-grid button {
+  white-space: nowrap;
+}
+
+@media (max-width: 1200px) {
+  .topic-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .topic-grid {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+
 @media (max-width: 640px) {
   .topic-grid {
     grid-template-columns: repeat(4, 1fr);

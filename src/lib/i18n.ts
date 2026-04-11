@@ -578,8 +578,8 @@ const strings = {
     fr: "Sélectionnez une durée pour lancer l'analyse.",
   },
   homeTop20Subtitle: {
-    en: "Top 50 articles from the last 24h",
-    fr: "Top 50 articles des dernières 24h",
+    en: "Top Articles from the last 24h",
+    fr: "Top Articles des dernières 24h",
   },
   actionRefresh: {
     en: "Refresh",

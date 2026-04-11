@@ -48,27 +48,33 @@ export function SummaryBox({ data, locale, lang, hours, topicName, speed, voice 
 
   return (
     <div style={{ ...card, borderRadius: 12, padding: 20, marginBottom: 28, position: "relative" }}>
-      <h2 style={sectionHeading}>
-        {t("summary", lang)}
-        {topicName && (
-          <span style={{ color: color.textMuted, fontWeight: 400 }}> | {topicName}</span>
-        )}
-      </h2>
-      {data.meta && (
-        <p className="summary-meta-line">
-          {lang === "fr" ? (
-            <>
-              {fmt(data.meta.totalArticles)} articles, {fmt(data.meta.scoredArticles)} score,{" "}
-              <span style={{ color: color.gold }}>{fmt(data.meta.analyzedArticles)} analysés par IA</span>
-            </>
-          ) : (
-            <>
-              {fmt(data.meta.totalArticles)} articles, {fmt(data.meta.scoredArticles)} scored,{" "}
-              <span style={{ color: color.gold }}>{fmt(data.meta.analyzedArticles)} analyzed by AI</span>
-            </>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+        <h2 style={{ ...sectionHeading, margin: 0 }}>
+          {t("summary", lang)}
+          {topicName && (
+            <span style={{ color: color.textMuted, fontWeight: 400, textTransform: "none", letterSpacing: "normal" }}>
+              {" | "}
+              <span style={{ textTransform: "uppercase" }}>{topicName}</span>
+              {" |"}
+            </span>
           )}
-        </p>
-      )}
+        </h2>
+        {data.meta && (
+          <p className="summary-meta-line" style={{ margin: 0 }}>
+            {lang === "fr" ? (
+              <>
+              {fmt(data.meta.totalArticles)} articles,{" "}
+              <span style={{ color: color.gold }}>scorés et analysés par IA</span>
+              </>
+            ) : (
+              <>
+                {fmt(data.meta.totalArticles)} articles,{" "}
+                <span style={{ color: color.gold }}>scored and analyzed by AI</span>
+              </>
+            )}
+          </p>
+        )}
+      </div>
       {ttsText.length > 0 && <div style={{ marginBottom: 12 }}><AudioPlayer text={ttsText} lang={lang} speed={speed} voice={voice} /></div>}
       {hasBullets ? (
         <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none" }}>

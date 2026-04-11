@@ -33,7 +33,7 @@ import { isOwnerUser } from "@/lib/user-type";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.83";
+const APP_VERSION = "1.84";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 
@@ -723,7 +723,7 @@ export default function Home() {
                       locale={locale}
                       lang={lang}
                       hours={24}
-                      topicName="Top 50"
+                      topicName="Top Articles"
                       speed={ttsSpeed}
                       voice={lang === "fr" ? ttsVoiceFr : ttsVoice}
                     />

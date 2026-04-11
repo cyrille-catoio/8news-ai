@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerMessages, analyzeWithAI } from "@/lib/ai-analyze";
+import { cleanExpiredCache, getCachedResult, setCachedResult } from "@/lib/supabase";
 import type { Lang } from "@/lib/i18n";
 import type { ArticleSummary, SummaryResponse } from "@/lib/types";
+import { createHash } from "crypto";
 
 export const maxDuration = 60;
 
@@ -51,6 +53,18 @@ interface TopSummaryBody {
   lang: "en" | "fr";
 }
 
+function buildHomepageCacheKey(items: ArticleSummary[]): string {
+  const digest = createHash("sha256")
+    .update(
+      items
+        .map((a) => `${a.link}|${a.pubDate}|${a.source}`)
+        .join("\n"),
+    )
+    .digest("hex")
+    .slice(0, 16);
+  return `home_top_summary:${digest}`;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body: TopSummaryBody = await request.json();
@@ -80,6 +94,13 @@ export async function POST(request: NextRequest) {
       pubDate: a.pubDate,
       snippet: (a.snippet || "").slice(0, 250),
     }));
+    const cacheTopic = buildHomepageCacheKey(items);
+    const cached = (await getCachedResult(cacheTopic, lang, 24, items.length)) as SummaryResponse | null;
+    if (cached) {
+      return NextResponse.json(cached, {
+        headers: { "X-Cache": "HIT" },
+      });
+    }
 
     const systemPrompt = generateHomepageSummaryPrompt(lang);
     const msg = getServerMessages(lang);
@@ -99,7 +120,7 @@ export async function POST(request: NextRequest) {
 
     const now = new Date().toISOString();
 
-    return NextResponse.json({
+    const response = {
       summary,
       bullets,
       articles: items,
@@ -110,7 +131,14 @@ export async function POST(request: NextRequest) {
         scoredArticles: articles.length,
         analyzedArticles: articles.length,
       },
-    } satisfies SummaryResponse);
+    } satisfies SummaryResponse;
+
+    setCachedResult(cacheTopic, lang, 24, items.length, response).catch(() => {});
+    if (Math.random() < 0.1) cleanExpiredCache().catch(() => {});
+
+    return NextResponse.json(response, {
+      headers: { "X-Cache": "MISS" },
+    });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Server error" },

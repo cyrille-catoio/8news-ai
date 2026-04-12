@@ -432,13 +432,15 @@ export default function Home() {
   const topSummaryKeyRef = useRef<string>("");
   const [topAnalysisEnabled, setTopAnalysisEnabled] = useState(false);
 
-  // Topics to display: all in personalization mode (so user can toggle any),
-  // filtered by committed prefs otherwise (no change until "Done" is clicked)
+  const visibleTopicLabels: TopicLabel[] = topics
+    .filter((tp) => tp.isDisplayed)
+    .map((tp) => ({ id: tp.id, label: lang === "fr" ? tp.labelFr : tp.labelEn }));
+
   const displayedTopicLabels: TopicLabel[] = isPersonalizationMode
     ? topicLabels
     : (preferredTopicIds?.length ?? 0) > 0
-    ? topicLabels.filter((tp) => preferredTopicIds!.includes(tp.id))
-    : topicLabels;
+    ? visibleTopicLabels.filter((tp) => preferredTopicIds!.includes(tp.id))
+    : visibleTopicLabels;
 
   const topFeedPoll = currentPage === "home" && topic === null && topAnalysisEnabled;
   const {

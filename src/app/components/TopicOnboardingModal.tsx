@@ -19,7 +19,9 @@ export function TopicOnboardingModal({
   const [selected, setSelected] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
-  if (!open || topics.length === 0) return null;
+  const techTopics = topics.filter((tp) => tp.categoryId === 1 || tp.categoryId === null);
+
+  if (!open || techTopics.length === 0) return null;
 
   function toggle(id: string) {
     setSelected((prev) =>
@@ -98,7 +100,7 @@ export function TopicOnboardingModal({
             marginBottom: 28,
           }}
         >
-          {topics.map((tp) => (
+          {techTopics.map((tp) => (
             <button
               key={tp.id}
               type="button"

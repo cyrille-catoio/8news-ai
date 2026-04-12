@@ -1,17 +1,19 @@
 import { createClient } from "@supabase/supabase-js";
 import { scoreTopicForCron } from "./shared/score-topic";
 
+// Background functions have a 15-minute hard wall on Netlify.
+// This cron is score-only: no RSS fetching. Fetching is handled exclusively
+// by cron-fetching-background.ts so each function stays specialized.
 const CRON_WALL_MS = 840_000;
-const CRON_BUDGET_MS = Number(process.env.CRON_BUDGET_MS ?? 780_000);
-const CRON_SAFETY_RESERVE_MS = Number(process.env.CRON_SAFETY_RESERVE_MS ?? 30_000);
-const SCORE_FRESH_WINDOW_MIN = Number(process.env.SCORE_FRESH_WINDOW_MIN ?? 15);
-const SCORE_MAX_ARTICLES_PER_RUN = Number(process.env.SCORE_MAX_ARTICLES_PER_RUN ?? 100);
-const SCORE_MIN_ARTICLES_PER_RUN = Number(process.env.SCORE_MIN_ARTICLES_PER_RUN ?? 12);
-const SCORE_HARD_ARTICLE_CAP = Number(process.env.SCORE_HARD_ARTICLE_CAP ?? 200);
+const CRON_BUDGET_MS = Number(process.env.CRON_BACKGROUND_SCORE_BUDGET_MS ?? 810_000);
+const CRON_SAFETY_RESERVE_MS = Number(process.env.CRON_BACKGROUND_SAFETY_RESERVE_MS ?? 15_000);
+// Higher defaults than the minute cron: background has the full 15 min to drain backlogs.
+const SCORE_MAX_ARTICLES_PER_RUN = Number(process.env.SCORE_MAX_ARTICLES_PER_RUN ?? 150);
+const SCORE_MIN_ARTICLES_PER_RUN = Number(process.env.SCORE_MIN_ARTICLES_PER_RUN ?? 15);
+const SCORE_HARD_ARTICLE_CAP = Number(process.env.SCORE_HARD_ARTICLE_CAP ?? 300);
 
 type TopicScoreRow = {
   id: string;
-  last_fetched_at: string | null;
   last_scored_at: string | null;
   scoring_domain: string;
   scoring_tier1: string;
@@ -30,9 +32,16 @@ function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
+// Picks how many articles to score for one topic in one pass.
+// Scales up aggressively when backlog is large or budget is plentiful.
 function pickAdaptiveMaxArticles(remainingMs: number, backlog: number): number {
-  const pressureBoost = backlog >= 200 ? 40 : backlog >= 100 ? 20 : backlog >= 40 ? 10 : 0;
-  const timeCap = remainingMs > 600_000 ? 200 : remainingMs > 300_000 ? 150 : remainingMs > 120_000 ? 100 : remainingMs > 60_000 ? 60 : 30;
+  const pressureBoost = backlog >= 300 ? 50 : backlog >= 150 ? 30 : backlog >= 50 ? 15 : 0;
+  const timeCap =
+    remainingMs > 600_000 ? 300 :
+    remainingMs > 300_000 ? 200 :
+    remainingMs > 120_000 ? 150 :
+    remainingMs > 60_000  ? 100 :
+    50;
   return clamp(
     SCORE_MAX_ARTICLES_PER_RUN + pressureBoost,
     SCORE_MIN_ARTICLES_PER_RUN,
@@ -40,8 +49,9 @@ function pickAdaptiveMaxArticles(remainingMs: number, backlog: number): number {
   );
 }
 
+// Fetches unscored article counts for all topics in parallel (one DB query each).
 async function getBacklogCounts(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ReturnType<typeof createClient<any, any, any>>,
   topicIds: string[],
 ): Promise<Map<string, number>> {
   const counts = new Map<string, number>();
@@ -69,10 +79,11 @@ export default async () => {
     { auth: { persistSession: false } },
   );
 
+  // last_scored_at drives starvation-prevention sort (never-scored topics first).
   const { data: topics, error } = await supabase
     .from("topics")
     .select(
-      "id, last_fetched_at, last_scored_at, scoring_domain, scoring_tier1, scoring_tier2, scoring_tier3, scoring_tier4, scoring_tier5",
+      "id, last_scored_at, scoring_domain, scoring_tier1, scoring_tier2, scoring_tier3, scoring_tier4, scoring_tier5",
     )
     .eq("is_active", true);
 
@@ -92,7 +103,8 @@ export default async () => {
   let totalPasses = 0;
   let deadlineStops = 0;
 
-  // ── Multi-pass loop: keep scoring until backlog is drained or budget runs out
+  // Multi-pass: each pass drains as much backlog as possible within budget.
+  // Exits early when all backlogs are 0 or budget is exhausted.
   while (budgetRemaining() > CRON_SAFETY_RESERVE_MS) {
     totalPasses += 1;
     const passStart = Date.now();
@@ -101,7 +113,15 @@ export default async () => {
     const queue: TopicWork[] = rows
       .filter((r) => (backlogMap.get(r.id) ?? 0) > 0)
       .map((r) => ({ topic: r, backlog: backlogMap.get(r.id)! }))
-      .sort((a, b) => b.backlog - a.backlog);
+      .sort((a, b) => {
+        // Primary: most unscored articles first (highest urgency).
+        if (b.backlog !== a.backlog) return b.backlog - a.backlog;
+        // Secondary: never-scored topics first, then oldest-scored.
+        // Treats null last_scored_at as epoch 0 → highest priority.
+        const aTime = a.topic.last_scored_at ? new Date(a.topic.last_scored_at).getTime() : 0;
+        const bTime = b.topic.last_scored_at ? new Date(b.topic.last_scored_at).getTime() : 0;
+        return aTime - bTime;
+      });
 
     if (queue.length === 0) {
       lines.push(`[pass=${totalPasses}] all backlogs empty — done`);
@@ -115,7 +135,7 @@ export default async () => {
     for (const work of queue) {
       if (budgetRemaining() <= CRON_SAFETY_RESERVE_MS) {
         deadlineStops += 1;
-        lines.push(`[pass=${totalPasses}] deadline stop — low remaining budget`);
+        lines.push(`[pass=${totalPasses}] deadline stop — remaining=${Math.max(0, budgetRemaining())}ms`);
         break;
       }
 
@@ -123,7 +143,7 @@ export default async () => {
       const topicsLeft = queue.length - passTopics;
       const maxArticles = pickAdaptiveMaxArticles(remaining, work.backlog);
       const perTopicBudget = Math.max(
-        10_000,
+        15_000,
         Math.min(600_000, Math.floor((remaining - CRON_SAFETY_RESERVE_MS) / Math.max(1, topicsLeft))),
       );
 
@@ -136,8 +156,14 @@ export default async () => {
         scoring_tier5: work.topic.scoring_tier5,
       };
 
+      // Stamp BEFORE scoring so a concurrent instance doesn't double-score this topic.
+      await supabase
+        .from("topics")
+        .update({ last_scored_at: new Date().toISOString() })
+        .eq("id", work.topic.id);
+
       const result = await scoreTopicForCron(work.topic.id, criteria, supabase, {
-        windowHours: null,
+        windowHours: null, // score ALL unscored articles, not just recent ones
         maxArticles,
         maxArticlesCap: SCORE_HARD_ARTICLE_CAP,
         maxElapsedMs: perTopicBudget,
@@ -147,13 +173,11 @@ export default async () => {
       totalScored += result.scored;
       passTopics += 1;
 
-      await supabase
-        .from("topics")
-        .update({ last_scored_at: new Date().toISOString() })
-        .eq("id", work.topic.id);
+      // Update in-memory backlog so next iterations have accurate topicsLeft math.
+      work.backlog = Math.max(0, work.backlog - result.scored);
 
       lines.push(
-        `[pass=${totalPasses}] topic=${work.topic.id} backlog=${work.backlog} scored=${result.scored}/${result.candidateCount} partial=${result.partial ? "1" : "0"} max=${maxArticles} budget=${perTopicBudget}ms elapsed=${result.elapsedMs}ms remaining=${Math.max(0, budgetRemaining())}ms errors=${result.errors.length}`,
+        `[pass=${totalPasses}] topic=${work.topic.id} backlog=${backlogMap.get(work.topic.id)!} scored=${result.scored}/${result.candidateCount} partial=${result.partial ? "1" : "0"} max=${maxArticles} budget=${perTopicBudget}ms elapsed=${result.elapsedMs}ms remaining=${Math.max(0, budgetRemaining())}ms errors=${result.errors.length}`,
       );
     }
 

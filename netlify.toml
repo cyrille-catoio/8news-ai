@@ -5,6 +5,12 @@
 [functions]
   directory = "netlify/functions"
 
+[functions."cron-fetch"]
+schedule = "* * * * *"
+
+[functions."cron-score"]
+schedule = "* * * * *"
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 

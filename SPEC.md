@@ -125,7 +125,8 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   ├── insert-changelog-1.84.sql # one-off INSERT for v1.84 on existing DBs (Supabase SQL Editor)
 │   ├── insert-changelog-1.85.sql # one-off INSERT for v1.85 on existing DBs (Supabase SQL Editor)
 │   ├── insert-changelog-1.86.sql # one-off INSERT for v1.86 on existing DBs (Supabase SQL Editor)
-│   └── insert-changelog-1.87.sql # one-off INSERT for v1.87 on existing DBs (Supabase SQL Editor)
+│   ├── insert-changelog-1.87.sql # one-off INSERT for v1.87 on existing DBs (Supabase SQL Editor)
+│   └── insert-changelog-1.88.sql # one-off INSERT for v1.88 on existing DBs (Supabase SQL Editor)
 ├── .gitignore                  # Next/Node ignores; **v1.77+**: `.claude/` (local Claude/Cursor worktrees, not committed)
 ├── .env                        # API keys (not committed)
 ├── .env.example                # Placeholder for API keys
@@ -222,7 +223,7 @@ Users can create new topics from the Topics page. Each topic includes:
 | `body_en` / `body_fr` | text | Detail text |
 | `created_at` | timestamptz | Display order / metadata |
 
-Populated via migration `005-changelog.sql` (newest first): **1.87 → 1.49** one row per release with short EN/FR summaries aligned with §17; **1.0–1.48** are represented by a **single** row (`version` = `1.0–1.48`, shared generic EN/FR body pointing to git history and SPEC for **1.49+**). For new releases, extend the migration (or `INSERT` manually) and keep §17 and `public/version.json` / `APP_VERSION` in sync. **Existing database missing the latest row only:** run **`migrations/insert-changelog-1.87.sql`** once in the Supabase SQL Editor (see file header). Older gaps: **`insert-changelog-1.86.sql`**, **`insert-changelog-1.85.sql`**, etc.
+Populated via migration `005-changelog.sql` (newest first): **1.88 → 1.49** one row per release with short EN/FR summaries aligned with §17; **1.0–1.48** are represented by a **single** row (`version` = `1.0–1.48`, shared generic EN/FR body pointing to git history and SPEC for **1.49+**). For new releases, extend the migration (or `INSERT` manually) and keep §17 and `public/version.json` / `APP_VERSION` in sync. **Existing database missing the latest row only:** run **`migrations/insert-changelog-1.88.sql`** once in the Supabase SQL Editor (see file header). Older gaps: **`insert-changelog-1.87.sql`**, **`insert-changelog-1.86.sql`**, etc.
 
 ### 5.6 Cache TTL (based on time window)
 
@@ -931,12 +932,13 @@ The topic immediately appears in the homepage topic selector, stats page, and cr
 
 ---
 
-## 17. Changelog (v1.49 → v1.87)
+## 17. Changelog (v1.49 → v1.88)
 
-Summary table (one line per release). **§17.1** expands **v1.65–v1.87** in detail (aligned with `005-changelog.sql` seeds and current code).
+Summary table (one line per release). **§17.1** expands **v1.65–v1.88** in detail (aligned with `005-changelog.sql` seeds and current code).
 
 | Version | Key Changes |
 |---|---|
+| v1.88 | Specialized background functions: fetch-background is fetch-only (no mini-scoring), score-background is score-only with raised caps (150/run, 300 hard cap). Scoring stamps `last_scored_at` before processing to prevent double-scoring. Removed scheduled triggers — scheduling externalized to cron-job.org calling background endpoints directly. |
 | v1.87 | Migrated crons to scheduled-trigger + background-function architecture (15-min runtime). Multi-pass fetch loop processes all topics with extended mini-scoring (80 articles). Multi-pass scoring loop drains full backlog with fair budget distribution. Cron cadence changed to every 10 minutes. Cron Monitor timeline fixed to use `fetched_at`. |
 | v1.86 | Restored previous cron runtime tuning (13s baseline) and removed 30s production overrides. Improved non-owner topic submission UX with a message-only pending-validation screen and dedicated `Retour page d'accueil` action. Kept `Analyse des top articles` generally available on home while hiding it during authenticated topic-edit mode. Added explicit `[functions]` directory in `netlify.toml` to fix scheduled functions not triggering after deploy. |
 | v1.85 | Homepage Top analysis is now on-demand via `Analyse des top articles` (no auto-run on home load), with contextual top toasts and wording updates (`Articles sélectionnés`, `X sélectionnés et analysés par IA`). Signed-in members can propose new topics from personalization; created topics are saved inactive/hidden pending owner validation with 24h notice. Top-summary cache stability improved via deterministic ordering and normalized cache key. |
@@ -977,10 +979,11 @@ Summary table (one line per release). **§17.1** expands **v1.65–v1.87** in de
 | v1.80 | **Supabase user authentication**: optional **email + password** sign-in; **Topics** + **Feed management** (UI + APIs) require a session; rest of the app stays public. **`@supabase/ssr`**, **`middleware.ts`**, **`AuthProvider`** / **`AuthModal`**, **`auth-api.ts`** + **`supabase-browser.ts`**. Register: first name, last name, email, password → **`user_metadata`**. **`GET /api/topics`** without `?all=1` remains public for the homepage selector. |
 | v1.81 | **`member` vs `owner` roles**: **`user_type`** in **`user_metadata`** (`member` at sign-up; **`owner`** set in Supabase Dashboard). **Topics** and **Feed management** are **`owner`**-only; **members** keep guest-level access to other screens. **`requireOwnerSession()`** returns **401** / **403**. **`src/lib/user-type.ts`**. **`version.json`** / **`APP_VERSION`** **1.81**; **`insert-changelog-1.81.sql`**. |
 
-### 17.1 Release detail — v1.65 through v1.87
+### 17.1 Release detail — v1.65 through v1.88
 
 | Ver. | EN (what shipped) | FR (titre seed migration) |
 |------|-------------------|----------------------------|
+| **1.88** | Specialized background functions for single-responsibility: **fetch-background** stripped of all mini-scoring (fetch-only), **score-background** raised to **150 articles/run** default and **300 hard cap** with aggressive adaptive scaling. Scoring now stamps `last_scored_at` **before** processing to prevent double-scoring from concurrent runs, and tracks in-memory backlog for accurate budget distribution. Removed the scheduled trigger functions (`cron-fetching`, `cron-scoring`) and their `netlify.toml` schedule declarations — scheduling is now **externalized to cron-job.org** calling `/.netlify/functions/cron-fetching-background` and `/.netlify/functions/cron-scoring-background` directly via POST every 10 minutes. | *Background functions spécialisées, scheduling externe cron-job.org* |
 | **1.87** | Migrated cron architecture from scheduled functions (30s limit) to a **scheduled-trigger + background-function** pattern with **15-minute** runtime. `cron-fetching` and `cron-scoring` become lightweight triggers that POST to `cron-fetching-background` and `cron-scoring-background` (suffix `-background` = Netlify background function). Fetch background runs a **multi-pass loop** that re-checks `last_fetched_at` staleness each pass and processes all active topics, with extended post-fetch mini-scoring (up to 80 articles per topic, budget distributed fairly). Score background runs a **multi-pass loop** that re-queries backlogs after each pass and keeps scoring until all are drained or the 13-min budget is exhausted, with per-topic budget split across remaining topics. Cron schedule changed from `* * * * *` to `*/10 * * * *` (every 10 minutes). Fixed Cron Monitor activity timeline to bucket articles by `fetched_at` instead of `pub_date`. | *Architecture background functions, multi-pass fetch/score, cadence 10 min, fix timeline* |
 | **1.86** | Rolled cron runtime tuning back to previous stable settings: 13s wall/budget defaults in `cron-fetch`/`cron-score`, previous per-topic elapsed caps restored, and production env overrides removed from `netlify.toml`. Non-owner topic creation UX now switches to a message-only confirmation state after submit (`24h max` validation notice) with a dedicated back-to-home button, instead of keeping the creation form visible. Home control refinement: `Analyze top articles` remains globally accessible, except hidden while an authenticated user is actively editing topic preferences. Added explicit `[functions]` directory declaration in `netlify.toml` to restore scheduled function triggering after deploy with the Next.js plugin. | *Rollback cron stable 13s, écran confirmation membre, fix fonctions schedulées* |
 | **1.85** | Homepage top analysis is now explicitly user-triggered (`Analyze top articles`) instead of auto-loading on home. Added guidance toasts for missing topic / next step after selecting a topic, and refreshed FR copy (`Articles sélectionnés`; `N articles, X sélectionnés et analysés par IA`). Topic personalization now includes member-side topic proposal from home; topic creation APIs accept authenticated users, and newly created topics are forced inactive/hidden pending owner validation with a visible “24h max” notice. Improved button visual consistency on personalization controls and fixed top-summary cache misses by enforcing deterministic article ordering and order-insensitive cache key hashing. | *Analyse top à la demande, soumission topic membre, cache stable et wording FR* |
@@ -1005,14 +1008,14 @@ Summary table (one line per release). **§17.1** expands **v1.65–v1.87** in de
 | **1.80** | **Supabase Auth** (optional): **Sign in / Sign out** next to language toggle; **Topics** + **Feeds** nav + admin APIs gated (`401` without session); **`middleware`** cookie refresh; homepage **`GET /api/topics`** still public. Registration: prénom, nom, e-mail, MDP → metadata. | *Authentification Supabase, accès Topics/Feeds réservé* |
 | **1.81** | **`user_type`**: **`member`** (default) / **`owner`** (dashboard). Only **`owner`** sees Topics + Feed management; **`403`** for **`member`** on admin APIs. **`requireOwnerSession()`**, **`user-type.ts`**. | *Rôles member/owner, admin réservé aux owners* |
 
-> **Note:** If the in-app Changelog was filled before **1.74–1.87** rows existed, run the per-version **`INSERT`** statements (e.g. **`insert-changelog-1.87.sql`**) or re-apply **`005-changelog.sql`** (after **`TRUNCATE changelog`** only if you want a full re-seed). **SPEC** and **runtime** remain authoritative when copy diverges.
+> **Note:** If the in-app Changelog was filled before **1.74–1.88** rows existed, run the per-version **`INSERT`** statements (e.g. **`insert-changelog-1.88.sql`**) or re-apply **`005-changelog.sql`** (after **`TRUNCATE changelog`** only if you want a full re-seed). **SPEC** and **runtime** remain authoritative when copy diverges.
 
 ---
 
 ## 18. Known Limitations
 
 - **Partial authentication (v1.80+ / roles v1.81+)** — **Supabase Auth** with **`member`** (default) vs **`owner`**. **Topics** and **Feed management** are **`owner`**-only (UI + APIs). Guests and **members** still use the homepage, stats, crons, changelog, and settings. No per-user data partitioning in the database; **`owner`** is an **admin role** for those screens.
-- **Serverless timeout** — Netlify runtime is constrained around **13s wall-time** on this project. `POST .../feeds/[feedId]/score` is capped at **`maxDuration` 13** with a shorter internal elapsed budget and may return `partial` when time is exhausted. Scheduled crons also enforce internal budget + reserve and stop early before platform timeout.
+- **Serverless timeout** — Netlify background functions have a **15-minute** wall-time. Cron jobs run as background functions invoked every 10 minutes by **cron-job.org**, with internal budgets (~13 min) and safety reserves. `POST .../feeds/[feedId]/score` is capped at **`maxDuration` 13** with a shorter internal elapsed budget and may return `partial` when time is exhausted.
 - **RSS availability** — Some feeds may go offline; AI feed discovery validates upfront but feeds can break later
 - **AI cost** — Each request consumes OpenAI tokens (gpt-4.1-nano), each TTS request consumes ElevenLabs credits
 - **No SSR** — The page is a client-only component (`"use client"`)

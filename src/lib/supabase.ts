@@ -363,16 +363,13 @@ export async function getActiveTopics(includeInactive = false): Promise<
       }
     }
 
-    return topics.map((t: Record<string, unknown>) => {
-      const cat = t.categories as { label_en: string; label_fr: string } | null;
-      const row = { ...t } as TopicRow;
-      return {
-        ...row,
-        feed_count: countMap.get(row.id) ?? 0,
-        category_label_en: cat?.label_en,
-        category_label_fr: cat?.label_fr,
-      };
-    });
+    type TopicWithCat = TopicRow & { categories: { label_en: string; label_fr: string } | null };
+    return (topics as TopicWithCat[]).map(({ categories: cat, ...row }) => ({
+      ...row,
+      feed_count: countMap.get(row.id) ?? 0,
+      category_label_en: cat?.label_en,
+      category_label_fr: cat?.label_fr,
+    }));
   } catch {
     return [];
   }

@@ -432,15 +432,13 @@ export default function Home() {
   const topSummaryKeyRef = useRef<string>("");
   const [topAnalysisEnabled, setTopAnalysisEnabled] = useState(false);
 
-  const visibleTopicLabels: TopicLabel[] = topics
-    .filter((tp) => tp.isDisplayed)
-    .map((tp) => ({ id: tp.id, label: lang === "fr" ? tp.labelFr : tp.labelEn }));
-
+  // Topics to display: all in personalization mode (so user can toggle any),
+  // filtered by committed prefs otherwise (no change until "Done" is clicked)
   const displayedTopicLabels: TopicLabel[] = isPersonalizationMode
     ? topicLabels
     : (preferredTopicIds?.length ?? 0) > 0
-    ? visibleTopicLabels.filter((tp) => preferredTopicIds!.includes(tp.id))
-    : visibleTopicLabels;
+    ? topicLabels.filter((tp) => preferredTopicIds!.includes(tp.id))
+    : topicLabels;
 
   const topFeedPoll = currentPage === "home" && topic === null && topAnalysisEnabled;
   const {
@@ -506,13 +504,12 @@ export default function Home() {
   useEffect(() => {
     if (currentPage !== "home") return;
     setTopicsLoading(true);
-    const url = authOwner ? "/api/topics?all=1" : "/api/topics";
-    fetch(url, { cache: "no-store" })
+    fetch("/api/topics", { cache: "no-store" })
       .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
       .then((list: TopicItem[]) => setTopics(list))
       .catch(() => {})
       .finally(() => setTopicsLoading(false));
-  }, [currentPage, authOwner]);
+  }, [currentPage]);
 
   const locale = dateLocale(lang);
   const currentTopicLabel = topicLabels.find((tp) => tp.id === topic)?.label ?? topic ?? "";

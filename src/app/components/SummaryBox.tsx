@@ -63,15 +63,15 @@ export function SummaryBox({ data, locale, lang, hours, topicName, speed, voice,
           <p className="summary-meta-line" style={{ margin: 0 }}>
             {lang === "fr" ? (
               <>
-              {fmt(data.meta.totalArticles)} articles,{" "}
-              {showAnalyzedCount ? `${fmt(data.meta.analyzedArticles)} ` : ""}
-              <span style={{ color: color.gold }}>sélectionnés et analysés par IA</span>
+              <span style={{ color: color.textMuted }}>{fmt(data.meta.totalArticles)} articles,{" "}
+              {showAnalyzedCount ? `${fmt(data.meta.analyzedArticles)} ` : ""}</span>
+              <span style={{ color: color.textMuted }}>sélectionnés et analysés par IA</span>
               </>
             ) : (
               <>
-                {fmt(data.meta.totalArticles)} articles,{" "}
-                {showAnalyzedCount ? `${fmt(data.meta.analyzedArticles)} ` : ""}
-                <span style={{ color: color.gold }}>scored and analyzed by AI</span>
+                <span style={{ color: color.textMuted }}>{fmt(data.meta.totalArticles)} articles,{" "}
+                {showAnalyzedCount ? `${fmt(data.meta.analyzedArticles)} ` : ""}</span>
+                <span style={{ color: color.textMuted }}>scored and analyzed by AI</span>
               </>
             )}
           </p>

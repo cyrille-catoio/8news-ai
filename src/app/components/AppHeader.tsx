@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, type ReactNode } from "react";
+import { type CSSProperties, type ReactNode, useState, useRef, useEffect } from "react";
 import { color } from "@/lib/theme";
 import { t, type Lang } from "@/lib/i18n";
 import { useAuth } from "@/app/providers";
@@ -69,6 +69,180 @@ function LangToggle({ lang, onChange }: { lang: Lang; onChange: (l: Lang) => voi
   );
 }
 
+function UserMenu({
+  lang,
+  authed,
+  authLoading,
+  onSignIn,
+  onSignOut,
+}: {
+  lang: Lang;
+  authed: boolean;
+  authLoading: boolean;
+  onSignIn: () => void;
+  onSignOut: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const menuItemStyle: CSSProperties = {
+    display: "block",
+    width: "100%",
+    padding: "8px 14px",
+    border: "none",
+    background: "transparent",
+    color: color.textSecondary,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: "pointer",
+    textAlign: "left",
+    fontFamily: "inherit",
+    whiteSpace: "nowrap",
+  };
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <NavIconButton
+        active={false}
+        onClick={() => setOpen((v) => !v)}
+        ariaLabel="User"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+          <circle cx="12" cy="7" r="4" />
+        </svg>
+      </NavIconButton>
+      {open && !authLoading && (
+        <div
+          style={{
+            position: "absolute",
+            top: "100%",
+            right: 0,
+            marginTop: 4,
+            background: color.surface,
+            border: `1px solid ${color.border}`,
+            borderRadius: 8,
+            overflow: "hidden",
+            zIndex: 100,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+          }}
+        >
+          {authed ? (
+            <button
+              type="button"
+              onClick={() => { onSignOut(); setOpen(false); }}
+              style={menuItemStyle}
+            >
+              {t("authSignOut", lang)}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => { onSignIn(); setOpen(false); }}
+              style={menuItemStyle}
+            >
+              {t("authSignIn", lang)}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminMenu({
+  currentPage,
+  lang,
+  onNavigate,
+}: {
+  currentPage: AppNavPage;
+  lang: Lang;
+  onNavigate: (page: AppNavPage) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const isAdminPage = currentPage === "topics" || currentPage === "feeds";
+
+  const menuItemStyle = (page: AppNavPage): CSSProperties => ({
+    display: "block",
+    width: "100%",
+    padding: "8px 14px",
+    border: "none",
+    background: currentPage === page ? "rgba(201,162,39,0.12)" : "transparent",
+    color: currentPage === page ? color.gold : color.textSecondary,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: "pointer",
+    textAlign: "left",
+    fontFamily: "inherit",
+    whiteSpace: "nowrap",
+  });
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <NavIconButton
+        active={isAdminPage}
+        onClick={() => setOpen((v) => !v)}
+        ariaLabel="Admin"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.27 5.82 22 7 14.14 2 9.27l6.91-1.01L12 2z" />
+        </svg>
+      </NavIconButton>
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            top: "100%",
+            right: 0,
+            marginTop: 4,
+            background: color.surface,
+            border: `1px solid ${color.border}`,
+            borderRadius: 8,
+            overflow: "hidden",
+            zIndex: 100,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => { onNavigate("topics"); setOpen(false); }}
+            style={menuItemStyle("topics")}
+          >
+            {t("navTopicsAria", lang)}
+          </button>
+          <button
+            type="button"
+            onClick={() => { onNavigate("feeds"); setOpen(false); }}
+            style={menuItemStyle("feeds")}
+          >
+            {t("feedsAdminAria", lang)}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AppHeader({
   currentPage,
   lang,
@@ -126,35 +300,6 @@ export function AppHeader({
               <polyline points="9 21 9 14 15 14 15 21" />
             </svg>
           </NavIconButton>
-          {canManageTopicsAndFeeds && (
-            <NavIconButton
-              active={currentPage === "topics"}
-              onClick={() => onNavigate("topics")}
-              ariaLabel={t("navTopicsAria", lang)}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 11a9 9 0 0 1 9 9" />
-                <path d="M4 4a16 16 0 0 1 16 16" />
-                <circle cx="5" cy="19" r="1" fill="currentColor" />
-              </svg>
-            </NavIconButton>
-          )}
-          {canManageTopicsAndFeeds && (
-            <NavIconButton
-              active={currentPage === "feeds"}
-              onClick={() => onNavigate("feeds")}
-              ariaLabel={t("feedsAdminAria", lang)}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="8" y1="6" x2="21" y2="6" />
-                <line x1="8" y1="12" x2="21" y2="12" />
-                <line x1="8" y1="18" x2="21" y2="18" />
-                <line x1="3" y1="6" x2="3.01" y2="6" />
-                <line x1="3" y1="12" x2="3.01" y2="12" />
-                <line x1="3" y1="18" x2="3.01" y2="18" />
-              </svg>
-            </NavIconButton>
-          )}
           <NavIconButton
             active={currentPage === "stats"}
             onClick={() => onNavigate("stats")}
@@ -195,18 +340,26 @@ export function AppHeader({
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
           </NavIconButton>
+          {canManageTopicsAndFeeds && (
+            <AdminMenu
+              currentPage={currentPage}
+              lang={lang}
+              onNavigate={onNavigate}
+            />
+          )}
+          <UserMenu
+            lang={lang}
+            authed={authed}
+            authLoading={authLoading}
+            onSignIn={() => onAuthModalChange(true)}
+            onSignOut={() => void signOut()}
+          />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {!authLoading && (
-            authed ? (
-              <button type="button" onClick={() => void signOut()} style={authBtnStyle}>
-                {t("authSignOut", lang)}
-              </button>
-            ) : (
-              <button type="button" onClick={() => onAuthModalChange(true)} style={authBtnStyle}>
-                {t("authSignIn", lang)}
-              </button>
-            )
+          {!authLoading && !authed && (
+            <button type="button" onClick={() => onAuthModalChange(true)} style={authBtnStyle}>
+              {t("authSignIn", lang)}
+            </button>
           )}
           <LangToggle lang={lang} onChange={onLangChange} />
         </div>
@@ -219,7 +372,7 @@ export function AppHeader({
         onClick={onHomeReset}
         style={{ height: "clamp(32px, 5vw, 48px)", width: "auto", display: "block", cursor: "pointer" }}
       />
-      <p style={{ color: color.textMuted, fontSize: 15, marginTop: 8, textAlign: "center" }}>{t("subtitle", lang)}</p>
+      <p style={{ color: color.textMuted, fontSize: 15, marginTop: 8 }}>{t("subtitle", lang)}</p>
     </header>
   );
 }

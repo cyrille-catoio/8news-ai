@@ -43,9 +43,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Topic not found" }, { status: 404 });
   }
 
+  let orderA = rowA.sort_order as number;
+  let orderB = rowB.sort_order as number;
+
+  if (orderA === orderB) {
+    orderB = orderA + 1;
+  }
+
   await Promise.all([
-    supabase.from("topics").update({ sort_order: rowB.sort_order }).eq("id", topicA),
-    supabase.from("topics").update({ sort_order: rowA.sort_order }).eq("id", topicB),
+    supabase.from("topics").update({ sort_order: orderB }).eq("id", topicA),
+    supabase.from("topics").update({ sort_order: orderA }).eq("id", topicB),
   ]);
 
   return NextResponse.json({ ok: true });

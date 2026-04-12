@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { CHANGELOG_ENTRIES } from "@/lib/changelog-entries";
 
 function getServerClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -9,11 +10,32 @@ function getServerClient() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
+let syncDone = false;
+
+async function ensureChangelogSynced(supabase: ReturnType<typeof getServerClient>) {
+  if (syncDone || !supabase) return;
+
+  const { data: existing } = await supabase
+    .from("changelog")
+    .select("version");
+
+  const existingVersions = new Set((existing ?? []).map((r: { version: string }) => r.version));
+  const missing = CHANGELOG_ENTRIES.filter((e) => !existingVersions.has(e.version));
+
+  if (missing.length > 0) {
+    await supabase.from("changelog").insert(missing);
+  }
+
+  syncDone = true;
+}
+
 export async function GET() {
   const supabase = getServerClient();
   if (!supabase) {
     return NextResponse.json({ error: "DB not configured" }, { status: 500 });
   }
+
+  await ensureChangelogSynced(supabase);
 
   const PAGE = 1000;
   const entries: {

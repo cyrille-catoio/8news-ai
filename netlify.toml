@@ -5,10 +5,10 @@
 [functions]
   directory = "netlify/functions"
 
-[functions."cron-fetch"]
+[functions."cron-fetching"]
 schedule = "* * * * *"
 
-[functions."cron-score"]
+[functions."cron-scoring"]
 schedule = "* * * * *"
 
 [[plugins]]

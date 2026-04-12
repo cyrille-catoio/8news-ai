@@ -506,12 +506,13 @@ export default function Home() {
   useEffect(() => {
     if (currentPage !== "home") return;
     setTopicsLoading(true);
-    fetch("/api/topics", { cache: "no-store" })
+    const url = authOwner ? "/api/topics?all=1" : "/api/topics";
+    fetch(url, { cache: "no-store" })
       .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
       .then((list: TopicItem[]) => setTopics(list))
       .catch(() => {})
       .finally(() => setTopicsLoading(false));
-  }, [currentPage]);
+  }, [currentPage, authOwner]);
 
   const locale = dateLocale(lang);
   const currentTopicLabel = topicLabels.find((tp) => tp.id === topic)?.label ?? topic ?? "";

@@ -1,6 +1,6 @@
 "use client";
 
-import type { TopicDetail } from "@/lib/types";
+import type { TopicDetail, CategoryItem } from "@/lib/types";
 import { t, type Lang } from "@/lib/i18n";
 import {
   color,
@@ -38,6 +38,9 @@ export function TopicsPageDetailView({
   setEditT4,
   editT5,
   setEditT5,
+  categories,
+  editCategoryId,
+  setEditCategoryId,
   editingPrompt,
   setEditingPrompt,
   promptLang,
@@ -84,6 +87,9 @@ export function TopicsPageDetailView({
   setEditT4: (v: string) => void;
   editT5: string;
   setEditT5: (v: string) => void;
+  categories: CategoryItem[];
+  editCategoryId: number;
+  setEditCategoryId: (v: number) => void;
   editingPrompt: boolean;
   setEditingPrompt: (v: boolean) => void;
   promptLang: "en" | "fr";
@@ -197,6 +203,18 @@ export function TopicsPageDetailView({
                 <textarea value={val} onChange={(e) => setter(e.target.value)} style={formTextareaStyle} />
               </div>
             ))}
+            <div>
+              <label style={{ color: color.textMuted, fontSize: 11, fontWeight: 600, textTransform: "uppercase" }}>{t("categoryColumn", lang)}</label>
+              <select
+                value={editCategoryId}
+                onChange={(e) => setEditCategoryId(Number(e.target.value))}
+                style={{ ...formInputStyle, maxWidth: 220, marginTop: 4 }}
+              >
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>{lang === "fr" ? c.labelFr : c.labelEn}</option>
+                ))}
+              </select>
+            </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button type="button" onClick={onSaveTopic} disabled={saving} style={{ ...primaryButtonStyle, opacity: saving ? 0.6 : 1 }}>
                 {saving ? "..." : t("saveBtn", lang)}
@@ -213,6 +231,10 @@ export function TopicsPageDetailView({
             </div>
             <div>
               <span style={{ color: color.textMuted }}>FR:</span> <span style={{ color: color.text }}>{d.labelFr}</span>
+            </div>
+            <div style={{ marginTop: 6 }}>
+              <span style={{ color: color.textMuted, fontWeight: 600 }}>{t("categoryColumn", lang)}:</span>{" "}
+              <span style={{ color: color.text }}>{categories.find((c) => c.id === d.categoryId)?.[lang === "fr" ? "labelFr" : "labelEn"] ?? "—"}</span>
             </div>
             <div style={{ marginTop: 6 }}>
               <span style={{ color: color.textMuted, fontWeight: 600 }}>{t("scoringDomainLabel", lang)}:</span>{" "}

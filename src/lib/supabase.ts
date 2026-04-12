@@ -289,9 +289,18 @@ export interface TopicRow {
   is_active: boolean;
   is_displayed: boolean;
   sort_order: number;
+  category_id: number | null;
   last_fetched_at: string | null;
   last_scored_at: string | null;
   created_at: string;
+}
+
+export interface CategoryRow {
+  id: number;
+  slug: string;
+  label_en: string;
+  label_fr: string;
+  sort_order: number;
 }
 
 export interface FeedRow {
@@ -303,8 +312,24 @@ export interface FeedRow {
   created_at: string;
 }
 
+export async function getCategories(): Promise<CategoryRow[]> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("categories")
+      .select("id, slug, label_en, label_fr, sort_order")
+      .order("sort_order", { ascending: true });
+    if (error || !data) return [];
+    return data as CategoryRow[];
+  } catch {
+    return [];
+  }
+}
+
 export async function getActiveTopics(includeInactive = false): Promise<
-  (TopicRow & { feed_count: number })[]
+  (TopicRow & { feed_count: number; category_label_en?: string; category_label_fr?: string })[]
 > {
   const clientP = getServerClient();
   if (!clientP) return [];
@@ -314,7 +339,7 @@ export async function getActiveTopics(includeInactive = false): Promise<
 
     let query = supabase
       .from("topics")
-      .select("*")
+      .select("*, categories(label_en, label_fr)")
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true });
 
@@ -338,10 +363,16 @@ export async function getActiveTopics(includeInactive = false): Promise<
       }
     }
 
-    return (topics as TopicRow[]).map((t) => ({
-      ...t,
-      feed_count: countMap.get(t.id) ?? 0,
-    }));
+    return topics.map((t: Record<string, unknown>) => {
+      const cat = t.categories as { label_en: string; label_fr: string } | null;
+      const row = { ...t } as TopicRow;
+      return {
+        ...row,
+        feed_count: countMap.get(row.id) ?? 0,
+        category_label_en: cat?.label_en,
+        category_label_fr: cat?.label_fr,
+      };
+    });
   } catch {
     return [];
   }

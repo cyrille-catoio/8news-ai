@@ -61,6 +61,8 @@ export interface TopicItem {
   isActive: boolean;
   isDisplayed: boolean;
   sortOrder: number;
+  categoryId: number | null;
+  categoryLabel?: string;
 }
 
 export interface TopicDetail {
@@ -78,7 +80,15 @@ export interface TopicDetail {
   isActive: boolean;
   isDisplayed: boolean;
   sortOrder: number;
+  categoryId: number | null;
   feeds: FeedItem[];
+}
+
+export interface CategoryItem {
+  id: number;
+  slug: string;
+  labelEn: string;
+  labelFr: string;
 }
 
 export interface FeedItem {

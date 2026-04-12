@@ -1,5 +1,6 @@
 "use client";
 
+import type { CategoryItem } from "@/lib/types";
 import { t, type Lang } from "@/lib/i18n";
 import {
   color,
@@ -48,6 +49,9 @@ export function TopicsPageCreateView({
   generatingLabels,
   autoFeeds,
   setAutoFeeds,
+  categories,
+  formCategoryId,
+  setFormCategoryId,
   createNotice,
   noticeOnlyView,
   saving,
@@ -87,6 +91,9 @@ export function TopicsPageCreateView({
   generatingLabels: boolean;
   autoFeeds: boolean;
   setAutoFeeds: (v: boolean) => void;
+  categories: CategoryItem[];
+  formCategoryId: number;
+  setFormCategoryId: (v: number) => void;
   createNotice: string | null;
   noticeOnlyView?: boolean;
   saving: boolean;
@@ -191,6 +198,19 @@ export function TopicsPageCreateView({
             </button>
           </div>
         </div>
+      </div>
+
+      <div style={sectionCard}>
+        <label style={{ color: color.textMuted, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>{t("categoryColumn", lang)}</label>
+        <select
+          value={formCategoryId}
+          onChange={(e) => setFormCategoryId(Number(e.target.value))}
+          style={{ ...formInputStyle, maxWidth: 220, marginTop: 4 }}
+        >
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>{lang === "fr" ? c.labelFr : c.labelEn}</option>
+          ))}
+        </select>
       </div>
 
       <div style={sectionCard}>

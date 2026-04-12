@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
     }
     const rows = await getActiveTopics(includeAll);
 
+    const lang = req.nextUrl.searchParams.get("lang") === "fr" ? "fr" : "en";
     const topics: TopicItem[] = rows.map((r) => ({
       id: r.id,
       labelEn: r.label_en,
@@ -24,6 +25,8 @@ export async function GET(req: NextRequest) {
       isActive: r.is_active,
       isDisplayed: r.is_displayed ?? true,
       sortOrder: r.sort_order,
+      categoryId: r.category_id ?? null,
+      categoryLabel: lang === "fr" ? r.category_label_fr : r.category_label_en,
     }));
 
     return NextResponse.json(topics, {
@@ -158,6 +161,8 @@ export async function POST(req: NextRequest) {
     const finalPromptEn = promptEn || generateDefaultPromptEn(labelEn, scoringDomain);
     const finalPromptFr = promptFr || generateDefaultPromptFr(labelFr, scoringDomain);
 
+    const categoryId = typeof body.categoryId === "number" ? body.categoryId : 1;
+
     const row = await createTopic({
       id,
       label_en: labelEn,
@@ -171,6 +176,7 @@ export async function POST(req: NextRequest) {
       prompt_en: finalPromptEn,
       prompt_fr: finalPromptFr,
       sort_order: maxSort + 1,
+      category_id: categoryId,
     });
 
     if (!row) {

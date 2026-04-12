@@ -317,6 +317,10 @@ const strings = {
     en: "Inactive",
     fr: "Inactif",
   },
+  categoryColumn: {
+    en: "Category",
+    fr: "Catégorie",
+  },
   displayColumn: {
     en: "Display",
     fr: "Affichage",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { TopicItem, TopicDetail } from "@/lib/types";
+import type { TopicItem, TopicDetail, CategoryItem } from "@/lib/types";
 import { t, type Lang } from "@/lib/i18n";
 import { TopicsPageListView } from "./TopicsPageListView";
 import { TopicsPageCreateView } from "./TopicsPageCreateView";
@@ -25,6 +25,9 @@ export function TopicsPage({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [formCategoryId, setFormCategoryId] = useState<number>(1);
+
   const [formId, setFormId] = useState("");
   const [formLabelEn, setFormLabelEn] = useState("");
   const [formLabelFr, setFormLabelFr] = useState("");
@@ -39,6 +42,7 @@ export function TopicsPage({
   const [feedUrl, setFeedUrl] = useState("");
   const [addingFeed, setAddingFeed] = useState(false);
 
+  const [editCategoryId, setEditCategoryId] = useState<number>(1);
   const [editingTopic, setEditingTopic] = useState(false);
   const [editLabelEn, setEditLabelEn] = useState("");
   const [editLabelFr, setEditLabelFr] = useState("");
@@ -99,6 +103,7 @@ export function TopicsPage({
       setEditT5(d.scoringTier5);
       setEditPromptEn(d.promptEn);
       setEditPromptFr(d.promptFr);
+      setEditCategoryId(d.categoryId ?? 1);
       setEditingTopic(false);
       setEditingPrompt(false);
       setView("detail");
@@ -132,6 +137,7 @@ export function TopicsPage({
           scoringTier5: formT5,
           promptEn: formPromptEn || undefined,
           promptFr: formPromptFr || undefined,
+          categoryId: formCategoryId,
         }),
       });
       if (!res.ok) {
@@ -154,6 +160,7 @@ export function TopicsPage({
       setFormT5("");
       setFormPromptEn("");
       setFormPromptFr("");
+      setFormCategoryId(1);
       setAutoFeeds(true);
       if (!canManage) {
         setSaving(false);
@@ -222,6 +229,7 @@ export function TopicsPage({
           scoringTier3: editT3,
           scoringTier4: editT4,
           scoringTier5: editT5,
+          categoryId: editCategoryId,
         }),
       });
       if (!res.ok) throw new Error("Failed");
@@ -411,6 +419,13 @@ export function TopicsPage({
   }
 
   useEffect(() => {
+    fetch("/api/categories", { cache: "no-store" })
+      .then((r) => r.ok ? r.json() : [])
+      .then((list: CategoryItem[]) => setCategories(list))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (!canManage) {
       setLoading(false);
       return;
@@ -456,6 +471,9 @@ export function TopicsPage({
         generatingLabels={generatingLabels}
         autoFeeds={autoFeeds}
         setAutoFeeds={setAutoFeeds}
+        categories={categories}
+        formCategoryId={formCategoryId}
+        setFormCategoryId={setFormCategoryId}
         createNotice={createNotice}
         noticeOnlyView={memberPendingOnlyView && !canManage}
         saving={saving}
@@ -498,6 +516,9 @@ export function TopicsPage({
         setEditT4={setEditT4}
         editT5={editT5}
         setEditT5={setEditT5}
+        categories={categories}
+        editCategoryId={editCategoryId}
+        setEditCategoryId={setEditCategoryId}
         editingPrompt={editingPrompt}
         setEditingPrompt={setEditingPrompt}
         promptLang={promptLang}

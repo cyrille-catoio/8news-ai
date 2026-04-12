@@ -55,6 +55,7 @@ export function TopicsPageListView({
                 <th style={{ width: 40 }}></th>
                 <th>#</th>
                 <th>Topic</th>
+                <th className="col-hide">{t("categoryColumn", lang)}</th>
                 <th>{t("feeds", lang)}</th>
                 <th className="col-hide">Status</th>
                 <th className="col-hide" style={{ textAlign: "center" }}>{t("displayColumn", lang)}</th>
@@ -94,6 +95,9 @@ export function TopicsPageListView({
                     >
                       {lang === "fr" ? tp.labelFr : tp.labelEn}
                     </button>
+                  </td>
+                  <td className="col-hide" style={{ color: color.textMuted, fontSize: 12 }}>
+                    {tp.categoryLabel ?? "—"}
                   </td>
                   <td>{tp.feedCount}</td>
                   <td className="col-hide">

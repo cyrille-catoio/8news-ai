@@ -36,6 +36,7 @@ export async function GET(
       isActive: row.is_active,
       isDisplayed: row.is_displayed ?? true,
       sortOrder: row.sort_order,
+      categoryId: row.category_id ?? null,
       feeds: row.feeds.map(
         (f): FeedItem => ({
           id: f.id,
@@ -81,6 +82,7 @@ export async function PATCH(
       isActive: "is_active",
       isDisplayed: "is_displayed",
       sortOrder: "sort_order",
+      categoryId: "category_id",
     };
 
     const updateData: Record<string, unknown> = {};

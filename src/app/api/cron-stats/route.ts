@@ -55,13 +55,13 @@ export async function GET() {
     return all;
   }
 
-  async function paginateRecent(since: string): Promise<{ pub_date: string; scored_at: string | null; topic: string }[]> {
-    const all: { pub_date: string; scored_at: string | null; topic: string }[] = [];
+  async function paginateRecent(since: string): Promise<{ pub_date: string; fetched_at: string | null; scored_at: string | null; topic: string }[]> {
+    const all: { pub_date: string; fetched_at: string | null; scored_at: string | null; topic: string }[] = [];
     let from = 0;
     while (true) {
       const { data } = await supabase
         .from("articles")
-        .select("pub_date, scored_at, topic")
+        .select("pub_date, fetched_at, scored_at, topic")
         .gte("pub_date", since)
         .range(from, from + FETCH_BATCH - 1);
       if (!data || data.length === 0) break;
@@ -185,7 +185,8 @@ export async function GET() {
   const scoreBuckets = new Map<string, number>();
 
   for (const r of recentRows) {
-    const h = r.pub_date.slice(0, 13) + ":00:00Z";
+    const fetchTs = r.fetched_at ?? r.pub_date;
+    const h = fetchTs.slice(0, 13) + ":00:00Z";
     fetchBuckets.set(h, (fetchBuckets.get(h) ?? 0) + 1);
     if (r.scored_at) {
       const sh = r.scored_at.slice(0, 13) + ":00:00Z";

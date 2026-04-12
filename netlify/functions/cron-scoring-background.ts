@@ -8,8 +8,6 @@ const SCORE_FRESH_WINDOW_MIN = Number(process.env.SCORE_FRESH_WINDOW_MIN ?? 15);
 const SCORE_MAX_ARTICLES_PER_RUN = Number(process.env.SCORE_MAX_ARTICLES_PER_RUN ?? 100);
 const SCORE_MIN_ARTICLES_PER_RUN = Number(process.env.SCORE_MIN_ARTICLES_PER_RUN ?? 12);
 const SCORE_HARD_ARTICLE_CAP = Number(process.env.SCORE_HARD_ARTICLE_CAP ?? 200);
-const MULTI_TOPIC_BACKLOG_THRESHOLD = Number(process.env.MULTI_TOPIC_BACKLOG_THRESHOLD ?? 500);
-const FAIRNESS_EVERY_N_TOPICS = Number(process.env.SCORE_FAIRNESS_EVERY_N_TOPICS ?? 4);
 
 type TopicScoreRow = {
   id: string;
@@ -26,28 +24,38 @@ type TopicScoreRow = {
 type TopicWork = {
   topic: TopicScoreRow;
   backlog: number;
-  freshBacklog: number;
 };
-
-function tsOrNull(iso: string | null | undefined): number | null {
-  if (!iso) return null;
-  const t = new Date(iso).getTime();
-  return Number.isNaN(t) ? null : t;
-}
 
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
-function pickAdaptiveMaxArticles(remainingMs: number, freshBacklog: number, backlog: number): number {
-  const pressure = freshBacklog > 0 ? freshBacklog : backlog;
-  const pressureBoost = pressure >= 200 ? 40 : pressure >= 100 ? 20 : pressure >= 40 ? 10 : 0;
+function pickAdaptiveMaxArticles(remainingMs: number, backlog: number): number {
+  const pressureBoost = backlog >= 200 ? 40 : backlog >= 100 ? 20 : backlog >= 40 ? 10 : 0;
   const timeCap = remainingMs > 600_000 ? 200 : remainingMs > 300_000 ? 150 : remainingMs > 120_000 ? 100 : remainingMs > 60_000 ? 60 : 30;
   return clamp(
     SCORE_MAX_ARTICLES_PER_RUN + pressureBoost,
     SCORE_MIN_ARTICLES_PER_RUN,
     Math.min(timeCap, SCORE_HARD_ARTICLE_CAP),
   );
+}
+
+async function getBacklogCounts(
+  supabase: ReturnType<typeof createClient>,
+  topicIds: string[],
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  await Promise.all(
+    topicIds.map(async (id) => {
+      const { count } = await supabase
+        .from("articles")
+        .select("id", { count: "exact", head: true })
+        .eq("topic", id)
+        .is("relevance_score", null);
+      counts.set(id, count ?? 0);
+    }),
+  );
+  return counts;
 }
 
 export default async () => {
@@ -78,146 +86,82 @@ export default async () => {
     return;
   }
 
-  const freshSinceIso = new Date(Date.now() - SCORE_FRESH_WINDOW_MIN * 60_000).toISOString();
   const rows = topics as TopicScoreRow[];
-  const withBacklog = await Promise.all<TopicWork>(
-    rows.map(async (topic) => {
-      const [{ count: backlogCount }, { count: freshCount }] = await Promise.all([
-        supabase
-          .from("articles")
-          .select("id", { count: "exact", head: true })
-          .eq("topic", topic.id)
-          .is("relevance_score", null),
-        supabase
-          .from("articles")
-          .select("id", { count: "exact", head: true })
-          .eq("topic", topic.id)
-          .is("relevance_score", null)
-          .gte("fetched_at", freshSinceIso),
-      ]);
-      return {
-        topic,
-        backlog: backlogCount ?? 0,
-        freshBacklog: freshCount ?? 0,
-      };
-    }),
-  );
-
-  withBacklog.sort((a, b) => {
-    const af = a.freshBacklog > 0 ? 1 : 0;
-    const bf = b.freshBacklog > 0 ? 1 : 0;
-    if (af !== bf) return bf - af;
-
-    if (af > 0) {
-      if (a.freshBacklog !== b.freshBacklog) return b.freshBacklog - a.freshBacklog;
-      const fa = tsOrNull(a.topic.last_fetched_at);
-      const fb = tsOrNull(b.topic.last_fetched_at);
-      if (fa === null && fb === null) return a.topic.id.localeCompare(b.topic.id);
-      if (fa === null) return 1;
-      if (fb === null) return -1;
-      return fb - fa;
-    }
-
-    const ha = a.backlog > 0 ? 1 : 0;
-    const hb = b.backlog > 0 ? 1 : 0;
-    if (ha !== hb) return hb - ha;
-
-    if (ha > 0) {
-      if (a.backlog !== b.backlog) return b.backlog - a.backlog;
-      const sa = tsOrNull(a.topic.last_scored_at);
-      const sb = tsOrNull(b.topic.last_scored_at);
-      if (sa === null && sb === null) return a.topic.id.localeCompare(b.topic.id);
-      if (sa === null) return -1;
-      if (sb === null) return 1;
-      return sa - sb;
-    }
-
-    return a.topic.id.localeCompare(b.topic.id);
-  });
-
-  const withBacklogOnly = withBacklog.filter((w) => w.backlog > 0);
-  const fairCandidate = [...withBacklogOnly]
-    .sort((a, b) => {
-      const sa = tsOrNull(a.topic.last_scored_at);
-      const sb = tsOrNull(b.topic.last_scored_at);
-      if (sa === null && sb === null) return a.topic.id.localeCompare(b.topic.id);
-      if (sa === null) return -1;
-      if (sb === null) return 1;
-      return sa - sb;
-    })
-    .at(0);
-
   const lines: string[] = [];
-  let topicsProcessed = 0;
-  let deadlineStops = 0;
   let totalScored = 0;
-  let usedFairness = false;
-  const processedIds = new Set<string>();
+  let totalPasses = 0;
+  let deadlineStops = 0;
 
-  const queue: TopicWork[] = [...withBacklog];
-  while (queue.length > 0) {
-    if (budgetRemaining() <= CRON_SAFETY_RESERVE_MS) {
-      deadlineStops += 1;
-      lines.push("[deadline] stopped — low remaining budget");
+  // ── Multi-pass loop: keep scoring until backlog is drained or budget runs out
+  while (budgetRemaining() > CRON_SAFETY_RESERVE_MS) {
+    totalPasses += 1;
+    const passStart = Date.now();
+
+    const backlogMap = await getBacklogCounts(supabase, rows.map((r) => r.id));
+    const queue: TopicWork[] = rows
+      .filter((r) => (backlogMap.get(r.id) ?? 0) > 0)
+      .map((r) => ({ topic: r, backlog: backlogMap.get(r.id)! }))
+      .sort((a, b) => b.backlog - a.backlog);
+
+    if (queue.length === 0) {
+      lines.push(`[pass=${totalPasses}] all backlogs empty — done`);
       break;
     }
 
-    let work = queue.shift()!;
-    if (
-      !usedFairness &&
-      fairCandidate &&
-      topicsProcessed > 0 &&
-      topicsProcessed % FAIRNESS_EVERY_N_TOPICS === 0 &&
-      !processedIds.has(fairCandidate.topic.id)
-    ) {
-      work = fairCandidate;
-      usedFairness = true;
-    }
+    const totalBacklogThisPass = queue.reduce((s, w) => s + w.backlog, 0);
+    let passScored = 0;
+    let passTopics = 0;
 
-    if (processedIds.has(work.topic.id)) continue;
-    processedIds.add(work.topic.id);
+    for (const work of queue) {
+      if (budgetRemaining() <= CRON_SAFETY_RESERVE_MS) {
+        deadlineStops += 1;
+        lines.push(`[pass=${totalPasses}] deadline stop — low remaining budget`);
+        break;
+      }
 
-    if (topicsProcessed > 0 && work.backlog > MULTI_TOPIC_BACKLOG_THRESHOLD && work.freshBacklog === 0) {
-      lines.push(
-        `[skip] ${work.topic.id} backlog=${work.backlog} exceeds threshold for multi-topic`,
+      const remaining = budgetRemaining();
+      const topicsLeft = queue.length - passTopics;
+      const maxArticles = pickAdaptiveMaxArticles(remaining, work.backlog);
+      const perTopicBudget = Math.max(
+        10_000,
+        Math.min(600_000, Math.floor((remaining - CRON_SAFETY_RESERVE_MS) / Math.max(1, topicsLeft))),
       );
-      break;
+
+      const criteria = {
+        scoring_domain: work.topic.scoring_domain,
+        scoring_tier1: work.topic.scoring_tier1,
+        scoring_tier2: work.topic.scoring_tier2,
+        scoring_tier3: work.topic.scoring_tier3,
+        scoring_tier4: work.topic.scoring_tier4,
+        scoring_tier5: work.topic.scoring_tier5,
+      };
+
+      const result = await scoreTopicForCron(work.topic.id, criteria, supabase, {
+        windowHours: null,
+        maxArticles,
+        maxArticlesCap: SCORE_HARD_ARTICLE_CAP,
+        maxElapsedMs: perTopicBudget,
+      });
+
+      passScored += result.scored;
+      totalScored += result.scored;
+      passTopics += 1;
+
+      await supabase
+        .from("topics")
+        .update({ last_scored_at: new Date().toISOString() })
+        .eq("id", work.topic.id);
+
+      lines.push(
+        `[pass=${totalPasses}] topic=${work.topic.id} backlog=${work.backlog} scored=${result.scored}/${result.candidateCount} partial=${result.partial ? "1" : "0"} max=${maxArticles} budget=${perTopicBudget}ms elapsed=${result.elapsedMs}ms remaining=${Math.max(0, budgetRemaining())}ms errors=${result.errors.length}`,
+      );
     }
-
-    const remaining = budgetRemaining();
-    const maxArticles = pickAdaptiveMaxArticles(remaining, work.freshBacklog, work.backlog);
-    const perTopicBudget = Math.max(
-      10_000,
-      Math.min(600_000, remaining - CRON_SAFETY_RESERVE_MS),
-    );
-
-    const criteria = {
-      scoring_domain: work.topic.scoring_domain,
-      scoring_tier1: work.topic.scoring_tier1,
-      scoring_tier2: work.topic.scoring_tier2,
-      scoring_tier3: work.topic.scoring_tier3,
-      scoring_tier4: work.topic.scoring_tier4,
-      scoring_tier5: work.topic.scoring_tier5,
-    };
-
-    const result = await scoreTopicForCron(work.topic.id, criteria, supabase, {
-      windowHours: null,
-      maxArticles,
-      maxArticlesCap: SCORE_HARD_ARTICLE_CAP,
-      maxElapsedMs: perTopicBudget,
-    });
-
-    totalScored += result.scored;
-    topicsProcessed += 1;
-
-    await supabase
-      .from("topics")
-      .update({ last_scored_at: new Date().toISOString() })
-      .eq("id", work.topic.id);
 
     lines.push(
-      `[metric] topic=${work.topic.id} fresh_backlog=${work.freshBacklog} backlog=${work.backlog} scored=${result.scored}/${result.candidateCount} partial=${result.partial ? "1" : "0"} max_articles=${maxArticles} elapsed_ms=${result.elapsedMs} remaining_ms=${Math.max(0, budgetRemaining())} errors=${result.errors.length}`,
+      `[pass=${totalPasses}] summary: topics=${passTopics} scored=${passScored} backlog_start=${totalBacklogThisPass} elapsed=${Date.now() - passStart}ms`,
     );
+
+    if (deadlineStops > 0) break;
   }
 
   if (lines.length === 0) {
@@ -225,9 +169,8 @@ export default async () => {
     return;
   }
 
-  const output = [
-    ...lines,
-    `[run] cron=score-background topics_total=${rows.length} topics_processed=${topicsProcessed} scored=${totalScored} deadline_stops=${deadlineStops} elapsed_ms=${Date.now() - startedAt} budget_ms=${Math.min(CRON_WALL_MS, CRON_BUDGET_MS)} fresh_window_min=${SCORE_FRESH_WINDOW_MIN}`,
-  ].join("\n");
-  console.log(output);
+  lines.push(
+    `[run] cron=score-background topics_total=${rows.length} passes=${totalPasses} scored=${totalScored} deadline_stops=${deadlineStops} elapsed_ms=${Date.now() - startedAt} budget_ms=${Math.min(CRON_WALL_MS, CRON_BUDGET_MS)}`,
+  );
+  console.log(lines.join("\n"));
 };

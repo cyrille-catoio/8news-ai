@@ -4,11 +4,11 @@ import { scoreTopicForCron } from "./shared/score-topic";
 const CRON_WALL_MS = 840_000;
 const CRON_BUDGET_MS = Number(process.env.CRON_BUDGET_MS ?? 780_000);
 const CRON_SAFETY_RESERVE_MS = Number(process.env.CRON_SAFETY_RESERVE_MS ?? 30_000);
-const SCORE_FRESH_WINDOW_MIN = Number(process.env.SCORE_FRESH_WINDOW_MIN ?? 5);
-const SCORE_MAX_ARTICLES_PER_RUN = Number(process.env.SCORE_MAX_ARTICLES_PER_RUN ?? 50);
+const SCORE_FRESH_WINDOW_MIN = Number(process.env.SCORE_FRESH_WINDOW_MIN ?? 15);
+const SCORE_MAX_ARTICLES_PER_RUN = Number(process.env.SCORE_MAX_ARTICLES_PER_RUN ?? 100);
 const SCORE_MIN_ARTICLES_PER_RUN = Number(process.env.SCORE_MIN_ARTICLES_PER_RUN ?? 12);
-const SCORE_HARD_ARTICLE_CAP = Number(process.env.SCORE_HARD_ARTICLE_CAP ?? 80);
-const MULTI_TOPIC_BACKLOG_THRESHOLD = Number(process.env.MULTI_TOPIC_BACKLOG_THRESHOLD ?? 20);
+const SCORE_HARD_ARTICLE_CAP = Number(process.env.SCORE_HARD_ARTICLE_CAP ?? 200);
+const MULTI_TOPIC_BACKLOG_THRESHOLD = Number(process.env.MULTI_TOPIC_BACKLOG_THRESHOLD ?? 500);
 const FAIRNESS_EVERY_N_TOPICS = Number(process.env.SCORE_FAIRNESS_EVERY_N_TOPICS ?? 4);
 
 type TopicScoreRow = {
@@ -41,8 +41,8 @@ function clamp(n: number, min: number, max: number): number {
 
 function pickAdaptiveMaxArticles(remainingMs: number, freshBacklog: number, backlog: number): number {
   const pressure = freshBacklog > 0 ? freshBacklog : backlog;
-  const pressureBoost = pressure >= 120 ? 20 : pressure >= 60 ? 10 : pressure >= 20 ? 5 : 0;
-  const timeCap = remainingMs > 300_000 ? 80 : remainingMs > 120_000 ? 70 : remainingMs > 60_000 ? 50 : 30;
+  const pressureBoost = pressure >= 200 ? 40 : pressure >= 100 ? 20 : pressure >= 40 ? 10 : 0;
+  const timeCap = remainingMs > 600_000 ? 200 : remainingMs > 300_000 ? 150 : remainingMs > 120_000 ? 100 : remainingMs > 60_000 ? 60 : 30;
   return clamp(
     SCORE_MAX_ARTICLES_PER_RUN + pressureBoost,
     SCORE_MIN_ARTICLES_PER_RUN,
@@ -188,7 +188,7 @@ export default async () => {
     const maxArticles = pickAdaptiveMaxArticles(remaining, work.freshBacklog, work.backlog);
     const perTopicBudget = Math.max(
       10_000,
-      Math.min(300_000, remaining - CRON_SAFETY_RESERVE_MS),
+      Math.min(600_000, remaining - CRON_SAFETY_RESERVE_MS),
     );
 
     const criteria = {

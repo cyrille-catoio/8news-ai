@@ -5,9 +5,8 @@ import { scoreTopicForCron } from "./shared/score-topic";
 const CRON_WALL_MS = 840_000;
 const CRON_BUDGET_MS = Number(process.env.CRON_BUDGET_MS ?? 780_000);
 const CRON_SAFETY_RESERVE_MS = Number(process.env.CRON_SAFETY_RESERVE_MS ?? 30_000);
-const SCORE_CALL_RESERVE_MS = Number(process.env.FETCH_SCORE_CALL_RESERVE_MS ?? 60_000);
-const FETCH_TOPICS_MAX_PER_RUN = Number(process.env.FETCH_TOPICS_MAX_PER_RUN ?? 3);
-const FETCH_MINI_SCORE_MAX = Number(process.env.FETCH_MINI_SCORE_MAX ?? 50);
+const SCORE_CALL_RESERVE_MS = Number(process.env.FETCH_SCORE_CALL_RESERVE_MS ?? 120_000);
+const FETCH_MINI_SCORE_MAX = Number(process.env.FETCH_MINI_SCORE_MAX ?? 80);
 const FETCH_MINI_SCORE_MIN = Number(process.env.FETCH_MINI_SCORE_MIN ?? 15);
 
 function clamp(n: number, min: number, max: number): number {
@@ -53,8 +52,7 @@ export default async () => {
   const n = allTopics?.length ?? 0;
   if (n === 0) return new Response("No active topics");
 
-  const k = Math.min(Math.max(1, Math.ceil(n / 10)), FETCH_TOPICS_MAX_PER_RUN);
-  const batch = (allTopics as TopicFetchRow[]).slice(0, k);
+  const batch = allTopics as TopicFetchRow[];
   let processedTopics = 0;
   let totalInserted = 0;
   let totalMiniScored = 0;
@@ -102,7 +100,7 @@ export default async () => {
         windowHours: null,
         maxElapsedMs: Math.max(
           5_000,
-          Math.min(120_000, budgetRemaining() - CRON_SAFETY_RESERVE_MS),
+          Math.min(180_000, budgetRemaining() - CRON_SAFETY_RESERVE_MS),
         ),
       });
       totalMiniScored += scoreResult.scored;
@@ -118,7 +116,7 @@ export default async () => {
 
   const output = [
     ...lines,
-    `[run] cron=fetch-background topics_total=${n} topics_target=${batch.length} topics_processed=${processedTopics} inserted=${totalInserted} mini_scored=${totalMiniScored} deadline_stops=${deadlineStops} elapsed_ms=${Date.now() - startedAt} budget_ms=${Math.min(CRON_WALL_MS, CRON_BUDGET_MS)}`,
+    `[run] cron=fetch-background topics_total=${n} topics_processed=${processedTopics} inserted=${totalInserted} mini_scored=${totalMiniScored} deadline_stops=${deadlineStops} elapsed_ms=${Date.now() - startedAt} budget_ms=${Math.min(CRON_WALL_MS, CRON_BUDGET_MS)}`,
   ].join("\n");
   console.log(output);
 };

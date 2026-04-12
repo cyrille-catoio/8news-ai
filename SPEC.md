@@ -1,6 +1,6 @@
 # 8news.ai — Technical Specification
 
-**Version**: v1.86
+**Version**: v1.87
 **Last updated**: 12 April 2026
 
 ---

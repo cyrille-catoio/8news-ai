@@ -219,7 +219,7 @@ export function AppHeader({
         onClick={onHomeReset}
         style={{ height: "clamp(32px, 5vw, 48px)", width: "auto", display: "block", cursor: "pointer" }}
       />
-      <p style={{ color: color.textMuted, fontSize: 15, marginTop: 8 }}>{t("subtitle", lang)}</p>
+      <p style={{ color: color.textMuted, fontSize: 15, marginTop: 8, textAlign: "center" }}>{t("subtitle", lang)}</p>
     </header>
   );
 }

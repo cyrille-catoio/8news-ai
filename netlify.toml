@@ -11,9 +11,6 @@ schedule = "* * * * *"
 [functions."cron-scoring"]
 schedule = "* * * * *"
 
-[functions."cron-test"]
-schedule = "* * * * *"
-
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 

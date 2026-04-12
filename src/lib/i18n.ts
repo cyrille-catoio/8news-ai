@@ -225,6 +225,10 @@ const strings = {
     en: "Back",
     fr: "Retour",
   },
+  backToHomePage: {
+    en: "Back to home page",
+    fr: "Retour page d'accueil",
+  },
   createBtn: {
     en: "Create",
     fr: "Créer",

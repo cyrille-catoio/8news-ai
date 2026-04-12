@@ -1,6 +1,6 @@
 # 8news.ai — Technical Specification
 
-**Version**: v1.85
+**Version**: v1.86
 **Last updated**: 12 April 2026
 
 ---
@@ -122,7 +122,9 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   ├── insert-changelog-1.81.sql # one-off INSERT for v1.81 on existing DBs (Supabase SQL Editor)
 │   ├── insert-changelog-1.82.sql # one-off INSERT for v1.82 on existing DBs (Supabase SQL Editor)
 │   ├── insert-changelog-1.83.sql # one-off INSERT for v1.83 on existing DBs (Supabase SQL Editor)
-│   └── insert-changelog-1.84.sql # one-off INSERT for v1.84 on existing DBs (Supabase SQL Editor)
+│   ├── insert-changelog-1.84.sql # one-off INSERT for v1.84 on existing DBs (Supabase SQL Editor)
+│   ├── insert-changelog-1.85.sql # one-off INSERT for v1.85 on existing DBs (Supabase SQL Editor)
+│   └── insert-changelog-1.86.sql # one-off INSERT for v1.86 on existing DBs (Supabase SQL Editor)
 ├── .gitignore                  # Next/Node ignores; **v1.77+**: `.claude/` (local Claude/Cursor worktrees, not committed)
 ├── .env                        # API keys (not committed)
 ├── .env.example                # Placeholder for API keys
@@ -219,7 +221,7 @@ Users can create new topics from the Topics page. Each topic includes:
 | `body_en` / `body_fr` | text | Detail text |
 | `created_at` | timestamptz | Display order / metadata |
 
-Populated via migration `005-changelog.sql` (newest first): **1.84 → 1.49** one row per release with short EN/FR summaries aligned with §17; **1.0–1.48** are represented by a **single** row (`version` = `1.0–1.48`, shared generic EN/FR body pointing to git history and SPEC for **1.49+**). For new releases, extend the migration (or `INSERT` manually) and keep §17 and `public/version.json` / `APP_VERSION` in sync. **Existing database missing the latest row only:** run **`migrations/insert-changelog-1.84.sql`** once in the Supabase SQL Editor (see file header). Older gaps: **`insert-changelog-1.83.sql`**, **`insert-changelog-1.81.sql`**, etc.
+Populated via migration `005-changelog.sql` (newest first): **1.86 → 1.49** one row per release with short EN/FR summaries aligned with §17; **1.0–1.48** are represented by a **single** row (`version` = `1.0–1.48`, shared generic EN/FR body pointing to git history and SPEC for **1.49+**). For new releases, extend the migration (or `INSERT` manually) and keep §17 and `public/version.json` / `APP_VERSION` in sync. **Existing database missing the latest row only:** run **`migrations/insert-changelog-1.86.sql`** once in the Supabase SQL Editor (see file header). Older gaps: **`insert-changelog-1.85.sql`**, **`insert-changelog-1.84.sql`**, etc.
 
 ### 5.6 Cache TTL (based on time window)
 
@@ -928,12 +930,14 @@ The topic immediately appears in the homepage topic selector, stats page, and cr
 
 ---
 
-## 17. Changelog (v1.49 → v1.84)
+## 17. Changelog (v1.49 → v1.86)
 
-Summary table (one line per release). **§17.1** expands **v1.65–v1.84** in detail (aligned with `005-changelog.sql` seeds and current code).
+Summary table (one line per release). **§17.1** expands **v1.65–v1.86** in detail (aligned with `005-changelog.sql` seeds and current code).
 
 | Version | Key Changes |
 |---|---|
+| v1.86 | Restored previous cron runtime tuning (13s baseline) and removed 30s production overrides. Improved non-owner topic submission UX with a message-only pending-validation screen and dedicated `Retour page d'accueil` action. Kept `Analyse des top articles` generally available on home while hiding it during authenticated topic-edit mode. |
+| v1.85 | Homepage Top analysis is now on-demand via `Analyse des top articles` (no auto-run on home load), with contextual top toasts and wording updates (`Articles sélectionnés`, `X sélectionnés et analysés par IA`). Signed-in members can propose new topics from personalization; created topics are saved inactive/hidden pending owner validation with 24h notice. Top-summary cache stability improved via deterministic ordering and normalized cache key. |
 | v1.84 | Signed-in user topic personalization (onboarding, per-user selected-topic persistence, and homepage Top feed filtered by selected topics). Cron fetch/score and Netlify production env defaults aligned with 30s runtime budget. Summary metadata copy refined for selected-topic mode (`N articles, X scored and analyzed by AI`) and “Customize my topics” UI polished. |
 | v1.83 | Homepage **Top 50** feed + dedicated **AI Summary** card for home (`POST /api/news/top-summary`) with grouped bullet points, references, audio playback and progressive reveal animation. Added `is_displayed` topic visibility control (hidden topics excluded from homepage Top feed while remaining active for ingestion/scoring). i18n labels updated (AI Summary / Résumé IA, Top 50 subtitle), homepage loading label and visual separation polish. |
 | v1.82 | Settings **My Account** (editable name, read-only email/type) + **Users** management (owner-only table with inline edit). Homepage refresh button removed; **last-updated timestamp** on Top 20. Baselines updated (EN: "Tech intelligence, powered by AI." / FR: "La tech décodée par l'IA"). Topic creation reorganized (Label EN/FR/Slug row + Domain + AI label generation via `/api/topics/generate-labels`). Cron status: score age only penalized when backlog > 0. Google Analytics integration. |
@@ -971,10 +975,12 @@ Summary table (one line per release). **§17.1** expands **v1.65–v1.84** in de
 | v1.80 | **Supabase user authentication**: optional **email + password** sign-in; **Topics** + **Feed management** (UI + APIs) require a session; rest of the app stays public. **`@supabase/ssr`**, **`middleware.ts`**, **`AuthProvider`** / **`AuthModal`**, **`auth-api.ts`** + **`supabase-browser.ts`**. Register: first name, last name, email, password → **`user_metadata`**. **`GET /api/topics`** without `?all=1` remains public for the homepage selector. |
 | v1.81 | **`member` vs `owner` roles**: **`user_type`** in **`user_metadata`** (`member` at sign-up; **`owner`** set in Supabase Dashboard). **Topics** and **Feed management** are **`owner`**-only; **members** keep guest-level access to other screens. **`requireOwnerSession()`** returns **401** / **403**. **`src/lib/user-type.ts`**. **`version.json`** / **`APP_VERSION`** **1.81**; **`insert-changelog-1.81.sql`**. |
 
-### 17.1 Release detail — v1.65 through v1.84
+### 17.1 Release detail — v1.65 through v1.86
 
 | Ver. | EN (what shipped) | FR (titre seed migration) |
 |------|-------------------|----------------------------|
+| **1.86** | Rolled cron runtime tuning back to previous stable settings: 13s wall/budget defaults in `cron-fetch`/`cron-score`, previous per-topic elapsed caps restored, and production env overrides removed from `netlify.toml`. Non-owner topic creation UX now switches to a message-only confirmation state after submit (`24h max` validation notice) with a dedicated back-to-home button, instead of keeping the creation form visible. Home control refinement: `Analyze top articles` remains globally accessible, except hidden while an authenticated user is actively editing topic preferences. | *Rollback cron stable 13s, écran confirmation membre, ajustement bouton analyse top* |
+| **1.85** | Homepage top analysis is now explicitly user-triggered (`Analyze top articles`) instead of auto-loading on home. Added guidance toasts for missing topic / next step after selecting a topic, and refreshed FR copy (`Articles sélectionnés`; `N articles, X sélectionnés et analysés par IA`). Topic personalization now includes member-side topic proposal from home; topic creation APIs accept authenticated users, and newly created topics are forced inactive/hidden pending owner validation with a visible “24h max” notice. Improved button visual consistency on personalization controls and fixed top-summary cache misses by enforcing deterministic article ordering and order-insensitive cache key hashing. | *Analyse top à la demande, soumission topic membre, cache stable et wording FR* |
 | **1.84** | Signed-in user personalization for homepage topics: onboarding modal + editable topic selection, persisted in DB (`user_topic_preferences`), with homepage top feed and summary requests filtered by preferred topics when set. Cron tuning upgraded from 13s assumptions to 30s Netlify window (fetch/score budgets and safe production env overrides). Summary metadata copy now supports selected-topic mode (`N articles, X scored and analyzed by AI`) and topic personalization controls were visually refined. | *Personnalisation topics utilisateur, cron 30s, résumé avec compteur analysé, polish UI* |
 | **1.83** | Homepage default feed now uses **Top 50** displayed-topic articles over 24h. Added homepage-only **AI Summary** (`POST /api/news/top-summary`) with grouped bullets + refs + TTS, plus progressive reveal animation. New `is_displayed` topic visibility toggle excludes hidden topics from homepage selection while ingestion/scoring continues. | *Top 50 accueil, résumé IA home groupé, filtre display* |
 | **1.82** | Settings: **My Account** section for any authenticated user (editable first/last name, read-only email + user type badge); **Users** management for `owner` (inline edit name + type, service-role API). Homepage: removed manual refresh button; added **last-updated timestamp** on Top 20 subtitle. Baselines: EN "Tech intelligence, powered by AI." / FR "La tech décodée par l'IA". Topic creation: 3-column row (Label EN, Label FR, Slug) + Domain moved up + **"Generate with AI"** for labels via `/api/topics/generate-labels`. Cron status: score age only flags slow/high when backlog > 0. **Google Analytics** (`G-X8RR3FMCR0`) in `layout.tsx`. | *Mon compte, gestion utilisateurs, timestamp Top 20, GA, labels IA* |
@@ -996,7 +1002,7 @@ Summary table (one line per release). **§17.1** expands **v1.65–v1.84** in de
 | **1.80** | **Supabase Auth** (optional): **Sign in / Sign out** next to language toggle; **Topics** + **Feeds** nav + admin APIs gated (`401` without session); **`middleware`** cookie refresh; homepage **`GET /api/topics`** still public. Registration: prénom, nom, e-mail, MDP → metadata. | *Authentification Supabase, accès Topics/Feeds réservé* |
 | **1.81** | **`user_type`**: **`member`** (default) / **`owner`** (dashboard). Only **`owner`** sees Topics + Feed management; **`403`** for **`member`** on admin APIs. **`requireOwnerSession()`**, **`user-type.ts`**. | *Rôles member/owner, admin réservé aux owners* |
 
-> **Note:** If the in-app Changelog was filled before **1.74–1.84** rows existed, run the per-version **`INSERT`** statements (e.g. **`insert-changelog-1.84.sql`**) or re-apply **`005-changelog.sql`** (after **`TRUNCATE changelog`** only if you want a full re-seed). **SPEC** and **runtime** remain authoritative when copy diverges.
+> **Note:** If the in-app Changelog was filled before **1.74–1.86** rows existed, run the per-version **`INSERT`** statements (e.g. **`insert-changelog-1.86.sql`**) or re-apply **`005-changelog.sql`** (after **`TRUNCATE changelog`** only if you want a full re-seed). **SPEC** and **runtime** remain authoritative when copy diverges.
 
 ---
 

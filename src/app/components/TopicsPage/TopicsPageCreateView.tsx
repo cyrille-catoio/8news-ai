@@ -19,6 +19,7 @@ export function TopicsPageCreateView({
   lang,
   error,
   onBack,
+  backLabel,
   formId,
   setFormId,
   formLabelEn,
@@ -48,6 +49,7 @@ export function TopicsPageCreateView({
   autoFeeds,
   setAutoFeeds,
   createNotice,
+  noticeOnlyView,
   saving,
   onGenerateScoring,
   onGenerateLabels,
@@ -56,6 +58,7 @@ export function TopicsPageCreateView({
   lang: Lang;
   error: string | null;
   onBack: () => void;
+  backLabel?: string;
   formId: string;
   setFormId: (v: string) => void;
   formLabelEn: string;
@@ -85,15 +88,38 @@ export function TopicsPageCreateView({
   autoFeeds: boolean;
   setAutoFeeds: (v: boolean) => void;
   createNotice: string | null;
+  noticeOnlyView?: boolean;
   saving: boolean;
   onGenerateScoring: () => void;
   onGenerateLabels: () => void;
   onCreate: () => void;
 }) {
+  if (noticeOnlyView && createNotice) {
+    return (
+      <div>
+        <button type="button" onClick={onBack} style={{ ...ghostOutlineBtn, marginBottom: 16 }}>
+          ← {backLabel ?? t("back", lang)}
+        </button>
+        <div
+          style={{
+            fontSize: 14,
+            color: color.gold,
+            border: `1px solid ${color.gold}`,
+            borderRadius: 8,
+            padding: "10px 12px",
+            background: "rgba(201,162,39,0.08)",
+          }}
+        >
+          {createNotice}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <button type="button" onClick={onBack} style={{ ...ghostOutlineBtn, marginBottom: 16 }}>
-        ← {t("back", lang)}
+        ← {backLabel ?? t("back", lang)}
       </button>
       <h2 style={{ color: color.gold, fontSize: 20, fontWeight: 600, marginBottom: 20, marginTop: 0 }}>{t("newTopic", lang)}</h2>
       {error && <div style={{ color: "#ef4444", fontSize: 13, marginBottom: 12 }}>{error}</div>}

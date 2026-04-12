@@ -2,9 +2,9 @@ import type { Config } from "@netlify/functions";
 import { createClient } from "@supabase/supabase-js";
 import { scoreTopicForCron } from "./shared/score-topic";
 
-const CRON_WALL_MS = 30_000;
-const CRON_BUDGET_MS = Number(process.env.CRON_BUDGET_MS ?? 27_500);
-const CRON_SAFETY_RESERVE_MS = Number(process.env.CRON_SAFETY_RESERVE_MS ?? 2_000);
+const CRON_WALL_MS = 13_000;
+const CRON_BUDGET_MS = Number(process.env.CRON_BUDGET_MS ?? 11_800);
+const CRON_SAFETY_RESERVE_MS = Number(process.env.CRON_SAFETY_RESERVE_MS ?? 1_200);
 const SCORE_FRESH_WINDOW_MIN = Number(process.env.SCORE_FRESH_WINDOW_MIN ?? 5);
 const SCORE_MAX_ARTICLES_PER_RUN = Number(process.env.SCORE_MAX_ARTICLES_PER_RUN ?? 50);
 const SCORE_MIN_ARTICLES_PER_RUN = Number(process.env.SCORE_MIN_ARTICLES_PER_RUN ?? 12);
@@ -43,7 +43,7 @@ function clamp(n: number, min: number, max: number): number {
 function pickAdaptiveMaxArticles(remainingMs: number, freshBacklog: number, backlog: number): number {
   const pressure = freshBacklog > 0 ? freshBacklog : backlog;
   const pressureBoost = pressure >= 120 ? 20 : pressure >= 60 ? 10 : pressure >= 20 ? 5 : 0;
-  const timeCap = remainingMs > 14_000 ? 80 : remainingMs > 10_000 ? 70 : remainingMs > 6_500 ? 50 : 24;
+  const timeCap = remainingMs > 7_000 ? 70 : remainingMs > 5_000 ? 50 : remainingMs > 3_500 ? 30 : 16;
   return clamp(
     SCORE_MAX_ARTICLES_PER_RUN + pressureBoost,
     SCORE_MIN_ARTICLES_PER_RUN,
@@ -184,8 +184,8 @@ export default async () => {
     const remaining = budgetRemaining();
     const maxArticles = pickAdaptiveMaxArticles(remaining, work.freshBacklog, work.backlog);
     const perTopicBudget = Math.max(
-      2_500,
-      Math.min(14_000, remaining - CRON_SAFETY_RESERVE_MS),
+      1_800,
+      Math.min(7_000, remaining - CRON_SAFETY_RESERVE_MS),
     );
 
     const criteria = {

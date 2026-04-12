@@ -66,6 +66,7 @@ export function TopicsPage({
     rejected: { name: string; url: string; reason: string }[];
   } | null>(null);
   const [createNotice, setCreateNotice] = useState<string | null>(null);
+  const [memberPendingOnlyView, setMemberPendingOnlyView] = useState(false);
 
   async function loadTopics() {
     setLoading(true);
@@ -113,6 +114,7 @@ export function TopicsPage({
     setSaving(true);
     setError(null);
     setCreateNotice(null);
+    setMemberPendingOnlyView(false);
     const wantFeeds = autoFeeds && !!formDomain.trim();
     try {
       const res = await fetch("/api/topics", {
@@ -157,7 +159,7 @@ export function TopicsPage({
         setSaving(false);
         if (showPendingApproval) {
           setCreateNotice(pendingMessage);
-          window.alert(pendingMessage);
+          setMemberPendingOnlyView(true);
         }
         return;
       }
@@ -425,6 +427,7 @@ export function TopicsPage({
           if (canManage) setView("list");
           else onExit?.();
         }}
+        backLabel={!canManage && memberPendingOnlyView ? t("backToHomePage", lang) : undefined}
         formId={formId}
         setFormId={setFormId}
         formLabelEn={formLabelEn}
@@ -454,6 +457,7 @@ export function TopicsPage({
         autoFeeds={autoFeeds}
         setAutoFeeds={setAutoFeeds}
         createNotice={createNotice}
+        noticeOnlyView={memberPendingOnlyView && !canManage}
         saving={saving}
         onGenerateScoring={handleGenerateScoring}
         onGenerateLabels={handleGenerateLabels}

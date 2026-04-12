@@ -104,7 +104,7 @@ export function TopicPersonalizationBar({
             {t("myTopicsAddNew", lang)}
           </button>
         )}
-        {showAnalyzeTopButton && (
+        {showAnalyzeTopButton && !isAuthenticated && (
           <button type="button" onClick={onAnalyzeTop} style={actionBtn} disabled={analyzeTopLoading}>
             {t("analyzeTopArticlesBtn", lang)}
           </button>

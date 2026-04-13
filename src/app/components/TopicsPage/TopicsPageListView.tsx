@@ -16,6 +16,7 @@ export function TopicsPageListView({
   topics,
   loading,
   error,
+  notice,
   onNewTopic,
   onLoadDetail,
   onReorder,
@@ -25,6 +26,7 @@ export function TopicsPageListView({
   topics: TopicItem[];
   loading: boolean;
   error: string | null;
+  notice: string | null;
   onNewTopic: () => void;
   onLoadDetail: (id: string) => void;
   onReorder: (idA: string, idB: string) => void;
@@ -32,6 +34,27 @@ export function TopicsPageListView({
 }) {
   return (
     <div>
+      {notice && (
+        <div
+          style={{
+            position: "fixed",
+            left: "50%",
+            top: 20,
+            transform: "translateX(-50%)",
+            background: color.surface,
+            color: color.gold,
+            border: `1px solid ${color.gold}`,
+            borderRadius: 8,
+            padding: "10px 14px",
+            fontSize: 13,
+            fontWeight: 600,
+            zIndex: 1000,
+            boxShadow: "0 6px 24px rgba(0,0,0,0.45)",
+          }}
+        >
+          {notice}
+        </div>
+      )}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <h2 style={{ color: color.gold, fontSize: 20, fontWeight: 600, margin: 0 }}>{t("topicsTitle", lang)}</h2>
         <button type="button" onClick={onNewTopic} style={primaryButtonStyle}>

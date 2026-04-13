@@ -18,6 +18,7 @@ import {
 import { CopyLinkButton } from "@/app/components/CopyLinkButton";
 import { ChangelogPage } from "@/app/components/ChangelogPage";
 import { FeedsAdminPage } from "@/app/components/FeedsAdminPage";
+import { CategoriesPage } from "@/app/components/CategoriesPage";
 import { SettingsPage } from "@/app/components/SettingsPage";
 import { SummaryBox } from "@/app/components/SummaryBox";
 import { AllArticlesTab, type AllArticleEntry } from "@/app/components/AllArticlesTab";
@@ -398,7 +399,7 @@ export default function Home() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!authOwner && currentPage === "feeds") {
+    if (!authOwner && (currentPage === "feeds" || currentPage === "categories")) {
       setCurrentPage("home");
     }
     if (!isAuthenticated && currentPage === "topics") {
@@ -669,6 +670,14 @@ export default function Home() {
             </div>
           ) : authOwner ? (
             <FeedsAdminPage lang={lang} topics={topicLabels} />
+          ) : null
+        ) : currentPage === "categories" ? (
+          authLoading ? (
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "80px 0" }}>
+              <span style={spinnerStyle(28)} />
+            </div>
+          ) : authOwner ? (
+            <CategoriesPage lang={lang} />
           ) : null
         ) : currentPage === "settings" ? (
           <SettingsPage

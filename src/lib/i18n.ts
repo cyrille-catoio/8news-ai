@@ -261,6 +261,14 @@ const strings = {
     en: "No feeds could be found.",
     fr: "Aucun flux n'a pu être trouvé.",
   },
+  discoverFeedsFailed: {
+    en: "Failed to discover feeds with AI.",
+    fr: "Impossible de trouver des flux par IA.",
+  },
+  manualFeedAddFailed: {
+    en: "Failed to add feed.",
+    fr: "Impossible d'ajouter le flux.",
+  },
   feedName: {
     en: "Feed name",
     fr: "Nom du flux",
@@ -321,6 +329,22 @@ const strings = {
     en: "Category",
     fr: "Catégorie",
   },
+  categoriesAdminAria: {
+    en: "Categories",
+    fr: "Catégories",
+  },
+  categoriesTitle: {
+    en: "Categories",
+    fr: "Catégories",
+  },
+  categoriesSlug: {
+    en: "Slug",
+    fr: "Slug",
+  },
+  categoriesAddNew: {
+    en: "+ New category",
+    fr: "+ Nouvelle catégorie",
+  },
   displayColumn: {
     en: "Display",
     fr: "Affichage",
@@ -368,6 +392,34 @@ const strings = {
   autoFeedSearch: {
     en: "Find 10 RSS feeds automatically",
     fr: "Trouver 10 flux RSS automatiquement",
+  },
+  rssFeedsBoxTitle: {
+    en: "RSS feeds",
+    fr: "Flux RSS",
+  },
+  rssFeedsBoxDesc: {
+    en: "You can discover feeds with AI or add them manually. A hidden draft topic is created automatically when needed.",
+    fr: "Vous pouvez trouver des flux par IA ou les ajouter manuellement. Un topic brouillon caché est créé automatiquement si nécessaire.",
+  },
+  rssAutoDiscoveryTitle: {
+    en: "Automatic discovery with AI",
+    fr: "Découverte automatique par IA",
+  },
+  rssManualAddTitle: {
+    en: "Manual feed addition",
+    fr: "Ajout manuel de flux",
+  },
+  draftTopicReady: {
+    en: "Draft topic created",
+    fr: "Topic brouillon créé",
+  },
+  topicFieldsRequiredForDraft: {
+    en: "Complete slug, labels and domain before managing feeds.",
+    fr: "Complétez le slug, les labels et le domaine avant de gérer les flux.",
+  },
+  topicScoringRequiredForDraft: {
+    en: "Complete scoring criteria tiers before managing feeds.",
+    fr: "Complétez les niveaux des critères de scoring avant de gérer les flux.",
   },
   autoFeedSearchDesc: {
     en: "The AI will search for relevant RSS feeds based on the topic domain and verify they contain articles before adding them.",
@@ -808,6 +860,10 @@ const strings = {
   topicPendingValidation: {
     en: "Your topic will be available after validation within 24 hours maximum.",
     fr: "Votre topic sera disponible après validation dans un délai maximal de 24 heures",
+  },
+  topicPendingValidationList: {
+    en: "Your topic is being validated. Maximum delay is 24 hours.",
+    fr: "Votre topic est en cours de validation et le délai est au maximum de 24 heures.",
   },
 } as const;
 

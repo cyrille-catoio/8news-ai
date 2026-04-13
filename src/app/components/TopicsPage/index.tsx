@@ -63,13 +63,98 @@ export function TopicsPage({
   const [formPromptLang, setFormPromptLang] = useState<"en" | "fr">("en");
   const [generatingScoring, setGeneratingScoring] = useState(false);
   const [generatingLabels, setGeneratingLabels] = useState(false);
-  const [autoFeeds, setAutoFeeds] = useState(true);
   const [discoveringFeeds, setDiscoveringFeeds] = useState(false);
+  const [draftTopicId, setDraftTopicId] = useState<string | null>(null);
+  const [createFeedName, setCreateFeedName] = useState("");
+  const [createFeedUrl, setCreateFeedUrl] = useState("");
+  const [addingCreateFeed, setAddingCreateFeed] = useState(false);
   const [discoverResult, setDiscoverResult] = useState<{
     added: { name: string; url: string }[];
     rejected: { name: string; url: string; reason: string }[];
   } | null>(null);
-  const [createNotice, setCreateNotice] = useState<string | null>(null);
+  const [listNotice, setListNotice] = useState<string | null>(null);
+
+  function clearCreateForm() {
+    setFormId("");
+    setFormLabelEn("");
+    setFormLabelFr("");
+    setFormDomain("");
+    setFormT1("");
+    setFormT2("");
+    setFormT3("");
+    setFormT4("");
+    setFormT5("");
+    setFormPromptEn("");
+    setFormPromptFr("");
+    setFormCategoryId(1);
+    setCreateFeedName("");
+    setCreateFeedUrl("");
+    setDiscoverResult(null);
+    setDraftTopicId(null);
+  }
+
+  function validateCreateTopicForm(): string | null {
+    if (!formId.trim() || !formLabelEn.trim() || !formLabelFr.trim() || !formDomain.trim()) {
+      return t("topicFieldsRequiredForDraft", lang);
+    }
+    if (!formT1.trim() || !formT2.trim() || !formT3.trim() || !formT4.trim() || !formT5.trim()) {
+      return t("topicScoringRequiredForDraft", lang);
+    }
+    return null;
+  }
+
+  async function createTopicRecord(): Promise<{ id: string; isActive: boolean } | null> {
+    const res = await fetch("/api/topics", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: formId,
+        labelEn: formLabelEn,
+        labelFr: formLabelFr,
+        scoringDomain: formDomain,
+        scoringTier1: formT1,
+        scoringTier2: formT2,
+        scoringTier3: formT3,
+        scoringTier4: formT4,
+        scoringTier5: formT5,
+        promptEn: formPromptEn || undefined,
+        promptFr: formPromptFr || undefined,
+        categoryId: formCategoryId,
+      }),
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error((e as { error?: string }).error || "Failed");
+    }
+    const created = await res.json();
+    return {
+      id: String(created.id),
+      isActive: typeof created.is_active === "boolean" ? created.is_active : false,
+    };
+  }
+
+  async function ensureDraftTopic(): Promise<string | null> {
+    if (draftTopicId) return draftTopicId;
+    const validationError = validateCreateTopicForm();
+    if (validationError) {
+      setError(validationError);
+      return null;
+    }
+
+    setSaving(true);
+    setError(null);
+    try {
+      const created = await createTopicRecord();
+      if (!created) return null;
+      setDraftTopicId(created.id);
+      return created.id;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed");
+      return null;
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function loadTopics() {
     setLoading(true);
@@ -114,78 +199,61 @@ export function TopicsPage({
     }
   }
 
-  async function handleCreate() {
-    setSaving(true);
+  async function handleCreate(): Promise<string | null> {
+    const topicId = await ensureDraftTopic();
+    if (!topicId) return null;
+    clearCreateForm();
+    if (canManage) {
+      setView("list");
+      await loadTopics();
+      setListNotice(t("topicPendingValidationList", lang));
+      setTimeout(() => setListNotice(null), 5000);
+    }
+    return topicId;
+  }
+
+  async function handleCreateDiscoverFeeds() {
+    const createdId = await ensureDraftTopic();
+    if (!createdId) return;
+    setDiscoveringFeeds(true);
+    setDiscoverResult(null);
     setError(null);
-    setCreateNotice(null);
-    const wantFeeds = autoFeeds && !!formDomain.trim();
     try {
-      const res = await fetch("/api/topics", {
+      const dr = await fetch(`/api/topics/${createdId}/discover-feeds`, { method: "POST" });
+      if (dr.ok) {
+        setDiscoverResult(await dr.json());
+      } else {
+        const e = await dr.json().catch(() => ({}));
+        setError((e as { error?: string }).error || t("discoverFeedsFailed", lang));
+      }
+    } catch {
+      setError(t("discoverFeedsFailed", lang));
+    } finally {
+      setDiscoveringFeeds(false);
+    }
+  }
+
+  async function handleAddCreateFeed() {
+    const createdId = await ensureDraftTopic();
+    if (!createdId || !createFeedName.trim() || !createFeedUrl.trim()) return;
+    setAddingCreateFeed(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/topics/${createdId}/feeds`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: formId,
-          labelEn: formLabelEn,
-          labelFr: formLabelFr,
-          scoringDomain: formDomain,
-          scoringTier1: formT1,
-          scoringTier2: formT2,
-          scoringTier3: formT3,
-          scoringTier4: formT4,
-          scoringTier5: formT5,
-          promptEn: formPromptEn || undefined,
-          promptFr: formPromptFr || undefined,
-          categoryId: formCategoryId,
-        }),
+        body: JSON.stringify({ name: createFeedName.trim(), url: createFeedUrl.trim() }),
       });
       if (!res.ok) {
         const e = await res.json().catch(() => ({}));
         throw new Error((e as { error?: string }).error || "Failed");
       }
-      const created = await res.json();
-      const createdId = created.id;
-      const showPendingApproval =
-        typeof created.is_active === "boolean" ? !created.is_active : true;
-      const pendingMessage = t("topicPendingValidation", lang);
-      setFormId("");
-      setFormLabelEn("");
-      setFormLabelFr("");
-      setFormDomain("");
-      setFormT1("");
-      setFormT2("");
-      setFormT3("");
-      setFormT4("");
-      setFormT5("");
-      setFormPromptEn("");
-      setFormPromptFr("");
-      setFormCategoryId(1);
-      setAutoFeeds(true);
-      setSaving(false);
-
-      if (showPendingApproval) {
-        setCreateNotice(pendingMessage);
-        setTimeout(() => setCreateNotice(null), 5000);
-      }
-
-      if (wantFeeds && canManage) {
-        setDiscoveringFeeds(true);
-        setDiscoverResult(null);
-        try {
-          const dr = await fetch(`/api/topics/${createdId}/discover-feeds`, { method: "POST" });
-          if (dr.ok) {
-            const data = await dr.json();
-            setDiscoverResult(data);
-          }
-          await loadDetail(createdId);
-        } catch {
-          /* optional */
-        } finally {
-          setDiscoveringFeeds(false);
-        }
-      }
+      setCreateFeedName("");
+      setCreateFeedUrl("");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed");
-      setSaving(false);
+      setError(e instanceof Error ? e.message : t("manualFeedAddFailed", lang));
+    } finally {
+      setAddingCreateFeed(false);
     }
   }
 
@@ -317,6 +385,56 @@ export function TopicsPage({
     } finally {
       setGeneratingLabels(false);
     }
+  }
+
+  function handleGeneratePrompts() {
+    const label = formLabelEn.trim() || "this topic";
+    const domain = formDomain.trim() || label;
+    const labelLower = label.toLowerCase();
+    setFormPromptEn(`You are a news analyst specializing in ${domain}. Your task:
+
+1. FILTER: From the article list below, identify ONLY articles about ${labelLower}. Exclude unrelated news.
+
+2. SUMMARIZE EACH: For every relevant article, write a factual 2–3 sentence summary in English. Cover the key facts: who, what, where, when, and why. Include specific details: names, numbers, dates.
+
+3. GLOBAL SUMMARY: Write up to 8 bullet points summarizing the latest developments based on the relevant articles. 8 is a maximum target — if fewer noteworthy points exist, only write those. Each bullet point must start with "• " and be on its own line. Include specific numbers and figures. Never write vague bullets.
+
+IMPORTANT: Try to select approximately {{max}} relevant articles. If fewer are truly relevant, return only those. If more are relevant, pick the {{max}} most important and diverse ones.
+
+Respond with valid JSON:
+{
+  "relevant": [{ "index": 0, "snippet": "Factual 2–3 sentence summary" }],
+  "globalSummary": [
+    { "text": "First bullet point with facts", "refs": [0, 3] },
+    { "text": "Second bullet point with facts", "refs": [1] }
+  ]
+}
+
+"index" values are 0-based positions in the article list. "refs" in globalSummary are the indices of articles that support each bullet point. Only include truly relevant articles.`);
+
+    const labelFr = formLabelFr.trim() || labelLower;
+    setFormPromptFr(`Tu es un analyste de presse spécialisé en ${domain}. Ta tâche :
+
+1. FILTRER : Dans la liste d'articles ci-dessous, identifie UNIQUEMENT ceux qui concernent ${labelFr.toLowerCase()}. Exclus les news non liées.
+
+2. RÉSUMER CHAQUE ARTICLE : Pour chaque article pertinent :
+   - Traduis le titre en français (champ "title").
+   - Rédige un résumé factuel de 2 à 3 phrases en français (champ "snippet"). Couvre les faits essentiels : qui, quoi, où, quand, pourquoi. Inclus des détails précis : noms, chiffres, dates.
+
+3. RÉSUMÉ GLOBAL : Rédige jusqu'à 8 bullet points résumant les dernières actualités basé sur les articles pertinents. 8 est un objectif maximum — s'il y a moins de points importants, n'en écris que le nombre justifié. Chaque bullet point doit commencer par "• " et être sur sa propre ligne. Inclus les chiffres et données précises. Ne rédige jamais de bullet vague.
+
+IMPORTANT : Essaie de sélectionner environ {{max}} articles pertinents. S'il y en a moins de {{max}} qui sont vraiment pertinents, retourne uniquement ceux-là. S'il y en a plus de {{max}}, choisis les {{max}} plus importants et variés.
+
+Réponds en JSON valide :
+{
+  "relevant": [{ "index": 0, "title": "Titre traduit en français", "snippet": "Résumé factuel de 2-3 phrases" }],
+  "globalSummary": [
+    { "text": "Premier point avec des faits", "refs": [0, 3] },
+    { "text": "Deuxième point avec des faits", "refs": [1] }
+  ]
+}
+
+Les valeurs "index" correspondent aux positions (à partir de 0) dans la liste. "refs" dans globalSummary sont les indices des articles qui soutiennent chaque bullet point. N'inclus que les articles vraiment pertinents.`);
   }
 
   async function handleAddFeed() {
@@ -457,16 +575,24 @@ export function TopicsPage({
         setFormPromptLang={setFormPromptLang}
         generatingScoring={generatingScoring}
         generatingLabels={generatingLabels}
-        autoFeeds={autoFeeds}
-        setAutoFeeds={setAutoFeeds}
         categories={categories}
         formCategoryId={formCategoryId}
         setFormCategoryId={setFormCategoryId}
-        createNotice={createNotice}
         saving={saving}
+        discoveringFeeds={discoveringFeeds}
+        addingCreateFeed={addingCreateFeed}
+        draftTopicId={draftTopicId}
+        createFeedName={createFeedName}
+        setCreateFeedName={setCreateFeedName}
+        createFeedUrl={createFeedUrl}
+        setCreateFeedUrl={setCreateFeedUrl}
+        discoverResult={discoverResult}
         onGenerateScoring={handleGenerateScoring}
         onGenerateLabels={handleGenerateLabels}
+        onGeneratePrompts={handleGeneratePrompts}
         onCreate={handleCreate}
+        onDiscoverFeeds={handleCreateDiscoverFeeds}
+        onAddManualFeed={handleAddCreateFeed}
       />
     );
   }
@@ -538,6 +664,7 @@ export function TopicsPage({
       topics={topics}
       loading={loading}
       error={error}
+      notice={listNotice}
       onNewTopic={() => setView("create")}
       onLoadDetail={loadDetail}
       onReorder={handleReorder}

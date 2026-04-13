@@ -37,14 +37,13 @@ export async function GET() {
   /** PostgREST max rows per response (Supabase default). Request wider ranges but only get 1000 → must page with this size. */
   const FETCH_BATCH = 1000;
 
-  async function paginateBacklog(since: string): Promise<{ topic: string }[]> {
+  async function paginateBacklog(): Promise<{ topic: string }[]> {
     const all: { topic: string }[] = [];
     let from = 0;
     while (true) {
       const { data } = await supabase
         .from("articles")
         .select("topic")
-        .gte("pub_date", since)
         .is("relevance_score", null)
         .range(from, from + FETCH_BATCH - 1);
       if (!data || data.length === 0) break;
@@ -94,7 +93,7 @@ export async function GET() {
   }
 
   const [backlogRows, recentRows, delayCohortRows] = await Promise.all([
-    paginateBacklog(since7d),
+    paginateBacklog(),
     paginateRecent(since24h),
     paginateDelayCohort(since24h),
   ]);

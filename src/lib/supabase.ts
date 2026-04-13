@@ -328,6 +328,58 @@ export async function getCategories(): Promise<CategoryRow[]> {
   }
 }
 
+export async function createCategory(
+  data: { slug: string; label_en: string; label_fr: string; sort_order: number },
+): Promise<CategoryRow | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+  try {
+    const supabase = await clientP;
+    const { data: row, error } = await supabase
+      .from("categories")
+      .insert(data)
+      .select()
+      .single();
+    if (error || !row) return null;
+    return row as CategoryRow;
+  } catch {
+    return null;
+  }
+}
+
+export async function updateCategory(
+  id: number,
+  data: Partial<Omit<CategoryRow, "id">>,
+): Promise<CategoryRow | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+  try {
+    const supabase = await clientP;
+    const { data: row, error } = await supabase
+      .from("categories")
+      .update(data)
+      .eq("id", id)
+      .select()
+      .single();
+    if (error || !row) return null;
+    return row as CategoryRow;
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteCategory(id: number): Promise<boolean> {
+  const clientP = getServerClient();
+  if (!clientP) return false;
+  try {
+    const supabase = await clientP;
+    const { error } = await supabase.from("categories").delete().eq("id", id);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
 export async function getActiveTopics(includeInactive = false): Promise<
   (TopicRow & { feed_count: number; category_label_en?: string; category_label_fr?: string })[]
 > {

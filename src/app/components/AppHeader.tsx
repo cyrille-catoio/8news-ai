@@ -14,7 +14,8 @@ export type AppNavPage =
   | "topics"
   | "settings"
   | "changelog"
-  | "feeds";
+  | "feeds"
+  | "categories";
 
 function NavIconButton({
   active,
@@ -180,7 +181,7 @@ function AdminMenu({
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const isAdminPage = currentPage === "topics" || currentPage === "feeds";
+  const isAdminPage = currentPage === "topics" || currentPage === "feeds" || currentPage === "categories";
 
   const menuItemStyle = (page: AppNavPage): CSSProperties => ({
     display: "block",
@@ -205,7 +206,7 @@ function AdminMenu({
         ariaLabel="Admin"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.27 5.82 22 7 14.14 2 9.27l6.91-1.01L12 2z" />
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
         </svg>
       </NavIconButton>
       {open && (
@@ -236,6 +237,13 @@ function AdminMenu({
             style={menuItemStyle("feeds")}
           >
             {t("feedsAdminAria", lang)}
+          </button>
+          <button
+            type="button"
+            onClick={() => { onNavigate("categories"); setOpen(false); }}
+            style={menuItemStyle("categories")}
+          >
+            {t("categoriesAdminAria", lang)}
           </button>
         </div>
       )}

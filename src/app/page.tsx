@@ -37,7 +37,7 @@ import { isOwnerUser } from "@/lib/user-type";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.94";
+const APP_VERSION = "1.93.1";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 
@@ -621,6 +621,15 @@ export default function Home() {
     }, 2200);
   }
 
+  function showHomeToast(message: string, durationMs = 5000) {
+    setPeriodToast(message);
+    if (periodToastTimerRef.current) clearTimeout(periodToastTimerRef.current);
+    periodToastTimerRef.current = setTimeout(() => {
+      setPeriodToast(null);
+      periodToastTimerRef.current = null;
+    }, durationMs);
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: color.bg, color: color.text, fontFamily: font.base }}>
       <div style={{ maxWidth: 916, margin: "0 auto", padding: "40px 20px" }}>
@@ -658,6 +667,11 @@ export default function Home() {
               onExit={() => {
                 setCurrentPage("home");
                 setTopicsStartInCreate(false);
+              }}
+              onMemberCreatedTopic={(message) => {
+                setCurrentPage("home");
+                setTopicsStartInCreate(false);
+                showHomeToast(message, 5000);
               }}
             />
           ) : null

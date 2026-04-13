@@ -12,11 +12,13 @@ export function TopicsPage({
   canManage = true,
   startInCreate = false,
   onExit,
+  onMemberCreatedTopic,
 }: {
   lang: Lang;
   canManage?: boolean;
   startInCreate?: boolean;
   onExit?: () => void;
+  onMemberCreatedTopic?: (message: string) => void;
 }) {
   const [view, setView] = useState<"list" | "detail" | "create">(startInCreate ? "create" : "list");
   const [topics, setTopics] = useState<TopicItem[]>([]);
@@ -208,6 +210,9 @@ export function TopicsPage({
       await loadTopics();
       setListNotice(t("topicPendingValidationList", lang));
       setTimeout(() => setListNotice(null), 5000);
+    } else {
+      onMemberCreatedTopic?.(t("topicPendingValidationList", lang));
+      onExit?.();
     }
     return topicId;
   }

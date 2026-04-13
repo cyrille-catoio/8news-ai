@@ -142,8 +142,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const existingTopics = await getActiveTopics();
-    const maxSort = existingTopics.reduce(
+    const allTopicsForSort = await getActiveTopics(true);
+    const maxSort = allTopicsForSort.reduce(
       (m, t) => Math.max(m, t.sort_order),
       -1,
     );

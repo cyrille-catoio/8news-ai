@@ -53,7 +53,6 @@ export function TopicsPageCreateView({
   formCategoryId,
   setFormCategoryId,
   createNotice,
-  noticeOnlyView,
   saving,
   onGenerateScoring,
   onGenerateLabels,
@@ -95,56 +94,39 @@ export function TopicsPageCreateView({
   formCategoryId: number;
   setFormCategoryId: (v: number) => void;
   createNotice: string | null;
-  noticeOnlyView?: boolean;
   saving: boolean;
   onGenerateScoring: () => void;
   onGenerateLabels: () => void;
   onCreate: () => void;
 }) {
-  if (noticeOnlyView && createNotice) {
-    return (
-      <div>
-        <button type="button" onClick={onBack} style={{ ...ghostOutlineBtn, marginBottom: 16 }}>
-          ← {backLabel ?? t("back", lang)}
-        </button>
-        <div
-          style={{
-            fontSize: 14,
-            color: color.gold,
-            border: `1px solid ${color.gold}`,
-            borderRadius: 8,
-            padding: "10px 12px",
-            background: "rgba(201,162,39,0.08)",
-          }}
-        >
-          {createNotice}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div>
-      <button type="button" onClick={onBack} style={{ ...ghostOutlineBtn, marginBottom: 16 }}>
-        ← {backLabel ?? t("back", lang)}
-      </button>
-      <h2 style={{ color: color.gold, fontSize: 20, fontWeight: 600, marginBottom: 20, marginTop: 0 }}>{t("newTopic", lang)}</h2>
-      {error && <div style={{ color: "#ef4444", fontSize: 13, marginBottom: 12 }}>{error}</div>}
       {createNotice && (
         <div
           style={{
-            marginBottom: 12,
-            fontSize: 13,
+            position: "fixed",
+            left: "50%",
+            top: 20,
+            transform: "translateX(-50%)",
+            background: color.surface,
             color: color.gold,
             border: `1px solid ${color.gold}`,
             borderRadius: 8,
-            padding: "8px 10px",
-            background: "rgba(201,162,39,0.08)",
+            padding: "10px 14px",
+            fontSize: 13,
+            fontWeight: 600,
+            zIndex: 1000,
+            boxShadow: "0 6px 24px rgba(0,0,0,0.45)",
           }}
         >
           {createNotice}
         </div>
       )}
+      <button type="button" onClick={onBack} style={{ ...ghostOutlineBtn, marginBottom: 16 }}>
+        ← {backLabel ?? t("back", lang)}
+      </button>
+      <h2 style={{ color: color.gold, fontSize: 20, fontWeight: 600, marginBottom: 20, marginTop: 0 }}>{t("newTopic", lang)}</h2>
+      {error && <div style={{ color: "#ef4444", fontSize: 13, marginBottom: 12 }}>{error}</div>}
 
       <div style={sectionCard}>
         <div style={{ display: "grid", gap: 12 }}>

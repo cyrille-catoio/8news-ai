@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { getTopicWithFeeds, createFeed } from "@/lib/supabase";
-import { requireOwnerSession } from "@/lib/auth-api";
+import { requireSession } from "@/lib/auth-api";
 
 async function validateFeed(
   url: string,
@@ -64,7 +64,7 @@ export async function POST(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const auth = await requireOwnerSession();
+  const auth = await requireSession();
   if (!auth.ok) return auth.response;
 
   const apiKey = process.env.OPENAI_API_KEY;

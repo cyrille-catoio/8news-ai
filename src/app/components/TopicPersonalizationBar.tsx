@@ -124,13 +124,8 @@ export function TopicPersonalizationBar({
   if (isAuthenticated && hasPreferences) {
     return (
       <div style={barWrap}>
-        <span style={badge}>
-          {lang === "fr"
-            ? `Mes ${preferenceCount} topics`
-            : `My ${preferenceCount} topics`}
-        </span>
         <button type="button" onClick={onEnterEdit} style={actionBtn}>
-          {t("myTopicsEdit", lang)}
+          {t("myTopicsEditFull", lang)}
         </button>
         {showAnalyzeTopButton && (
           <button type="button" onClick={onAnalyzeTop} style={actionBtn} disabled={analyzeTopLoading}>

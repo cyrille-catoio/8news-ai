@@ -6,7 +6,7 @@ const strings = {
     fr: "8news",
   },
   subtitle: {
-    en: "Tech intelligence, powered by AI.",
+    en: "Tech decoded by AI",
     fr: "La tech décodée par l'IA",
   },
   selectPeriod: {
@@ -760,6 +760,10 @@ const strings = {
   myTopicsEdit: {
     en: "Edit",
     fr: "Modifier",
+  },
+  myTopicsEditFull: {
+    en: "Edit my topics",
+    fr: "Modifier mes topics",
   },
   myTopicsShowAll: {
     en: "Show all topics",

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createFeed, getTopicWithFeeds } from "@/lib/supabase";
-import { requireOwnerSession } from "@/lib/auth-api";
+import { requireSession } from "@/lib/auth-api";
 
 const URL_RE = /^https?:\/\/.+/;
 
@@ -8,7 +8,7 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const auth = await requireOwnerSession();
+  const auth = await requireSession();
   if (!auth.ok) return auth.response;
   try {
     const { id } = await params;

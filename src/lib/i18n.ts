@@ -950,8 +950,8 @@ const strings = {
     fr: "Générer le résumé",
   },
   dailySummariesGenerateAll: {
-    en: "Generate all topics (yesterday)",
-    fr: "Générer tous les topics (hier)",
+    en: "Generate all topics",
+    fr: "Générer tous les topics",
   },
   dailySummariesGenerating: {
     en: "Generating…",
@@ -976,6 +976,26 @@ const strings = {
   dailySummariesViewPage: {
     en: "View page",
     fr: "Voir la page",
+  },
+  dailySummaryBtn: {
+    en: "Daily Summary",
+    fr: "Résumé quotidien",
+  },
+  dailySummaryExplorerTitle: {
+    en: "Daily Summaries",
+    fr: "Résumés quotidiens",
+  },
+  dailySummaryExplorerDesc: {
+    en: "Select a topic and a date to view the AI-generated daily summary.",
+    fr: "Sélectionnez un topic et une date pour consulter le résumé quotidien généré par IA.",
+  },
+  dailySummaryNotFound: {
+    en: "No summary available for this topic and date.",
+    fr: "Aucun résumé disponible pour ce topic et cette date.",
+  },
+  dailySummaryViewFull: {
+    en: "View full page",
+    fr: "Voir la page complète",
   },
 } as const;
 

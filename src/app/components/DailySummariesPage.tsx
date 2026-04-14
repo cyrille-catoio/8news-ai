@@ -21,6 +21,10 @@ export function DailySummariesPage({ lang, topics }: { lang: Lang; topics: Topic
   });
   const [generating, setGenerating] = useState(false);
   const [generatingAll, setGeneratingAll] = useState(false);
+  const [allDate, setAllDate] = useState(() => {
+    const d = new Date(Date.now() - 86_400_000);
+    return d.toISOString().slice(0, 10);
+  });
   const [results, setResults] = useState<Array<{ topic: string; date: string; results: GenerateResult[] }>>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,23 +54,20 @@ export function DailySummariesPage({ lang, topics }: { lang: Lang; topics: Topic
   async function handleGenerateAll() {
     setGeneratingAll(true);
     setError(null);
-    const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
-    const newResults: Array<{ topic: string; date: string; results: GenerateResult[] }> = [];
 
     for (const tp of topics) {
       try {
         const res = await fetch("/api/summaries/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ topic: tp.id, date: yesterday }),
+          body: JSON.stringify({ topic: tp.id, date: allDate }),
         });
         if (res.ok) {
           const data = await res.json();
-          newResults.push(data);
           setResults((prev) => [data, ...prev]);
         }
       } catch {
-        newResults.push({ topic: tp.id, date: yesterday, results: [{ lang: "en", error: "Failed" }] });
+        setResults((prev) => [{ topic: tp.id, date: allDate, results: [{ lang: "en", error: "Failed" }] }, ...prev]);
       }
     }
 
@@ -128,7 +129,18 @@ export function DailySummariesPage({ lang, topics }: { lang: Lang; topics: Topic
           </button>
         </div>
 
-        <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${color.border}` }}>
+        <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${color.border}`, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div>
+            <label style={{ color: color.textMuted, fontSize: 11, fontWeight: 600, textTransform: "uppercase", display: "block", marginBottom: 4 }}>
+              {t("dailySummariesDate", lang)}
+            </label>
+            <input
+              type="date"
+              value={allDate}
+              onChange={(e) => setAllDate(e.target.value)}
+              style={{ ...formInputStyle, maxWidth: 180 }}
+            />
+          </div>
           <button
             type="button"
             onClick={handleGenerateAll}

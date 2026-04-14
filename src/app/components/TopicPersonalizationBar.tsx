@@ -109,6 +109,9 @@ export function TopicPersonalizationBar({
             {t("analyzeTopArticlesBtn", lang)}
           </button>
         )}
+        <a href="/summaries" target="_blank" rel="noopener noreferrer" style={{ ...actionBtn, textDecoration: "none" }}>
+          {t("dailySummaryBtn", lang)}
+        </a>
         <span style={statusSlot}>
           {statusLabel ? (
             <span style={{ ...badge, color: statusColor }}>
@@ -132,6 +135,9 @@ export function TopicPersonalizationBar({
             {t("analyzeTopArticlesBtn", lang)}
           </button>
         )}
+        <a href="/summaries" target="_blank" rel="noopener noreferrer" style={{ ...actionBtn, textDecoration: "none" }}>
+          {t("dailySummaryBtn", lang)}
+        </a>
       </div>
     );
   }
@@ -152,6 +158,9 @@ export function TopicPersonalizationBar({
           {t("analyzeTopArticlesBtn", lang)}
         </button>
       )}
+      <a href="/summaries" target="_blank" rel="noopener noreferrer" style={{ ...actionBtn, textDecoration: "none" }}>
+        {t("dailySummaryBtn", lang)}
+      </a>
     </div>
   );
 }

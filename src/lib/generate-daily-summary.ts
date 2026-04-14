@@ -12,10 +12,11 @@ import {
   insertSummaryBullets,
 } from "@/lib/supabase";
 
-const SNIPPET_MAX = 400;
+const SNIPPET_MAX = 600;
 const MIN_SCORE = 3;
-const MAX_ARTICLES_FEED = 25;
+const MAX_ARTICLES_FEED = 50;
 const MAX_ARTICLES_DISPLAY = 10;
+const AI_MODEL = "gpt-4.1-mini";
 
 function toArticleSummary(
   r: {
@@ -143,7 +144,7 @@ export async function generateDailySummary(
   let parsed: AIAnalysis | null = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-nano",
+      model: AI_MODEL,
       messages,
       response_format: { type: "json_object" },
     });

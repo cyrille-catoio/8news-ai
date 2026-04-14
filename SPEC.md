@@ -1,15 +1,15 @@
 # 8news.ai — Technical Specification
 
-**Version**: v1.91
-**Last updated**: 12 April 2026
+**Version**: v1.96
+**Last updated**: 14 April 2026
 
 ---
 
 ## 1. Overview
 
-**8news.ai** is an AI-powered news aggregation and summarisation platform. It fetches articles from curated RSS feeds across multiple **dynamic, database-driven topics**, pre-scores them with AI via scheduled Netlify cron jobs (stored in Supabase), then analyses the top-scoring articles with OpenAI (topic summaries via GPT-4.1-nano; homepage Top summary via GPT-5.3-chat-latest) for structured summarisation. Results are presented in a dark-themed, bilingual (EN/FR) web interface with ElevenLabs text-to-speech playback.
+**8news.ai** is an AI-powered news aggregation and summarisation platform. It fetches articles from curated RSS feeds across multiple **dynamic, database-driven topics**, pre-scores them with AI via scheduled Netlify cron jobs (stored in Supabase), then analyses the top-scoring articles with OpenAI (topic summaries via GPT-4.1-nano; homepage Top summary via GPT-5.3-chat-latest; daily SEO summaries via GPT-4.1-mini) for structured summarisation. Results are presented in a dark-themed, bilingual (EN/FR) web interface with ElevenLabs text-to-speech playback.
 
-Users can **create custom topics** from the UI, with AI-assisted generation of scoring criteria and automatic RSS feed discovery.
+Users can **create custom topics** from the UI, with AI-assisted generation of scoring criteria and automatic RSS feed discovery. **v1.94+**: Article **favorites** system (star icon, per-user storage). **v1.95+**: Public **SEO daily summary pages** per topic with AI entity extraction, dynamic sitemap, and JSON-LD structured data.
 
 **v1.80+**: Optional **Supabase Auth** (email + password). **v1.81+**: **`user_type`** in **`user_metadata`** — **`member`** (default at sign-up) or **`owner`**. The app remains **fully usable without signing in** (home, stats, crons, changelog, settings). Signed-in **members** use the same public areas as guests. **Topics** and **Feed management** are **`owner`**-only (promote in **Supabase Dashboard → Authentication → Users**; user must sign in again for JWT refresh). Admin APIs: **`401`** unsigned, **`403`** **`member`**. **v1.82+**: Settings **My Account** (any authenticated user, editable name) + **Users** management (`owner`-only, inline edit of name and user type).
 
@@ -29,7 +29,7 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 | Frontend | React | 19.2.3 |
 | CSS | `globals.css` (tables, grids, keyframes) + `theme.ts` tokens + inline styles | — |
 | RSS Parsing | rss-parser | ^3.13.0 |
-| AI (text analysis) | OpenAI API — `gpt-4.1-nano` | via `openai` ^6.25.0 |
+| AI (text analysis) | OpenAI API — `gpt-4.1-nano` (scoring, topics), `gpt-4.1-mini` (daily SEO summaries) | via `openai` ^6.25.0 |
 | AI (text-to-speech) | ElevenLabs API — `eleven_flash_v2_5` model | via REST API |
 | Database | Supabase (PostgreSQL) | via `@supabase/supabase-js` |
 | Auth (session cookies) | Supabase Auth + `@supabase/ssr` | **v1.80+** — browser anon client + `middleware.ts` refresh |
@@ -51,11 +51,17 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   └── version.json            # {"version":"1.83"} — auto-update check (bump with each release)
 ├── src/
 │   ├── app/
-│   │   ├── layout.tsx          # Root layout, metadata, favicons, **v1.80+** `AuthProvider` wrapper, **v1.82+** Google Analytics
+│   │   ├── layout.tsx          # Root layout, metadata, favicons, **v1.80+** `AuthProvider` wrapper, **v1.82+** Google Analytics, **v1.96+** SEO footer
 │   │   ├── providers.tsx       # **v1.80+**: `AuthProvider` / `useAuth` (Supabase session)
 │   │   ├── globals.css         # Global CSS reset + base styles
 │   │   ├── page.tsx            # Main client shell: home flow + `currentPage` router to feature components
-│   │   ├── components/         # Feature UI: AppHeader, AuthModal, TopFeedSection, TopicsPage/, StatsPage, FeedsAdminPage, MyAccountSection, UsersSection, …
+│   │   ├── sitemap.ts          # **v1.95+**: Dynamic sitemap.xml (home, topic hubs, daily summaries)
+│   │   ├── summaries/page.tsx  # **v1.96+**: Public daily summaries explorer (SSR + client)
+│   │   ├── [topic]/            # **v1.95+**: SEO pages (server-rendered)
+│   │   │   ├── layout.tsx      # Minimal passthrough layout
+│   │   │   ├── page.tsx        # Topic hub: paginated list of daily summaries
+│   │   │   └── [date]/[slug]/page.tsx  # Daily summary page (bullets, articles, JSON-LD, hreflang)
+│   │   ├── components/         # Feature UI: AppHeader, AuthModal, TopFeedSection, TopicsPage/, StatsPage, FeedsAdminPage, FavoritesPage, FavoriteButton, DailySummariesPage, SummaryExplorer, MyAccountSection, UsersSection, …
 │   │   └── api/
 │   │       ├── news/
 │   │       │   ├── route.ts            # GET /api/news — Supabase read + AI analysis
@@ -83,11 +89,19 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   │               │       ├── articles/route.ts # DELETE — remove DB articles for topic+source
 │   │               │       └── score/route.ts  # POST — score up to 50 unscored articles (all ages, newest first)
 │   │               └── discover-feeds/route.ts # POST — AI auto-discover RSS feeds
-│   │       └── users/
-│   │           ├── route.ts                   # **v1.82+**: GET — list all users (**owner** only, service role)
-│   │           └── [id]/route.ts              # **v1.82+**: PATCH — update user name / type (**owner** only)
+│   │       ├── users/
+│   │       │   ├── route.ts                   # **v1.82+**: GET — list all users (**owner** only, service role)
+│   │       │   └── [id]/route.ts              # **v1.82+**: PATCH — update user name / type (**owner** only)
+│   │       ├── user/
+│   │       │   ├── topics/route.ts            # **v1.84+**: GET/PUT user topic preferences
+│   │       │   └── favorites/route.ts         # **v1.94+**: GET/POST/DELETE article favorites
+│   │       └── summaries/
+│   │           ├── generate/route.ts          # **v1.95+**: POST — generate daily summary (owner or CRON_SECRET)
+│   │           └── [topic]/[date]/route.ts    # **v1.96+**: GET — public read of a daily summary
 │   ├── hooks/
-│   │   └── useTopFeed.ts       # Homepage Top 50: GET /api/news/top (v1.76+: `?lang=` + localized snippet; refetch on lang change), refresh, clear, 5 min poll when home + no topic, **v1.82+** `lastUpdatedAt` timestamp
+│   │   ├── useTopFeed.ts       # Homepage Top 50: GET /api/news/top (v1.76+: `?lang=` + localized snippet; refetch on lang change), refresh, clear, 5 min poll when home + no topic, **v1.82+** `lastUpdatedAt` timestamp
+│   │   ├── useUserTopics.ts    # **v1.84+**: Per-user topic preferences (personalization mode)
+│   │   └── useFavorites.ts     # **v1.94+**: Article favorites (Set of URLs, optimistic toggle)
 │   └── lib/
 │       ├── types.ts            # TypeScript interfaces (TopicItem, TopicDetail, etc.)
 │       ├── theme.ts            # Design tokens (colors, fonts, shared styles)
@@ -100,14 +114,17 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │       ├── cookies.ts          # getCookie / setCookie (client prefs: lang, maxArticles, TTS)
 │       ├── fetch-topic-dynamic.ts  # RSS fetch + upsert (used by API + Netlify)
 │       ├── score-topic-dynamic.ts # AI scoring batches → Supabase (used by API + Netlify)
-│       └── ai-analyze.ts         # Shared OpenAI analysis helpers (analyzeWithAI, prompts/messages)
+│       ├── ai-analyze.ts         # Shared OpenAI analysis helpers (analyzeWithAI, prompts/messages)
+│       ├── generate-daily-summary.ts  # **v1.95+**: Daily SEO summary generation (AI + DB insert)
+│       └── changelog-entries.ts   # **v1.90+**: Changelog entries (auto-synced to DB)
 ├── netlify/
 │   └── functions/
 │       ├── shared/
 │       │   ├── fetch-topic.ts  # Re-exports `@/lib/fetch-topic-dynamic` for cron bundling
 │       │   └── score-topic.ts  # Re-exports `@/lib/score-topic-dynamic` for cron bundling
-│       ├── cron-fetch.ts       # Cron: batched RSS fetch (* * * * *, k topics/run)
-│       └── cron-score.ts       # Cron: prioritized scoring (* * * * *)
+│       ├── cron-fetching-background.ts  # Background: multi-pass RSS fetch (15min budget)
+│       ├── cron-scoring-background.ts  # Background: multi-pass AI scoring (15min budget)
+│       └── cron-daily-summary.ts       # **v1.95+**: Daily SEO summary generation (all topics, EN+FR)
 ├── migrations/
 │   ├── 001-topics-feeds.sql    # Create topics + feeds tables, seed 8 topics + ~160 feeds
 │   ├── 002-prompts.sql         # Add prompt_en/prompt_fr columns, seed prompts
@@ -115,19 +132,11 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   ├── 004-feeds-anthropic.sql # Add 20 RSS feeds for Anthropic
 │   ├── 005-changelog.sql       # changelog table + seed (in-app update log)
 │   ├── 006-topic-display.sql    # Add topics.is_displayed (homepage visibility toggle)
-│   ├── insert-changelog-1.77.sql # one-off INSERT for v1.77 on existing DBs (Supabase SQL Editor)
-│   ├── insert-changelog-1.78.sql # one-off INSERT for v1.78 on existing DBs (Supabase SQL Editor)
-│   ├── insert-changelog-1.79.sql # one-off INSERT for v1.79 on existing DBs (Supabase SQL Editor)
-│   ├── insert-changelog-1.80.sql # one-off INSERT for v1.80 on existing DBs (Supabase SQL Editor)
-│   ├── insert-changelog-1.81.sql # one-off INSERT for v1.81 on existing DBs (Supabase SQL Editor)
-│   ├── insert-changelog-1.82.sql # one-off INSERT for v1.82 on existing DBs (Supabase SQL Editor)
-│   ├── insert-changelog-1.83.sql # one-off INSERT for v1.83 on existing DBs (Supabase SQL Editor)
-│   ├── insert-changelog-1.84.sql # one-off INSERT for v1.84 on existing DBs (Supabase SQL Editor)
-│   ├── insert-changelog-1.85.sql # one-off INSERT for v1.85 on existing DBs (Supabase SQL Editor)
-│   ├── insert-changelog-1.86.sql # one-off INSERT for v1.86 on existing DBs (Supabase SQL Editor)
-│   ├── insert-changelog-1.87.sql # one-off INSERT for v1.87 on existing DBs (Supabase SQL Editor)
-│   ├── insert-changelog-1.88.sql # one-off INSERT for v1.88 on existing DBs (Supabase SQL Editor)
-│   └── insert-changelog-1.89.sql # one-off INSERT for v1.89 on existing DBs (Supabase SQL Editor)
+│   ├── 007-user-topic-preferences.sql  # Per-user topic personalization table
+│   ├── 008-categories.sql       # Topic categories table + FK on topics
+│   ├── 009-fix-sort-order.sql   # Re-sequence sort_order values
+│   ├── 010-user-favorites.sql   # **v1.94+**: Per-user article favorites table
+│   └── 011-daily-summaries.sql  # **v1.95+**: daily_summaries + summary_bullets tables (SEO)
 ├── .gitignore                  # Next/Node ignores; **v1.77+**: `.claude/` (local Claude/Cursor worktrees, not committed)
 ├── .env                        # API keys (not committed)
 ├── .env.example                # Placeholder for API keys
@@ -176,8 +185,13 @@ Users can create new topics from the Topics page. Each topic includes:
 | `topics` | Topic definitions, scoring criteria, prompts, round-robin timestamps |
 | `feeds` | RSS feed URLs per topic |
 | `articles` | All fetched articles with scores, AI summaries |
+| `categories` | **v1.89+**: Topic categories (Technology, Health, Sport, ...) |
 | `changelog` | In-app release notes (version, bilingual title/body, `created_at`) |
 | `news_cache` | Cached API responses (TTL-based) |
+| `user_topic_preferences` | **v1.84+**: Per-user topic selection (array of topic IDs) |
+| `user_favorites` | **v1.94+**: Per-user article bookmarks (URL, title, source, date) |
+| `daily_summaries` | **v1.95+**: SEO daily summary pages (bullets, articles, SEO metadata) |
+| `summary_bullets` | **v1.95+**: Individual bullets with AI-extracted named entities (GIN-indexed) |
 
 ### 5.2 `topics` table
 
@@ -193,6 +207,7 @@ Users can create new topics from the Topics page. Each topic includes:
 | `is_active` | boolean | Active in UI and crons |
 | `is_displayed` | boolean | Visible on homepage topic grid and eligible for Top feed display |
 | `sort_order` | integer | Display order |
+| `category_id` | integer FK | **v1.89+**: References categories(id), default 1 (Technology) |
 | `last_fetched_at` | timestamptz | Last RSS fetch (for round-robin) |
 | `last_scored_at` | timestamptz | Last scoring run (for round-robin) |
 | `created_at` | timestamptz | Creation date |
@@ -480,14 +495,14 @@ The app root is `src/app/page.tsx` (`"use client"`): **home** topic/period flow,
 
 ### 8.2 Navigation
 
-The app has **7 pages** managed by `currentPage` state (`"home"` | `"stats"` | `"crons"` | `"topics"` | `"feeds"` | `"changelog"` | `"settings"`). **v1.80+**: **`topics`** and **`feeds`** are reachable only for **`owner`** users (icons hidden for guests and **members**; leaving those pages without **owner** returns to **home**).
+The app has **10 pages** managed by `currentPage` state (`"home"` | `"stats"` | `"crons"` | `"topics"` | `"feeds"` | `"categories"` | `"dailySummaries"` | `"favorites"` | `"changelog"` | `"settings"`). **v1.80+**: **`topics`**, **`feeds`**, **`categories`**, and **`dailySummaries`** are reachable only for **`owner`** users. **`favorites`** requires any authenticated user.
 
 **Header** (`AppHeader`, shared across all pages):
 - **Logo**: PNG image (`/logo-8news.png`), responsive height — **clicking logo resets to homepage Top 50 feed**
-- **Subtitle**: "Tech intelligence, powered by AI." / "La tech décodée par l'IA" (`t("subtitle", lang)`)
+- **Subtitle**: "Tech decoded by AI" / "La tech décodée par l'IA" (`t("subtitle", lang)`)
 - **Top-right controls**:
-  - **Icon row** (left to right): **Home** (house); **Topics** and **Feed management** only if **`user_type` is `owner`** (**v1.80+**); **Stats** (bars), **Cron Monitor** (pulse), **Changelog** (clock), **Settings** (gear)
-  - **Row below icons**: **Sign in** / **Sign out** (**v1.80+**, `AuthModal` for email/password + register with first/last name + default **`member`**) **to the left of** the **language toggle** (EN/FR), right-aligned
+  - **Icon row** (left to right): **Home** (house); **Favorites** (star, authenticated users only, **v1.94+**); **Stats** (bars), **Cron Monitor** (pulse), **Changelog** (clock), **Settings** (gear); **Admin menu** (shield, owner-only dropdown: Topics, Categories, Feed management, Daily Summaries); **User menu** (user icon, sign-in/sign-out)
+  - **Row below icons**: **Sign in** button (if not authenticated) **to the left of** the **language toggle** (EN/FR), right-aligned
 
 ### 8.3 Home Page
 
@@ -498,6 +513,14 @@ On launch (no topic or period selected), the homepage displays the **Top 50 best
 Each Top 50 row shows a small **topic ID badge** (gold outline) next to the source line when `topic` is present. Items with `pubDate` in the **last hour** show a **NEW** badge. **`v1.76+` — French UI**: when a non-empty **`snippet`** is returned (typically **`snippet_ai_fr`**), the **main line** is that French text and the **RSS `title`** appears below in muted style; **English** keeps **title** first and **snippet** under it (like **ArticleCard**). If no AI snippet exists, only the RSS title is shown.
 
 When a topic is selected but no period chosen, the Top 50 disappears and a message prompts the user: "Select a time period to start the analysis."
+
+#### Action Bar (`TopicPersonalizationBar`)
+
+**v1.96+**: Positioned **above** the topic grid. Contains:
+- **Customize my topics** / **Edit my topics** (personalization mode toggle)
+- **Analyze top 50 articles** (launches Top 50 AI analysis)
+- **Daily Summaries** (link to `/summaries` public page)
+- When in personalization mode: **Done** button, **+ New topic** button, save status
 
 #### Topic Selector (`TopicToggle`)
 
@@ -582,15 +605,16 @@ Full CRUD management for topics and feeds. **`index.tsx`** holds state and API h
 
 **List view**: Table of all topics with #, name, feed count, status, click to detail. Supports **drag & drop reordering** via `/api/topics/reorder` with optimistic UI updates.
 
-**Create view**: Form with:
-- **Identity box** (**v1.82+ layout**): Label EN, Label FR, Slug (3-column row); Domain textarea below; **"✨ Generate with AI"** button calls `/api/topics/generate-labels` to auto-fill slug, label FR, and domain from label EN
-- Scoring criteria: 5 tiers
-  - **"✨ Generate with AI"** button: calls `/api/topics/generate-scoring` to auto-fill tiers from domain
-- Analysis Prompt (optional): EN/FR tabs, monospace textarea, `{{max}}` info
-- **"🔍 Find 10 RSS feeds automatically"** checkbox (checked by default):
-  - After topic creation, calls `/api/topics/[id]/discover-feeds`
-  - Shows spinner "Searching for RSS feeds…" in the detail view
-  - Displays result summary (added / rejected)
+**Create view** (**v1.93+ refactored**): Form with:
+- **Identity box**: Label EN, Label FR, Slug (3-column row); "Generate with AI" button; Domain textarea
+- **Category** selector (default: Technology)
+- **Scoring criteria**: 5 tiers with "Generate with AI" button
+- **Analysis Prompt**: EN/FR tabs with "Generate with AI" button, monospace textarea, `{{max}}` info
+- **RSS Feeds box** (**v1.93+**): dedicated section with two sub-panels:
+  - **AI discovery**: "Find 10 RSS feeds with AI" button — auto-creates a hidden draft topic on first use
+  - **Manual addition**: name + URL inputs + add button
+  - Draft topic is created once (anti-doublon) and reused for all feed operations
+- **Create button**: saves topic, redirects to topic list (owner) or home (member) with 24h validation toast
 
 **Detail view**:
 - Topic info (labels, domain, scoring criteria displayed in read mode with "Scoring" section header, edit toggle)
@@ -610,12 +634,49 @@ Dedicated **RSS / feed operations** view (not the same as Topics CRUD):
   - **Delete feed** (trash): `DELETE .../feeds/:feedId`
 - **Toasts** (fixed bottom center): loading spinner + message while waiting; success / info / error with auto-dismiss (replaces `alert` for these actions)
 
-### 8.8 Changelog page (`ChangelogPage`)
+### 8.8 Favorites Page (`FavoritesPage`) — v1.94+
+
+Accessible via star icon in the header (authenticated users only).
+- Lists all bookmarked articles sorted by most recently added
+- Each entry shows title (external link), source, date, filled star (click to remove)
+- Empty state with star icon and hint text
+- Data from `GET /api/user/favorites`
+- `FavoriteButton` component appears on every article across all views (ArticleCard, TopFeedSection, AllArticlesTab, StatsPage) with optimistic toggle and auth guard
+
+### 8.9 Categories Page (`CategoriesPage`) — v1.89+
+
+Admin page (owner-only) for managing topic categories. CRUD via `/api/categories`.
+
+### 8.10 Daily Summaries Generator (`DailySummariesPage`) — v1.95+
+
+Admin page (owner-only) for generating SEO daily summaries:
+- Topic selector + date picker → generate single topic summary (EN+FR)
+- Date picker + "Generate all topics" batch button
+- Anti-doublon: skips already-generated summaries
+- Results display: generated/skipped/no_articles/error with links to SEO pages
+
+### 8.11 Daily Summaries Explorer (`/summaries`) — v1.96+
+
+Public page at `/summaries`:
+- **SSR section** (crawlable by Google): grid of all active topics with links to hubs and recent summaries
+- **Client section** (`SummaryExplorer`): topic selector + date picker, fetches and displays summary inline
+- Link to full SEO page for each summary
+
+### 8.12 SEO Daily Summary Pages — v1.95+
+
+Server-rendered public pages for search engine indexing:
+- **Topic hub** (`/[topic]`): paginated list of all daily summaries for a topic
+- **Daily summary** (`/[topic]/[date]/[slug]`): full AI summary with bullets, articles, JSON-LD, hreflang, OG metadata, prev/next navigation
+- **Sitemap** (`/sitemap.xml`): dynamic, covers all generated pages
+- URL format: `8news.ai/{topic}/{YYYY-MM-DD}/{keyword1-keyword2-keyword3}`
+- Generated via `gpt-4.1-mini` with 50 articles, top 10 displayed, enriched prompts for detailed bullets
+
+### 8.13 Changelog page (`ChangelogPage`)
 
 - Loads **`GET /api/changelog`**
 - Lists version badge, date, bilingual title/body from **`changelog`** table
 
-### 8.9 Settings Page (`SettingsPage`)
+### 8.14 Settings Page (`SettingsPage`)
 
 Up to four sections depending on auth status:
 
@@ -635,7 +696,7 @@ Up to four sections depending on auth status:
 - Inline editing per row (first name, last name, user type dropdown) via `PATCH /api/users/[id]`
 - Data fetched from `GET /api/users` (service role)
 
-### 8.10 Audio Player (`AudioPlayer`)
+### 8.15 Audio Player (`AudioPlayer`)
 
 Text-to-Speech player for the global summary, using ElevenLabs API.
 
@@ -660,11 +721,11 @@ Text-to-Speech player for the global summary, using ElevenLabs API.
 | `thomas` | Thomas | FR | `GBv7mTt0atIp3Br8iCZE` |
 | `callum` | Callum | FR | `N2lVS1w4EtoT3dr4eOWO` |
 
-### 8.11 Auto-Update Banner
+### 8.16 Auto-Update Banner
 
 The app checks `public/version.json` every **5 minutes**. If the version differs from `APP_VERSION`, a gold banner appears at the **top-right** of the screen (copy: `homeNewVersionBanner` in `i18n.ts`). Clicking reloads the page. No auto-reload.
 
-### 8.12 Version Footer
+### 8.17 Version Footer
 
 Fixed bottom-right: `v{APP_VERSION}` from `page.tsx`, kept in sync with `public/version.json` (increment with each production release).
 
@@ -729,7 +790,7 @@ All state is managed with React hooks (`useState`, `useRef`, `useCallback`) in t
 | `ttsSpeed` | number | 1.05 | Cookie |
 | `ttsVoice` | string | `"sarah"` | Cookie |
 | `ttsVoiceFr` | string | `"george"` | Cookie |
-| `currentPage` | `"home"` \| `"stats"` \| `"crons"` \| `"topics"` \| `"feeds"` \| `"changelog"` \| `"settings"` | `"home"` | None |
+| `currentPage` | `"home"` \| `"stats"` \| `"crons"` \| `"topics"` \| `"feeds"` \| `"categories"` \| `"dailySummaries"` \| `"favorites"` \| `"changelog"` \| `"settings"` | `"home"` | None |
 | `data` | SummaryResponse \| null | null | None |
 | `loading` | boolean | false | None |
 | Top 50 articles / loading | from **`useTopFeed({ poll, lang })`** (`/api/news/top?limit=50&days=1&lang=`) | — | In-memory; **clear** on topic select; **refresh** on home reset; refetch when `lang` changes |
@@ -945,6 +1006,6 @@ Release history is maintained in **`src/lib/changelog-entries.ts`** and auto-syn
 - **Serverless timeout** — Netlify background functions have a **15-minute** wall-time. Cron jobs run as background functions invoked every 10 minutes by **cron-job.org**, with internal budgets (~13 min) and safety reserves. `POST .../feeds/[feedId]/score` is capped at **`maxDuration` 13** with a shorter internal elapsed budget and may return `partial` when time is exhausted.
 - **RSS availability** — Some feeds may go offline; AI feed discovery validates upfront but feeds can break later
 - **AI cost** — Each request consumes OpenAI tokens (gpt-4.1-nano), each TTS request consumes ElevenLabs credits
-- **No SSR** — The page is a client-only component (`"use client"`)
+- **Hybrid rendering** — The main app (`page.tsx`) is a client-only SPA; SEO daily summary pages and topic hubs are server-rendered
 - **Cookie-only persistence** — User preferences persisted in cookies; topic and period reset on reload
 - **AI feed discovery accuracy** — GPT may suggest invalid URLs; validation catches most but not all edge cases

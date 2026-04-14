@@ -35,7 +35,7 @@ export function TopicPersonalizationBar({
   onRequestAuth: () => void;
 }) {
   const barWrap: CSSProperties = {
-    marginBottom: 12,
+    marginBottom: 18,
     display: "flex",
     alignItems: "center",
     gap: 8,

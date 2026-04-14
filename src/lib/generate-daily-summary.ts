@@ -12,9 +12,9 @@ import {
   insertSummaryBullets,
 } from "@/lib/supabase";
 
-const SNIPPET_MAX = 600;
+const SNIPPET_MAX = 400;
 const MIN_SCORE = 3;
-const MAX_ARTICLES_FEED = 50;
+const MAX_ARTICLES_FEED = 25;
 const MAX_ARTICLES_DISPLAY = 10;
 
 function toArticleSummary(
@@ -135,19 +135,31 @@ export async function generateDailySummary(
       : `Article list:\n${formatArticleList(items)}`;
 
   const openai = new OpenAI({ apiKey });
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-nano",
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userList },
-    ],
-    response_format: { type: "json_object" },
-  });
+  const messages: Array<{ role: "system" | "user"; content: string }> = [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: userList },
+  ];
 
-  const rawContent = completion.choices[0]?.message?.content;
-  if (!rawContent) return null;
+  let parsed: AIAnalysis | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4.1-nano",
+      messages,
+      response_format: { type: "json_object" },
+    });
 
-  const parsed = JSON.parse(rawContent) as AIAnalysis;
+    const rawContent = completion.choices[0]?.message?.content;
+    if (!rawContent) continue;
+
+    try {
+      parsed = JSON.parse(rawContent) as AIAnalysis;
+      break;
+    } catch {
+      if (attempt === 0) continue;
+    }
+  }
+
+  if (!parsed) return null;
 
   // Build relevant map for article title/snippet overrides
   const relevant = new Map<number, { snippet: string; title?: string }>();

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getDailySummary, getTopicById } from "@/lib/supabase";
 import { color, font } from "@/lib/theme";
 import type { ArticleSummary, SummaryBullet } from "@/lib/types";
+import { DailySummaryArticles } from "@/app/components/DailySummaryArticles";
 
 interface PageProps {
   params: Promise<{ topic: string; date: string; slug: string }>;
@@ -208,38 +209,7 @@ export default async function DailySummaryPage({ params, searchParams }: PagePro
             <h2 style={{ color: color.gold, fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 16 }}>
               {lang === "fr" ? "Articles pertinents" : "Relevant articles"}
             </h2>
-            {articles.map((art: ArticleSummary, i: number) => (
-              <article
-                key={i}
-                style={{
-                  background: color.surface, border: `1px solid ${color.border}`,
-                  borderRadius: 10, padding: 16, marginBottom: 12,
-                }}
-              >
-                <a
-                  href={art.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ textDecoration: "none", color: "inherit", display: "block" }}
-                >
-                  <h3 style={{ color: color.text, fontWeight: 500, fontSize: 17, margin: 0 }}>
-                    {art.title}
-                  </h3>
-                  {art.snippet && (
-                    <p style={{ color: color.articleSnippet, fontSize: 14, marginTop: 6, lineHeight: 1.5, marginBottom: 0 }}>
-                      {art.snippet}
-                    </p>
-                  )}
-                </a>
-                <div style={{ marginTop: 8 }}>
-                  <a href={art.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-                    <span style={{ color: color.gold, fontSize: 13 }}>
-                      {art.source} · {art.pubDate ? new Date(art.pubDate).toLocaleString(locale) : ""}
-                    </span>
-                  </a>
-                </div>
-              </article>
-            ))}
+            <DailySummaryArticles articles={articles} lang={lang} />
           </section>
         )}
 

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { t, dateLocale, type Lang } from "@/lib/i18n";
+import { t, type Lang } from "@/lib/i18n";
 import { color, sectionCard, formInputStyle, spinnerStyle } from "@/lib/theme";
 import type { TopicItem, ArticleSummary, SummaryBullet } from "@/lib/types";
+import { DailySummaryArticles } from "@/app/components/DailySummaryArticles";
 
 interface SummaryData {
   id: number;
@@ -19,7 +20,6 @@ interface SummaryData {
 }
 
 export function SummaryExplorer({ lang }: { lang: Lang }) {
-  const locale = dateLocale(lang);
   const [topics, setTopics] = useState<TopicItem[]>([]);
   const [selectedTopic, setSelectedTopic] = useState("");
   const [date, setDate] = useState(() => {
@@ -198,36 +198,7 @@ export function SummaryExplorer({ lang }: { lang: Lang }) {
                 <h3 style={{ color: color.gold, fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 16 }}>
                   {lang === "fr" ? "Articles pertinents" : "Relevant articles"}
                 </h3>
-                {summary.articles.map((art: ArticleSummary, i: number) => (
-                  <article
-                    key={i}
-                    style={{
-                      background: color.surface, border: `1px solid ${color.border}`,
-                      borderRadius: 10, padding: 16, marginBottom: 12,
-                    }}
-                  >
-                    <a
-                      href={art.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ textDecoration: "none", color: "inherit", display: "block" }}
-                    >
-                      <h4 style={{ color: color.text, fontWeight: 500, fontSize: 16, margin: 0 }}>
-                        {art.title}
-                      </h4>
-                      {art.snippet && (
-                        <p style={{ color: color.articleSnippet, fontSize: 14, marginTop: 6, lineHeight: 1.5, marginBottom: 0 }}>
-                          {art.snippet}
-                        </p>
-                      )}
-                    </a>
-                    <div style={{ marginTop: 8 }}>
-                      <span style={{ color: color.gold, fontSize: 13 }}>
-                        {art.source} · {art.pubDate ? new Date(art.pubDate).toLocaleString(locale) : ""}
-                      </span>
-                    </div>
-                  </article>
-                ))}
+                <DailySummaryArticles articles={summary.articles} lang={lang} />
               </section>
             )}
           </div>

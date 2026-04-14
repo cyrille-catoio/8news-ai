@@ -35,7 +35,7 @@ export function TopicPersonalizationBar({
   onRequestAuth: () => void;
 }) {
   const barWrap: CSSProperties = {
-    marginTop: 10,
+    marginBottom: 12,
     display: "flex",
     alignItems: "center",
     gap: 8,
@@ -109,7 +109,7 @@ export function TopicPersonalizationBar({
             {t("analyzeTopArticlesBtn", lang)}
           </button>
         )}
-        <a href="/summaries" target="_blank" rel="noopener noreferrer" style={{ ...actionBtn, textDecoration: "none" }}>
+        <a href="/summaries" style={{ ...actionBtn, textDecoration: "none" }}>
           {t("dailySummaryBtn", lang)}
         </a>
         <span style={statusSlot}>
@@ -135,7 +135,7 @@ export function TopicPersonalizationBar({
             {t("analyzeTopArticlesBtn", lang)}
           </button>
         )}
-        <a href="/summaries" target="_blank" rel="noopener noreferrer" style={{ ...actionBtn, textDecoration: "none" }}>
+        <a href="/summaries" style={{ ...actionBtn, textDecoration: "none" }}>
           {t("dailySummaryBtn", lang)}
         </a>
       </div>
@@ -158,7 +158,7 @@ export function TopicPersonalizationBar({
           {t("analyzeTopArticlesBtn", lang)}
         </button>
       )}
-      <a href="/summaries" target="_blank" rel="noopener noreferrer" style={{ ...actionBtn, textDecoration: "none" }}>
+      <a href="/summaries" style={{ ...actionBtn, textDecoration: "none" }}>
         {t("dailySummaryBtn", lang)}
       </a>
     </div>

@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { t, dateLocale, type Lang } from "@/lib/i18n";
-import { color, font, sectionCard, formInputStyle, spinnerStyle } from "@/lib/theme";
+import { color, sectionCard, formInputStyle, spinnerStyle } from "@/lib/theme";
 import type { TopicItem, ArticleSummary, SummaryBullet } from "@/lib/types";
 
 interface SummaryData {
@@ -77,23 +76,7 @@ export function SummaryExplorer({ lang }: { lang: Lang }) {
   }, [selectedTopic, date, lang]);
 
   return (
-    <div style={{ minHeight: "100vh", background: color.bg, color: color.text, fontFamily: font.base }}>
-      <div style={{ maxWidth: 916, margin: "0 auto", padding: "40px 20px" }}>
-        <nav style={{ fontSize: 13, marginBottom: 24 }}>
-          <Link href="/" style={{ color: color.gold, textDecoration: "none" }}>
-            {lang === "fr" ? "Accueil" : "Home"}
-          </Link>
-          <span style={{ color: color.textDim, margin: "0 8px" }}>/</span>
-          <span style={{ color: color.textMuted }}>{t("dailySummaryExplorerTitle", lang)}</span>
-        </nav>
-
-        <h1 style={{ color: color.gold, fontSize: 22, fontWeight: 700, marginBottom: 8, marginTop: 0 }}>
-          {t("dailySummaryExplorerTitle", lang)}
-        </h1>
-        <p style={{ color: color.textMuted, fontSize: 14, marginTop: 0, marginBottom: 24 }}>
-          {t("dailySummaryExplorerDesc", lang)}
-        </p>
-
+    <div>
         {/* Selectors */}
         <div style={{ ...sectionCard, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div style={{ flex: "1 1 200px" }}>
@@ -249,7 +232,6 @@ export function SummaryExplorer({ lang }: { lang: Lang }) {
             )}
           </div>
         )}
-      </div>
     </div>
   );
 }

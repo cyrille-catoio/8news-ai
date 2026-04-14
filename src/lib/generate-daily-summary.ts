@@ -14,7 +14,8 @@ import {
 
 const SNIPPET_MAX = 600;
 const MIN_SCORE = 3;
-const MAX_ARTICLES = 100;
+const MAX_ARTICLES_FEED = 50;
+const MAX_ARTICLES_DISPLAY = 10;
 
 function toArticleSummary(
   r: {
@@ -41,6 +42,13 @@ function toArticleSummary(
 
 const SEO_PROMPT_ADDON_EN = `
 
+IMPORTANT — This is a daily summary for a public SEO page. Quality matters:
+- Write detailed, substantive bullet points (3-4 sentences each, not short headlines).
+- Include specific numbers, percentages, dollar amounts, dates, and names.
+- Add surprising facts, notable anecdotes, or unexpected details when available.
+- Each bullet should read like a mini-paragraph that a reader finds genuinely informative.
+- Select only the 10 most important and diverse articles as "relevant".
+
 Additionally, generate SEO metadata for this summary:
 - "seoKeywords": exactly 3 distinctive lowercase words from the key events/entities (no filler like "news"/"update"/"recap"). Most important keyword first. These become the URL slug.
 - "seoTitle": a compelling page title under 60 characters including the topic name and date
@@ -50,6 +58,13 @@ For each bullet in globalSummary, also include:
 - "entities": an array of 3-5 named entities mentioned in this bullet (company names, person names, product names, technical terms, specific events). Use the canonical/official name. No generic words.`;
 
 const SEO_PROMPT_ADDON_FR = `
+
+IMPORTANT — Ceci est un résumé quotidien pour une page SEO publique. La qualité compte :
+- Rédige des bullet points détaillés et substantiels (3-4 phrases chacun, pas de simples titres).
+- Inclus des chiffres précis, pourcentages, montants, dates et noms.
+- Ajoute des faits surprenants, anecdotes notables ou détails inattendus quand c'est possible.
+- Chaque bullet doit se lire comme un mini-paragraphe véritablement informatif.
+- Ne sélectionne que les 10 articles les plus importants et variés comme "relevant".
 
 De plus, génère des métadonnées SEO pour ce résumé :
 - "seoKeywords" : exactement 3 mots distinctifs en minuscules issus des événements/entités clés (pas de mots vides comme "actualité"/"mise-à-jour"/"résumé"). Le mot le plus important en premier. Ces mots deviennent le slug URL.
@@ -97,7 +112,7 @@ export async function generateDailySummary(
   if (!topicPrompt) return null;
 
   const [scoredRows, counts] = await Promise.all([
-    getScoredArticles(topicId, sinceISO, MIN_SCORE, MAX_ARTICLES),
+    getScoredArticles(topicId, sinceISO, MIN_SCORE, MAX_ARTICLES_FEED),
     countArticlesForPeriod(topicId, sinceISO),
   ]);
 
@@ -110,7 +125,7 @@ export async function generateDailySummary(
 
   const promptTemplate = lang === "fr" ? topicPrompt.prompt_fr : topicPrompt.prompt_en;
   const basePrompt = promptTemplate
-    ? promptTemplate.replace(/\{\{max\}\}/g, String(MAX_ARTICLES))
+    ? promptTemplate.replace(/\{\{max\}\}/g, String(MAX_ARTICLES_DISPLAY))
     : generateFallbackPrompt(lang);
   const systemPrompt = basePrompt + (lang === "fr" ? SEO_PROMPT_ADDON_FR : SEO_PROMPT_ADDON_EN);
 
@@ -158,12 +173,17 @@ export async function generateDailySummary(
     }
   }
 
-  // Build filtered articles with AI overrides
-  const filteredArticles: ArticleSummary[] = items.map((a, i) => {
-    const entry = relevant.get(i);
-    if (!entry) return a;
-    return { ...a, title: entry.title || a.title, snippet: entry.snippet || a.snippet };
-  });
+  // Build filtered articles with AI overrides, limited to top 10
+  const relevantIndices = [...relevant.keys()].sort((a, b) => a - b).slice(0, MAX_ARTICLES_DISPLAY);
+  const filteredArticles: ArticleSummary[] = (
+    relevantIndices.length > 0
+      ? relevantIndices.map((i) => {
+          const a = items[i];
+          const entry = relevant.get(i);
+          return { ...a, title: entry?.title || a.title, snippet: entry?.snippet || a.snippet };
+        })
+      : items.slice(0, MAX_ARTICLES_DISPLAY)
+  );
 
   // SEO fields — AI may return a string, an array, or an object; normalize to string[]
   const rawKw: unknown = parsed.seoKeywords;

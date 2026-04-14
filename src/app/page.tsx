@@ -772,17 +772,8 @@ export default function Home() {
         </div>
         ) : (
         <>
-        {/* ── Topic selector ──────────────────────────────────── */}
+        {/* ── Action bar + Topic selector ─────────────────────── */}
         <section style={{ marginBottom: 24 }}>
-          <TopicToggle
-            topics={displayedTopicLabels}
-            topic={topic}
-            disabled={loading}
-            onChange={handleTopicChange}
-            personalizationMode={isPersonalizationMode}
-            preferredTopicIds={isPersonalizationMode ? draftTopicIds : preferredTopicIds}
-            onTogglePreference={(id) => toggleTopicPreference(id, topics)}
-          />
           <TopicPersonalizationBar
             lang={lang}
             isAuthenticated={isAuthenticated}
@@ -807,6 +798,15 @@ export default function Home() {
               setTopAnalysisEnabled(true);
             }}
             onRequestAuth={() => setAuthModalOpen(true)}
+          />
+          <TopicToggle
+            topics={displayedTopicLabels}
+            topic={topic}
+            disabled={loading}
+            onChange={handleTopicChange}
+            personalizationMode={isPersonalizationMode}
+            preferredTopicIds={isPersonalizationMode ? draftTopicIds : preferredTopicIds}
+            onTogglePreference={(id) => toggleTopicPreference(id, topics)}
           />
         </section>
 

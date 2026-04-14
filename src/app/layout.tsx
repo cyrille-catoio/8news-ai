@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
+import Link from "next/link";
 import "./globals.css";
 import { AuthProvider } from "./providers";
 
@@ -31,6 +32,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <AuthProvider>{children}</AuthProvider>
+        <footer style={{ maxWidth: 916, margin: "0 auto", padding: "20px 20px 40px", borderTop: "1px solid #2a2a2a" }}>
+          <nav style={{ display: "flex", gap: 16, flexWrap: "wrap", justifyContent: "center", fontSize: 12 }}>
+            <Link href="/summaries" style={{ color: "#999", textDecoration: "none" }}>Daily Summaries</Link>
+            <a href="/sitemap.xml" style={{ color: "#666", textDecoration: "none" }}>Sitemap</a>
+          </nav>
+        </footer>
       </body>
     </html>
   );

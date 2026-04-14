@@ -978,8 +978,8 @@ const strings = {
     fr: "Voir la page",
   },
   dailySummaryBtn: {
-    en: "Daily Summary",
-    fr: "Résumé quotidien",
+    en: "Daily Summaries",
+    fr: "Résumés quotidiens",
   },
   dailySummaryExplorerTitle: {
     en: "Daily Summaries",

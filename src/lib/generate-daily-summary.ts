@@ -148,8 +148,14 @@ export async function generateDailySummary(
     return { ...a, title: entry.title || a.title, snippet: entry.snippet || a.snippet };
   });
 
-  // SEO fields
-  const seoKeywords = (parsed.seoKeywords ?? [])
+  // SEO fields — AI may return a string, an array, or an object; normalize to string[]
+  const rawKw: unknown = parsed.seoKeywords;
+  const kwArr: string[] = Array.isArray(rawKw)
+    ? (rawKw as unknown[]).map((w) => String(w))
+    : typeof rawKw === "string"
+      ? (rawKw as string).split(/[\s,\-]+/)
+      : [];
+  const seoKeywords = kwArr
     .map((w) => w.toLowerCase().replace(/[^a-z0-9]/g, ""))
     .filter(Boolean)
     .slice(0, 3);
@@ -157,8 +163,8 @@ export async function generateDailySummary(
     seoKeywords.length >= 3
       ? seoKeywords.join("-")
       : `${topicId}-${date.replace(/-/g, "")}`.slice(0, 30);
-  const seoTitle = (parsed.seoTitle ?? `${topicId} — ${date}`).slice(0, 70);
-  const seoDescription = (parsed.seoDescription ?? bullets.map((b) => b.text).join(". ").slice(0, 155)).slice(0, 160);
+  const seoTitle = (typeof parsed.seoTitle === "string" ? parsed.seoTitle : `${topicId} — ${date}`).slice(0, 70);
+  const seoDescription = (typeof parsed.seoDescription === "string" ? parsed.seoDescription : bullets.map((b) => b.text).join(". ").slice(0, 155)).slice(0, 160);
 
   const meta = {
     totalArticles: counts.total,

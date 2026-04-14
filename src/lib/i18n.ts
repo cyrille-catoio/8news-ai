@@ -806,8 +806,8 @@ const strings = {
     fr: "Personnaliser mes topics",
   },
   analyzeTopArticlesBtn: {
-    en: "Analyze top articles",
-    fr: "Analyse des top articles",
+    en: "Analyze top 50 articles",
+    fr: "Analyse des top 50 articles",
   },
   myTopicsEdit: {
     en: "Edit",
@@ -864,6 +864,34 @@ const strings = {
   topicPendingValidationList: {
     en: "Your topic is being validated. Maximum delay is 24 hours.",
     fr: "Votre topic est en cours de validation et le délai est au maximum de 24 heures.",
+  },
+  navFavoritesAria: {
+    en: "Favorites",
+    fr: "Favoris",
+  },
+  favoritesTitle: {
+    en: "My Favorites",
+    fr: "Mes Favoris",
+  },
+  favoritesEmpty: {
+    en: "No favorites yet",
+    fr: "Aucun favori pour le moment",
+  },
+  favoritesEmptyHint: {
+    en: "Tap the star next to an article to save it here.",
+    fr: "Appuyez sur l'étoile à côté d'un article pour le sauvegarder ici.",
+  },
+  addToFavorites: {
+    en: "Add to favorites",
+    fr: "Ajouter aux favoris",
+  },
+  removeFromFavorites: {
+    en: "Remove from favorites",
+    fr: "Retirer des favoris",
+  },
+  favoritesLoading: {
+    en: "Loading favorites…",
+    fr: "Chargement des favoris…",
   },
 } as const;
 

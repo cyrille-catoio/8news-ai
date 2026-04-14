@@ -32,12 +32,15 @@ import { TopicPersonalizationBar } from "@/app/components/TopicPersonalizationBa
 import { TopicOnboardingModal } from "@/app/components/TopicOnboardingModal";
 import { useTopFeed } from "@/hooks/useTopFeed";
 import { useUserTopics } from "@/hooks/useUserTopics";
+import { useFavorites } from "@/hooks/useFavorites";
 import { useAuth } from "@/app/providers";
 import { isOwnerUser } from "@/lib/user-type";
+import { FavoriteButton } from "@/app/components/FavoriteButton";
+import { FavoritesPage } from "@/app/components/FavoritesPage";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.93.1";
+const APP_VERSION = "1.94";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 
@@ -239,7 +242,23 @@ function ScrollToTop({ lang }: { lang: Lang }) {
 }
 
 
-function ArticleCard({ article, locale }: { article: ArticleSummary; locale: string }) {
+function ArticleCard({
+  article,
+  locale,
+  lang,
+  isFavorite,
+  isAuthenticated,
+  onToggleFavorite,
+  onRequestAuth,
+}: {
+  article: ArticleSummary;
+  locale: string;
+  lang: Lang;
+  isFavorite: boolean;
+  isAuthenticated: boolean;
+  onToggleFavorite: (a: { url: string; title: string; source: string; pubDate?: string }) => void;
+  onRequestAuth: () => void;
+}) {
   return (
     <div style={{ ...card, display: "block", position: "relative" }}>
       <a
@@ -261,7 +280,20 @@ function ArticleCard({ article, locale }: { article: ArticleSummary; locale: str
             {article.source} · {article.pubDate ? new Date(article.pubDate).toLocaleString(locale) : ""}
           </span>
         </a>
-        <CopyLinkButton url={article.link} />
+        <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <FavoriteButton
+            url={article.link}
+            title={article.title}
+            source={article.source}
+            pubDate={article.pubDate}
+            isFavorite={isFavorite}
+            lang={lang}
+            onToggle={onToggleFavorite}
+            onRequestAuth={onRequestAuth}
+            isAuthenticated={isAuthenticated}
+          />
+          <CopyLinkButton url={article.link} />
+        </div>
       </div>
     </div>
   );
@@ -397,12 +429,17 @@ export default function Home() {
     completeOnboarding,
   } = useUserTopics(isAuthenticated);
 
+  const { favoriteUrls, toggleFavorite } = useFavorites(isAuthenticated);
+
   useEffect(() => {
     if (authLoading) return;
     if (!authOwner && (currentPage === "feeds" || currentPage === "categories")) {
       setCurrentPage("home");
     }
     if (!isAuthenticated && currentPage === "topics") {
+      setCurrentPage("home");
+    }
+    if (!isAuthenticated && currentPage === "favorites") {
       setCurrentPage("home");
     }
   }, [authLoading, authOwner, isAuthenticated, currentPage]);
@@ -651,7 +688,14 @@ export default function Home() {
         />
 
         {currentPage === "stats" ? (
-          <StatsPage lang={lang} topics={topicLabels} />
+          <StatsPage
+            lang={lang}
+            topics={topicLabels}
+            favoriteUrls={favoriteUrls}
+            onToggleFavorite={toggleFavorite}
+            isAuthenticated={isAuthenticated}
+            onRequestAuth={() => setAuthModalOpen(true)}
+          />
         ) : currentPage === "crons" ? (
           <CronMonitorPage lang={lang} />
         ) : currentPage === "topics" ? (
@@ -705,6 +749,14 @@ export default function Home() {
             ttsVoiceFr={ttsVoiceFr}
             onTtsVoiceFrChange={updateTtsVoiceFr}
           />
+        ) : currentPage === "favorites" ? (
+          authLoading ? (
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "80px 0" }}>
+              <span style={spinnerStyle(28)} />
+            </div>
+          ) : isAuthenticated ? (
+            <FavoritesPage lang={lang} favoriteUrls={favoriteUrls} onToggleFavorite={toggleFavorite} />
+          ) : null
         ) : topicsLoading ? (
         <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "80px 0" }}>
           <span style={spinnerStyle(28)} />
@@ -844,7 +896,16 @@ export default function Home() {
                 {data.articles.length > 0 ? (
                   <div>
                     {data.articles.map((art, i) => (
-                      <ArticleCard key={`${art.link}-${i}`} article={art} locale={locale} />
+                      <ArticleCard
+                        key={`${art.link}-${i}`}
+                        article={art}
+                        locale={locale}
+                        lang={lang}
+                        isFavorite={favoriteUrls.has(art.link)}
+                        isAuthenticated={isAuthenticated}
+                        onToggleFavorite={toggleFavorite}
+                        onRequestAuth={() => setAuthModalOpen(true)}
+                      />
                     ))}
                   </div>
                 ) : (
@@ -862,6 +923,10 @@ export default function Home() {
                 loading={allArticlesLoading}
                 locale={locale}
                 lang={lang}
+                favoriteUrls={favoriteUrls}
+                onToggleFavorite={toggleFavorite}
+                isAuthenticated={isAuthenticated}
+                onRequestAuth={() => setAuthModalOpen(true)}
               />
             )}
           </div>
@@ -905,6 +970,10 @@ export default function Home() {
                   lang={lang}
                   locale={locale}
                   lastUpdatedAt={topFeedUpdatedAt}
+                  favoriteUrls={favoriteUrls}
+                  onToggleFavorite={toggleFavorite}
+                  isAuthenticated={isAuthenticated}
+                  onRequestAuth={() => setAuthModalOpen(true)}
                 />
               </>
             ) : (

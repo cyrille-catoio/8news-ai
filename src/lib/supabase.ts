@@ -815,6 +815,91 @@ export async function setUserTopicPreferences(
   }
 }
 
+// ── User Favorites ──────────────────────────────────────────────────────
+
+export interface UserFavoriteRow {
+  id: number;
+  user_id: string;
+  article_url: string;
+  article_title: string;
+  article_source: string;
+  article_date: string | null;
+  created_at: string;
+}
+
+export async function getUserFavorites(userId: string): Promise<UserFavoriteRow[]> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("user_favorites")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+    if (error || !data) return [];
+    return data as UserFavoriteRow[];
+  } catch {
+    return [];
+  }
+}
+
+export async function getUserFavoriteUrls(userId: string): Promise<string[]> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("user_favorites")
+      .select("article_url")
+      .eq("user_id", userId);
+    if (error || !data) return [];
+    return (data as { article_url: string }[]).map((r) => r.article_url);
+  } catch {
+    return [];
+  }
+}
+
+export async function addUserFavorite(
+  userId: string,
+  article: { url: string; title: string; source: string; pubDate?: string },
+): Promise<boolean> {
+  const clientP = getServerClient();
+  if (!clientP) return false;
+  try {
+    const supabase = await clientP;
+    const { error } = await supabase.from("user_favorites").upsert(
+      {
+        user_id: userId,
+        article_url: article.url,
+        article_title: article.title,
+        article_source: article.source,
+        article_date: article.pubDate || null,
+      },
+      { onConflict: "user_id,article_url" },
+    );
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+export async function removeUserFavorite(userId: string, articleUrl: string): Promise<boolean> {
+  const clientP = getServerClient();
+  if (!clientP) return false;
+  try {
+    const supabase = await clientP;
+    const { error } = await supabase
+      .from("user_favorites")
+      .delete()
+      .eq("user_id", userId)
+      .eq("article_url", articleUrl);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Fetches top articles restricted to a specific set of topic IDs.
  * Used when a user has personalized their topic list.

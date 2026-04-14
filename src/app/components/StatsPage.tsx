@@ -5,6 +5,7 @@ import type { StatsResponse, TopicLabel } from "@/lib/types";
 import { t, dateLocale, type Lang } from "@/lib/i18n";
 import { color, scoreClr, hitClr, covClr, spinnerStyle, sectionCard, formSectionTitle } from "@/lib/theme";
 import { CopyLinkButton } from "@/app/components/CopyLinkButton";
+import { FavoriteButton } from "@/app/components/FavoriteButton";
 
 const TIER_COLORS: Record<string, string> = {
   "9-10": "#22c55e",
@@ -34,7 +35,21 @@ type TopicCompSortKey =
   | "totalFeeds"
   | "activeSources";
 
-export function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
+export function StatsPage({
+  lang,
+  topics,
+  favoriteUrls,
+  onToggleFavorite,
+  isAuthenticated,
+  onRequestAuth,
+}: {
+  lang: Lang;
+  topics: TopicLabel[];
+  favoriteUrls: Set<string>;
+  onToggleFavorite: (a: { url: string; title: string; source: string; pubDate?: string }) => void;
+  isAuthenticated: boolean;
+  onRequestAuth: () => void;
+}) {
   const [data, setData] = useState<StatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -455,7 +470,20 @@ export function StatsPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }
                   <span style={{ color: color.textMuted, fontSize: 12 }}>
                     {a.source} · {new Date(a.pubDate).toLocaleDateString(locale)}
                   </span>
-                  <CopyLinkButton url={a.link} />
+                  <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                    <FavoriteButton
+                      url={a.link}
+                      title={a.title}
+                      source={a.source}
+                      pubDate={a.pubDate}
+                      isFavorite={favoriteUrls.has(a.link)}
+                      lang={lang}
+                      onToggle={onToggleFavorite}
+                      onRequestAuth={onRequestAuth}
+                      isAuthenticated={isAuthenticated}
+                    />
+                    <CopyLinkButton url={a.link} />
+                  </div>
                 </div>
                 {a.reason && (
                   <div style={{ color: color.textDim, fontSize: 12, marginTop: 2, whiteSpace: "normal" }}>

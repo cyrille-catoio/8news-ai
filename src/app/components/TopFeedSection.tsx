@@ -3,6 +3,7 @@
 import { color, card, sectionHeading } from "@/lib/theme";
 import { t, type Lang } from "@/lib/i18n";
 import { CopyLinkButton } from "@/app/components/CopyLinkButton";
+import { FavoriteButton } from "@/app/components/FavoriteButton";
 import type { TopFeedArticle } from "@/hooks/useTopFeed";
 
 const NEW_THRESHOLD_MS = 3_600_000;
@@ -17,12 +18,20 @@ export function TopFeedSection({
   lang,
   locale,
   lastUpdatedAt,
+  favoriteUrls,
+  onToggleFavorite,
+  isAuthenticated,
+  onRequestAuth,
 }: {
   articles: TopFeedArticle[];
   loading: boolean;
   lang: Lang;
   locale: string;
   lastUpdatedAt: Date | null;
+  favoriteUrls: Set<string>;
+  onToggleFavorite: (a: { url: string; title: string; source: string; pubDate?: string }) => void;
+  isAuthenticated: boolean;
+  onRequestAuth: () => void;
 }) {
   const sorted = [...articles].sort((a, b) => {
     const aNew = isNew(a.pubDate) ? 1 : 0;
@@ -139,7 +148,20 @@ export function TopFeedSection({
                 {art.source} · {art.pubDate ? new Date(art.pubDate).toLocaleString(locale, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}
               </span>
             </a>
-            <CopyLinkButton url={art.link} />
+            <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+              <FavoriteButton
+                url={art.link}
+                title={art.title}
+                source={art.source}
+                pubDate={art.pubDate}
+                isFavorite={favoriteUrls.has(art.link)}
+                lang={lang}
+                onToggle={onToggleFavorite}
+                onRequestAuth={onRequestAuth}
+                isAuthenticated={isAuthenticated}
+              />
+              <CopyLinkButton url={art.link} />
+            </div>
           </div>
         </div>
       ))}

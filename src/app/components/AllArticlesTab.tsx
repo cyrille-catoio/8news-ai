@@ -5,12 +5,31 @@ import type { ArticleSummary } from "@/lib/types";
 import { type Lang } from "@/lib/i18n";
 import { color, spinnerStyle } from "@/lib/theme";
 import { CopyLinkButton } from "@/app/components/CopyLinkButton";
+import { FavoriteButton } from "@/app/components/FavoriteButton";
 
 const ALL_ARTICLES_PAGE_SIZE = 50;
 
 export type AllArticleEntry = ArticleSummary & { score?: number | null };
 
-export function AllArticlesTab({ articles, loading, locale, lang }: { articles: AllArticleEntry[]; loading: boolean; locale: string; lang: Lang }) {
+export function AllArticlesTab({
+  articles,
+  loading,
+  locale,
+  lang,
+  favoriteUrls,
+  onToggleFavorite,
+  isAuthenticated,
+  onRequestAuth,
+}: {
+  articles: AllArticleEntry[];
+  loading: boolean;
+  locale: string;
+  lang: Lang;
+  favoriteUrls: Set<string>;
+  onToggleFavorite: (a: { url: string; title: string; source: string; pubDate?: string }) => void;
+  isAuthenticated: boolean;
+  onRequestAuth: () => void;
+}) {
   const [visible, setVisible] = useState(ALL_ARTICLES_PAGE_SIZE);
 
   useEffect(() => { setVisible(ALL_ARTICLES_PAGE_SIZE); }, [articles]);
@@ -99,7 +118,20 @@ export function AllArticlesTab({ articles, loading, locale, lang }: { articles: 
                   <span style={{ color: color.textDim, fontSize: 12 }}>
                     {art.pubDate ? new Date(art.pubDate).toLocaleString(locale) : ""}
                   </span>
-                  <CopyLinkButton url={art.link} />
+                  <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                    <FavoriteButton
+                      url={art.link}
+                      title={art.title}
+                      source={art.source}
+                      pubDate={art.pubDate}
+                      isFavorite={favoriteUrls.has(art.link)}
+                      lang={lang}
+                      onToggle={onToggleFavorite}
+                      onRequestAuth={onRequestAuth}
+                      isAuthenticated={isAuthenticated}
+                    />
+                    <CopyLinkButton url={art.link} />
+                  </div>
                 </div>
               </div>
             ))}

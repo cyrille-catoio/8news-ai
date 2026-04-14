@@ -48,7 +48,10 @@ export interface SummaryResponse {
 
 export interface AIAnalysis {
   relevant: Array<{ index: number; snippet: string; title?: string }>;
-  globalSummary: string | Array<{ text: string; refs: number[] }>;
+  globalSummary: string | Array<{ text: string; refs: number[]; entities?: string[] }>;
+  seoKeywords?: string[];
+  seoTitle?: string;
+  seoDescription?: string;
 }
 
 // ── Topics & Feeds (DB-driven) ─────────────────────────────────────────

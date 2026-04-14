@@ -1,0 +1,200 @@
+import OpenAI from "openai";
+import type { Lang } from "@/lib/i18n";
+import type { ArticleSummary, SummaryBullet, AIAnalysis } from "@/lib/types";
+import { formatArticleList } from "@/lib/ai-analyze";
+import { generateFallbackPrompt } from "@/lib/ai-analyze";
+import {
+  getScoredArticles,
+  getTopicPrompt,
+  countArticlesForPeriod,
+  insertDailySummary,
+  insertSummaryBullets,
+} from "@/lib/supabase";
+
+const SNIPPET_MAX = 600;
+const MIN_SCORE = 3;
+const MAX_ARTICLES = 100;
+
+function toArticleSummary(
+  r: {
+    title: string;
+    link: string;
+    source: string;
+    pub_date: string;
+    snippet: string | null;
+    content: string | null;
+    snippet_ai_en?: string | null;
+    snippet_ai_fr?: string | null;
+  },
+  lang: Lang,
+): ArticleSummary {
+  const aiSnippet = lang === "fr" ? r.snippet_ai_fr : r.snippet_ai_en;
+  return {
+    title: r.title,
+    link: r.link,
+    source: r.source,
+    pubDate: r.pub_date,
+    snippet: aiSnippet || (r.snippet || r.content || "").slice(0, SNIPPET_MAX),
+  };
+}
+
+const SEO_PROMPT_ADDON_EN = `
+
+Additionally, generate SEO metadata for this summary:
+- "seoKeywords": exactly 3 distinctive lowercase words from the key events/entities (no filler like "news"/"update"/"recap"). Most important keyword first. These become the URL slug.
+- "seoTitle": a compelling page title under 60 characters including the topic name and date
+- "seoDescription": a meta description under 155 characters summarizing the key developments
+
+For each bullet in globalSummary, also include:
+- "entities": an array of 3-5 named entities mentioned in this bullet (company names, person names, product names, technical terms, specific events). Use the canonical/official name. No generic words.`;
+
+const SEO_PROMPT_ADDON_FR = `
+
+De plus, génère des métadonnées SEO pour ce résumé :
+- "seoKeywords" : exactement 3 mots distinctifs en minuscules issus des événements/entités clés (pas de mots vides comme "actualité"/"mise-à-jour"/"résumé"). Le mot le plus important en premier. Ces mots deviennent le slug URL.
+- "seoTitle" : un titre de page accrocheur de moins de 60 caractères incluant le nom du topic et la date
+- "seoDescription" : une méta-description de moins de 155 caractères résumant les développements clés
+
+Pour chaque bullet dans globalSummary, inclus également :
+- "entities" : un tableau de 3-5 entités nommées mentionnées dans ce bullet (noms d'entreprises, de personnes, de produits, termes techniques, événements spécifiques). Utilise le nom canonique/officiel. Pas de mots génériques.`;
+
+export interface GenerateDailySummaryResult {
+  summaryId: number;
+  bulletCount: number;
+  slug: string;
+  seoTitle: string;
+  articleCount: number;
+}
+
+export async function generateDailySummary(
+  topicId: string,
+  date: string,
+  lang: Lang,
+): Promise<GenerateDailySummaryResult | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+
+  const dayStart = new Date(`${date}T00:00:00Z`);
+  const dayEnd = new Date(`${date}T23:59:59.999Z`);
+  const sinceISO = dayStart.toISOString();
+
+  const topicPrompt = await getTopicPrompt(topicId);
+  if (!topicPrompt) return null;
+
+  const [scoredRows, counts] = await Promise.all([
+    getScoredArticles(topicId, sinceISO, MIN_SCORE, MAX_ARTICLES),
+    countArticlesForPeriod(topicId, sinceISO),
+  ]);
+
+  const withinDay = scoredRows.filter((r) => new Date(r.pub_date) <= dayEnd);
+  if (withinDay.length === 0) return null;
+
+  const items = withinDay.map((r) => toArticleSummary(r, lang));
+
+  const promptTemplate = lang === "fr" ? topicPrompt.prompt_fr : topicPrompt.prompt_en;
+  const basePrompt = promptTemplate
+    ? promptTemplate.replace(/\{\{max\}\}/g, String(MAX_ARTICLES))
+    : generateFallbackPrompt(lang);
+  const systemPrompt = basePrompt + (lang === "fr" ? SEO_PROMPT_ADDON_FR : SEO_PROMPT_ADDON_EN);
+
+  const userList =
+    lang === "fr"
+      ? `Article list:\n${formatArticleList(items)}\n\nIMPORTANT — Réponds entièrement en français : pour chaque entrée du tableau "relevant", les champs "title" (titre traduit ou réécrit) et "snippet" (2–3 phrases factuelles) doivent être en français.`
+      : `Article list:\n${formatArticleList(items)}`;
+
+  const openai = new OpenAI({ apiKey });
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4.1-nano",
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userList },
+    ],
+    response_format: { type: "json_object" },
+  });
+
+  const rawContent = completion.choices[0]?.message?.content;
+  if (!rawContent) return null;
+
+  const parsed = JSON.parse(rawContent) as AIAnalysis;
+
+  // Build relevant map for article title/snippet overrides
+  const relevant = new Map<number, { snippet: string; title?: string }>();
+  for (const rv of parsed.relevant ?? []) {
+    relevant.set(rv.index, { snippet: rv.snippet, title: rv.title });
+  }
+
+  // Process bullets with entities
+  const bullets: SummaryBullet[] = [];
+  type RawBullet = { text: string; refs?: number[]; entities?: string[] };
+  const rawBulletArr: RawBullet[] = [];
+
+  if (Array.isArray(parsed.globalSummary)) {
+    const arr = parsed.globalSummary as RawBullet[];
+    for (const blt of arr) {
+      const text = (typeof blt === "string" ? blt : blt.text ?? "").replace(/^•\s*/, "").trim();
+      if (!text) continue;
+      const refs = (blt.refs ?? [])
+        .filter((idx) => idx >= 0 && idx < items.length)
+        .map((idx) => ({ title: items[idx].title, link: items[idx].link, source: items[idx].source }));
+      bullets.push({ text, refs });
+      rawBulletArr.push(blt);
+    }
+  }
+
+  // Build filtered articles with AI overrides
+  const filteredArticles: ArticleSummary[] = items.map((a, i) => {
+    const entry = relevant.get(i);
+    if (!entry) return a;
+    return { ...a, title: entry.title || a.title, snippet: entry.snippet || a.snippet };
+  });
+
+  // SEO fields
+  const seoKeywords = (parsed.seoKeywords ?? [])
+    .map((w) => w.toLowerCase().replace(/[^a-z0-9]/g, ""))
+    .filter(Boolean)
+    .slice(0, 3);
+  const slugKeywords =
+    seoKeywords.length >= 3
+      ? seoKeywords.join("-")
+      : `${topicId}-${date.replace(/-/g, "")}`.slice(0, 30);
+  const seoTitle = (parsed.seoTitle ?? `${topicId} — ${date}`).slice(0, 70);
+  const seoDescription = (parsed.seoDescription ?? bullets.map((b) => b.text).join(". ").slice(0, 155)).slice(0, 160);
+
+  const meta = {
+    totalArticles: counts.total,
+    scoredArticles: counts.scored,
+    analyzedArticles: items.length,
+  };
+
+  const summaryId = await insertDailySummary({
+    topic_id: topicId,
+    summary_date: date,
+    lang,
+    slug_keywords: slugKeywords,
+    bullets: bullets.map((b) => ({ text: b.text, refs: b.refs })),
+    articles: filteredArticles,
+    meta,
+    seo_title: seoTitle,
+    seo_description: seoDescription,
+    seo_h1: seoTitle,
+    period_from: dayStart.toISOString(),
+    period_to: dayEnd.toISOString(),
+  });
+
+  if (!summaryId) return null;
+
+  const bulletRows = bullets.map((blt, i) => ({
+    daily_summary_id: summaryId,
+    topic_id: topicId,
+    lang,
+    summary_date: date,
+    bullet_index: i,
+    text: blt.text,
+    refs: blt.refs,
+    entities: (rawBulletArr[i]?.entities ?? []).map((e) => String(e).trim()).filter(Boolean),
+  }));
+
+  await insertSummaryBullets(bulletRows);
+
+  return { summaryId, bulletCount: bullets.length, slug: slugKeywords, seoTitle, articleCount: items.length };
+}

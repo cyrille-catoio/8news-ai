@@ -37,6 +37,7 @@ import { useAuth } from "@/app/providers";
 import { isOwnerUser } from "@/lib/user-type";
 import { FavoriteButton } from "@/app/components/FavoriteButton";
 import { FavoritesPage } from "@/app/components/FavoritesPage";
+import { DailySummariesPage } from "@/app/components/DailySummariesPage";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
@@ -433,7 +434,7 @@ export default function Home() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!authOwner && (currentPage === "feeds" || currentPage === "categories")) {
+    if (!authOwner && (currentPage === "feeds" || currentPage === "categories" || currentPage === "dailySummaries")) {
       setCurrentPage("home");
     }
     if (!isAuthenticated && currentPage === "topics") {
@@ -736,6 +737,14 @@ export default function Home() {
             </div>
           ) : authOwner ? (
             <CategoriesPage lang={lang} />
+          ) : null
+        ) : currentPage === "dailySummaries" ? (
+          authLoading ? (
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "80px 0" }}>
+              <span style={spinnerStyle(28)} />
+            </div>
+          ) : authOwner ? (
+            <DailySummariesPage lang={lang} topics={topicLabels} />
           ) : null
         ) : currentPage === "settings" ? (
           <SettingsPage

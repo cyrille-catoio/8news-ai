@@ -893,6 +893,90 @@ const strings = {
     en: "Loading favorites…",
     fr: "Chargement des favoris…",
   },
+  seoBackHome: {
+    en: "Home",
+    fr: "Accueil",
+  },
+  seoTopicHub: {
+    en: "All summaries",
+    fr: "Tous les résumés",
+  },
+  seoPrevDay: {
+    en: "Previous day",
+    fr: "Jour précédent",
+  },
+  seoNextDay: {
+    en: "Next day",
+    fr: "Jour suivant",
+  },
+  seoArticlesAnalyzed: {
+    en: "articles analyzed by AI",
+    fr: "articles analysés par IA",
+  },
+  seoNoSummary: {
+    en: "No summary available for this date.",
+    fr: "Aucun résumé disponible pour cette date.",
+  },
+  seoHubTitle: {
+    en: "Daily AI News Summaries",
+    fr: "Résumés quotidiens IA",
+  },
+  seoHubEmpty: {
+    en: "No summaries available yet.",
+    fr: "Aucun résumé disponible pour le moment.",
+  },
+  seoBullets: {
+    en: "Key points",
+    fr: "Points clés",
+  },
+  seoRelevantArticles: {
+    en: "Relevant articles",
+    fr: "Articles pertinents",
+  },
+  dailySummariesAdmin: {
+    en: "Daily Summaries",
+    fr: "Résumés quotidiens",
+  },
+  dailySummariesTitle: {
+    en: "Daily Summaries Generator",
+    fr: "Générateur de résumés quotidiens",
+  },
+  dailySummariesDesc: {
+    en: "Generate AI daily summary pages for SEO. Each generation creates EN + FR summaries for the selected topic and date.",
+    fr: "Générer des pages de résumés quotidiens IA pour le SEO. Chaque génération crée les résumés EN + FR pour le topic et la date sélectionnés.",
+  },
+  dailySummariesGenerate: {
+    en: "Generate summary",
+    fr: "Générer le résumé",
+  },
+  dailySummariesGenerateAll: {
+    en: "Generate all topics (yesterday)",
+    fr: "Générer tous les topics (hier)",
+  },
+  dailySummariesGenerating: {
+    en: "Generating…",
+    fr: "Génération…",
+  },
+  dailySummariesSuccess: {
+    en: "Summary generated successfully",
+    fr: "Résumé généré avec succès",
+  },
+  dailySummariesError: {
+    en: "Generation failed",
+    fr: "Échec de la génération",
+  },
+  dailySummariesDate: {
+    en: "Date",
+    fr: "Date",
+  },
+  dailySummariesTopic: {
+    en: "Topic",
+    fr: "Topic",
+  },
+  dailySummariesViewPage: {
+    en: "View page",
+    fr: "Voir la page",
+  },
 } as const;
 
 type StringKey = keyof typeof strings;

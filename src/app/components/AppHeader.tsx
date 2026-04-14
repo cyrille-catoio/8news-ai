@@ -16,7 +16,8 @@ export type AppNavPage =
   | "changelog"
   | "feeds"
   | "categories"
-  | "favorites";
+  | "favorites"
+  | "dailySummaries";
 
 function NavIconButton({
   active,
@@ -182,7 +183,7 @@ function AdminMenu({
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const isAdminPage = currentPage === "topics" || currentPage === "feeds" || currentPage === "categories";
+  const isAdminPage = currentPage === "topics" || currentPage === "feeds" || currentPage === "categories" || currentPage === "dailySummaries";
 
   const menuItemStyle = (page: AppNavPage): CSSProperties => ({
     display: "block",
@@ -245,6 +246,13 @@ function AdminMenu({
             style={menuItemStyle("feeds")}
           >
             {t("feedsAdminAria", lang)}
+          </button>
+          <button
+            type="button"
+            onClick={() => { onNavigate("dailySummaries"); setOpen(false); }}
+            style={menuItemStyle("dailySummaries")}
+          >
+            {t("dailySummariesAdmin", lang)}
           </button>
         </div>
       )}

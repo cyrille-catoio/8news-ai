@@ -939,3 +939,213 @@ export async function getTopArticlesForTopics(
     return [];
   }
 }
+
+// ── Daily Summaries (SEO) ───────────────────────────────────────────────
+
+export interface DailySummaryRow {
+  id: number;
+  topic_id: string;
+  summary_date: string;
+  lang: string;
+  slug_keywords: string;
+  bullets: unknown;
+  articles: unknown;
+  meta: unknown;
+  seo_title: string;
+  seo_description: string;
+  seo_h1: string;
+  period_from: string;
+  period_to: string;
+  created_at: string;
+}
+
+export async function getDailySummary(
+  topicId: string,
+  date: string,
+  lang: string,
+): Promise<DailySummaryRow | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("daily_summaries")
+      .select("*")
+      .eq("topic_id", topicId)
+      .eq("summary_date", date)
+      .eq("lang", lang)
+      .single();
+    if (error || !data) return null;
+    return data as DailySummaryRow;
+  } catch {
+    return null;
+  }
+}
+
+export async function getDailySummaryBySlug(
+  topicId: string,
+  date: string,
+  slug: string,
+  lang: string,
+): Promise<DailySummaryRow | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("daily_summaries")
+      .select("*")
+      .eq("topic_id", topicId)
+      .eq("summary_date", date)
+      .eq("slug_keywords", slug)
+      .eq("lang", lang)
+      .single();
+    if (error || !data) return null;
+    return data as DailySummaryRow;
+  } catch {
+    return null;
+  }
+}
+
+export async function listDailySummaries(
+  topicId: string,
+  lang: string,
+  page: number,
+  limit: number,
+): Promise<{ rows: DailySummaryRow[]; total: number }> {
+  const clientP = getServerClient();
+  if (!clientP) return { rows: [], total: 0 };
+  try {
+    const supabase = await clientP;
+    const offset = (page - 1) * limit;
+    const [{ data, error }, { count }] = await Promise.all([
+      supabase
+        .from("daily_summaries")
+        .select("*")
+        .eq("topic_id", topicId)
+        .eq("lang", lang)
+        .order("summary_date", { ascending: false })
+        .range(offset, offset + limit - 1),
+      supabase
+        .from("daily_summaries")
+        .select("id", { count: "exact", head: true })
+        .eq("topic_id", topicId)
+        .eq("lang", lang),
+    ]);
+    if (error || !data) return { rows: [], total: count ?? 0 };
+    return { rows: data as DailySummaryRow[], total: count ?? 0 };
+  } catch {
+    return { rows: [], total: 0 };
+  }
+}
+
+export async function insertDailySummary(row: {
+  topic_id: string;
+  summary_date: string;
+  lang: string;
+  slug_keywords: string;
+  bullets: unknown;
+  articles: unknown;
+  meta: unknown;
+  seo_title: string;
+  seo_description: string;
+  seo_h1: string;
+  period_from: string;
+  period_to: string;
+}): Promise<number | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("daily_summaries")
+      .upsert(row, { onConflict: "topic_id,summary_date,lang" })
+      .select("id")
+      .single();
+    if (error || !data) return null;
+    return (data as { id: number }).id;
+  } catch {
+    return null;
+  }
+}
+
+export async function insertSummaryBullets(
+  bullets: Array<{
+    daily_summary_id: number;
+    topic_id: string;
+    lang: string;
+    summary_date: string;
+    bullet_index: number;
+    text: string;
+    refs: unknown;
+    entities: string[];
+  }>,
+): Promise<boolean> {
+  if (bullets.length === 0) return true;
+  const clientP = getServerClient();
+  if (!clientP) return false;
+  try {
+    const supabase = await clientP;
+    await supabase
+      .from("summary_bullets")
+      .delete()
+      .eq("daily_summary_id", bullets[0].daily_summary_id);
+    const { error } = await supabase.from("summary_bullets").insert(bullets);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+export async function getAllSummaryRoutes(): Promise<
+  Array<{ topic_id: string; summary_date: string; slug_keywords: string; lang: string }>
+> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("daily_summaries")
+      .select("topic_id, summary_date, slug_keywords, lang")
+      .order("summary_date", { ascending: false });
+    if (error || !data) return [];
+    return data as Array<{ topic_id: string; summary_date: string; slug_keywords: string; lang: string }>;
+  } catch {
+    return [];
+  }
+}
+
+export async function getTopicById(
+  id: string,
+): Promise<{ id: string; label_en: string; label_fr: string; is_active: boolean } | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("topics")
+      .select("id, label_en, label_fr, is_active")
+      .eq("id", id)
+      .single();
+    if (error || !data) return null;
+    return data as { id: string; label_en: string; label_fr: string; is_active: boolean };
+  } catch {
+    return null;
+  }
+}
+
+export async function getActiveTopicIds(): Promise<string[]> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("topics")
+      .select("id")
+      .eq("is_active", true);
+    if (error || !data) return [];
+    return data.map((r) => r.id);
+  } catch {
+    return [];
+  }
+}

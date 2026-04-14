@@ -40,7 +40,7 @@ import { FavoritesPage } from "@/app/components/FavoritesPage";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.94";
+const APP_VERSION = "1.95";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 

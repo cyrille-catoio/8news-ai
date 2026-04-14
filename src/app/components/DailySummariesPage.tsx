@@ -9,6 +9,7 @@ interface GenerateResult {
   lang: string;
   summaryId?: number;
   slug?: string;
+  status?: string;
   error?: string;
 }
 
@@ -176,7 +177,27 @@ export function DailySummariesPage({ lang, topics }: { lang: Lang; topics: Topic
               {r.results.map((res, ri) => (
                 <div key={ri} style={{ marginTop: 4, marginLeft: 12 }}>
                   <span style={{ color: color.textMuted, fontSize: 12, fontWeight: 600 }}>{res.lang.toUpperCase()}</span>
-                  {res.slug ? (
+                  {res.status === "skipped" ? (
+                    <span style={{ marginLeft: 8 }}>
+                      <span style={{ color: color.gold, fontSize: 12 }}>
+                        {lang === "fr" ? "Déjà généré" : "Already exists"}
+                      </span>
+                      {res.slug && (
+                        <a
+                          href={`/${r.topic}/${r.date}/${res.slug}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: color.textMuted, fontSize: 12, marginLeft: 8, textDecoration: "none" }}
+                        >
+                          {t("dailySummariesViewPage", lang)} ↗
+                        </a>
+                      )}
+                    </span>
+                  ) : res.status === "no_articles" ? (
+                    <span style={{ color: color.textDim, fontSize: 12, marginLeft: 8 }}>
+                      {lang === "fr" ? "Aucun article pour cette date" : "No articles for this date"}
+                    </span>
+                  ) : res.slug ? (
                     <span style={{ marginLeft: 8 }}>
                       <span style={{ color: "#4ade80", fontSize: 12 }}>
                         {t("dailySummariesSuccess", lang)}

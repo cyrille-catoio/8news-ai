@@ -47,18 +47,18 @@ export async function POST(req: NextRequest) {
     langs.push("en", "fr");
   }
 
-  const results: Array<{ lang: string; summaryId?: number; slug?: string; error?: string }> = [];
+  const results: Array<{ lang: string; summaryId?: number; slug?: string; status?: string; error?: string }> = [];
 
   for (const l of langs) {
     try {
       const result = await generateDailySummary(topic, date, l);
       if (result) {
-        results.push({ lang: l, summaryId: result.summaryId, slug: result.slug });
+        results.push({ lang: l, summaryId: result.summaryId, slug: result.slug, status: result.status });
       } else {
-        results.push({ lang: l, error: "No articles found or generation failed" });
+        results.push({ lang: l, error: "Generation failed", status: "error" });
       }
     } catch (e) {
-      results.push({ lang: l, error: e instanceof Error ? e.message : "Unknown error" });
+      results.push({ lang: l, error: e instanceof Error ? e.message : "Unknown error", status: "error" });
     }
   }
 

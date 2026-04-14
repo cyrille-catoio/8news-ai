@@ -7,6 +7,7 @@ import {
   getScoredArticles,
   getTopicPrompt,
   countArticlesForPeriod,
+  getDailySummary,
   insertDailySummary,
   insertSummaryBullets,
 } from "@/lib/supabase";
@@ -66,13 +67,27 @@ export interface GenerateDailySummaryResult {
   articleCount: number;
 }
 
+export type GenerateStatus = "generated" | "skipped" | "no_articles" | "error";
+
 export async function generateDailySummary(
   topicId: string,
   date: string,
   lang: Lang,
-): Promise<GenerateDailySummaryResult | null> {
+): Promise<(GenerateDailySummaryResult & { status: GenerateStatus }) | null> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
+
+  const existing = await getDailySummary(topicId, date, lang);
+  if (existing) {
+    return {
+      summaryId: existing.id,
+      bulletCount: (Array.isArray(existing.bullets) ? existing.bullets : []).length,
+      slug: existing.slug_keywords,
+      seoTitle: existing.seo_title,
+      articleCount: (Array.isArray(existing.articles) ? existing.articles : []).length,
+      status: "skipped",
+    };
+  }
 
   const dayStart = new Date(`${date}T00:00:00Z`);
   const dayEnd = new Date(`${date}T23:59:59.999Z`);
@@ -87,7 +102,9 @@ export async function generateDailySummary(
   ]);
 
   const withinDay = scoredRows.filter((r) => new Date(r.pub_date) <= dayEnd);
-  if (withinDay.length === 0) return null;
+  if (withinDay.length === 0) {
+    return { summaryId: 0, bulletCount: 0, slug: "", seoTitle: "", articleCount: 0, status: "no_articles" };
+  }
 
   const items = withinDay.map((r) => toArticleSummary(r, lang));
 
@@ -202,5 +219,5 @@ export async function generateDailySummary(
 
   await insertSummaryBullets(bulletRows);
 
-  return { summaryId, bulletCount: bullets.length, slug: slugKeywords, seoTitle, articleCount: items.length };
+  return { summaryId, bulletCount: bullets.length, slug: slugKeywords, seoTitle, articleCount: items.length, status: "generated" as GenerateStatus };
 }

@@ -41,7 +41,7 @@ import { DailySummariesPage } from "@/app/components/DailySummariesPage";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.96.1";
+const APP_VERSION = "1.96.2";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 
@@ -57,6 +57,8 @@ const PERIODS = [
   { label: "7 d",   hours: 168 },
   { label: "14 d",  hours: 336 },
   { label: "30 d",  hours: 720 },
+  { label: "2 mo",  hours: 1440 },
+  { label: "3 mo",  hours: 2160 },
 ] as const;
 
 // ── Sub-components ────────────────────────────────────────────────────

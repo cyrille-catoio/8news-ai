@@ -5,6 +5,7 @@ import { getDailySummary, getTopicById } from "@/lib/supabase";
 import { color, font } from "@/lib/theme";
 import type { ArticleSummary, SummaryBullet } from "@/lib/types";
 import { DailySummaryArticles } from "@/app/components/DailySummaryArticles";
+import { DailySummaryAudio } from "@/app/components/DailySummaryAudio";
 
 interface PageProps {
   params: Promise<{ topic: string; date: string; slug: string }>;
@@ -108,6 +109,14 @@ export default async function DailySummaryPage({ params, searchParams }: PagePro
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
 
+        {/* Logo + baseline */}
+        <Link href="/" style={{ textDecoration: "none", display: "block", marginBottom: 20 }}>
+          <img src="/logo-8news.png" alt="8news" style={{ height: 40, width: "auto", display: "block" }} />
+          <p style={{ color: color.textMuted, fontSize: 14, marginTop: 6, marginBottom: 0 }}>
+            {lang === "fr" ? "La tech décodée par l'IA" : "Tech decoded by AI"}
+          </p>
+        </Link>
+
         {/* Navigation */}
         <nav style={{ display: "flex", gap: 16, fontSize: 13, marginBottom: 24, flexWrap: "wrap" }}>
           <Link href="/" style={{ color: color.gold, textDecoration: "none" }}>
@@ -167,7 +176,7 @@ export default async function DailySummaryPage({ params, searchParams }: PagePro
           )}
         </header>
 
-        {/* Bullets */}
+        {/* Bullets + Audio */}
         {bullets.length > 0 && (
           <section style={{
             background: color.surface, border: `1px solid ${color.border}`,
@@ -176,6 +185,7 @@ export default async function DailySummaryPage({ params, searchParams }: PagePro
             <h2 style={{ color: color.gold, fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 0, marginBottom: 16 }}>
               {lang === "fr" ? "Points clés" : "Key points"}
             </h2>
+            <DailySummaryAudio bullets={bullets} lang={lang} topicName={topicLabel} date={date} />
             <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
               {bullets.map((b: SummaryBullet & { text: string; refs: Array<{ title: string; link: string; source: string }> }, i: number) => (
                 <li key={i} style={{ marginBottom: 14, lineHeight: 1.55 }}>

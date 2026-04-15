@@ -36,6 +36,13 @@ export default async function SummariesPage({
   return (
     <div style={{ minHeight: "100vh", background: color.bg, color: color.text, fontFamily: font.base }}>
       <div style={{ maxWidth: 916, margin: "0 auto", padding: "40px 20px" }}>
+        <Link href="/" style={{ textDecoration: "none", display: "block", marginBottom: 20 }}>
+          <img src="/logo-8news.png" alt="8news" style={{ height: 40, width: "auto", display: "block" }} />
+          <p style={{ color: color.textMuted, fontSize: 14, marginTop: 6, marginBottom: 0 }}>
+            {lang === "fr" ? "La tech décodée par l'IA" : "Tech decoded by AI"}
+          </p>
+        </Link>
+
         <nav style={{ fontSize: 13, marginBottom: 24 }}>
           <Link href="/" style={{ color: color.gold, textDecoration: "none" }}>
             {lang === "fr" ? "Accueil" : "Home"}

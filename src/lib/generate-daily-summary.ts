@@ -52,7 +52,7 @@ IMPORTANT — This is a daily summary for a public SEO page. Quality matters:
 
 Additionally, generate SEO metadata for this summary:
 - "seoKeywords": exactly 3 distinctive lowercase words from the key events/entities (no filler like "news"/"update"/"recap"). Most important keyword first. These become the URL slug.
-- "seoTitle": a compelling page title under 60 characters including the topic name and date
+- "seoTitle": a compelling page title under 90 characters including the topic name and date. Do not truncate — use the full title
 - "seoDescription": a meta description under 155 characters summarizing the key developments
 
 For each bullet in globalSummary, also include:
@@ -69,7 +69,7 @@ IMPORTANT — Ceci est un résumé quotidien pour une page SEO publique. La qual
 
 De plus, génère des métadonnées SEO pour ce résumé :
 - "seoKeywords" : exactement 3 mots distinctifs en minuscules issus des événements/entités clés (pas de mots vides comme "actualité"/"mise-à-jour"/"résumé"). Le mot le plus important en premier. Ces mots deviennent le slug URL.
-- "seoTitle" : un titre de page accrocheur de moins de 60 caractères incluant le nom du topic et la date
+- "seoTitle" : un titre de page accrocheur de moins de 90 caractères incluant le nom du topic et la date. Ne pas tronquer — utiliser le titre complet
 - "seoDescription" : une méta-description de moins de 155 caractères résumant les développements clés
 
 Pour chaque bullet dans globalSummary, inclus également :
@@ -213,7 +213,7 @@ export async function generateDailySummary(
     seoKeywords.length >= 3
       ? seoKeywords.join("-")
       : `${topicId}-${date.replace(/-/g, "")}`.slice(0, 30);
-  const seoTitle = (typeof parsed.seoTitle === "string" ? parsed.seoTitle : `${topicId} — ${date}`).slice(0, 70);
+  const seoTitle = (typeof parsed.seoTitle === "string" ? parsed.seoTitle : `${topicId} — ${date}`).slice(0, 120);
   const seoDescription = (typeof parsed.seoDescription === "string" ? parsed.seoDescription : bullets.map((b) => b.text).join(". ").slice(0, 155)).slice(0, 160);
 
   const meta = {

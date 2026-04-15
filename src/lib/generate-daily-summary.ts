@@ -18,6 +18,13 @@ const MAX_ARTICLES_FEED = 50;
 const MAX_ARTICLES_DISPLAY = 10;
 const AI_MODEL = "gpt-4.1-mini";
 
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARS = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g;
+
+function sanitize(s: string): string {
+  return s.replace(CONTROL_CHARS, " ").trim();
+}
+
 function toArticleSummary(
   r: {
     title: string;
@@ -33,11 +40,11 @@ function toArticleSummary(
 ): ArticleSummary {
   const aiSnippet = lang === "fr" ? r.snippet_ai_fr : r.snippet_ai_en;
   return {
-    title: r.title,
+    title: sanitize(r.title),
     link: r.link,
-    source: r.source,
+    source: sanitize(r.source),
     pubDate: r.pub_date,
-    snippet: aiSnippet || (r.snippet || r.content || "").slice(0, SNIPPET_MAX),
+    snippet: sanitize(aiSnippet || (r.snippet || r.content || "").slice(0, SNIPPET_MAX)),
   };
 }
 
@@ -112,28 +119,30 @@ export async function generateDailySummary(
   const topicPrompt = await getTopicPrompt(topicId);
   if (!topicPrompt) return null;
 
+  const untilISO = dayEnd.toISOString();
+
   const [scoredRows, counts] = await Promise.all([
-    getScoredArticles(topicId, sinceISO, MIN_SCORE, MAX_ARTICLES_FEED),
-    countArticlesForPeriod(topicId, sinceISO),
+    getScoredArticles(topicId, sinceISO, MIN_SCORE, MAX_ARTICLES_FEED, untilISO),
+    countArticlesForPeriod(topicId, sinceISO, untilISO),
   ]);
 
-  const withinDay = scoredRows.filter((r) => new Date(r.pub_date) <= dayEnd);
-  if (withinDay.length === 0) {
+  if (scoredRows.length === 0) {
     return { summaryId: 0, bulletCount: 0, slug: "", seoTitle: "", articleCount: 0, status: "no_articles" };
   }
 
-  const items = withinDay.map((r) => toArticleSummary(r, lang));
+  const items = scoredRows.map((r) => toArticleSummary(r, lang));
 
   const promptTemplate = lang === "fr" ? topicPrompt.prompt_fr : topicPrompt.prompt_en;
   const basePrompt = promptTemplate
     ? promptTemplate.replace(/\{\{max\}\}/g, String(MAX_ARTICLES_DISPLAY))
     : generateFallbackPrompt(lang);
-  const systemPrompt = basePrompt + (lang === "fr" ? SEO_PROMPT_ADDON_FR : SEO_PROMPT_ADDON_EN);
+  const systemPrompt = sanitize(basePrompt + (lang === "fr" ? SEO_PROMPT_ADDON_FR : SEO_PROMPT_ADDON_EN));
 
-  const userList =
+  const userList = sanitize(
     lang === "fr"
       ? `Article list:\n${formatArticleList(items)}\n\nIMPORTANT — Réponds entièrement en français : pour chaque entrée du tableau "relevant", les champs "title" (titre traduit ou réécrit) et "snippet" (2–3 phrases factuelles) doivent être en français.`
-      : `Article list:\n${formatArticleList(items)}`;
+      : `Article list:\n${formatArticleList(items)}`,
+  );
 
   const openai = new OpenAI({ apiKey });
   const messages: Array<{ role: "system" | "user"; content: string }> = [

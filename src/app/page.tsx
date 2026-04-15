@@ -41,7 +41,7 @@ import { DailySummariesPage } from "@/app/components/DailySummariesPage";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.96.2";
+const APP_VERSION = "1.97";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 

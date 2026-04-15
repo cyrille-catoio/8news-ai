@@ -64,6 +64,10 @@ export default async function TopicHubPage({ params, searchParams }: PageProps) 
             {lang === "fr" ? "Accueil" : "Home"}
           </Link>
           <span style={{ color: color.textDim, margin: "0 8px" }}>/</span>
+          <Link href={`/summaries?lang=${lang}`} style={{ color: color.gold, textDecoration: "none" }}>
+            Summaries
+          </Link>
+          <span style={{ color: color.textDim, margin: "0 8px" }}>/</span>
           <span style={{ color: color.textMuted }}>{topicLabel}</span>
           {lang === "en" ? (
             <a href={`/${topicId}?lang=fr`} style={{ color: color.textDim, textDecoration: "none", marginLeft: "auto", float: "right" }}>FR</a>

@@ -122,6 +122,9 @@ export default async function DailySummaryPage({ params, searchParams }: PagePro
           <Link href="/" style={{ color: color.gold, textDecoration: "none" }}>
             {lang === "fr" ? "Accueil" : "Home"}
           </Link>
+          <Link href={`/summaries?lang=${lang}`} style={{ color: color.gold, textDecoration: "none" }}>
+            Summaries
+          </Link>
           <a href={`/${topicId}?lang=${lang}`} style={{ color: color.gold, textDecoration: "none" }}>
             {topicLabel}
           </a>

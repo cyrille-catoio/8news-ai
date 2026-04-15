@@ -668,6 +668,7 @@ export interface DbArticle {
   title: string;
   link: string;
   pub_date: string;
+  fetched_at: string;
   content: string | null;
   snippet: string | null;
   snippet_ai_en: string | null;
@@ -680,20 +681,23 @@ export async function getScoredArticles(
   since: string,
   minScore: number,
   limit: number,
+  until?: string,
 ): Promise<DbArticle[]> {
   const clientP = getServerClient();
   if (!clientP) return [];
 
   try {
     const supabase = await clientP;
-    const { data, error } = await supabase
+    let query = supabase
       .from("articles")
-      .select("id, topic, source, title, link, pub_date, content, snippet, snippet_ai_en, snippet_ai_fr, relevance_score")
+      .select("id, topic, source, title, link, pub_date, fetched_at, content, snippet, snippet_ai_en, snippet_ai_fr, relevance_score")
       .eq("topic", topic)
-      .gte("pub_date", since)
-      .gte("relevance_score", minScore)
+      .gte("fetched_at", since)
+      .gte("relevance_score", minScore);
+    if (until) query = query.lte("fetched_at", until);
+    const { data, error } = await query
       .order("relevance_score", { ascending: false })
-      .order("pub_date", { ascending: false })
+      .order("fetched_at", { ascending: false })
       .limit(limit);
 
     if (error || !data) return [];
@@ -732,25 +736,29 @@ export async function getAllArticlesFromDb(
 export async function countArticlesForPeriod(
   topic: string,
   since: string,
+  until?: string,
 ): Promise<{ total: number; scored: number }> {
   const clientP = getServerClient();
   if (!clientP) return { total: 0, scored: 0 };
 
   try {
     const supabase = await clientP;
-    const [totalRes, scoredRes] = await Promise.all([
-      supabase
-        .from("articles")
-        .select("id", { count: "exact", head: true })
-        .eq("topic", topic)
-        .gte("pub_date", since),
-      supabase
-        .from("articles")
-        .select("id", { count: "exact", head: true })
-        .eq("topic", topic)
-        .gte("pub_date", since)
-        .not("relevance_score", "is", null),
-    ]);
+    let totalQ = supabase
+      .from("articles")
+      .select("id", { count: "exact", head: true })
+      .eq("topic", topic)
+      .gte("fetched_at", since);
+    if (until) totalQ = totalQ.lte("fetched_at", until);
+
+    let scoredQ = supabase
+      .from("articles")
+      .select("id", { count: "exact", head: true })
+      .eq("topic", topic)
+      .gte("fetched_at", since)
+      .not("relevance_score", "is", null);
+    if (until) scoredQ = scoredQ.lte("fetched_at", until);
+
+    const [totalRes, scoredRes] = await Promise.all([totalQ, scoredQ]);
     return {
       total: totalRes.count ?? 0,
       scored: scoredRes.count ?? 0,

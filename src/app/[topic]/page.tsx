@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getTopicById, listDailySummaries, type DailySummaryRow } from "@/lib/supabase";
 import { color, font } from "@/lib/theme";
+import { SeoNavBar } from "@/app/components/SeoNavBar";
+import { SeoGeneralMenu } from "@/app/components/GeneralMenu";
 
 const PAGE_SIZE = 30;
 
@@ -52,28 +54,23 @@ export default async function TopicHubPage({ params, searchParams }: PageProps) 
   return (
     <div style={{ minHeight: "100vh", background: color.bg, color: color.text, fontFamily: font.base }}>
       <div style={{ maxWidth: 916, margin: "0 auto", padding: "40px 20px" }}>
-        <Link href="/" style={{ textDecoration: "none", display: "block", marginBottom: 20 }}>
-          <img src="/logo-8news.png" alt="8news" style={{ height: 40, width: "auto", display: "block" }} />
-          <p style={{ color: color.textMuted, fontSize: 14, marginTop: 6, marginBottom: 0 }}>
-            {lang === "fr" ? "La tech décodée par l'IA" : "Tech decoded by AI"}
-          </p>
-        </Link>
+        <SeoNavBar
+          lang={lang}
+          altLangUrl={`/${topicId}?lang=${lang === "fr" ? "en" : "fr"}`}
+        />
+
+        <SeoGeneralMenu lang={lang} />
 
         <nav style={{ fontSize: 13, marginBottom: 24 }}>
           <Link href="/" style={{ color: color.gold, textDecoration: "none" }}>
             {lang === "fr" ? "Accueil" : "Home"}
           </Link>
           <span style={{ color: color.textDim, margin: "0 8px" }}>/</span>
-          <Link href={`/summaries?lang=${lang}`} style={{ color: color.gold, textDecoration: "none" }}>
+          <Link href="/summaries" style={{ color: color.gold, textDecoration: "none" }}>
             Summaries
           </Link>
           <span style={{ color: color.textDim, margin: "0 8px" }}>/</span>
           <span style={{ color: color.textMuted }}>{topicLabel}</span>
-          {lang === "en" ? (
-            <a href={`/${topicId}?lang=fr`} style={{ color: color.textDim, textDecoration: "none", marginLeft: "auto", float: "right" }}>FR</a>
-          ) : (
-            <a href={`/${topicId}?lang=en`} style={{ color: color.textDim, textDecoration: "none", marginLeft: "auto", float: "right" }}>EN</a>
-          )}
         </nav>
 
         <h1 style={{ color: color.gold, fontSize: 22, fontWeight: 700, marginBottom: 8, marginTop: 0 }}>
@@ -95,7 +92,7 @@ export default async function TopicHubPage({ params, searchParams }: PageProps) 
               return (
                 <a
                   key={row.id}
-                  href={`/${topicId}/${row.summary_date}/${row.slug_keywords}?lang=${lang}`}
+                  href={`/${topicId}/${row.summary_date}/${row.slug_keywords}`}
                   style={{
                     display: "block",
                     background: color.surface,

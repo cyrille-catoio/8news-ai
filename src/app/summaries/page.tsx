@@ -3,6 +3,8 @@ import Link from "next/link";
 import { getActiveTopics, getAllSummaryRoutes } from "@/lib/supabase";
 import { color, font } from "@/lib/theme";
 import { SummaryExplorer } from "@/app/components/SummaryExplorer";
+import { SeoNavBar } from "@/app/components/SeoNavBar";
+import { SeoGeneralMenu } from "@/app/components/GeneralMenu";
 import type { Lang } from "@/lib/i18n";
 
 export const metadata: Metadata = {
@@ -36,12 +38,12 @@ export default async function SummariesPage({
   return (
     <div style={{ minHeight: "100vh", background: color.bg, color: color.text, fontFamily: font.base }}>
       <div style={{ maxWidth: 916, margin: "0 auto", padding: "40px 20px" }}>
-        <Link href="/" style={{ textDecoration: "none", display: "block", marginBottom: 20 }}>
-          <img src="/logo-8news.png" alt="8news" style={{ height: 40, width: "auto", display: "block" }} />
-          <p style={{ color: color.textMuted, fontSize: 14, marginTop: 6, marginBottom: 0 }}>
-            {lang === "fr" ? "La tech décodée par l'IA" : "Tech decoded by AI"}
-          </p>
-        </Link>
+        <SeoNavBar
+          lang={lang}
+          altLangUrl={`/summaries?lang=${lang === "fr" ? "en" : "fr"}`}
+        />
+
+        <SeoGeneralMenu lang={lang} activePage="summaries" />
 
         <nav style={{ fontSize: 13, marginBottom: 24 }}>
           <Link href="/" style={{ color: color.gold, textDecoration: "none" }}>
@@ -92,7 +94,7 @@ export default async function SummariesPage({
                       {recent.map((r) => (
                         <li key={`${r.summary_date}-${r.lang}`} style={{ marginBottom: 4 }}>
                           <Link
-                            href={`/${r.topic_id}/${r.summary_date}/${r.slug_keywords}?lang=${lang}`}
+                            href={`/${r.topic_id}/${r.summary_date}/${r.slug_keywords}`}
                             style={{ color: color.textSecondary, textDecoration: "none", fontSize: 13 }}
                           >
                             {r.summary_date}

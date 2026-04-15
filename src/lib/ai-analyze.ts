@@ -25,9 +25,9 @@ export function getServerMessages(lang: Lang) {
 
 export function generateFallbackPrompt(lang: Lang): string {
   if (lang === "fr") {
-    return `Tu es un analyste de presse. Résume TOUS les articles fournis. Pour chaque article, écris un résumé factuel de 2-3 phrases. Produis jusqu'à 8 bullet points factuels couvrant les sujets majeurs. Réponds en JSON: {"relevant":[{"index":0,"snippet":"..."}],"globalSummary":[{"text":"...","refs":[0]}]}`;
+    return `Tu es un analyste de presse. Résume TOUS les articles fournis. Pour chaque article, écris un résumé factuel de 2-3 phrases. Produis jusqu'à 8 bullet points factuels couvrant les sujets majeurs. N'inclus JAMAIS de références aux articles ou noms de sources dans le texte des bullet points — les références sont gérées via le tableau "refs". Réponds en JSON: {"relevant":[{"index":0,"snippet":"..."}],"globalSummary":[{"text":"...","refs":[0]}]}`;
   }
-  return `You are a news analyst. Summarize ALL articles provided. For each article, write a factual 2-3 sentence summary. Write up to 8 factual bullet points covering the major topics. Respond with JSON: {"relevant":[{"index":0,"snippet":"..."}],"globalSummary":[{"text":"...","refs":[0]}]}`;
+  return `You are a news analyst. Summarize ALL articles provided. For each article, write a factual 2-3 sentence summary. Write up to 8 factual bullet points covering the major topics. NEVER include article references or source names inside bullet text — references are handled via the "refs" array. Respond with JSON: {"relevant":[{"index":0,"snippet":"..."}],"globalSummary":[{"text":"...","refs":[0]}]}`;
 }
 
 export function formatArticleList(items: ArticleSummary[]): string {

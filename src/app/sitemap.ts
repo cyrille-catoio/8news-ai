@@ -29,7 +29,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   for (const r of routes) {
     entries.push({
-      url: `${BASE}/${r.topic_id}/${r.summary_date}/${r.slug_keywords}${r.lang === "fr" ? "?lang=fr" : ""}`,
+      url: `${BASE}/${r.topic_id}/${r.summary_date}/${r.slug_keywords}`,
       lastModified: new Date(r.summary_date),
       changeFrequency: "weekly",
       priority: 0.7,

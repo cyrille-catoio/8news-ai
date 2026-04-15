@@ -806,8 +806,8 @@ const strings = {
     fr: "Personnaliser mes topics",
   },
   analyzeTopArticlesBtn: {
-    en: "Analyze top 50 articles",
-    fr: "Analyse des top 50 articles",
+    en: "Top 50 articles",
+    fr: "Top 50 articles",
   },
   myTopicsEdit: {
     en: "Edit",
@@ -868,6 +868,10 @@ const strings = {
   navFavoritesAria: {
     en: "Favorites",
     fr: "Favoris",
+  },
+  myFavoritesBtn: {
+    en: "My Favorites",
+    fr: "Mes Favoris",
   },
   favoritesTitle: {
     en: "My Favorites",

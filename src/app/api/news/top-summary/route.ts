@@ -22,6 +22,7 @@ function generateHomepageSummaryPrompt(lang: Lang): string {
       "6. Chaque bullet point DOIT référencer dans \"refs\" les indices de TOUS les articles qui alimentent ce point. C'est essentiel pour que le lecteur puisse accéder aux sources.",
       "7. Si un article ne rentre dans aucun groupe cohérent, ignore-le plutôt que de forcer un regroupement artificiel.",
       "8. Sois factuel, précis et informatif. Le ton doit être celui d'un analyste tech professionnel qui sait captiver son audience.",
+      "9. N'inclus JAMAIS de références aux articles, noms de sources ou numéros d'index dans le texte des bullet points (pas de citations entre parenthèses comme \"(Source)\", \"(Article 3)\", \"[TechCrunch]\", etc.). Les références sont gérées séparément via le tableau \"refs\".",
       "",
       "Réponds en JSON : {\"relevant\":[{\"index\":0,\"snippet\":\"résumé court\"}],\"globalSummary\":[{\"text\":\"bullet point détaillé\",\"refs\":[0,1,...]}]}",
     ].join("\n");
@@ -39,6 +40,7 @@ function generateHomepageSummaryPrompt(lang: Lang): string {
     "6. Each bullet point MUST reference in \"refs\" the indices of ALL articles that feed into that point. This is essential so readers can access the sources.",
     "7. If an article does not fit any coherent group, skip it rather than forcing an artificial grouping.",
     "8. Be factual, precise, and informative. The tone should be that of a professional tech analyst who knows how to captivate their audience.",
+    "9. NEVER include article references, source names, or index numbers inside the bullet text (no parenthetical citations like \"(Source)\", \"(Article 3)\", \"[TechCrunch]\", etc.). References are handled separately via the \"refs\" array.",
     "",
     "Respond with JSON: {\"relevant\":[{\"index\":0,\"snippet\":\"short summary\"}],\"globalSummary\":[{\"text\":\"detailed bullet point\",\"refs\":[0,1,...]}]}",
   ].join("\n");

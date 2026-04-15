@@ -29,6 +29,7 @@ import { TTS_VOICES_EN, TTS_VOICES_FR } from "@/app/components/VoiceAccordion";
 import { AppHeader, type AppNavPage } from "@/app/components/AppHeader";
 import { TopFeedSection } from "@/app/components/TopFeedSection";
 import { TopicPersonalizationBar } from "@/app/components/TopicPersonalizationBar";
+import { GeneralMenu } from "@/app/components/GeneralMenu";
 import { TopicOnboardingModal } from "@/app/components/TopicOnboardingModal";
 import { useTopFeed } from "@/hooks/useTopFeed";
 import { useUserTopics } from "@/hooks/useUserTopics";
@@ -38,10 +39,11 @@ import { isOwnerUser } from "@/lib/user-type";
 import { FavoriteButton } from "@/app/components/FavoriteButton";
 import { FavoritesPage } from "@/app/components/FavoritesPage";
 import { DailySummariesPage } from "@/app/components/DailySummariesPage";
+import { SummariesBrowsePage } from "@/app/components/SummariesBrowsePage";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.97";
+const APP_VERSION = "1.98";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 
@@ -412,7 +414,60 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState<AppNavPage>("home");
+  const PAGE_PATHS: Record<AppNavPage, string> = {
+    home: "/",
+    stats: "/stats",
+    crons: "/crons",
+    topics: "/topics",
+    settings: "/settings",
+    changelog: "/changelog",
+    feeds: "/feeds",
+    categories: "/categories",
+    favorites: "/favorites",
+    dailySummaries: "/daily-summaries",
+    videos: "/videos",
+    topArticles: "/top-articles",
+    summaries: "/summaries-browse",
+  };
+
+  const pathToPage = (path: string): AppNavPage => {
+    for (const [page, p] of Object.entries(PAGE_PATHS) as [AppNavPage, string][]) {
+      if (p === path) return page;
+    }
+    return "home";
+  };
+
+  const [currentPage, setCurrentPageRaw] = useState<AppNavPage>(() => {
+    if (typeof window === "undefined") return "home";
+    return pathToPage(window.location.pathname);
+  });
+
+  const setCurrentPage = useCallback((page: AppNavPage, replace = false) => {
+    setCurrentPageRaw(page);
+    const path = PAGE_PATHS[page];
+    if (typeof window !== "undefined" && window.location.pathname !== path) {
+      if (replace) {
+        window.history.replaceState({ page }, "", path);
+      } else {
+        window.history.pushState({ page }, "", path);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const initial = pathToPage(window.location.pathname);
+    window.history.replaceState({ page: initial }, "", window.location.pathname);
+
+    const handler = (e: PopStateEvent) => {
+      const page = e.state?.page ?? pathToPage(window.location.pathname);
+      setCurrentPageRaw(page);
+    };
+    window.addEventListener("popstate", handler);
+    return () => window.removeEventListener("popstate", handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [topicsStartInCreate, setTopicsStartInCreate] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const { session, loading: authLoading } = useAuth();
@@ -436,7 +491,7 @@ export default function Home() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!authOwner && (currentPage === "feeds" || currentPage === "categories" || currentPage === "dailySummaries")) {
+    if (!authOwner && (currentPage === "feeds" || currentPage === "categories" || currentPage === "dailySummaries" || currentPage === "videos")) {
       setCurrentPage("home");
     }
     if (!isAuthenticated && currentPage === "topics") {
@@ -471,7 +526,6 @@ export default function Home() {
   const [topSummary, setTopSummary] = useState<SummaryResponse | null>(null);
   const [topSummaryLoading, setTopSummaryLoading] = useState(false);
   const topSummaryKeyRef = useRef<string>("");
-  const [topAnalysisEnabled, setTopAnalysisEnabled] = useState(false);
 
   // Topics to display: all in personalization mode (so user can toggle any),
   // filtered by committed prefs otherwise (no change until "Done" is clicked)
@@ -481,7 +535,8 @@ export default function Home() {
     ? topicLabels.filter((tp) => preferredTopicIds!.includes(tp.id))
     : topicLabels;
 
-  const topFeedPoll = currentPage === "home" && topic === null && topAnalysisEnabled;
+  const isTopArticlesPage = currentPage === "topArticles";
+  const topFeedPoll = isTopArticlesPage;
   const {
     articles: topFeed,
     loading: topFeedLoading,
@@ -491,11 +546,11 @@ export default function Home() {
     poll: topFeedPoll,
     lang,
     preferredTopics: preferredTopicIds,
-    enabled: topAnalysisEnabled && currentPage === "home" && topic === null,
+    enabled: isTopArticlesPage,
   });
 
   useEffect(() => {
-    if (currentPage !== "home" || topic !== null || topFeed.length === 0) return;
+    if (!isTopArticlesPage || topFeed.length === 0) return;
     const key = topFeed.map((a) => a.link).join("|");
     if (key === topSummaryKeyRef.current) return;
     topSummaryKeyRef.current = key;
@@ -519,7 +574,7 @@ export default function Home() {
       .then((json: SummaryResponse) => setTopSummary(json))
       .catch(() => {})
       .finally(() => setTopSummaryLoading(false));
-  }, [currentPage, topic, topFeed, lang]);
+  }, [isTopArticlesPage, topFeed, lang]);
 
   useEffect(() => {
     const check = async () => {
@@ -631,7 +686,6 @@ export default function Home() {
     setAllArticlesLoading(false);
     setTopSummary(null);
     setTopSummaryLoading(false);
-    setTopAnalysisEnabled(false);
     topSummaryKeyRef.current = "";
     clearTopFeed();
   }
@@ -647,7 +701,6 @@ export default function Home() {
     setAllArticlesLoading(false);
     setTopSummary(null);
     setTopSummaryLoading(false);
-    setTopAnalysisEnabled(false);
     topSummaryKeyRef.current = "";
     clearTopFeed();
   }
@@ -688,6 +741,18 @@ export default function Home() {
           onLangChange={handleLangChange}
           authModalOpen={authModalOpen}
           onAuthModalChange={setAuthModalOpen}
+        />
+
+        {/* ── General menu (visible on all pages) ─────────────── */}
+        <GeneralMenu
+          lang={lang}
+          currentPage={currentPage}
+          isAuthenticated={isAuthenticated}
+          analyzeTopLoading={topFeedLoading || topSummaryLoading}
+          onNavigateHome={() => { setCurrentPage("home"); handleReset(); }}
+          onNavigateFavorites={() => setCurrentPage("favorites")}
+          onAnalyzeTop={() => setCurrentPage("topArticles")}
+          onNavigateSummaries={() => setCurrentPage("summaries")}
         />
 
         {currentPage === "stats" ? (
@@ -748,6 +813,19 @@ export default function Home() {
           ) : authOwner ? (
             <DailySummariesPage lang={lang} topics={topicLabels} />
           ) : null
+        ) : currentPage === "videos" ? (
+          authLoading ? (
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "80px 0" }}>
+              <span style={spinnerStyle(28)} />
+            </div>
+          ) : authOwner ? (
+            <div>
+              <h2 style={{ color: color.gold, fontSize: 20, fontWeight: 600, marginBottom: 8, marginTop: 0 }}>Videos</h2>
+              <p style={{ color: color.textMuted, fontSize: 15 }}>
+                {lang === "fr" ? "En construction" : "Under construction"}
+              </p>
+            </div>
+          ) : null
         ) : currentPage === "settings" ? (
           <SettingsPage
             lang={lang}
@@ -768,6 +846,55 @@ export default function Home() {
           ) : isAuthenticated ? (
             <FavoritesPage lang={lang} favoriteUrls={favoriteUrls} onToggleFavorite={toggleFavorite} />
           ) : null
+        ) : currentPage === "topArticles" ? (
+          <div>
+            {topFeedLoading ? (
+              <div style={{ textAlign: "center", padding: "40px 0" }}>
+                <span style={spinnerStyle(24)} />
+              </div>
+            ) : topFeed.length > 0 ? (
+              <>
+                {topSummaryLoading && (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "24px 0" }}>
+                    <span style={spinnerStyle(24)} />
+                    <span style={{ color: color.gold, fontSize: 14, fontWeight: 600 }}>
+                      {lang === "fr" ? "Analyse IA — Génération du résumé" : "AI Analysis — Generating summary"}
+                    </span>
+                  </div>
+                )}
+                <RevealBox active={!!topSummary && !topSummaryLoading}>
+                  {topSummary && (
+                    <SummaryBox
+                      data={topSummary}
+                      locale={locale}
+                      lang={lang}
+                      hours={24}
+                      topicName="Top Articles"
+                      speed={ttsSpeed}
+                      voice={lang === "fr" ? ttsVoiceFr : ttsVoice}
+                    />
+                  )}
+                </RevealBox>
+                <TopFeedSection
+                  articles={topFeed}
+                  loading={topFeedLoading}
+                  lang={lang}
+                  locale={locale}
+                  lastUpdatedAt={topFeedUpdatedAt}
+                  favoriteUrls={favoriteUrls}
+                  onToggleFavorite={toggleFavorite}
+                  isAuthenticated={isAuthenticated}
+                  onRequestAuth={() => setAuthModalOpen(true)}
+                />
+              </>
+            ) : (
+              <div style={{ textAlign: "center", padding: "40px 0" }}>
+                <span style={spinnerStyle(24)} />
+              </div>
+            )}
+          </div>
+        ) : currentPage === "summaries" ? (
+          <SummariesBrowsePage lang={lang} />
         ) : topicsLoading ? (
         <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "80px 0" }}>
           <span style={spinnerStyle(28)} />
@@ -780,11 +907,6 @@ export default function Home() {
             lang={lang}
             isAuthenticated={isAuthenticated}
             hasPreferences={(preferredTopicIds?.length ?? 0) > 0}
-            preferenceCount={
-              isPersonalizationMode
-                ? (draftTopicIds?.length ?? 0)
-                : (preferredTopicIds?.length ?? 0)
-            }
             isPersonalizationMode={isPersonalizationMode}
             saveStatus={saveStatus}
             onEnterEdit={enterPersonalizationMode}
@@ -792,12 +914,6 @@ export default function Home() {
             onCreateTopic={() => {
               setTopicsStartInCreate(true);
               setCurrentPage("topics");
-            }}
-            showAnalyzeTopButton={true}
-            analyzeTopLoading={topFeedLoading || topSummaryLoading}
-            onAnalyzeTop={() => {
-              handleReset();
-              setTopAnalysisEnabled(true);
             }}
             onRequestAuth={() => setAuthModalOpen(true)}
           />
@@ -945,54 +1061,9 @@ export default function Home() {
 
         {/* ── Empty state ────────────────────────────────────── */}
         {!loading && !data && !error && (
-          <div>
-            {topic ? (
-              null
-            ) : topFeedLoading ? (
-              <div style={{ textAlign: "center", padding: "40px 0" }}>
-                <span style={spinnerStyle(24)} />
-              </div>
-            ) : topFeed.length > 0 ? (
-              <>
-                {topSummaryLoading && (
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "24px 0" }}>
-                    <span style={spinnerStyle(24)} />
-                    <span style={{ color: color.gold, fontSize: 14, fontWeight: 600 }}>
-                      {lang === "fr" ? "Analyse IA" : "AI Analysis"}
-                    </span>
-                  </div>
-                )}
-                <RevealBox active={!!topSummary && !topSummaryLoading}>
-                  {topSummary && (
-                    <SummaryBox
-                      data={topSummary}
-                      locale={locale}
-                      lang={lang}
-                      hours={24}
-                      topicName="Top Articles"
-                      speed={ttsSpeed}
-                      voice={lang === "fr" ? ttsVoiceFr : ttsVoice}
-                    />
-                  )}
-                </RevealBox>
-                <TopFeedSection
-                  articles={topFeed}
-                  loading={topFeedLoading}
-                  lang={lang}
-                  locale={locale}
-                  lastUpdatedAt={topFeedUpdatedAt}
-                  favoriteUrls={favoriteUrls}
-                  onToggleFavorite={toggleFavorite}
-                  isAuthenticated={isAuthenticated}
-                  onRequestAuth={() => setAuthModalOpen(true)}
-                />
-              </>
-            ) : (
-              <p style={{ color: color.textDim, padding: "32px 0", fontSize: 15, textAlign: "center" }}>
-                {t("initialMessage", lang)}
-              </p>
-            )}
-          </div>
+          <p style={{ color: color.textDim, padding: "32px 0", fontSize: 15, textAlign: "center" }}>
+            {t("initialMessage", lang)}
+          </p>
         )}
         </>
         )}

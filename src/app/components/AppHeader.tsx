@@ -17,7 +17,10 @@ export type AppNavPage =
   | "feeds"
   | "categories"
   | "favorites"
-  | "dailySummaries";
+  | "dailySummaries"
+  | "videos"
+  | "topArticles"
+  | "summaries";
 
 function NavIconButton({
   active,
@@ -76,12 +79,18 @@ function UserMenu({
   lang,
   authed,
   authLoading,
+  isOwner,
+  currentPage,
+  onNavigate,
   onSignIn,
   onSignOut,
 }: {
   lang: Lang;
   authed: boolean;
   authLoading: boolean;
+  isOwner: boolean;
+  currentPage: AppNavPage;
+  onNavigate: (page: AppNavPage) => void;
   onSignIn: () => void;
   onSignOut: () => void;
 }) {
@@ -96,6 +105,8 @@ function UserMenu({
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
+
+  const isAdminPage = currentPage === "topics" || currentPage === "feeds" || currentPage === "categories" || currentPage === "dailySummaries" || currentPage === "videos";
 
   const menuItemStyle: CSSProperties = {
     display: "block",
@@ -112,17 +123,31 @@ function UserMenu({
     whiteSpace: "nowrap",
   };
 
+  const adminItemStyle = (page: AppNavPage): CSSProperties => ({
+    ...menuItemStyle,
+    background: currentPage === page ? "rgba(201,162,39,0.12)" : "transparent",
+    color: currentPage === page ? color.gold : color.textSecondary,
+  });
+
   return (
     <div ref={ref} style={{ position: "relative" }}>
       <NavIconButton
-        active={false}
+        active={isOwner && isAdminPage}
         onClick={() => setOpen((v) => !v)}
         ariaLabel="User"
       >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-          <circle cx="12" cy="7" r="4" />
-        </svg>
+        {isOwner ? (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="9" r="3.5" />
+            <path d="M7.5 3L9.5 5.5L12 3L14.5 5.5L16.5 3" stroke={color.gold} strokeWidth="1.8" />
+          </svg>
+        ) : (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+        )}
       </NavIconButton>
       {open && !authLoading && (
         <div
@@ -139,6 +164,26 @@ function UserMenu({
             boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
           }}
         >
+          {isOwner && authed && (
+            <>
+              <button type="button" onClick={() => { onNavigate("topics"); setOpen(false); }} style={adminItemStyle("topics")}>
+                {t("navTopicsAria", lang)}
+              </button>
+              <button type="button" onClick={() => { onNavigate("categories"); setOpen(false); }} style={adminItemStyle("categories")}>
+                {t("categoriesAdminAria", lang)}
+              </button>
+              <button type="button" onClick={() => { onNavigate("feeds"); setOpen(false); }} style={adminItemStyle("feeds")}>
+                {t("feedsAdminAria", lang)}
+              </button>
+              <button type="button" onClick={() => { onNavigate("dailySummaries"); setOpen(false); }} style={adminItemStyle("dailySummaries")}>
+                {t("dailySummariesAdmin", lang)}
+              </button>
+              <button type="button" onClick={() => { onNavigate("videos"); setOpen(false); }} style={adminItemStyle("videos")}>
+                Videos
+              </button>
+              <div style={{ height: 1, background: color.border, margin: "4px 0" }} />
+            </>
+          )}
           {authed ? (
             <button
               type="button"
@@ -156,104 +201,6 @@ function UserMenu({
               {t("authSignIn", lang)}
             </button>
           )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function AdminMenu({
-  currentPage,
-  lang,
-  onNavigate,
-}: {
-  currentPage: AppNavPage;
-  lang: Lang;
-  onNavigate: (page: AppNavPage) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
-  const isAdminPage = currentPage === "topics" || currentPage === "feeds" || currentPage === "categories" || currentPage === "dailySummaries";
-
-  const menuItemStyle = (page: AppNavPage): CSSProperties => ({
-    display: "block",
-    width: "100%",
-    padding: "8px 14px",
-    border: "none",
-    background: currentPage === page ? "rgba(201,162,39,0.12)" : "transparent",
-    color: currentPage === page ? color.gold : color.textSecondary,
-    fontSize: 12,
-    fontWeight: 600,
-    cursor: "pointer",
-    textAlign: "left",
-    fontFamily: "inherit",
-    whiteSpace: "nowrap",
-  });
-
-  return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <NavIconButton
-        active={isAdminPage}
-        onClick={() => setOpen((v) => !v)}
-        ariaLabel="Admin"
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-        </svg>
-      </NavIconButton>
-      {open && (
-        <div
-          style={{
-            position: "absolute",
-            top: "100%",
-            right: 0,
-            marginTop: 4,
-            background: color.surface,
-            border: `1px solid ${color.border}`,
-            borderRadius: 8,
-            overflow: "hidden",
-            zIndex: 100,
-            boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => { onNavigate("topics"); setOpen(false); }}
-            style={menuItemStyle("topics")}
-          >
-            {t("navTopicsAria", lang)}
-          </button>
-          <button
-            type="button"
-            onClick={() => { onNavigate("categories"); setOpen(false); }}
-            style={menuItemStyle("categories")}
-          >
-            {t("categoriesAdminAria", lang)}
-          </button>
-          <button
-            type="button"
-            onClick={() => { onNavigate("feeds"); setOpen(false); }}
-            style={menuItemStyle("feeds")}
-          >
-            {t("feedsAdminAria", lang)}
-          </button>
-          <button
-            type="button"
-            onClick={() => { onNavigate("dailySummaries"); setOpen(false); }}
-            style={menuItemStyle("dailySummaries")}
-          >
-            {t("dailySummariesAdmin", lang)}
-          </button>
         </div>
       )}
     </div>
@@ -337,17 +284,6 @@ export function AppHeader({
               <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
             </svg>
           </NavIconButton>
-          {authed && (
-            <NavIconButton
-              active={currentPage === "favorites"}
-              onClick={() => onNavigate("favorites")}
-              ariaLabel={t("navFavoritesAria", lang)}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill={currentPage === "favorites" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-              </svg>
-            </NavIconButton>
-          )}
           <NavIconButton
             active={currentPage === "changelog"}
             onClick={() => onNavigate("changelog")}
@@ -368,17 +304,13 @@ export function AppHeader({
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
           </NavIconButton>
-          {canManageTopicsAndFeeds && (
-            <AdminMenu
-              currentPage={currentPage}
-              lang={lang}
-              onNavigate={onNavigate}
-            />
-          )}
           <UserMenu
             lang={lang}
             authed={authed}
             authLoading={authLoading}
+            isOwner={canManageTopicsAndFeeds}
+            currentPage={currentPage}
+            onNavigate={onNavigate}
             onSignIn={() => onAuthModalChange(true)}
             onSignOut={() => void signOut()}
           />

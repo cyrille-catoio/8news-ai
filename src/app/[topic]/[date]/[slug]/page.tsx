@@ -1,40 +1,42 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getDailySummary, getTopicById } from "@/lib/supabase";
+import { getDailySummaryBySlug, getDailySummary, getTopicById } from "@/lib/supabase";
 import { color, font } from "@/lib/theme";
 import type { ArticleSummary, SummaryBullet } from "@/lib/types";
 import { DailySummaryArticles } from "@/app/components/DailySummaryArticles";
 import { DailySummaryAudio } from "@/app/components/DailySummaryAudio";
+import { SeoNavBar } from "@/app/components/SeoNavBar";
+import { SeoGeneralMenu } from "@/app/components/GeneralMenu";
+import type { Lang } from "@/lib/i18n";
 
 interface PageProps {
   params: Promise<{ topic: string; date: string; slug: string }>;
-  searchParams: Promise<{ lang?: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }
 
-async function loadData(topicId: string, date: string, slug: string, lang: string) {
+async function loadBySlug(topicId: string, date: string, slug: string) {
   const [topic, summary] = await Promise.all([
     getTopicById(topicId),
-    getDailySummary(topicId, date, lang),
+    getDailySummaryBySlug(topicId, date, slug),
   ]);
-  return { topic, summary, slug };
+  return { topic, summary };
 }
 
-export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { topic: topicId, date, slug } = await params;
-  const { lang: rawLang } = await searchParams;
-  const lang = rawLang === "fr" ? "fr" : "en";
-  const { topic, summary } = await loadData(topicId, date, slug, lang);
+  const { topic, summary } = await loadBySlug(topicId, date, slug);
 
   if (!topic || !summary) return { title: "Not Found" };
 
+  const lang = summary.lang as Lang;
   const topicLabel = lang === "fr" ? topic.label_fr : topic.label_en;
   const canonical = `https://8news.ai/${topicId}/${date}/${summary.slug_keywords}`;
 
   const altLang = lang === "fr" ? "en" : "fr";
   const altSummary = await getDailySummary(topicId, date, altLang);
   const altUrl = altSummary
-    ? `https://8news.ai/${topicId}/${date}/${altSummary.slug_keywords}?lang=${altLang}`
+    ? `https://8news.ai/${topicId}/${date}/${altSummary.slug_keywords}`
     : undefined;
 
   return {
@@ -58,24 +60,19 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
   };
 }
 
-export default async function DailySummaryPage({ params, searchParams }: PageProps) {
+export default async function DailySummaryPage({ params }: PageProps) {
   const { topic: topicId, date, slug } = await params;
-  const { lang: rawLang } = await searchParams;
-  const lang = rawLang === "fr" ? "fr" : "en";
-  const locale = lang === "fr" ? "fr-FR" : "en-US";
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) notFound();
 
   const topic = await getTopicById(topicId);
   if (!topic) notFound();
 
-  const summary = await getDailySummary(topicId, date, lang);
+  const summary = await getDailySummaryBySlug(topicId, date, slug);
   if (!summary) notFound();
 
-  if (summary.slug_keywords !== slug) {
-    redirect(`/${topicId}/${date}/${summary.slug_keywords}${rawLang === "fr" ? "?lang=fr" : ""}`);
-  }
-
+  const lang = summary.lang as Lang;
+  const locale = lang === "fr" ? "fr-FR" : "en-US";
   const topicLabel = lang === "fr" ? topic.label_fr : topic.label_en;
   const bullets = (summary.bullets as Array<{ text: string; refs: Array<{ title: string; link: string; source: string }> }>) ?? [];
   const articles = (summary.articles as ArticleSummary[]) ?? [];
@@ -109,28 +106,27 @@ export default async function DailySummaryPage({ params, searchParams }: PagePro
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
 
-        {/* Logo + baseline */}
-        <Link href="/" style={{ textDecoration: "none", display: "block", marginBottom: 20 }}>
-          <img src="/logo-8news.png" alt="8news" style={{ height: 40, width: "auto", display: "block" }} />
-          <p style={{ color: color.textMuted, fontSize: 14, marginTop: 6, marginBottom: 0 }}>
-            {lang === "fr" ? "La tech décodée par l'IA" : "Tech decoded by AI"}
-          </p>
-        </Link>
+        <SeoNavBar
+          lang={lang}
+          altLangUrl={altSummary ? `/${topicId}/${date}/${altSummary.slug_keywords}` : undefined}
+        />
 
-        {/* Navigation */}
+        <SeoGeneralMenu lang={lang} />
+
+        {/* Breadcrumb */}
         <nav style={{ display: "flex", gap: 16, fontSize: 13, marginBottom: 24, flexWrap: "wrap" }}>
           <Link href="/" style={{ color: color.gold, textDecoration: "none" }}>
             {lang === "fr" ? "Accueil" : "Home"}
           </Link>
-          <Link href={`/summaries?lang=${lang}`} style={{ color: color.gold, textDecoration: "none" }}>
+          <Link href="/summaries" style={{ color: color.gold, textDecoration: "none" }}>
             Summaries
           </Link>
-          <a href={`/${topicId}?lang=${lang}`} style={{ color: color.gold, textDecoration: "none" }}>
+          <a href={`/${topicId}`} style={{ color: color.gold, textDecoration: "none" }}>
             {topicLabel}
           </a>
           {prevSummary && (
             <a
-              href={`/${topicId}/${prevDate}/${prevSummary.slug_keywords}?lang=${lang}`}
+              href={`/${topicId}/${prevDate}/${prevSummary.slug_keywords}`}
               style={{ color: color.textMuted, textDecoration: "none" }}
             >
               ← {lang === "fr" ? "Jour précédent" : "Previous day"}
@@ -138,18 +134,10 @@ export default async function DailySummaryPage({ params, searchParams }: PagePro
           )}
           {nextSummary && (
             <a
-              href={`/${topicId}/${nextDate}/${nextSummary.slug_keywords}?lang=${lang}`}
+              href={`/${topicId}/${nextDate}/${nextSummary.slug_keywords}`}
               style={{ color: color.textMuted, textDecoration: "none" }}
             >
               {lang === "fr" ? "Jour suivant" : "Next day"} →
-            </a>
-          )}
-          {altSummary && (
-            <a
-              href={`/${topicId}/${date}/${altSummary.slug_keywords}?lang=${altLang}`}
-              style={{ color: color.textDim, textDecoration: "none", marginLeft: "auto" }}
-            >
-              {altLang.toUpperCase()}
             </a>
           )}
         </nav>

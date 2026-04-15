@@ -994,7 +994,6 @@ export async function getDailySummaryBySlug(
   topicId: string,
   date: string,
   slug: string,
-  lang: string,
 ): Promise<DailySummaryRow | null> {
   const clientP = getServerClient();
   if (!clientP) return null;
@@ -1006,7 +1005,6 @@ export async function getDailySummaryBySlug(
       .eq("topic_id", topicId)
       .eq("summary_date", date)
       .eq("slug_keywords", slug)
-      .eq("lang", lang)
       .single();
     if (error || !data) return null;
     return data as DailySummaryRow;

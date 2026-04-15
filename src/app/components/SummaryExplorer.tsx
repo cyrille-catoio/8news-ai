@@ -97,7 +97,7 @@ export function SummaryExplorer({ lang }: { lang: Lang }) {
         {loading && <span style={spinnerStyle(16, { borderWidth: 2 })} />}
         {!loading && result && (
           <a
-            href={`/${result.topicId}/${result.date}/${result.slug}?lang=${lang}`}
+            href={`/${result.topicId}/${result.date}/${result.slug}`}
             style={{
               color: color.gold,
               fontSize: 13,

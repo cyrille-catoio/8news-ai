@@ -55,6 +55,7 @@ IMPORTANT — This is a daily summary for a public SEO page. Quality matters:
 - Include specific numbers, percentages, dollar amounts, dates, and names.
 - Add surprising facts, notable anecdotes, or unexpected details when available.
 - Each bullet should read like a mini-paragraph that a reader finds genuinely informative.
+- NEVER include article references, source names, or index numbers inside the bullet text (no parenthetical citations like "(Source)", "(Article 3)", "[TechCrunch]", etc.). References are handled separately via the "refs" array.
 - Select only the 10 most important and diverse articles as "relevant".
 
 Additionally, generate SEO metadata for this summary:
@@ -72,6 +73,7 @@ IMPORTANT — Ceci est un résumé quotidien pour une page SEO publique. La qual
 - Inclus des chiffres précis, pourcentages, montants, dates et noms.
 - Ajoute des faits surprenants, anecdotes notables ou détails inattendus quand c'est possible.
 - Chaque bullet doit se lire comme un mini-paragraphe véritablement informatif.
+- N'inclus JAMAIS de références aux articles, noms de sources ou numéros d'index dans le texte des bullet points (pas de citations entre parenthèses comme "(Source)", "(Article 3)", "[TechCrunch]", etc.). Les références sont gérées séparément via le tableau "refs".
 - Ne sélectionne que les 10 articles les plus importants et variés comme "relevant".
 
 De plus, génère des métadonnées SEO pour ce résumé :

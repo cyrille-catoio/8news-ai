@@ -9,33 +9,25 @@ export function TopicPersonalizationBar({
   lang,
   isAuthenticated,
   hasPreferences,
-  preferenceCount,
   isPersonalizationMode,
   saveStatus,
   onEnterEdit,
   onExitEdit,
   onCreateTopic,
-  showAnalyzeTopButton,
-  analyzeTopLoading,
-  onAnalyzeTop,
   onRequestAuth,
 }: {
   lang: Lang;
   isAuthenticated: boolean;
   hasPreferences: boolean;
-  preferenceCount: number;
   isPersonalizationMode: boolean;
   saveStatus: SaveStatus;
   onEnterEdit: () => void;
   onExitEdit: () => void;
   onCreateTopic: () => void;
-  showAnalyzeTopButton: boolean;
-  analyzeTopLoading: boolean;
-  onAnalyzeTop: () => void;
   onRequestAuth: () => void;
 }) {
   const barWrap: CSSProperties = {
-    marginBottom: 18,
+    marginBottom: 14,
     display: "flex",
     alignItems: "center",
     gap: 8,
@@ -55,6 +47,20 @@ export function TopicPersonalizationBar({
   const statusSlot: CSSProperties = {
     minWidth: 110,
     display: "inline-flex",
+  };
+
+  const editBtn: CSSProperties = {
+    border: `1px dashed ${color.borderLight}`,
+    background: "transparent",
+    color: color.textMuted,
+    fontSize: 11,
+    fontWeight: 600,
+    cursor: "pointer",
+    padding: "5px 10px",
+    borderRadius: 999,
+    fontFamily: "inherit",
+    transition: "all .15s ease",
+    letterSpacing: "0.02em",
   };
 
   const actionBtn: CSSProperties = {
@@ -77,7 +83,6 @@ export function TopicPersonalizationBar({
     background: color.gold,
   };
 
-  // ── Mode édition actif ──────────────────────────────────────────────
   if (isPersonalizationMode) {
     const statusLabel =
       saveStatus === "saving"
@@ -104,14 +109,6 @@ export function TopicPersonalizationBar({
             {t("myTopicsAddNew", lang)}
           </button>
         )}
-        {showAnalyzeTopButton && !isAuthenticated && (
-          <button type="button" onClick={onAnalyzeTop} style={actionBtn} disabled={analyzeTopLoading}>
-            {t("analyzeTopArticlesBtn", lang)}
-          </button>
-        )}
-        <a href="/summaries" style={{ ...actionBtn, textDecoration: "none" }}>
-          {t("dailySummaryBtn", lang)}
-        </a>
         <span style={statusSlot}>
           {statusLabel ? (
             <span style={{ ...badge, color: statusColor }}>
@@ -123,44 +120,26 @@ export function TopicPersonalizationBar({
     );
   }
 
-  // ── Préférences actives ─────────────────────────────────────────────
   if (isAuthenticated && hasPreferences) {
     return (
       <div style={barWrap}>
-        <button type="button" onClick={onEnterEdit} style={actionBtn}>
-          {t("myTopicsEditFull", lang)}
+        <button type="button" onClick={onEnterEdit} style={editBtn}>
+          ✎ {t("myTopicsEditFull", lang)}
         </button>
-        {showAnalyzeTopButton && (
-          <button type="button" onClick={onAnalyzeTop} style={actionBtn} disabled={analyzeTopLoading}>
-            {t("analyzeTopArticlesBtn", lang)}
-          </button>
-        )}
-        <a href="/summaries" style={{ ...actionBtn, textDecoration: "none" }}>
-          {t("dailySummaryBtn", lang)}
-        </a>
       </div>
     );
   }
 
-  // ── Lien "Customize" (connecté sans préférences, ou non connecté) ───
   return (
     <div style={barWrap}>
       <button
         type="button"
         onClick={isAuthenticated ? onEnterEdit : onRequestAuth}
-        style={actionBtn}
+        style={editBtn}
         title={!isAuthenticated ? t("myTopicsSignInPrompt", lang) : undefined}
       >
-        {t("myTopicsCustomize", lang)}
+        ✎ {t("myTopicsCustomize", lang)}
       </button>
-      {showAnalyzeTopButton && (
-        <button type="button" onClick={onAnalyzeTop} style={actionBtn} disabled={analyzeTopLoading}>
-          {t("analyzeTopArticlesBtn", lang)}
-        </button>
-      )}
-      <a href="/summaries" style={{ ...actionBtn, textDecoration: "none" }}>
-        {t("dailySummaryBtn", lang)}
-      </a>
     </div>
   );
 }

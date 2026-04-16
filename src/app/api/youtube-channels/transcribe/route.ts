@@ -167,11 +167,28 @@ export async function POST(req: Request) {
       }
     }
 
+    // Fetch topic_id from the cached video row
+    let topicId: string | null = null;
+    try {
+      const db = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        { auth: { persistSession: false } },
+      );
+      const { data: vid } = await db
+        .from("youtube_videos")
+        .select("topic_id")
+        .eq("video_id", videoId)
+        .single();
+      if (vid?.topic_id) topicId = vid.topic_id;
+    } catch { /* non-critical */ }
+
     const transcriptionId = await insertVideoTranscription({
       video_id: videoId,
       channel_id: channelId ?? "",
       title: title ?? "Untitled",
       lang: safeLang,
+      topic_id: topicId,
       transcript: transcriptText,
       summary_md: summaryMd,
       word_count: wordCount,
@@ -182,10 +199,12 @@ export async function POST(req: Request) {
       const today = new Date().toISOString().slice(0, 10);
       const bulletRows = bullets.map((text, i) => ({
         video_transcription_id: transcriptionId,
+        topic_id: topicId,
         lang: safeLang,
         summary_date: today,
         bullet_index: i,
         text: text.replace(/\*\*/g, "").trim(),
+        refs: [] as unknown[],
         source_type: "video",
         entities: [] as string[],
       }));

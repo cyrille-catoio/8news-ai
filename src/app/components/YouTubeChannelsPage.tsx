@@ -17,12 +17,19 @@ interface Channel {
   handle: string | null;
   title: string;
   thumbnail_url: string | null;
+  topic_id: string | null;
   is_active: boolean;
   created_at: string;
 }
 
+interface TopicOption {
+  id: string;
+  label: string;
+}
+
 export function YouTubeChannelsPage({ lang }: { lang: Lang }) {
   const [channels, setChannels] = useState<Channel[]>([]);
+  const [topics, setTopics] = useState<TopicOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [handle, setHandle] = useState("");
   const [adding, setAdding] = useState(false);
@@ -45,6 +52,15 @@ export function YouTubeChannelsPage({ lang }: { lang: Lang }) {
     }
     return null;
   }, []);
+
+  useEffect(() => {
+    fetch("/api/topics", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((tps: Array<{ id: string; labelEn: string; labelFr: string }>) => {
+        setTopics(tps.map((t) => ({ id: t.id, label: lang === "fr" ? t.labelFr : t.labelEn })));
+      })
+      .catch(() => {});
+  }, [lang]);
 
   useEffect(() => {
     (async () => {
@@ -86,6 +102,21 @@ export function YouTubeChannelsPage({ lang }: { lang: Lang }) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setAdding(false);
+    }
+  }
+
+  async function updateTopic(channelId: string, topicId: string | null) {
+    try {
+      await fetch(`/api/youtube-channels/${channelId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic_id: topicId }),
+      });
+      setChannels((prev) =>
+        prev.map((ch) => (ch.id === channelId ? { ...ch, topic_id: topicId } : ch)),
+      );
+    } catch {
+      /* ignore */
     }
   }
 
@@ -188,6 +219,7 @@ export function YouTubeChannelsPage({ lang }: { lang: Lang }) {
             <thead>
               <tr>
                 <th style={tableHeaderStyle}>{lang === "fr" ? "Chaîne" : "Channel"}</th>
+                <th style={tableHeaderStyle}>Topic</th>
                 <th style={tableHeaderStyle}>Handle</th>
                 <th style={tableHeaderStyle}>Channel ID</th>
                 <th style={{ ...tableHeaderStyle, textAlign: "right" }}>Actions</th>
@@ -213,6 +245,18 @@ export function YouTubeChannelsPage({ lang }: { lang: Lang }) {
                       )}
                       <span style={{ color: color.text, fontWeight: 500 }}>{ch.title}</span>
                     </div>
+                  </td>
+                  <td style={cellStyle}>
+                    <select
+                      value={ch.topic_id ?? ""}
+                      onChange={(e) => updateTopic(ch.id, e.target.value || null)}
+                      style={{ ...formInputStyle, maxWidth: 160, padding: "5px 8px", fontSize: 12, background: color.surface }}
+                    >
+                      <option value="">—</option>
+                      {topics.map((t) => (
+                        <option key={t.id} value={t.id}>{t.label}</option>
+                      ))}
+                    </select>
                   </td>
                   <td style={cellStyle}>{ch.handle ?? "—"}</td>
                   <td style={{ ...cellStyle, fontFamily: "monospace", fontSize: 11 }}>{ch.channel_id}</td>

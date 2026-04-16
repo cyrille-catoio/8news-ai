@@ -68,7 +68,7 @@ function toDateStr(d: Date): string {
 async function refreshFromRss(db: ReturnType<typeof getDb>) {
   const { data: channels } = await db
     .from("youtube_channels")
-    .select("channel_id, title")
+    .select("channel_id, title, topic_id")
     .eq("is_active", true);
 
   if (!channels || channels.length === 0) return;
@@ -91,6 +91,7 @@ async function refreshFromRss(db: ReturnType<typeof getDb>) {
               published_date: toDateStr(pub),
               thumbnail: v.thumbnail?.url ?? null,
               view_count: v.viewCount ?? null,
+              topic_id: ch.topic_id ?? null,
               link: v.link ?? `https://www.youtube.com/watch?v=${v.videoId}`,
             };
           });

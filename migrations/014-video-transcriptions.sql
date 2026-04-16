@@ -17,6 +17,9 @@ CREATE TABLE IF NOT EXISTS public.youtube_videos (
   created_at    TIMESTAMPTZ DEFAULT NOW()
 );
 
+ALTER TABLE youtube_videos
+  ADD COLUMN IF NOT EXISTS topic_id TEXT REFERENCES topics(id) ON DELETE SET NULL;
+
 CREATE INDEX IF NOT EXISTS idx_youtube_videos_date
   ON youtube_videos(published_date DESC);
 CREATE INDEX IF NOT EXISTS idx_youtube_videos_channel
@@ -43,6 +46,7 @@ CREATE TABLE IF NOT EXISTS public.video_transcriptions (
   transcript    TEXT NOT NULL,
   summary_md    TEXT NOT NULL DEFAULT '',
   word_count    INT,
+  topic_id      TEXT REFERENCES topics(id) ON DELETE SET NULL,
   created_at    TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(video_id, lang)
 );
@@ -71,6 +75,9 @@ ALTER TABLE summary_bullets
 
 ALTER TABLE summary_bullets
   ALTER COLUMN daily_summary_id DROP NOT NULL;
+
+ALTER TABLE summary_bullets
+  ALTER COLUMN topic_id DROP NOT NULL;
 
 -- 3. Patch existing rows (all current bullets come from articles)
 UPDATE summary_bullets SET source_type = 'article' WHERE source_type = 'article';

@@ -1171,6 +1171,7 @@ export async function insertVideoTranscription(row: {
   transcript: string;
   summary_md: string;
   word_count: number;
+  topic_id?: string | null;
 }): Promise<number | null> {
   const clientP = getServerClient();
   if (!clientP) return null;
@@ -1191,10 +1192,12 @@ export async function insertVideoTranscription(row: {
 export async function insertVideoBullets(
   bullets: Array<{
     video_transcription_id: number;
+    topic_id: string | null;
     lang: string;
     summary_date: string;
     bullet_index: number;
     text: string;
+    refs: unknown[];
     source_type: string;
     entities: string[];
   }>,

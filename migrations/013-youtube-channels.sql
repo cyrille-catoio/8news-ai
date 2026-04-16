@@ -10,6 +10,10 @@ CREATE TABLE IF NOT EXISTS public.youtube_channels (
   updated_at timestamptz DEFAULT now()
 );
 
+-- topic_id: optional link to a topic (nullable)
+ALTER TABLE public.youtube_channels
+  ADD COLUMN IF NOT EXISTS topic_id text REFERENCES topics(id) ON DELETE SET NULL;
+
 ALTER TABLE public.youtube_channels ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.youtube_channels FORCE ROW LEVEL SECURITY;
 CREATE POLICY "Service role full access" ON public.youtube_channels

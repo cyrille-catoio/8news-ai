@@ -45,7 +45,7 @@ import { YouTubeChannelsPage } from "@/app/components/YouTubeChannelsPage";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.101";
+const APP_VERSION = "1.102";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 
@@ -820,7 +820,7 @@ export default function Home() {
           ) : null
         ) : currentPage === "videos" ? (
           isAuthenticated ? (
-            <VideosPage lang={lang} />
+            <VideosPage lang={lang} speed={ttsSpeed} voice={lang === "fr" ? ttsVoiceFr : ttsVoice} />
           ) : (
             <div style={{ textAlign: "center", padding: "60px 0" }}>
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke={color.gold} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 16 }}>

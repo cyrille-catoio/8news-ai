@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, type CSSProperties } from "re
 import dynamic from "next/dynamic";
 import { color, primaryButtonStyle, formInputStyle, spinnerStyle } from "@/lib/theme";
 import type { Lang } from "@/lib/i18n";
+import { AudioPlayer } from "@/app/components/AudioPlayer";
 
 const ReactMarkdown = dynamic(() => import("react-markdown"), { ssr: false });
 
@@ -193,12 +194,16 @@ function VideoCard({
   summaryMd,
   transcribing,
   onTranscribe,
+  speed,
+  voice,
 }: {
   v: VideoItem;
   lang: Lang;
   summaryMd: string | null;
   transcribing: boolean;
   onTranscribe: () => void;
+  speed: number;
+  voice: string;
 }) {
   const [descExpanded, setDescExpanded] = useState(false);
   const [summaryExpanded, setSummaryExpanded] = useState(true);
@@ -323,6 +328,18 @@ function VideoCard({
             )}
           </div>
 
+          <a
+            href={v.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 10, fontSize: 12, fontWeight: 600, color: color.gold, textDecoration: "none" }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill={color.gold} stroke="none">
+              <polygon points="5,3 19,12 5,21" />
+            </svg>
+            {lang === "fr" ? "Play Vidéo" : "Play Video"}
+          </a>
+
           {/* Transcription button */}
           {!summaryMd && (
             <div>
@@ -351,6 +368,17 @@ function VideoCard({
         <div style={{ padding: summaryExpanded ? "0 20px 20px" : "8px 20px 10px", borderTop: `1px solid ${color.border}` }}>
           {summaryExpanded ? (
             <>
+              {(() => {
+                const plain = summaryMd.replace(/^##\s+.+$/gm, "").replace(/\*\*/g, "").replace(/^\s*[-*]\s+/gm, "").replace(/\n{2,}/g, "\n").trim();
+                const intro = lang === "fr" ? `Résumé de la vidéo ${v.title}.` : `Summary of the video ${v.title}.`;
+                const maxBody = 4800 - intro.length;
+                const body = plain.length > maxBody ? plain.slice(0, maxBody) + "…" : plain;
+                return body.length > 0 ? (
+                  <div style={{ marginBottom: 12 }}>
+                    <AudioPlayer text={`${intro} ${body}`} lang={lang} speed={speed} voice={voice} />
+                  </div>
+                ) : null;
+              })()}
               <ReactMarkdown components={mdComponents}>{summaryMd}</ReactMarkdown>
               <button type="button" onClick={() => setSummaryExpanded(false)} style={{ ...toggleLink, marginTop: 8 }}>
                 {lang === "fr" ? "Réduire le résumé" : "Collapse summary"}
@@ -387,7 +415,7 @@ const arrowBtn: CSSProperties = {
 
 /* ── Main page ───────────────────────────────────────────────────── */
 
-export function VideosPage({ lang }: { lang: Lang }) {
+export function VideosPage({ lang, speed, voice }: { lang: Lang; speed: number; voice: string }) {
   const [date, setDate] = useState(() => toISODate(new Date()));
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -502,6 +530,8 @@ export function VideosPage({ lang }: { lang: Lang }) {
               summaryMd={summaries[v.videoId] ?? null}
               transcribing={transcribing[v.videoId] ?? false}
               onTranscribe={() => handleTranscribe(v)}
+              speed={speed}
+              voice={voice}
             />
           ))}
         </div>

@@ -33,8 +33,8 @@ function formatDuration(sec: number): string {
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
   const s = sec % 60;
-  if (h > 0) return `${h}h${String(m).padStart(2, "0")}m`;
-  return `${m}:${String(s).padStart(2, "0")}`;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  return `${m}m ${s}s`;
 }
 
 function pad2(n: number) { return String(n).padStart(2, "0"); }
@@ -210,11 +210,7 @@ function VideoCard({
     overflow: "hidden",
   };
 
-  const topRow: CSSProperties = { display: "flex", gap: 16 };
-
   const thumbWrap: CSSProperties = {
-    flexShrink: 0,
-    width: 320,
     aspectRatio: "16 / 9",
     background: "#1a1a1a",
   };
@@ -227,12 +223,10 @@ function VideoCard({
   };
 
   const bodyStyle: CSSProperties = {
-    flex: 1,
     padding: "14px 16px 14px 0",
     display: "flex",
     flexDirection: "column",
     justifyContent: "center",
-    minWidth: 0,
   };
 
   const metaStyle: CSSProperties = {
@@ -246,7 +240,7 @@ function VideoCard({
 
   const formatTime = (published: string): string => {
     const d = new Date(published);
-    return d.toLocaleTimeString(lang === "fr" ? "fr-FR" : "en-US", { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
   };
 
   const btnStyle: CSSProperties = {
@@ -264,8 +258,8 @@ function VideoCard({
 
   return (
     <div style={cardStyle}>
-      <div style={topRow}>
-        <a href={v.link} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0 }}>
+      <div className="video-card-row">
+        <a href={v.link} target="_blank" rel="noopener noreferrer" className="video-thumb">
           <div style={thumbWrap}>
             {v.thumbnail ? (
               <img src={v.thumbnail} alt="" style={thumbImg} loading="lazy" />
@@ -278,7 +272,7 @@ function VideoCard({
             )}
           </div>
         </a>
-        <div style={bodyStyle}>
+        <div className="video-body" style={bodyStyle}>
           <a href={v.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
             <div style={{ color: color.text, fontSize: 15, fontWeight: 600, lineHeight: 1.35, marginBottom: 6 }}>{v.title}</div>
           </a>

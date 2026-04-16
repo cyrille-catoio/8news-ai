@@ -49,6 +49,7 @@ export function GeneralMenu({
   onAnalyzeTop,
   onNavigateSummaries,
   onNavigateVideos,
+  onRequestAuth,
 }: {
   lang: Lang;
   currentPage: AppNavPage;
@@ -59,6 +60,7 @@ export function GeneralMenu({
   onAnalyzeTop: () => void;
   onNavigateSummaries: () => void;
   onNavigateVideos: () => void;
+  onRequestAuth?: () => void;
 }) {
   return (
     <div style={barWrap}>
@@ -95,7 +97,7 @@ export function GeneralMenu({
       </button>
       <button
         type="button"
-        onClick={onNavigateVideos}
+        onClick={isAuthenticated ? onNavigateVideos : onRequestAuth}
         style={currentPage === "videos" ? activeStyle : base}
       >
         {t("videosBtn", lang)}
@@ -132,7 +134,7 @@ export function SeoGeneralMenu({
       <a href="/summaries" style={activePage === "summaries" ? activeStyle : base}>
         {t("dailySummaryBtn", lang)}
       </a>
-      <a href="/videos" style={activePage === "videos" ? activeStyle : base}>
+      <a href={authed ? "/videos" : "/"}  style={activePage === "videos" ? activeStyle : base}>
         {t("videosBtn", lang)}
       </a>
     </div>

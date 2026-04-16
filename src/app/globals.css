@@ -304,3 +304,29 @@ body {
     display: none;
   }
 }
+
+/* Video card: horizontal on desktop, vertical on mobile */
+.video-card-row {
+  display: flex;
+  gap: 16px;
+}
+.video-card-row .video-thumb {
+  flex-shrink: 0;
+  width: 320px;
+}
+.video-card-row .video-body {
+  flex: 1;
+  min-width: 0;
+}
+@media (max-width: 640px) {
+  .video-card-row {
+    flex-direction: column;
+    gap: 0;
+  }
+  .video-card-row .video-thumb {
+    width: 100%;
+  }
+  .video-card-row .video-body {
+    padding: 12px 14px !important;
+  }
+}

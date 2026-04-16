@@ -9,7 +9,7 @@ import { useAuth } from "@/app/providers";
 /* ── Shared styles ─────────────────────────────────────────────────── */
 
 const barWrap: CSSProperties = {
-  marginBottom: 10,
+  marginBottom: 30,
   display: "flex",
   alignItems: "center",
   gap: 8,
@@ -48,6 +48,7 @@ export function GeneralMenu({
   onNavigateFavorites,
   onAnalyzeTop,
   onNavigateSummaries,
+  onNavigateVideos,
 }: {
   lang: Lang;
   currentPage: AppNavPage;
@@ -57,6 +58,7 @@ export function GeneralMenu({
   onNavigateFavorites: () => void;
   onAnalyzeTop: () => void;
   onNavigateSummaries: () => void;
+  onNavigateVideos: () => void;
 }) {
   return (
     <div style={barWrap}>
@@ -91,6 +93,13 @@ export function GeneralMenu({
       >
         {t("dailySummaryBtn", lang)}
       </button>
+      <button
+        type="button"
+        onClick={onNavigateVideos}
+        style={currentPage === "videos" ? activeStyle : base}
+      >
+        {t("videosBtn", lang)}
+      </button>
     </div>
   );
 }
@@ -102,7 +111,7 @@ export function SeoGeneralMenu({
   activePage,
 }: {
   lang: Lang;
-  activePage?: "home" | "favorites" | "topArticles" | "summaries";
+  activePage?: "home" | "favorites" | "topArticles" | "summaries" | "videos";
 }) {
   const { session } = useAuth();
   const authed = Boolean(session?.user);
@@ -122,6 +131,9 @@ export function SeoGeneralMenu({
       </a>
       <a href="/summaries" style={activePage === "summaries" ? activeStyle : base}>
         {t("dailySummaryBtn", lang)}
+      </a>
+      <a href="/videos" style={activePage === "videos" ? activeStyle : base}>
+        {t("videosBtn", lang)}
       </a>
     </div>
   );

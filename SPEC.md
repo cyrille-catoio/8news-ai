@@ -1,7 +1,7 @@
 # 8news.ai — Technical Specification
 
-**Version**: v1.96
-**Last updated**: 14 April 2026
+**Version**: v1.99
+**Last updated**: 16 April 2026
 
 ---
 
@@ -9,7 +9,7 @@
 
 **8news.ai** is an AI-powered news aggregation and summarisation platform. It fetches articles from curated RSS feeds across multiple **dynamic, database-driven topics**, pre-scores them with AI via scheduled Netlify cron jobs (stored in Supabase), then analyses the top-scoring articles with OpenAI (topic summaries via GPT-4.1-nano; homepage Top summary via GPT-5.3-chat-latest; daily SEO summaries via GPT-4.1-mini) for structured summarisation. Results are presented in a dark-themed, bilingual (EN/FR) web interface with ElevenLabs text-to-speech playback.
 
-Users can **create custom topics** from the UI, with AI-assisted generation of scoring criteria and automatic RSS feed discovery. **v1.94+**: Article **favorites** system (star icon, per-user storage). **v1.95+**: Public **SEO daily summary pages** per topic with AI entity extraction, dynamic sitemap, and JSON-LD structured data.
+Users can **create custom topics** from the UI, with AI-assisted generation of scoring criteria and automatic RSS feed discovery. **v1.94+**: Article **favorites** system (star icon, per-user storage). **v1.95+**: Public **SEO daily summary pages** per topic with AI entity extraction, dynamic sitemap, and JSON-LD structured data. **v1.98+**: Persistent **General Menu** (Homepage, My Favorites, Top 50 articles, Daily Summaries, Videos) across all pages; admin items merged into user dropdown. **v1.99+**: **YouTube video monitoring** with channel management, daily video listing, and **AI-powered video transcription** (TranscriptAPI + GPT-4.1-mini Markdown summaries).
 
 **v1.80+**: Optional **Supabase Auth** (email + password). **v1.81+**: **`user_type`** in **`user_metadata`** — **`member`** (default at sign-up) or **`owner`**. The app remains **fully usable without signing in** (home, stats, crons, changelog, settings). Signed-in **members** use the same public areas as guests. **Topics** and **Feed management** are **`owner`**-only (promote in **Supabase Dashboard → Authentication → Users**; user must sign in again for JWT refresh). Admin APIs: **`401`** unsigned, **`403`** **`member`**. **v1.82+**: Settings **My Account** (any authenticated user, editable name) + **Users** management (`owner`-only, inline edit of name and user type).
 
@@ -29,8 +29,10 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 | Frontend | React | 19.2.3 |
 | CSS | `globals.css` (tables, grids, keyframes) + `theme.ts` tokens + inline styles | — |
 | RSS Parsing | rss-parser | ^3.13.0 |
-| AI (text analysis) | OpenAI API — `gpt-4.1-nano` (scoring, topics), `gpt-4.1-mini` (daily SEO summaries) | via `openai` ^6.25.0 |
+| AI (text analysis) | OpenAI API — `gpt-4.1-nano` (scoring, topics), `gpt-4.1-mini` (daily SEO summaries, video transcription summaries) | via `openai` ^6.25.0 |
 | AI (text-to-speech) | ElevenLabs API — `eleven_flash_v2_5` model | via REST API |
+| YouTube transcription | TranscriptAPI — `/channel/latest` (free), `/channel/resolve` (free), `/transcript` (1 credit) | via REST API |
+| Markdown rendering | `react-markdown` (dynamic import, SSR disabled) | ^9 |
 | Database | Supabase (PostgreSQL) | via `@supabase/supabase-js` |
 | Auth (session cookies) | Supabase Auth + `@supabase/ssr` | **v1.80+** — browser anon client + `middleware.ts` refresh |
 | Hosting | Netlify | via `@netlify/plugin-nextjs` ^5.15.8 |
@@ -61,7 +63,7 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   │   │   ├── layout.tsx      # Minimal passthrough layout
 │   │   │   ├── page.tsx        # Topic hub: paginated list of daily summaries
 │   │   │   └── [date]/[slug]/page.tsx  # Daily summary page (bullets, articles, JSON-LD, hreflang)
-│   │   ├── components/         # Feature UI: AppHeader, AuthModal, TopFeedSection, TopicsPage/, StatsPage, FeedsAdminPage, FavoritesPage, FavoriteButton, DailySummariesPage, SummaryExplorer, MyAccountSection, UsersSection, …
+│   │   ├── components/         # Feature UI: AppHeader, GeneralMenu, AuthModal, TopFeedSection, TopicsPage/, StatsPage, FeedsAdminPage, FavoritesPage, FavoriteButton, DailySummariesPage, SummaryExplorer, VideosPage, YouTubeChannelsPage, MyAccountSection, UsersSection, …
 │   │   └── api/
 │   │       ├── news/
 │   │       │   ├── route.ts            # GET /api/news — Supabase read + AI analysis
@@ -95,9 +97,15 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   │       ├── user/
 │   │       │   ├── topics/route.ts            # **v1.84+**: GET/PUT user topic preferences
 │   │       │   └── favorites/route.ts         # **v1.94+**: GET/POST/DELETE article favorites
-│   │       └── summaries/
-│   │           ├── generate/route.ts          # **v1.95+**: POST — generate daily summary (owner or CRON_SECRET)
-│   │           └── [topic]/[date]/route.ts    # **v1.96+**: GET — public read of a daily summary
+│   │       ├── summaries/
+│   │       │   ├── generate/route.ts          # **v1.95+**: POST — generate daily summary (owner or CRON_SECRET)
+│   │       │   ├── routes/route.ts            # **v1.98+**: GET — all summary routes (client SPA)
+│   │       │   └── [topic]/[date]/route.ts    # **v1.96+**: GET — public read of a daily summary
+│   │       └── youtube-channels/
+│   │           ├── route.ts                   # **v1.99+**: GET/POST/PATCH — YouTube channels CRUD + metadata refresh
+│   │           ├── [id]/route.ts              # **v1.99+**: DELETE — remove channel
+│   │           ├── videos/route.ts            # **v1.99+**: GET — videos by date (RSS fetch + DB cache)
+│   │           └── transcribe/route.ts        # **v1.99+**: POST — video transcription + AI Markdown summary
 │   ├── hooks/
 │   │   ├── useTopFeed.ts       # Homepage Top 50: GET /api/news/top (v1.76+: `?lang=` + localized snippet; refetch on lang change), refresh, clear, 5 min poll when home + no topic, **v1.82+** `lastUpdatedAt` timestamp
 │   │   ├── useUserTopics.ts    # **v1.84+**: Per-user topic preferences (personalization mode)
@@ -116,6 +124,7 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │       ├── score-topic-dynamic.ts # AI scoring batches → Supabase (used by API + Netlify)
 │       ├── ai-analyze.ts         # Shared OpenAI analysis helpers (analyzeWithAI, prompts/messages)
 │       ├── generate-daily-summary.ts  # **v1.95+**: Daily SEO summary generation (AI + DB insert)
+│       ├── transcript-api.ts      # **v1.99+**: TranscriptAPI client (resolve, latest, transcript)
 │       └── changelog-entries.ts   # **v1.90+**: Changelog entries (auto-synced to DB)
 ├── netlify/
 │   └── functions/
@@ -136,7 +145,10 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   ├── 008-categories.sql       # Topic categories table + FK on topics
 │   ├── 009-fix-sort-order.sql   # Re-sequence sort_order values
 │   ├── 010-user-favorites.sql   # **v1.94+**: Per-user article favorites table
-│   └── 011-daily-summaries.sql  # **v1.95+**: daily_summaries + summary_bullets tables (SEO)
+│   ├── 011-daily-summaries.sql  # **v1.95+**: daily_summaries + summary_bullets tables (SEO)
+│   ├── 012-enable-rls-all-tables.sql  # **v1.98+**: RLS on all public tables
+│   ├── 013-youtube-channels.sql       # **v1.99+**: YouTube channels table
+│   └── 014-video-transcriptions.sql   # **v1.99+**: youtube_videos cache, video_transcriptions, summary_bullets source_type
 ├── .gitignore                  # Next/Node ignores; **v1.77+**: `.claude/` (local Claude/Cursor worktrees, not committed)
 ├── .env                        # API keys (not committed)
 ├── .env.example                # Placeholder for API keys
@@ -191,7 +203,10 @@ Users can create new topics from the Topics page. Each topic includes:
 | `user_topic_preferences` | **v1.84+**: Per-user topic selection (array of topic IDs) |
 | `user_favorites` | **v1.94+**: Per-user article bookmarks (URL, title, source, date) |
 | `daily_summaries` | **v1.95+**: SEO daily summary pages (bullets, articles, SEO metadata) |
-| `summary_bullets` | **v1.95+**: Individual bullets with AI-extracted named entities (GIN-indexed) |
+| `summary_bullets` | **v1.95+**: Individual bullets with AI-extracted named entities (GIN-indexed). **v1.99+**: `source_type` column (`article` or `video`), nullable `daily_summary_id`, optional `video_transcription_id` FK |
+| `youtube_channels` | **v1.99+**: YouTube channel registry (channel_id, handle, title, thumbnail) |
+| `youtube_videos` | **v1.99+**: Cached video metadata from RSS (persists for past-date lookups) |
+| `video_transcriptions` | **v1.99+**: Full transcript text + AI Markdown summary per video per language |
 
 ### 5.2 `topics` table
 
@@ -495,13 +510,18 @@ The app root is `src/app/page.tsx` (`"use client"`): **home** topic/period flow,
 
 ### 8.2 Navigation
 
-The app has **10 pages** managed by `currentPage` state (`"home"` | `"stats"` | `"crons"` | `"topics"` | `"feeds"` | `"categories"` | `"dailySummaries"` | `"favorites"` | `"changelog"` | `"settings"`). **v1.80+**: **`topics`**, **`feeds`**, **`categories`**, and **`dailySummaries`** are reachable only for **`owner`** users. **`favorites`** requires any authenticated user.
+The app has **14 pages** managed by `currentPage` state (`"home"` | `"stats"` | `"crons"` | `"topics"` | `"feeds"` | `"categories"` | `"dailySummaries"` | `"favorites"` | `"topArticles"` | `"summaries"` | `"videos"` | `"youtubeChannels"` | `"changelog"` | `"settings"`). **v1.80+**: **`topics`**, **`feeds`**, **`categories`**, **`dailySummaries`**, and **`youtubeChannels`** are reachable only for **`owner`** users. **`favorites`** requires any authenticated user.
+
+**General Menu** (`GeneralMenu`, **v1.98+**, visible on all pages):
+- Persistent navigation bar: **Homepage**, **My Favorites** (authenticated only), **Top 50 articles**, **Daily Summaries**, **Videos**
+- Active button highlighted with gold border/background
+- SSR variant (`SeoGeneralMenu`) used on SEO pages with `<a>` links
 
 **Header** (`AppHeader`, shared across all pages):
 - **Logo**: PNG image (`/logo-8news.png`), responsive height — **clicking logo resets to homepage Top 50 feed**
 - **Subtitle**: "Tech decoded by AI" / "La tech décodée par l'IA" (`t("subtitle", lang)`)
 - **Top-right controls**:
-  - **Icon row** (left to right): **Home** (house); **Favorites** (star, authenticated users only, **v1.94+**); **Stats** (bars), **Cron Monitor** (pulse), **Changelog** (clock), **Settings** (gear); **Admin menu** (shield, owner-only dropdown: Topics, Categories, Feed management, Daily Summaries); **User menu** (user icon, sign-in/sign-out)
+  - **Icon row** (left to right): **Home** (house); **Stats** (bars), **Cron Monitor** (pulse), **Changelog** (clock), **Settings** (gear); **User menu** (user icon with crown for owners — dropdown contains admin items: Topics, Categories, Feed management, Daily Summaries, YouTube Channels; plus sign-in/sign-out)
   - **Row below icons**: **Sign in** button (if not authenticated) **to the left of** the **language toggle** (EN/FR), right-aligned
 
 ### 8.3 Home Page
@@ -671,12 +691,32 @@ Server-rendered public pages for search engine indexing:
 - URL format: `8news.ai/{topic}/{YYYY-MM-DD}/{keyword1-keyword2-keyword3}`
 - Generated via `gpt-4.1-mini` with 50 articles, top 10 displayed, enriched prompts for detailed bullets
 
-### 8.13 Changelog page (`ChangelogPage`)
+### 8.13 Videos Page (`VideosPage`) — v1.99+
+
+Accessible via the General Menu "Videos" button (all users).
+
+- **Date navigation**: prev/next day arrows with MiniCalendar picker between them, plus "Today" shortcut
+- **Video cards**: horizontal layout (320px thumbnail + title, truncated description with "See more", channel, time, views)
+- **Transcription button**: triggers AI transcription flow per video (TranscriptAPI + GPT-4.1-mini)
+- **AI summary display**: Markdown rendered via `react-markdown` (dynamic import, SSR disabled), collapsible
+- **Cross-language optimization**: if a transcription exists in the other language, translates the existing summary instead of re-transcribing (saves 1 TranscriptAPI credit + ~80% tokens)
+- **Video caching**: `youtube_videos` table persists video metadata from RSS on each fetch, enabling past-date lookups
+- **Channel metadata**: auto-refreshed on admin page load if missing (retry with @handle fallback)
+
+### 8.14 YouTube Channels Admin (`YouTubeChannelsPage`) — v1.99+
+
+Owner-only page accessible via the user dropdown menu.
+
+- **Add channel**: input @handle or URL, resolves via TranscriptAPI `/channel/resolve` (free), fetches title + thumbnail via `/channel/latest` (free)
+- **Channel list**: table with thumbnail (or fallback icon), title, handle, channel ID, delete button
+- **Auto-refresh**: on page load, channels with missing title or thumbnail are automatically refreshed from TranscriptAPI with retry logic (channel_id → @handle fallback, 2 attempts each)
+
+### 8.15 Changelog page (`ChangelogPage`)
 
 - Loads **`GET /api/changelog`**
 - Lists version badge, date, bilingual title/body from **`changelog`** table
 
-### 8.14 Settings Page (`SettingsPage`)
+### 8.16 Settings Page (`SettingsPage`)
 
 Up to four sections depending on auth status:
 
@@ -696,7 +736,7 @@ Up to four sections depending on auth status:
 - Inline editing per row (first name, last name, user type dropdown) via `PATCH /api/users/[id]`
 - Data fetched from `GET /api/users` (service role)
 
-### 8.15 Audio Player (`AudioPlayer`)
+### 8.17 Audio Player (`AudioPlayer`)
 
 Text-to-Speech player for the global summary, using ElevenLabs API.
 
@@ -721,11 +761,11 @@ Text-to-Speech player for the global summary, using ElevenLabs API.
 | `thomas` | Thomas | FR | `GBv7mTt0atIp3Br8iCZE` |
 | `callum` | Callum | FR | `N2lVS1w4EtoT3dr4eOWO` |
 
-### 8.16 Auto-Update Banner
+### 8.18 Auto-Update Banner
 
 The app checks `public/version.json` every **5 minutes**. If the version differs from `APP_VERSION`, a gold banner appears at the **top-right** of the screen (copy: `homeNewVersionBanner` in `i18n.ts`). Clicking reloads the page. No auto-reload.
 
-### 8.17 Version Footer
+### 8.19 Version Footer
 
 Fixed bottom-right: `v{APP_VERSION}` from `page.tsx`, kept in sync with `public/version.json` (increment with each production release).
 
@@ -790,7 +830,7 @@ All state is managed with React hooks (`useState`, `useRef`, `useCallback`) in t
 | `ttsSpeed` | number | 1.05 | Cookie |
 | `ttsVoice` | string | `"sarah"` | Cookie |
 | `ttsVoiceFr` | string | `"george"` | Cookie |
-| `currentPage` | `"home"` \| `"stats"` \| `"crons"` \| `"topics"` \| `"feeds"` \| `"categories"` \| `"dailySummaries"` \| `"favorites"` \| `"changelog"` \| `"settings"` | `"home"` | None |
+| `currentPage` | `AppNavPage` (`"home"` \| `"stats"` \| `"crons"` \| `"topics"` \| `"feeds"` \| `"categories"` \| `"dailySummaries"` \| `"favorites"` \| `"topArticles"` \| `"summaries"` \| `"videos"` \| `"youtubeChannels"` \| `"changelog"` \| `"settings"`) | `"home"` | None |
 | `data` | SummaryResponse \| null | null | None |
 | `loading` | boolean | false | None |
 | Top 50 articles / loading | from **`useTopFeed({ poll, lang })`** (`/api/news/top?limit=50&days=1&lang=`) | — | In-memory; **clear** on topic select; **refresh** on home reset; refetch when `lang` changes |
@@ -957,6 +997,7 @@ User clicks period button
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anon (public) key — **v1.80+** browser auth + session validation in API routes |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key |
+| `TRANSCRIPT_API_KEY` | Yes | TranscriptAPI key for YouTube video transcription |
 | `CRON_SECRET` | Yes | Secret for manual API route invocation |
 
 ---
@@ -1005,7 +1046,8 @@ Release history is maintained in **`src/lib/changelog-entries.ts`** and auto-syn
 - **Partial authentication (v1.80+ / roles v1.81+)** — **Supabase Auth** with **`member`** (default) vs **`owner`**. **Topics** and **Feed management** are **`owner`**-only (UI + APIs). Guests and **members** still use the homepage, stats, crons, changelog, and settings. No per-user data partitioning in the database; **`owner`** is an **admin role** for those screens.
 - **Serverless timeout** — Netlify background functions have a **15-minute** wall-time. Cron jobs run as background functions invoked every 10 minutes by **cron-job.org**, with internal budgets (~13 min) and safety reserves. `POST .../feeds/[feedId]/score` is capped at **`maxDuration` 13** with a shorter internal elapsed budget and may return `partial` when time is exhausted.
 - **RSS availability** — Some feeds may go offline; AI feed discovery validates upfront but feeds can break later
-- **AI cost** — Each request consumes OpenAI tokens (gpt-4.1-nano), each TTS request consumes ElevenLabs credits
+- **AI cost** — Each request consumes OpenAI tokens (gpt-4.1-nano), each TTS request consumes ElevenLabs credits, each video transcription costs 1 TranscriptAPI credit (cross-language translation reuses existing summaries to save credits)
+- **TranscriptAPI reliability** — The `/channel/latest` RSS endpoint can timeout (408) for some channels; retry logic with @handle fallback mitigates most failures
 - **Hybrid rendering** — The main app (`page.tsx`) is a client-only SPA; SEO daily summary pages and topic hubs are server-rendered
 - **Cookie-only persistence** — User preferences persisted in cookies; topic and period reset on reload
 - **AI feed discovery accuracy** — GPT may suggest invalid URLs; validation catches most but not all edge cases

@@ -12,6 +12,7 @@ const SPA_PATHS = new Set([
   "/favorites",
   "/daily-summaries",
   "/videos",
+  "/youtube-channels",
   "/top-articles",
   "/summaries-browse",
 ]);

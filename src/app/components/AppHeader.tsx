@@ -19,6 +19,7 @@ export type AppNavPage =
   | "favorites"
   | "dailySummaries"
   | "videos"
+  | "youtubeChannels"
   | "topArticles"
   | "summaries";
 
@@ -106,7 +107,7 @@ function UserMenu({
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const isAdminPage = currentPage === "topics" || currentPage === "feeds" || currentPage === "categories" || currentPage === "dailySummaries" || currentPage === "videos";
+  const isAdminPage = currentPage === "topics" || currentPage === "feeds" || currentPage === "categories" || currentPage === "dailySummaries" || currentPage === "youtubeChannels";
 
   const menuItemStyle: CSSProperties = {
     display: "block",
@@ -178,8 +179,8 @@ function UserMenu({
               <button type="button" onClick={() => { onNavigate("dailySummaries"); setOpen(false); }} style={adminItemStyle("dailySummaries")}>
                 {t("dailySummariesAdmin", lang)}
               </button>
-              <button type="button" onClick={() => { onNavigate("videos"); setOpen(false); }} style={adminItemStyle("videos")}>
-                Videos
+              <button type="button" onClick={() => { onNavigate("youtubeChannels"); setOpen(false); }} style={adminItemStyle("youtubeChannels")}>
+                YouTube Channels
               </button>
               <div style={{ height: 1, background: color.border, margin: "4px 0" }} />
             </>

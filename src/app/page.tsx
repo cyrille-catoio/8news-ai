@@ -40,10 +40,12 @@ import { FavoriteButton } from "@/app/components/FavoriteButton";
 import { FavoritesPage } from "@/app/components/FavoritesPage";
 import { DailySummariesPage } from "@/app/components/DailySummariesPage";
 import { SummariesBrowsePage } from "@/app/components/SummariesBrowsePage";
+import { VideosPage } from "@/app/components/VideosPage";
+import { YouTubeChannelsPage } from "@/app/components/YouTubeChannelsPage";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.98";
+const APP_VERSION = "1.99";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 
@@ -361,7 +363,7 @@ export default function Home() {
   }, []);
   const handleLangChange = useCallback((newLang: Lang) => {
     setCookie("lang", newLang);
-    window.location.reload();
+    setLang(newLang);
   }, []);
   const [topics, setTopics] = useState<TopicItem[]>([]);
   const [topicsLoading, setTopicsLoading] = useState(true);
@@ -426,6 +428,7 @@ export default function Home() {
     favorites: "/favorites",
     dailySummaries: "/daily-summaries",
     videos: "/videos",
+    youtubeChannels: "/youtube-channels",
     topArticles: "/top-articles",
     summaries: "/summaries-browse",
   };
@@ -491,7 +494,7 @@ export default function Home() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!authOwner && (currentPage === "feeds" || currentPage === "categories" || currentPage === "dailySummaries" || currentPage === "videos")) {
+    if (!authOwner && (currentPage === "feeds" || currentPage === "categories" || currentPage === "dailySummaries" || currentPage === "youtubeChannels")) {
       setCurrentPage("home");
     }
     if (!isAuthenticated && currentPage === "topics") {
@@ -753,6 +756,7 @@ export default function Home() {
           onNavigateFavorites={() => setCurrentPage("favorites")}
           onAnalyzeTop={() => setCurrentPage("topArticles")}
           onNavigateSummaries={() => setCurrentPage("summaries")}
+          onNavigateVideos={() => setCurrentPage("videos")}
         />
 
         {currentPage === "stats" ? (
@@ -814,17 +818,14 @@ export default function Home() {
             <DailySummariesPage lang={lang} topics={topicLabels} />
           ) : null
         ) : currentPage === "videos" ? (
+          <VideosPage lang={lang} />
+        ) : currentPage === "youtubeChannels" ? (
           authLoading ? (
             <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "80px 0" }}>
               <span style={spinnerStyle(28)} />
             </div>
           ) : authOwner ? (
-            <div>
-              <h2 style={{ color: color.gold, fontSize: 20, fontWeight: 600, marginBottom: 8, marginTop: 0 }}>Videos</h2>
-              <p style={{ color: color.textMuted, fontSize: 15 }}>
-                {lang === "fr" ? "En construction" : "Under construction"}
-              </p>
-            </div>
+            <YouTubeChannelsPage lang={lang} />
           ) : null
         ) : currentPage === "settings" ? (
           <SettingsPage

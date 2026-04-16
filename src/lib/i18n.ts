@@ -985,6 +985,10 @@ const strings = {
     en: "Daily Summaries",
     fr: "Résumés quotidiens",
   },
+  videosBtn: {
+    en: "Videos",
+    fr: "Vidéos",
+  },
   dailySummaryExplorerTitle: {
     en: "Daily Summaries",
     fr: "Résumés quotidiens",

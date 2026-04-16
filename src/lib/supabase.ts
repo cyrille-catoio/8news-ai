@@ -1140,6 +1140,81 @@ export async function getTopicById(
   }
 }
 
+/* ── Video transcription helpers ───────────────────────────────────── */
+
+export async function getVideoTranscription(
+  videoId: string,
+  lang: string,
+): Promise<{ id: number; summary_md: string; transcript: string; word_count: number | null } | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("video_transcriptions")
+      .select("id, summary_md, transcript, word_count")
+      .eq("video_id", videoId)
+      .eq("lang", lang)
+      .single();
+    if (error || !data) return null;
+    return data as { id: number; summary_md: string; transcript: string; word_count: number | null };
+  } catch {
+    return null;
+  }
+}
+
+export async function insertVideoTranscription(row: {
+  video_id: string;
+  channel_id: string;
+  title: string;
+  lang: string;
+  transcript: string;
+  summary_md: string;
+  word_count: number;
+}): Promise<number | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("video_transcriptions")
+      .insert(row)
+      .select("id")
+      .single();
+    if (error || !data) return null;
+    return (data as { id: number }).id;
+  } catch {
+    return null;
+  }
+}
+
+export async function insertVideoBullets(
+  bullets: Array<{
+    video_transcription_id: number;
+    lang: string;
+    summary_date: string;
+    bullet_index: number;
+    text: string;
+    source_type: string;
+    entities: string[];
+  }>,
+): Promise<boolean> {
+  if (bullets.length === 0) return true;
+  const clientP = getServerClient();
+  if (!clientP) return false;
+  try {
+    const supabase = await clientP;
+    await supabase
+      .from("summary_bullets")
+      .delete()
+      .eq("video_transcription_id", bullets[0].video_transcription_id);
+    const { error } = await supabase.from("summary_bullets").insert(bullets);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
 export async function getActiveTopicIds(): Promise<string[]> {
   const clientP = getServerClient();
   if (!clientP) return [];

@@ -83,16 +83,25 @@ function extractBulletsFromMarkdown(md: string): string[] {
   const lines = md.split("\n");
   let inBullets = false;
   const bullets: string[] = [];
+  let current = "";
+
   for (const line of lines) {
     if (/^##\s+Points\s+cl/i.test(line) || /^##\s+Key\s+points/i.test(line)) {
       inBullets = true;
       continue;
     }
     if (inBullets && /^##\s/.test(line)) break;
-    if (inBullets && /^\s*[-*]\s/.test(line)) {
-      bullets.push(line.replace(/^\s*[-*]\s+/, "").trim());
+    if (!inBullets) continue;
+
+    if (/^\s*[-*]\s/.test(line)) {
+      if (current) bullets.push(current.trim());
+      current = line.replace(/^\s*[-*]\s+/, "").trim();
+    } else if (current && line.trim()) {
+      current += " " + line.trim();
     }
   }
+  if (current) bullets.push(current.trim());
+
   return bullets;
 }
 

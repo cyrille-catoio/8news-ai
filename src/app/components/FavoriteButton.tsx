@@ -8,9 +8,10 @@ export interface FavoriteButtonProps {
   title: string;
   source: string;
   pubDate?: string;
+  sourceType?: "article" | "video";
   isFavorite: boolean;
   lang: Lang;
-  onToggle: (article: { url: string; title: string; source: string; pubDate?: string }) => void;
+  onToggle: (article: { url: string; title: string; source: string; pubDate?: string; sourceType?: "article" | "video" }) => void;
   onRequestAuth?: () => void;
   isAuthenticated: boolean;
 }
@@ -20,6 +21,7 @@ export function FavoriteButton({
   title: articleTitle,
   source,
   pubDate,
+  sourceType,
   isFavorite,
   lang,
   onToggle,
@@ -33,7 +35,7 @@ export function FavoriteButton({
       onRequestAuth?.();
       return;
     }
-    onToggle({ url, title: articleTitle, source, pubDate });
+    onToggle({ url, title: articleTitle, source, pubDate, sourceType });
   };
 
   return (

@@ -97,7 +97,7 @@ export function GeneralMenu({
       </button>
       <button
         type="button"
-        onClick={isAuthenticated ? onNavigateVideos : onRequestAuth}
+        onClick={onNavigateVideos}
         style={currentPage === "videos" ? activeStyle : base}
       >
         {t("videosBtn", lang)}

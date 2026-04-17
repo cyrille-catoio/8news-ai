@@ -7,6 +7,7 @@ export interface FavoriteArticle {
   title: string;
   source: string;
   pubDate?: string;
+  sourceType?: "article" | "video";
 }
 
 export function useFavorites(isAuthenticated: boolean) {
@@ -69,6 +70,7 @@ export function useFavorites(isAuthenticated: boolean) {
               title: article.title,
               source: article.source,
               pubDate: article.pubDate,
+              sourceType: article.sourceType ?? "article",
             }),
           });
 

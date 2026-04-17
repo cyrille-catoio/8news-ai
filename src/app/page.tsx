@@ -45,7 +45,7 @@ import { YouTubeChannelsPage } from "@/app/components/YouTubeChannelsPage";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.102";
+const APP_VERSION = "1.103";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 
@@ -819,28 +819,15 @@ export default function Home() {
             <DailySummariesPage lang={lang} topics={topicLabels} />
           ) : null
         ) : currentPage === "videos" ? (
-          isAuthenticated ? (
-            <VideosPage lang={lang} speed={ttsSpeed} voice={lang === "fr" ? ttsVoiceFr : ttsVoice} />
-          ) : (
-            <div style={{ textAlign: "center", padding: "60px 0" }}>
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke={color.gold} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 16 }}>
-                <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
-              </svg>
-              <p style={{ color: color.text, fontSize: 16, fontWeight: 600, marginBottom: 8 }}>
-                {lang === "fr" ? "Section réservée aux utilisateurs identifiés" : "This section is for signed-in users only"}
-              </p>
-              <p style={{ color: color.textMuted, fontSize: 14, marginBottom: 20 }}>
-                {lang === "fr" ? "Inscription gratuite" : "Free registration"}
-              </p>
-              <button
-                type="button"
-                onClick={() => setAuthModalOpen(true)}
-                style={{ padding: "10px 28px", borderRadius: 8, border: "none", background: color.gold, color: "#000", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
-              >
-                {lang === "fr" ? "Se connecter / S'inscrire" : "Sign in / Sign up"}
-              </button>
-            </div>
-          )
+          <VideosPage
+            lang={lang}
+            speed={ttsSpeed}
+            voice={lang === "fr" ? ttsVoiceFr : ttsVoice}
+            favoriteUrls={favoriteUrls}
+            onToggleFavorite={toggleFavorite}
+            isAuthenticated={isAuthenticated}
+            onRequestAuth={() => setAuthModalOpen(true)}
+          />
         ) : currentPage === "youtubeChannels" ? (
           authLoading ? (
             <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "80px 0" }}>
@@ -867,7 +854,13 @@ export default function Home() {
               <span style={spinnerStyle(28)} />
             </div>
           ) : isAuthenticated ? (
-            <FavoritesPage lang={lang} favoriteUrls={favoriteUrls} onToggleFavorite={toggleFavorite} />
+            <FavoritesPage
+              lang={lang}
+              favoriteUrls={favoriteUrls}
+              onToggleFavorite={toggleFavorite}
+              speed={ttsSpeed}
+              voice={lang === "fr" ? ttsVoiceFr : ttsVoice}
+            />
           ) : null
         ) : currentPage === "topArticles" ? (
           <div>

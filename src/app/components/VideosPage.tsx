@@ -5,6 +5,8 @@ import dynamic from "next/dynamic";
 import { color, primaryButtonStyle, formInputStyle, spinnerStyle } from "@/lib/theme";
 import type { Lang } from "@/lib/i18n";
 import { AudioPlayer } from "@/app/components/AudioPlayer";
+import { FavoriteButton } from "@/app/components/FavoriteButton";
+import { CopyLinkButton } from "@/app/components/CopyLinkButton";
 
 const ReactMarkdown = dynamic(() => import("react-markdown"), { ssr: false });
 
@@ -196,6 +198,10 @@ function VideoCard({
   onTranscribe,
   speed,
   voice,
+  isFavorite,
+  isAuthenticated,
+  onToggleFavorite,
+  onRequestAuth,
 }: {
   v: VideoItem;
   lang: Lang;
@@ -204,6 +210,10 @@ function VideoCard({
   onTranscribe: () => void;
   speed: number;
   voice: string;
+  isFavorite: boolean;
+  isAuthenticated: boolean;
+  onToggleFavorite: (a: { url: string; title: string; source: string; pubDate?: string; sourceType?: "article" | "video" }) => void;
+  onRequestAuth: () => void;
 }) {
   const [descExpanded, setDescExpanded] = useState(false);
   const [summaryExpanded, setSummaryExpanded] = useState(true);
@@ -328,21 +338,8 @@ function VideoCard({
             )}
           </div>
 
-          <a
-            href={v.link}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 10, fontSize: 12, fontWeight: 600, color: color.gold, textDecoration: "none" }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill={color.gold} stroke="none">
-              <polygon points="5,3 19,12 5,21" />
-            </svg>
-            {lang === "fr" ? "Play Vidéo" : "Play Video"}
-          </a>
-
-          {/* Transcription button */}
-          {!summaryMd && (
-            <div>
+          <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+            {!summaryMd && (
               <button
                 type="button"
                 onClick={(e) => { e.preventDefault(); onTranscribe(); }}
@@ -358,8 +355,34 @@ function VideoCard({
                   "Transcription"
                 )}
               </button>
+            )}
+            <a
+              href={v.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ ...btnStyle, textDecoration: "none", opacity: 1 }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="#000" stroke="none">
+                <polygon points="5,3 19,12 5,21" />
+              </svg>
+              {lang === "fr" ? "Play Vidéo" : "Play Video"}
+            </a>
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 2 }}>
+              <FavoriteButton
+                url={v.link}
+                title={v.title}
+                source={v.channelTitle}
+                pubDate={v.published}
+                sourceType="video"
+                isFavorite={isFavorite}
+                lang={lang}
+                onToggle={onToggleFavorite}
+                onRequestAuth={onRequestAuth}
+                isAuthenticated={isAuthenticated}
+              />
+              <CopyLinkButton url={v.link} />
             </div>
-          )}
+          </div>
         </div>
       </div>
 
@@ -415,7 +438,23 @@ const arrowBtn: CSSProperties = {
 
 /* ── Main page ───────────────────────────────────────────────────── */
 
-export function VideosPage({ lang, speed, voice }: { lang: Lang; speed: number; voice: string }) {
+export function VideosPage({
+  lang,
+  speed,
+  voice,
+  favoriteUrls,
+  onToggleFavorite,
+  isAuthenticated,
+  onRequestAuth,
+}: {
+  lang: Lang;
+  speed: number;
+  voice: string;
+  favoriteUrls: Set<string>;
+  onToggleFavorite: (a: { url: string; title: string; source: string; pubDate?: string; sourceType?: "article" | "video" }) => void;
+  isAuthenticated: boolean;
+  onRequestAuth: () => void;
+}) {
   const [date, setDate] = useState(() => toISODate(new Date()));
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -532,6 +571,10 @@ export function VideosPage({ lang, speed, voice }: { lang: Lang; speed: number; 
               onTranscribe={() => handleTranscribe(v)}
               speed={speed}
               voice={voice}
+              isFavorite={favoriteUrls.has(v.link)}
+              isAuthenticated={isAuthenticated}
+              onToggleFavorite={onToggleFavorite}
+              onRequestAuth={onRequestAuth}
             />
           ))}
         </div>

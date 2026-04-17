@@ -16,5 +16,7 @@ CREATE TABLE IF NOT EXISTS user_favorites (
 CREATE INDEX IF NOT EXISTS user_favorites_user_date_idx
   ON user_favorites (user_id, created_at DESC);
 
+ALTER TABLE user_favorites ADD COLUMN IF NOT EXISTS source_type TEXT NOT NULL DEFAULT 'article';
+
 COMMENT ON TABLE user_favorites IS
-  'Per-user article bookmarks. article_url is the unique identifier for an article within a user scope.';
+  'Per-user bookmarks (articles + videos). article_url is the unique identifier within a user scope.';

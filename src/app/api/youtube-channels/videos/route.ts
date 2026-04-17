@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth-api";
 import { getChannelLatest, type RssVideoResult } from "@/lib/transcript-api";
 import { createClient } from "@supabase/supabase-js";
 
@@ -109,9 +108,6 @@ async function refreshFromRss(db: ReturnType<typeof getDb>) {
 }
 
 export async function GET(req: NextRequest) {
-  const auth = await requireSession();
-  if (!auth.ok) return auth.response;
-
   const db = getDb();
 
   const dateParam = req.nextUrl.searchParams.get("date");

@@ -832,6 +832,7 @@ export interface UserFavoriteRow {
   article_title: string;
   article_source: string;
   article_date: string | null;
+  source_type: string;
   created_at: string;
 }
 
@@ -870,7 +871,7 @@ export async function getUserFavoriteUrls(userId: string): Promise<string[]> {
 
 export async function addUserFavorite(
   userId: string,
-  article: { url: string; title: string; source: string; pubDate?: string },
+  article: { url: string; title: string; source: string; pubDate?: string; sourceType?: string },
 ): Promise<boolean> {
   const clientP = getServerClient();
   if (!clientP) return false;
@@ -883,6 +884,7 @@ export async function addUserFavorite(
         article_title: article.title,
         article_source: article.source,
         article_date: article.pubDate || null,
+        source_type: article.sourceType || "article",
       },
       { onConflict: "user_id,article_url" },
     );
@@ -1215,6 +1217,48 @@ export async function insertVideoBullets(
     return !error;
   } catch {
     return false;
+  }
+}
+
+export async function getVideoTranscriptionText(
+  videoId: string,
+  lang: string,
+): Promise<string | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("video_transcriptions")
+      .select("summary_md")
+      .eq("video_id", videoId)
+      .eq("lang", lang)
+      .single();
+    if (error || !data) return null;
+    return (data as { summary_md: string }).summary_md;
+  } catch {
+    return null;
+  }
+}
+
+export async function getVideoIdsWithTranscription(
+  videoIds: string[],
+  lang: string,
+): Promise<Set<string>> {
+  if (videoIds.length === 0) return new Set();
+  const clientP = getServerClient();
+  if (!clientP) return new Set();
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("video_transcriptions")
+      .select("video_id")
+      .in("video_id", videoIds)
+      .eq("lang", lang);
+    if (error || !data) return new Set();
+    return new Set((data as { video_id: string }[]).map((r) => r.video_id));
+  } catch {
+    return new Set();
   }
 }
 

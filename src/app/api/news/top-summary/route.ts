@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerMessages, analyzeWithAI } from "@/lib/ai-analyze";
-import { cleanExpiredCache, getCachedResult, setCachedResult } from "@/lib/supabase";
+import { cleanExpiredCache, getCachedResult, setCachedResult, insertTopSummaryBullets } from "@/lib/supabase";
 import type { Lang } from "@/lib/i18n";
 import type { ArticleSummary, SummaryResponse } from "@/lib/types";
 import { createHash } from "crypto";
@@ -53,6 +53,7 @@ interface TopSummaryBody {
     link: string;
     source: string;
     pubDate: string;
+    topic?: string;
   }>;
   lang: "en" | "fr";
 }
@@ -148,6 +149,60 @@ export async function POST(request: NextRequest) {
 
     setCachedResult(cacheTopic, lang, 24, items.length, response).catch(() => {});
     if (Math.random() < 0.1) cleanExpiredCache().catch(() => {});
+
+    // Persist bullets into summary_bullets (fire-and-forget)
+    if (bullets.length > 0) {
+      const today = new Date().toISOString().slice(0, 10);
+      const bulletRows: Array<{
+        topic_id: string | null;
+        lang: string;
+        summary_date: string;
+        bullet_index: number;
+        text: string;
+        refs: unknown;
+        source_type: string;
+        entities: string[];
+      }> = [];
+
+      for (let i = 0; i < bullets.length; i++) {
+        const blt = bullets[i];
+        const refIndices = (blt.refs ?? [])
+          .map((ref) => articles.findIndex((a) => a.link === ref.link))
+          .filter((idx) => idx >= 0);
+        const topics = new Set<string>();
+        for (const idx of refIndices) {
+          const t = articles[idx]?.topic;
+          if (t) topics.add(t);
+        }
+        if (topics.size === 0) {
+          bulletRows.push({
+            topic_id: null,
+            lang,
+            summary_date: today,
+            bullet_index: i,
+            text: blt.text,
+            refs: blt.refs,
+            source_type: "top50",
+            entities: [],
+          });
+        } else {
+          for (const topicId of topics) {
+            bulletRows.push({
+              topic_id: topicId,
+              lang,
+              summary_date: today,
+              bullet_index: i,
+              text: blt.text,
+              refs: blt.refs,
+              source_type: "top50",
+              entities: [],
+            });
+          }
+        }
+      }
+
+      insertTopSummaryBullets(lang, today, bulletRows).catch(() => {});
+    }
 
     return NextResponse.json(response, {
       headers: { "X-Cache": "MISS" },

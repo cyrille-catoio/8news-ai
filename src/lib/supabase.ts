@@ -1262,6 +1262,38 @@ export async function getVideoIdsWithTranscription(
   }
 }
 
+export async function insertTopSummaryBullets(
+  lang: string,
+  summaryDate: string,
+  rows: Array<{
+    topic_id: string | null;
+    lang: string;
+    summary_date: string;
+    bullet_index: number;
+    text: string;
+    refs: unknown;
+    source_type: string;
+    entities: string[];
+  }>,
+): Promise<boolean> {
+  if (rows.length === 0) return true;
+  const clientP = getServerClient();
+  if (!clientP) return false;
+  try {
+    const supabase = await clientP;
+    await supabase
+      .from("summary_bullets")
+      .delete()
+      .eq("source_type", "top50")
+      .eq("lang", lang)
+      .eq("summary_date", summaryDate);
+    const { error } = await supabase.from("summary_bullets").insert(rows);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
 export async function getActiveTopicIds(): Promise<string[]> {
   const clientP = getServerClient();
   if (!clientP) return [];

@@ -45,7 +45,7 @@ import { YouTubeChannelsPage } from "@/app/components/YouTubeChannelsPage";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.103";
+const APP_VERSION = "1.104";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 
@@ -539,7 +539,8 @@ export default function Home() {
     : topicLabels;
 
   const isTopArticlesPage = currentPage === "topArticles";
-  const topFeedPoll = isTopArticlesPage;
+  /** Top 50: no background poll — periodic refetch could reorder articles and retrigger /api/news/top-summary, wiping the on-screen summary into loading. */
+  const topFeedPoll = false;
   const {
     articles: topFeed,
     loading: topFeedLoading,
@@ -569,6 +570,7 @@ export default function Home() {
           link: a.link,
           source: a.source,
           pubDate: a.pubDate,
+          topic: a.topic,
         })),
         lang,
       }),

@@ -8,6 +8,7 @@ import { t } from "@/lib/i18n";
 import { AudioPlayer } from "@/app/components/AudioPlayer";
 import { FavoriteButton } from "@/app/components/FavoriteButton";
 import { CopyLinkButton } from "@/app/components/CopyLinkButton";
+import { DownloadTranscriptButton } from "@/app/components/DownloadTranscriptButton";
 
 const ReactMarkdown = dynamic(() => import("react-markdown"), { ssr: false });
 
@@ -233,6 +234,7 @@ function VideoCard({
   const [descExpanded, setDescExpanded] = useState(false);
   const [summaryExpanded, setSummaryExpanded] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
+  const [playing, setPlaying] = useState(false);
   const pendingExpandAfterTranscribeRef = useRef(false);
   const summaryPanelRef = useRef<HTMLDivElement>(null);
 
@@ -333,19 +335,76 @@ function VideoCard({
   return (
     <div style={cardStyle}>
       <div className="video-card-row">
-        <a href={v.link} target="_blank" rel="noopener noreferrer" className="video-thumb">
+        <div className="video-thumb">
           <div style={thumbWrap}>
-            {v.thumbnail ? (
-              <img src={v.thumbnail} alt="" style={thumbImg} loading="lazy" />
+            {playing ? (
+              <iframe
+                src={`https://www.youtube.com/embed/${v.videoId}?autoplay=1&rel=0&modestbranding=1`}
+                title={v.title}
+                style={{ width: "100%", height: "100%", border: "none", display: "block" }}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
             ) : (
-              <div style={{ ...thumbImg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke={color.textDim} strokeWidth="1.5">
-                  <polygon points="5,3 19,12 5,21" />
-                </svg>
-              </div>
+              <button
+                type="button"
+                onClick={() => setPlaying(true)}
+                aria-label={lang === "fr" ? `Lire la vidéo : ${v.title}` : `Play video: ${v.title}`}
+                style={{
+                  position: "relative",
+                  display: "block",
+                  width: "100%",
+                  height: "100%",
+                  padding: 0,
+                  margin: 0,
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                }}
+              >
+                {v.thumbnail ? (
+                  <img src={v.thumbnail} alt="" style={thumbImg} loading="lazy" />
+                ) : (
+                  <div style={{ ...thumbImg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke={color.textDim} strokeWidth="1.5">
+                      <polygon points="5,3 19,12 5,21" />
+                    </svg>
+                  </div>
+                )}
+                <span
+                  aria-hidden
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "rgba(0,0,0,0.18)",
+                    transition: "background 0.15s",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: "50%",
+                      background: "rgba(0,0,0,0.65)",
+                      border: `2px solid ${color.gold}`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      boxShadow: "0 4px 16px rgba(0,0,0,0.55)",
+                    }}
+                  >
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill={color.gold} stroke="none" style={{ marginLeft: 3 }}>
+                      <polygon points="5,3 19,12 5,21" />
+                    </svg>
+                  </span>
+                </span>
+              </button>
             )}
           </div>
-        </a>
+        </div>
         <div className="video-body" style={bodyStyle}>
           <a href={v.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
             <div style={{ color: color.text, fontSize: 15, fontWeight: 600, lineHeight: 1.35, marginBottom: 6 }}>{v.title}</div>
@@ -398,17 +457,35 @@ function VideoCard({
           </div>
 
           <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
-            <a
-              href={v.link}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ ...btnStyle, textDecoration: "none", opacity: 1 }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="#000" stroke="none">
-                <polygon points="5,3 19,12 5,21" />
-              </svg>
-              {lang === "fr" ? "Play Vidéo" : "Play Video"}
-            </a>
+            {playing ? (
+              <a
+                href={v.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ ...btnStyle, textDecoration: "none", opacity: 1 }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                  <polyline points="15 3 21 3 21 9" />
+                  <line x1="10" y1="14" x2="21" y2="3" />
+                </svg>
+                {lang === "fr" ? "Ouvrir sur YouTube" : "Open on YouTube"}
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setPlaying(true);
+                }}
+                style={{ ...btnStyle, opacity: 1 }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="#000" stroke="none">
+                  <polygon points="5,3 19,12 5,21" />
+                </svg>
+                {lang === "fr" ? "Play Vidéo" : "Play Video"}
+              </button>
+            )}
             <button
               type="button"
               disabled={transcribing}
@@ -438,7 +515,7 @@ function VideoCard({
                   <path d="M4 6h16M4 12h16M4 18h10" />
                 </svg>
               )}
-              Transcription
+              {lang === "fr" ? "Résumé" : "Summary"}
             </button>
             <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 2 }}>
               <FavoriteButton
@@ -452,6 +529,44 @@ function VideoCard({
                 onToggle={onToggleFavorite}
                 onRequestAuth={onRequestAuth}
                 isAuthenticated={isAuthenticated}
+              />
+              <a
+                href={v.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={lang === "fr" ? "Ouvrir sur YouTube" : "Open on YouTube"}
+                aria-label={lang === "fr" ? "Ouvrir sur YouTube" : "Open on YouTube"}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: 4,
+                  color: color.textDim,
+                  flexShrink: 0,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  textDecoration: "none",
+                  transition: "color 0.15s",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLAnchorElement).style.color = color.gold;
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLAnchorElement).style.color = color.textDim;
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                  <polyline points="15 3 21 3 21 9" />
+                  <line x1="10" y1="14" x2="21" y2="3" />
+                </svg>
+              </a>
+              <DownloadTranscriptButton
+                videoId={v.videoId}
+                hasTranscription={hasTranscription}
+                summaryMd={summaryMd}
+                title={v.title}
+                lang={lang}
               />
               <CopyLinkButton url={v.link} />
             </div>
@@ -496,7 +611,19 @@ function VideoCard({
                 const maxBody = 4800 - intro.length;
                 const body = plain.length > maxBody ? plain.slice(0, maxBody) + "…" : plain;
                 return body.length > 0 ? (
-                  <div style={{ marginBottom: 12 }}>
+                  <div style={{ paddingTop: 10, marginBottom: 12 }}>
+                    <div
+                      style={{
+                        color: color.gold,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.08em",
+                        marginBottom: 6,
+                      }}
+                    >
+                      {lang === "fr" ? "Lecteur audio" : "Audio player"}
+                    </div>
                     <AudioPlayer text={`${intro} ${body}`} lang={lang} speed={speed} voice={voice} />
                   </div>
                 ) : null;
@@ -528,13 +655,15 @@ const arrowBtn: CSSProperties = {
   fontFamily: "inherit",
 };
 
-function ShortsToggle({
-  showShorts,
+type VideoKind = "long" | "shorts";
+
+function VideoKindToggle({
+  kind,
   onChange,
   lang,
 }: {
-  showShorts: boolean;
-  onChange: (v: boolean) => void;
+  kind: VideoKind;
+  onChange: (v: VideoKind) => void;
   lang: Lang;
 }) {
   const segBtn = (active: boolean, isLeft: boolean): CSSProperties => ({
@@ -553,26 +682,25 @@ function ShortsToggle({
   return (
     <div
       role="group"
-      aria-label={t("videosShowShortsLabel", lang)}
-      style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}
+      aria-label={t("videoKindToggleAria", lang)}
+      style={{ display: "flex", alignItems: "center", flexShrink: 0 }}
     >
-      <span style={{ color: color.textMuted, fontSize: 12, fontWeight: 500 }}>{t("videosShowShortsLabel", lang)}</span>
       <div style={{ display: "flex", borderRadius: 5, overflow: "hidden", border: `1px solid ${color.gold}` }}>
         <button
           type="button"
-          onClick={() => onChange(false)}
-          style={segBtn(!showShorts, true)}
-          aria-pressed={!showShorts}
+          onClick={() => onChange("long")}
+          style={segBtn(kind === "long", true)}
+          aria-pressed={kind === "long"}
         >
-          {t("videosShortsOff", lang)}
+          {t("videoKindLong", lang)}
         </button>
         <button
           type="button"
-          onClick={() => onChange(true)}
-          style={segBtn(showShorts, false)}
-          aria-pressed={showShorts}
+          onClick={() => onChange("shorts")}
+          style={segBtn(kind === "shorts", false)}
+          aria-pressed={kind === "shorts"}
         >
-          {t("videosShortsOn", lang)}
+          {t("videoKindShorts", lang)}
         </button>
       </div>
     </div>
@@ -599,7 +727,7 @@ export function VideosPage({
   onRequestAuth: () => void;
 }) {
   const [date, setDate] = useState(() => toISODate(new Date()));
-  const [showShorts, setShowShorts] = useState(false);
+  const [videoKind, setVideoKind] = useState<VideoKind>("long");
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -608,7 +736,9 @@ export function VideosPage({
 
   const isToday = date === toISODate(new Date());
 
-  const visibleVideos = showShorts ? videos : videos.filter((v) => !isShortVideo(v));
+  const visibleVideos = videoKind === "shorts"
+    ? videos.filter(isShortVideo)
+    : videos.filter((v) => !isShortVideo(v));
 
   const fetchVideos = useCallback(async (d: string, l: Lang) => {
     setLoading(true);
@@ -666,7 +796,7 @@ export function VideosPage({
   return (
     <div>
       <h2 style={{ color: color.gold, fontSize: 20, fontWeight: 600, marginBottom: 12, marginTop: 16 }}>
-        {lang === "fr" ? "Vidéos" : "Videos"}
+        {lang === "fr" ? "Vidéo du jour" : "Video of the day"}
       </h2>
 
       {/* ── Date row: navigation left, Shorts toggle right (aligned with video cards) ── */}
@@ -708,7 +838,7 @@ export function VideosPage({
           )}
         </div>
 
-        <ShortsToggle showShorts={showShorts} onChange={setShowShorts} lang={lang} />
+        <VideoKindToggle kind={videoKind} onChange={setVideoKind} lang={lang} />
       </div>
 
       {/* ── Content ───────────────────────────────────────────── */}
@@ -731,7 +861,9 @@ export function VideosPage({
         </p>
       ) : visibleVideos.length === 0 ? (
         <p style={{ color: color.textMuted, fontSize: 14, textAlign: "center", padding: "48px 0", maxWidth: 420, marginLeft: "auto", marginRight: "auto" }}>
-          {t("videosShortsHintAllHidden", lang)}
+          {videoKind === "long"
+            ? t("videoKindHintNoLong", lang)
+            : t("videoKindHintNoShorts", lang)}
         </p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>

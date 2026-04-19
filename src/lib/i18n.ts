@@ -998,21 +998,25 @@ const strings = {
     en: "Videos",
     fr: "Vidéos",
   },
-  videosShowShortsLabel: {
-    en: "Shorts",
-    fr: "Shorts",
+  videoKindLong: {
+    en: "Long",
+    fr: "Long",
   },
-  videosShortsOff: {
-    en: "Off",
-    fr: "Non",
+  videoKindShorts: {
+    en: "Short",
+    fr: "Short",
   },
-  videosShortsOn: {
-    en: "On",
-    fr: "Oui",
+  videoKindToggleAria: {
+    en: "Show long videos or Short",
+    fr: "Afficher les vidéos longues ou le format Short",
   },
-  videosShortsHintAllHidden: {
-    en: "All videos for this day are Shorts (hidden). Turn Shorts on to show them.",
-    fr: "Toutes les vidéos de ce jour sont des Shorts (masquées). Activez Shorts pour les afficher.",
+  videoKindHintNoLong: {
+    en: "No long videos for this day. Switch to Short to see them.",
+    fr: "Aucune vidéo longue ce jour. Bascule sur Short pour les voir.",
+  },
+  videoKindHintNoShorts: {
+    en: "No short videos for this day. Switch to Long to see the videos.",
+    fr: "Aucune vidéo courte ce jour. Bascule sur Long pour voir les vidéos.",
   },
   videoSummaryRegionAria: {
     en: "AI summary",

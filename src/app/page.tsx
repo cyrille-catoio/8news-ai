@@ -45,7 +45,7 @@ import { YouTubeChannelsPage } from "@/app/components/YouTubeChannelsPage";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.104";
+const APP_VERSION = "1.107";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 
@@ -417,7 +417,8 @@ export default function Home() {
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const PAGE_PATHS: Record<AppNavPage, string> = {
-    home: "/",
+    videos: "/",
+    home: "/articles",
     stats: "/stats",
     crons: "/crons",
     topics: "/topics",
@@ -427,23 +428,20 @@ export default function Home() {
     categories: "/categories",
     favorites: "/favorites",
     dailySummaries: "/daily-summaries",
-    videos: "/videos",
     youtubeChannels: "/youtube-channels",
     topArticles: "/top-articles",
     summaries: "/summaries-browse",
   };
 
   const pathToPage = (path: string): AppNavPage => {
+    if (path === "/videos") return "videos";
     for (const [page, p] of Object.entries(PAGE_PATHS) as [AppNavPage, string][]) {
       if (p === path) return page;
     }
-    return "home";
+    return "videos";
   };
 
-  const [currentPage, setCurrentPageRaw] = useState<AppNavPage>(() => {
-    if (typeof window === "undefined") return "home";
-    return pathToPage(window.location.pathname);
-  });
+  const [currentPage, setCurrentPageRaw] = useState<AppNavPage>("videos");
 
   const setCurrentPage = useCallback((page: AppNavPage, replace = false) => {
     setCurrentPageRaw(page);
@@ -460,6 +458,7 @@ export default function Home() {
 
   useEffect(() => {
     const initial = pathToPage(window.location.pathname);
+    setCurrentPageRaw(initial);
     window.history.replaceState({ page: initial }, "", window.location.pathname);
 
     const handler = (e: PopStateEvent) => {
@@ -495,13 +494,13 @@ export default function Home() {
   useEffect(() => {
     if (authLoading) return;
     if (!authOwner && (currentPage === "feeds" || currentPage === "categories" || currentPage === "dailySummaries" || currentPage === "youtubeChannels")) {
-      setCurrentPage("home");
+      setCurrentPage("videos", true);
     }
     if (!isAuthenticated && currentPage === "topics") {
-      setCurrentPage("home");
+      setCurrentPage("videos", true);
     }
     if (!isAuthenticated && currentPage === "favorites") {
-      setCurrentPage("home");
+      setCurrentPage("videos", true);
     }
   }, [authLoading, authOwner, isAuthenticated, currentPage]);
 
@@ -740,7 +739,7 @@ export default function Home() {
             setCurrentPage(page);
           }}
           onHomeReset={() => {
-            setCurrentPage("home");
+            setCurrentPage("videos");
             handleReset();
           }}
           onLangChange={handleLangChange}
@@ -784,11 +783,11 @@ export default function Home() {
               canManage={authOwner}
               startInCreate={topicsStartInCreate}
               onExit={() => {
-                setCurrentPage("home");
+                setCurrentPage("videos");
                 setTopicsStartInCreate(false);
               }}
               onMemberCreatedTopic={(message) => {
-                setCurrentPage("home");
+                setCurrentPage("videos");
                 setTopicsStartInCreate(false);
                 showHomeToast(message, 5000);
               }}
@@ -887,7 +886,7 @@ export default function Home() {
                       locale={locale}
                       lang={lang}
                       hours={24}
-                      topicName="Top Articles"
+                      topicName={t("analyzeTopArticlesBtn", lang)}
                       speed={ttsSpeed}
                       voice={lang === "fr" ? ttsVoiceFr : ttsVoice}
                     />

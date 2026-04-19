@@ -3,9 +3,9 @@ import { getCachedResult, setCachedResult, cleanExpiredCache, getScoredArticles,
 import { getServerMessages, generateFallbackPrompt, analyzeWithAI, type RelevantEntry } from "@/lib/ai-analyze";
 import type { Lang } from "@/lib/i18n";
 import type { ArticleSummary, SummaryBullet, SummaryResponse } from "@/lib/types";
+import { SNIPPET_MAX } from "@/lib/constants";
 
 const PREVIEW_LIMIT = 10;
-const SNIPPET_MAX = 600;
 
 export const maxDuration = 60;
 

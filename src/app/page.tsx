@@ -45,7 +45,7 @@ import { YouTubeChannelsPage } from "@/app/components/YouTubeChannelsPage";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.107";
+const APP_VERSION = "1.107.2";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 

@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getDailySummaryBySlug, getDailySummary, getTopicById } from "@/lib/supabase";
@@ -68,8 +68,19 @@ export default async function DailySummaryPage({ params }: PageProps) {
   const topic = await getTopicById(topicId);
   if (!topic) notFound();
 
-  const summary = await getDailySummaryBySlug(topicId, date, slug);
-  if (!summary) notFound();
+  let summary = await getDailySummaryBySlug(topicId, date, slug);
+  if (!summary) {
+    // Fallback for stale/broken slugs: redirect to canonical slug for this topic/date.
+    const [enSummary, frSummary] = await Promise.all([
+      getDailySummary(topicId, date, "en"),
+      getDailySummary(topicId, date, "fr"),
+    ]);
+    const canonical = enSummary ?? frSummary;
+    if (canonical) {
+      redirect(`/${topicId}/${date}/${canonical.slug_keywords}`);
+    }
+    notFound();
+  }
 
   const lang = summary.lang as Lang;
   const locale = lang === "fr" ? "fr-FR" : "en-US";

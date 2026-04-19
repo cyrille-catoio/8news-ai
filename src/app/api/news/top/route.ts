@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTopArticlesForStats, getHiddenTopicIds, getTopArticlesForTopics, type TopArticleRow } from "@/lib/supabase";
 import type { Lang } from "@/lib/i18n";
-
-const SNIPPET_MAX = 600;
+import { SNIPPET_MAX } from "@/lib/constants";
 
 function parseLang(raw: string | null): Lang {
   return raw === "fr" ? "fr" : "en";

@@ -9,6 +9,16 @@ export interface ChangelogEntryDef {
 
 export const CHANGELOG_ENTRIES: ChangelogEntryDef[] = [
   {
+    version: "1.107.1",
+    title_en: "v1.107.1: Videos — auto-open summary after transcribe, slow progressive reveal",
+    title_fr: "v1.107.1 : Vidéos — ouverture auto du résumé après transcription, dévoilement lent",
+    body_en:
+      "After a successful **Transcription** run, the AI summary now opens automatically under the card (no extra click). The panel uses a **CSS grid `0fr` → `1fr` transition (~2.2s)** so lower cards **ease downward** and make room; inner content **fades in** with a short delay (~1.1s opacity). **Smooth `scrollIntoView`** nudges the expanded block into view after open. **Collapse** (button or “Réduire le résumé”) animates closed with the same slow height transition. **`prefers-reduced-motion: reduce`** short-circuits animations and skips animated scroll. Visible **dark-ring spinner** on the gold Transcription button while loading. This patch also ships the accumulated **v1.107** work: Videos as default SPA home (`/`), topic/news flow at `/articles`, middleware + `next.config` SPA paths, `GET /api/youtube-channels/videos?lang=` + `summaryMd` hydration, Shorts toggle (<2 min, default off), General Menu with **Videos** left of Topics, header subtitle **Tech * AI * Crypto**, plus related news/topics/SEO code updates.",
+    body_fr:
+      "Après une **Transcription** réussie, le résumé IA s’ouvre **automatiquement** sous la carte (sans clic supplémentaire). Le panneau utilise une **transition CSS grid `0fr` → `1fr` (~2,2 s)** pour que les cartes du dessous **descendent en douceur** et libèrent la place ; le contenu **apparaît en fondu** avec un court délai (**~1,1 s** en opacité). Un **`scrollIntoView` fluide** recadre le bloc ouvert. Le **repli** (bouton ou « Réduire le résumé ») referme avec la **même transition de hauteur lente**. Le media **`prefers-reduced-motion: reduce`** désactive les animations et le défilement animé. **Spinner anneau sombre** visible sur le bouton or pendant le chargement. Ce correctif inclut aussi le lot **v1.107** : accueil Vidéos SPA (`/`), flux topics/actualités sur `/articles`, chemins SPA middleware + `next.config`, `GET /api/youtube-channels/videos?lang=` + hydratation `summaryMd`, interrupteur Shorts (<2 min, défaut off), menu général avec **Vidéos** à gauche de Topics, sous-titre **Tech * AI * Crypto**, et autres ajustements news/topics/SEO.",
+    created_at: "2026-04-19T22:00:00Z",
+  },
+  {
     version: "1.106",
     title_en: "v1.106: Videos as default home, General Menu order, videos UX, baseline",
     title_fr: "v1.106 : Vidéos en accueil par défaut, ordre menu général, UX vidéos, baseline",

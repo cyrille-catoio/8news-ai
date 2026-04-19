@@ -121,7 +121,7 @@ function UserMenu({ lang, authed, authLoading, isOwner, onSignIn, onSignOut }: {
               <a href="/categories" onClick={() => setOpen(false)} style={menuItemStyle}>{t("categoriesAdminAria", lang)}</a>
               <a href="/feeds" onClick={() => setOpen(false)} style={menuItemStyle}>{t("feedsAdminAria", lang)}</a>
               <a href="/daily-summaries" onClick={() => setOpen(false)} style={menuItemStyle}>{t("dailySummariesAdmin", lang)}</a>
-              <a href="/videos" onClick={() => setOpen(false)} style={menuItemStyle}>Videos</a>
+              <a href="/" onClick={() => setOpen(false)} style={menuItemStyle}>Videos</a>
               <div style={{ height: 1, background: color.border, margin: "4px 0" }} />
             </>
           )}
@@ -220,7 +220,7 @@ export function SeoNavBar({ lang, altLangUrl }: { lang: Lang; altLangUrl?: strin
         <img src="/logo-8news.png" alt="8news" style={{ height: "clamp(32px, 5vw, 48px)", width: "auto", display: "block" }} />
       </a>
       <p style={{ color: color.textMuted, fontSize: 15, marginTop: 8, marginLeft: 0 }}>
-        {lang === "fr" ? "La tech décodée par l'IA" : "Tech decoded by AI"}
+        {t("subtitle", lang)}
       </p>
     </header>
   );

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
-import { requireSession } from "@/lib/auth-api";
 import { getVideoTranscript } from "@/lib/transcript-api";
 import {
   getVideoTranscription,
@@ -106,9 +105,6 @@ function extractBulletsFromMarkdown(md: string): string[] {
 }
 
 export async function POST(req: Request) {
-  const auth = await requireSession();
-  if (!auth.ok) return auth.response;
-
   const { videoId, title, channelId, lang } = await req.json();
   if (!videoId || typeof videoId !== "string") {
     return NextResponse.json({ error: "videoId is required" }, { status: 400 });

@@ -6,8 +6,8 @@ const strings = {
     fr: "8news",
   },
   subtitle: {
-    en: "Tech decoded by AI",
-    fr: "La tech décodée par l'IA",
+    en: "Tech * AI * Crypto",
+    fr: "Tech * AI * Crypto",
   },
   selectPeriod: {
     en: "Select a time period:",
@@ -328,6 +328,10 @@ const strings = {
   categoryColumn: {
     en: "Category",
     fr: "Catégorie",
+  },
+  topicCategorySaveError: {
+    en: "Could not update the category.",
+    fr: "Impossible de mettre à jour la catégorie.",
   },
   categoriesAdminAria: {
     en: "Categories",
@@ -665,6 +669,11 @@ const strings = {
     en: "Home",
     fr: "Accueil",
   },
+  /** General menu first item: goes to homepage (article flow). */
+  generalMenuArticlesBtn: {
+    en: "Topics",
+    fr: "Topics",
+  },
   navTopicsAria: {
     en: "Topics",
     fr: "Topics",
@@ -806,8 +815,8 @@ const strings = {
     fr: "Personnaliser mes topics",
   },
   analyzeTopArticlesBtn: {
-    en: "Top 50 articles",
-    fr: "Top 50 articles",
+    en: "Today's Top",
+    fr: "Top du jour",
   },
   myTopicsEdit: {
     en: "Edit",
@@ -988,6 +997,26 @@ const strings = {
   videosBtn: {
     en: "Videos",
     fr: "Vidéos",
+  },
+  videosShowShortsLabel: {
+    en: "Shorts",
+    fr: "Shorts",
+  },
+  videosShortsOff: {
+    en: "Off",
+    fr: "Non",
+  },
+  videosShortsOn: {
+    en: "On",
+    fr: "Oui",
+  },
+  videosShortsHintAllHidden: {
+    en: "All videos for this day are Shorts (hidden). Turn Shorts on to show them.",
+    fr: "Toutes les vidéos de ce jour sont des Shorts (masquées). Activez Shorts pour les afficher.",
+  },
+  videoSummaryRegionAria: {
+    en: "AI summary",
+    fr: "Résumé IA",
   },
   dailySummaryExplorerTitle: {
     en: "Daily Summaries",

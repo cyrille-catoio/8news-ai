@@ -1,7 +1,7 @@
 # 8news.ai — Technical Specification
 
-**Version**: v1.99
-**Last updated**: 16 April 2026
+**Version**: v1.105
+**Last updated**: 19 April 2026
 
 ---
 
@@ -9,7 +9,7 @@
 
 **8news.ai** is an AI-powered news aggregation and summarisation platform. It fetches articles from curated RSS feeds across multiple **dynamic, database-driven topics**, pre-scores them with AI via scheduled Netlify cron jobs (stored in Supabase), then analyses the top-scoring articles with OpenAI (topic summaries via GPT-4.1-nano; homepage Top summary via GPT-5.3-chat-latest; daily SEO summaries via GPT-4.1-mini) for structured summarisation. Results are presented in a dark-themed, bilingual (EN/FR) web interface with ElevenLabs text-to-speech playback.
 
-Users can **create custom topics** from the UI, with AI-assisted generation of scoring criteria and automatic RSS feed discovery. **v1.94+**: Article **favorites** system (star icon, per-user storage). **v1.95+**: Public **SEO daily summary pages** per topic with AI entity extraction, dynamic sitemap, and JSON-LD structured data. **v1.98+**: Persistent **General Menu** (Homepage, My Favorites, Top 50 articles, Daily Summaries, Videos) across all pages; admin items merged into user dropdown. **v1.99+**: **YouTube video monitoring** with channel management, daily video listing, and **AI-powered video transcription** (TranscriptAPI + GPT-4.1-mini Markdown summaries).
+Users can **create custom topics** from the UI, with AI-assisted generation of scoring criteria and automatic RSS feed discovery. **v1.94+**: Article **favorites** system (star icon, per-user storage). **v1.95+**: Public **SEO daily summary pages** per topic with AI entity extraction, dynamic sitemap, and JSON-LD structured data. **v1.98+**: Persistent **General Menu** (first item: **Topics** — homepage / topic grid — **v1.105+**; My Favorites; Top 50; Daily Summaries; Videos) across all pages; admin items merged into user dropdown. **v1.99+**: **YouTube video monitoring** with channel management, daily video listing, and **AI-powered video transcription** (TranscriptAPI + GPT-4.1-mini Markdown summaries). **v1.105+**: Topics admin **list** includes an **inline category** `<select>` per row (`PATCH /api/topics/:id` with `categoryId` only, optimistic UI, `topicCategorySaveError` on failure).
 
 **v1.80+**: Optional **Supabase Auth** (email + password). **v1.81+**: **`user_type`** in **`user_metadata`** — **`member`** (default at sign-up) or **`owner`**. The app remains **fully usable without signing in** (home, stats, crons, changelog, settings). Signed-in **members** use the same public areas as guests. **Topics** and **Feed management** are **`owner`**-only (promote in **Supabase Dashboard → Authentication → Users**; user must sign in again for JWT refresh). Admin APIs: **`401`** unsigned, **`403`** **`member`**. **v1.82+**: Settings **My Account** (any authenticated user, editable name) + **Users** management (`owner`-only, inline edit of name and user type).
 
@@ -50,7 +50,7 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   ├── logo-8news.png          # App logo (PNG, "8" gold / "news" light grey)
 │   ├── favicon.svg             # Browser favicon — gold "8" on black, 512×512
 │   ├── apple-touch-icon.svg    # iOS home screen icon — gold "8" on black, 180×180
-│   └── version.json            # {"version":"1.83"} — auto-update check (bump with each release)
+│   └── version.json            # {"version":"1.105"} — deployed release string for auto-update banner (bump each production push)
 ├── src/
 │   ├── app/
 │   │   ├── layout.tsx          # Root layout, metadata, favicons, **v1.80+** `AuthProvider` wrapper, **v1.82+** Google Analytics, **v1.96+** SEO footer
@@ -148,7 +148,8 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 │   ├── 011-daily-summaries.sql  # **v1.95+**: daily_summaries + summary_bullets tables (SEO)
 │   ├── 012-enable-rls-all-tables.sql  # **v1.98+**: RLS on all public tables
 │   ├── 013-youtube-channels.sql       # **v1.99+**: YouTube channels table
-│   └── 014-video-transcriptions.sql   # **v1.99+**: youtube_videos cache, video_transcriptions, summary_bullets source_type
+│   ├── 014-video-transcriptions.sql   # **v1.99+**: youtube_videos cache, video_transcriptions, summary_bullets source_type
+│   └── 015-daily-summaries-slug-guard.sql  # **v1.105+**: CHECK on `daily_summaries.slug_keywords` (kebab-case, max length) `NOT VALID` for existing rows
 ├── .gitignore                  # Next/Node ignores; **v1.77+**: `.claude/` (local Claude/Cursor worktrees, not committed)
 ├── .env                        # API keys (not committed)
 ├── .env.example                # Placeholder for API keys
@@ -513,7 +514,7 @@ The app root is `src/app/page.tsx` (`"use client"`): **home** topic/period flow,
 The app has **14 pages** managed by `currentPage` state (`"home"` | `"stats"` | `"crons"` | `"topics"` | `"feeds"` | `"categories"` | `"dailySummaries"` | `"favorites"` | `"topArticles"` | `"summaries"` | `"videos"` | `"youtubeChannels"` | `"changelog"` | `"settings"`). **v1.80+**: **`topics`**, **`feeds`**, **`categories`**, **`dailySummaries`**, and **`youtubeChannels`** are reachable only for **`owner`** users. **`favorites`** requires any authenticated user.
 
 **General Menu** (`GeneralMenu`, **v1.98+**, visible on all pages):
-- Persistent navigation bar: **Homepage**, **My Favorites** (authenticated only), **Top 50 articles**, **Daily Summaries**, **Videos**
+- Persistent navigation bar: **Topics** (`generalMenuArticlesBtn` — **v1.105+**; EN/FR label **Topics**, still navigates SPA/SSR to **homepage** / topic flow), **My Favorites** (authenticated only), **Top 50** (`analyzeTopArticlesBtn`), **Daily Summaries**, **Videos**
 - Active button highlighted with gold border/background
 - SSR variant (`SeoGeneralMenu`) used on SEO pages with `<a>` links
 
@@ -623,7 +624,7 @@ Real-time monitoring dashboard for fetch and scoring cron jobs. Auto-refreshes e
 
 Full CRUD management for topics and feeds. **`index.tsx`** holds state and API handlers; **three view components**: `TopicsPageListView`, `TopicsPageCreateView`, `TopicsPageDetailView`.
 
-**List view**: Table of all topics with #, name, feed count, status, click to detail. Supports **drag & drop reordering** via `/api/topics/reorder` with optimistic UI updates.
+**List view**: Table of all topics with #, name, **category** (inline `<select>` — **v1.105+**: `PATCH /api/topics/:id` with `{ categoryId }` only; per-row disabled state while saving; rollback + `topicCategorySaveError` on failure), feed count, status, click to detail. **Reorder** via ↑/↓ buttons calling `/api/topics/reorder` with optimistic UI updates.
 
 **Create view** (**v1.93+ refactored**): Form with:
 - **Identity box**: Label EN, Label FR, Slug (3-column row); "Generate with AI" button; Domain textarea
@@ -763,17 +764,19 @@ Text-to-Speech player for the global summary, using ElevenLabs API.
 
 ### 8.18 Auto-Update Banner
 
-The app checks `public/version.json` every **5 minutes**. If the version differs from `APP_VERSION`, a gold banner appears at the **top-right** of the screen (copy: `homeNewVersionBanner` in `i18n.ts`). Clicking reloads the page. No auto-reload.
+The app checks `public/version.json` every **5 minutes**. If the version string **differs** from the bundled **`APP_VERSION`** constant in `page.tsx`, a gold banner appears at the **top-right** of the screen (copy: `homeNewVersionBanner` in `i18n.ts`). Clicking reloads the page. No auto-reload.
+
+**Release workflow**: Bump **`public/version.json`** to the shipped release after each production deploy (e.g. **1.105**). On the main branch, **`APP_VERSION`** is usually set to the **next** patch (e.g. **1.106**) so the footer shows the in-development label and browsers that already fetched the new `version.json` still see the banner until the next deploy aligns both.
 
 ### 8.19 Version Footer
 
-Fixed bottom-right: `v{APP_VERSION}` from `page.tsx`, kept in sync with `public/version.json` (increment with each production release).
+Fixed bottom-right: `v{APP_VERSION}` from `page.tsx` (not necessarily equal to `version.json` during the post-release dev window — see §8.18).
 
 ---
 
 ## 9. Internationalisation (i18n)
 
-Defined in `src/lib/i18n.ts` — **100+ translation keys** (includes feed admin, changelog, toasts, home loading / Top 50 / version banner / nav aria-labels).
+Defined in `src/lib/i18n.ts` — **100+ translation keys** (includes feed admin, changelog, toasts, home loading / Top 50 / version banner / nav aria-labels, **v1.105+** `topicCategorySaveError` for failed topic category PATCH from the admin list).
 
 - **Languages**: English (`en`), French (`fr`)
 - **Toggle**: Segmented control in header — sets cookie, reloads page
@@ -1038,6 +1041,8 @@ The topic immediately appears in the homepage topic selector, stats page, and cr
 ## 17. Changelog
 
 Release history is maintained in **`src/lib/changelog-entries.ts`** and auto-synced to the `changelog` DB table on first `GET /api/changelog` call after deploy. The in-app Changelog page displays all entries. This SPEC does not duplicate the changelog — see the source file or the in-app page for the full history.
+
+**Recent**: **v1.105** — Topics admin list category picker; General Menu first button label **Topics**; migration **015** slug guard on `daily_summaries.slug_keywords`; version banner / `version.json` vs `APP_VERSION` (sections **8.18** and **8.19**).
 
 ---
 

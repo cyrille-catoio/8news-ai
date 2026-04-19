@@ -75,6 +75,7 @@ export function TopicsPage({
     rejected: { name: string; url: string; reason: string }[];
   } | null>(null);
   const [listNotice, setListNotice] = useState<string | null>(null);
+  const [savingCategoryTopicId, setSavingCategoryTopicId] = useState<string | null>(null);
 
   function clearCreateForm() {
     setFormId("");
@@ -510,6 +511,34 @@ Les valeurs "index" correspondent aux positions (à partir de 0) dans la liste. 
     }
   }
 
+  async function handleListCategoryChange(topicId: string, categoryId: number) {
+    const topic = topics.find((tp) => tp.id === topicId);
+    if (!topic || topic.categoryId === categoryId) return;
+    const cat = categories.find((c) => c.id === categoryId);
+    const label = cat ? (lang === "fr" ? cat.labelFr : cat.labelEn) : topic.categoryLabel;
+    const snapshot = { ...topic };
+    setSavingCategoryTopicId(topicId);
+    setError(null);
+    setTopics((prev) =>
+      prev.map((tp) =>
+        tp.id === topicId ? { ...tp, categoryId, categoryLabel: label ?? tp.categoryLabel } : tp,
+      ),
+    );
+    try {
+      const res = await fetch(`/api/topics/${topicId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ categoryId }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setError(t("topicCategorySaveError", lang));
+      setTopics((prev) => prev.map((tp) => (tp.id === topicId ? snapshot : tp)));
+    } finally {
+      setSavingCategoryTopicId(null);
+    }
+  }
+
   async function handleReorder(idA: string, idB: string) {
     const newTopics = [...topics];
     const iA = newTopics.findIndex((tp) => tp.id === idA);
@@ -667,13 +696,16 @@ Les valeurs "index" correspondent aux positions (à partir de 0) dans la liste. 
     <TopicsPageListView
       lang={lang}
       topics={topics}
+      categories={categories}
       loading={loading}
       error={error}
       notice={listNotice}
+      savingCategoryTopicId={savingCategoryTopicId}
       onNewTopic={() => setView("create")}
       onLoadDetail={loadDetail}
       onReorder={handleReorder}
       onToggleDisplay={handleToggleDisplay}
+      onCategoryChange={handleListCategoryChange}
     />
   );
 }

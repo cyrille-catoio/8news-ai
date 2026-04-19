@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAllArticlesFromDb } from "@/lib/supabase";
 import type { Lang } from "@/lib/i18n";
 import type { ArticleSummary } from "@/lib/types";
+import { SNIPPET_MAX } from "@/lib/constants";
 
 const MAX_ALL_ARTICLES = 1000;
 
@@ -15,7 +16,7 @@ function toArticleSummary(
     link: r.link,
     source: r.source,
     pubDate: r.pub_date,
-    snippet: aiSnippet || (r.snippet || r.content || "").slice(0, 300),
+    snippet: aiSnippet || (r.snippet || r.content || "").slice(0, SNIPPET_MAX),
     score: r.relevance_score ?? null,
   };
 }

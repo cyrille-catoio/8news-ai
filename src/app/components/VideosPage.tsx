@@ -4,11 +4,17 @@ import { useState, useEffect, useCallback, useRef, type CSSProperties } from "re
 import dynamic from "next/dynamic";
 import { color, primaryButtonStyle, formInputStyle, spinnerStyle } from "@/lib/theme";
 import type { Lang } from "@/lib/i18n";
+import { t } from "@/lib/i18n";
 import { AudioPlayer } from "@/app/components/AudioPlayer";
 import { FavoriteButton } from "@/app/components/FavoriteButton";
 import { CopyLinkButton } from "@/app/components/CopyLinkButton";
 
 const ReactMarkdown = dynamic(() => import("react-markdown"), { ssr: false });
+
+/** Slow layout push for summary panel + fade-in of content (respect reduced-motion below). */
+const VIDEO_SUMMARY_GRID_MS = 2200;
+const VIDEO_SUMMARY_FADE_MS = 1100;
+const VIDEO_SUMMARY_FADE_DELAY_MS = 380;
 
 interface VideoItem {
   videoId: string;
@@ -30,6 +36,11 @@ function formatViews(v: string | null): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return n.toString();
+}
+
+/** Short: duration known and strictly under 2 minutes. Unknown duration is not treated as a short. */
+function isShortVideo(v: VideoItem): boolean {
+  return v.durationSec != null && v.durationSec < 120;
 }
 
 function formatDuration(sec: number): string {
@@ -177,6 +188,10 @@ const mdComponents = {
 
 const DESC_MAX = 120;
 
+function isTranscriptionErrorMarkdown(md: string | null): boolean {
+  return !!md && md.startsWith("> **Error:**");
+}
+
 const toggleLink: CSSProperties = {
   background: "none",
   border: "none",
@@ -216,7 +231,44 @@ function VideoCard({
   onRequestAuth: () => void;
 }) {
   const [descExpanded, setDescExpanded] = useState(false);
-  const [summaryExpanded, setSummaryExpanded] = useState(true);
+  const [summaryExpanded, setSummaryExpanded] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const pendingExpandAfterTranscribeRef = useRef(false);
+  const summaryPanelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const apply = () => setReducedMotion(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+
+  const transcriptionFailed = isTranscriptionErrorMarkdown(summaryMd);
+  const hasTranscription = !!summaryMd && !transcriptionFailed;
+
+  useEffect(() => {
+    if (transcriptionFailed && summaryMd) {
+      pendingExpandAfterTranscribeRef.current = false;
+      return;
+    }
+    if (!pendingExpandAfterTranscribeRef.current) return;
+    if (!hasTranscription || transcribing) return;
+    pendingExpandAfterTranscribeRef.current = false;
+    setSummaryExpanded(true);
+    if (reducedMotion) return;
+    const scroll = () => summaryPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.setTimeout(scroll, 120);
+      });
+    });
+  }, [hasTranscription, transcribing, transcriptionFailed, summaryMd, reducedMotion]);
+
+  const gridMs = reducedMotion ? 1 : VIDEO_SUMMARY_GRID_MS;
+  const fadeMs = reducedMotion ? 1 : VIDEO_SUMMARY_FADE_MS;
+  const fadeDelayMs = reducedMotion ? 0 : VIDEO_SUMMARY_FADE_DELAY_MS;
 
   const cardStyle: CSSProperties = {
     background: color.surface,
@@ -266,7 +318,14 @@ function VideoCard({
     padding: "6px 14px",
     fontSize: 12,
     marginTop: 10,
-    opacity: transcribing ? 0.7 : 1,
+    opacity: 1,
+  };
+
+  /** Gold-on-gold spinner is invisible; use dark ring on primary (gold) button. */
+  const transcribeBtnSpinnerStyle: CSSProperties = {
+    ...spinnerStyle(15, { borderWidth: 2, flexShrink: 0 }),
+    border: "2px solid rgba(0,0,0,0.38)",
+    borderTop: "2px solid transparent",
   };
 
   const descTruncated = v.description && v.description.length > DESC_MAX && !descExpanded;
@@ -338,24 +397,7 @@ function VideoCard({
             )}
           </div>
 
-          <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-            {!summaryMd && (
-              <button
-                type="button"
-                onClick={(e) => { e.preventDefault(); onTranscribe(); }}
-                disabled={transcribing}
-                style={btnStyle}
-              >
-                {transcribing ? (
-                  <>
-                    <span style={spinnerStyle(14, { borderWidth: 2 })} />
-                    {lang === "fr" ? "Transcription en cours…" : "Transcribing…"}
-                  </>
-                ) : (
-                  "Transcription"
-                )}
-              </button>
-            )}
+          <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
             <a
               href={v.link}
               target="_blank"
@@ -367,6 +409,37 @@ function VideoCard({
               </svg>
               {lang === "fr" ? "Play Vidéo" : "Play Video"}
             </a>
+            <button
+              type="button"
+              disabled={transcribing}
+              onClick={(e) => {
+                e.preventDefault();
+                if (transcribing) return;
+                if (hasTranscription) {
+                  setSummaryExpanded((x) => !x);
+                  return;
+                }
+                pendingExpandAfterTranscribeRef.current = true;
+                onTranscribe();
+              }}
+              aria-expanded={hasTranscription ? summaryExpanded : undefined}
+              aria-controls={hasTranscription ? `video-ai-summary-${v.videoId}` : undefined}
+              aria-busy={transcribing}
+              style={{ ...btnStyle, cursor: transcribing ? "wait" : "pointer" }}
+            >
+              {transcribing ? (
+                <span style={transcribeBtnSpinnerStyle} aria-hidden />
+              ) : hasTranscription ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M20 6L9 17l-5-5" />
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M4 6h16M4 12h16M4 18h10" />
+                </svg>
+              )}
+              Transcription
+            </button>
             <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 2 }}>
               <FavoriteButton
                 url={v.link}
@@ -386,11 +459,37 @@ function VideoCard({
         </div>
       </div>
 
-      {/* Summary */}
-      {summaryMd && (
-        <div style={{ padding: summaryExpanded ? "0 20px 20px" : "8px 20px 10px", borderTop: `1px solid ${color.border}` }}>
-          {summaryExpanded ? (
-            <>
+      {/* Error after a failed run (always visible). Success summary only when expanded (toggle via Transcription). */}
+      {summaryMd && transcriptionFailed && (
+        <div
+          style={{ padding: "0 20px 20px", borderTop: `1px solid ${color.border}` }}
+        >
+          <ReactMarkdown components={mdComponents}>{summaryMd}</ReactMarkdown>
+        </div>
+      )}
+      {summaryMd && !transcriptionFailed && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateRows: summaryExpanded ? "1fr" : "0fr",
+            transition: `grid-template-rows ${gridMs}ms cubic-bezier(0.33, 0.86, 0.2, 1)`,
+          }}
+        >
+          <div style={{ minHeight: 0, overflow: "hidden" }}>
+            <div
+              ref={summaryPanelRef}
+              id={`video-ai-summary-${v.videoId}`}
+              role="region"
+              aria-label={t("videoSummaryRegionAria", lang)}
+              style={{
+                padding: "0 20px 20px",
+                borderTop: `1px solid ${color.border}`,
+                opacity: summaryExpanded ? 1 : 0,
+                transition: summaryExpanded
+                  ? `opacity ${fadeMs}ms ease ${fadeDelayMs}ms`
+                  : `opacity ${reducedMotion ? 1 : 320}ms ease`,
+              }}
+            >
               {(() => {
                 const plain = summaryMd.replace(/^##\s+.+$/gm, "").replace(/\*\*/g, "").replace(/^\s*[-*]\s+/gm, "").replace(/\n{2,}/g, "\n").trim();
                 const intro = lang === "fr" ? `Résumé de la vidéo ${v.title}.` : `Summary of the video ${v.title}.`;
@@ -406,15 +505,8 @@ function VideoCard({
               <button type="button" onClick={() => setSummaryExpanded(false)} style={{ ...toggleLink, marginTop: 8 }}>
                 {lang === "fr" ? "Réduire le résumé" : "Collapse summary"}
               </button>
-            </>
-          ) : (
-            <button type="button" onClick={() => setSummaryExpanded(true)} style={{ ...toggleLink, display: "inline-flex", alignItems: "center", gap: 5 }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color.gold} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 12l2 2 4-4" /><circle cx="12" cy="12" r="10" />
-              </svg>
-              {lang === "fr" ? "Résumé IA — Voir" : "AI Summary — View"}
-            </button>
-          )}
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -436,6 +528,57 @@ const arrowBtn: CSSProperties = {
   fontFamily: "inherit",
 };
 
+function ShortsToggle({
+  showShorts,
+  onChange,
+  lang,
+}: {
+  showShorts: boolean;
+  onChange: (v: boolean) => void;
+  lang: Lang;
+}) {
+  const segBtn = (active: boolean, isLeft: boolean): CSSProperties => ({
+    padding: "4px 10px",
+    fontSize: 10.4,
+    fontWeight: 600,
+    border: "none",
+    borderLeft: isLeft ? "none" : `1px solid ${color.gold}`,
+    cursor: "pointer",
+    background: active ? color.gold : "transparent",
+    color: active ? "#000" : color.gold,
+    transition: "all 0.15s",
+    fontFamily: "inherit",
+  });
+
+  return (
+    <div
+      role="group"
+      aria-label={t("videosShowShortsLabel", lang)}
+      style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}
+    >
+      <span style={{ color: color.textMuted, fontSize: 12, fontWeight: 500 }}>{t("videosShowShortsLabel", lang)}</span>
+      <div style={{ display: "flex", borderRadius: 5, overflow: "hidden", border: `1px solid ${color.gold}` }}>
+        <button
+          type="button"
+          onClick={() => onChange(false)}
+          style={segBtn(!showShorts, true)}
+          aria-pressed={!showShorts}
+        >
+          {t("videosShortsOff", lang)}
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(true)}
+          style={segBtn(showShorts, false)}
+          aria-pressed={showShorts}
+        >
+          {t("videosShortsOn", lang)}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* ── Main page ───────────────────────────────────────────────────── */
 
 export function VideosPage({
@@ -456,6 +599,7 @@ export function VideosPage({
   onRequestAuth: () => void;
 }) {
   const [date, setDate] = useState(() => toISODate(new Date()));
+  const [showShorts, setShowShorts] = useState(false);
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -464,15 +608,28 @@ export function VideosPage({
 
   const isToday = date === toISODate(new Date());
 
-  const fetchVideos = useCallback(async (d: string) => {
+  const visibleVideos = showShorts ? videos : videos.filter((v) => !isShortVideo(v));
+
+  const fetchVideos = useCallback(async (d: string, l: Lang) => {
     setLoading(true);
     setError(null);
     setVideos([]);
+    setSummaries({});
     try {
-      const res = await fetch(`/api/youtube-channels/videos?date=${d}`, { cache: "no-store" });
+      const res = await fetch(`/api/youtube-channels/videos?date=${encodeURIComponent(d)}&lang=${l}`, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: VideoItem[] = await res.json();
-      setVideos(data);
+      const data = (await res.json()) as Array<VideoItem & { summaryMd?: string | null }>;
+      const sm: Record<string, string> = {};
+      const clean: VideoItem[] = [];
+      for (const row of data) {
+        const { summaryMd, ...rest } = row;
+        clean.push(rest);
+        if (typeof summaryMd === "string" && summaryMd.length > 0) {
+          sm[rest.videoId] = summaryMd;
+        }
+      }
+      setVideos(clean);
+      setSummaries(sm);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error");
     } finally {
@@ -481,8 +638,8 @@ export function VideosPage({
   }, []);
 
   useEffect(() => {
-    fetchVideos(date);
-  }, [date, fetchVideos]);
+    fetchVideos(date, lang);
+  }, [date, lang, fetchVideos]);
 
   const handleTranscribe = useCallback(async (v: VideoItem) => {
     setTranscribing((prev) => ({ ...prev, [v.videoId]: true }));
@@ -512,33 +669,46 @@ export function VideosPage({
         {lang === "fr" ? "Vidéos" : "Videos"}
       </h2>
 
-      {/* ── Date picker bar ───────────────────────────────────── */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-        <button type="button" onClick={() => setDate(addDays(date, -1))} style={arrowBtn} title={lang === "fr" ? "Jour précédent" : "Previous day"}>
-          ‹
-        </button>
+      {/* ── Date row: navigation left, Shorts toggle right (aligned with video cards) ── */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1fr) auto",
+          alignItems: "center",
+          gap: 12,
+          marginBottom: 20,
+          width: "100%",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 }}>
+          <button type="button" onClick={() => setDate(addDays(date, -1))} style={arrowBtn} title={lang === "fr" ? "Jour précédent" : "Previous day"}>
+            ‹
+          </button>
 
-        <MiniCalendar value={date} onChange={setDate} lang={lang} />
+          <MiniCalendar value={date} onChange={setDate} lang={lang} />
 
-        <button
-          type="button"
-          onClick={() => { if (!isToday) setDate(addDays(date, 1)); }}
-          style={{ ...arrowBtn, opacity: isToday ? 0.3 : 1, cursor: isToday ? "default" : "pointer" }}
-          disabled={isToday}
-          title={lang === "fr" ? "Jour suivant" : "Next day"}
-        >
-          ›
-        </button>
-
-        {!isToday && (
           <button
             type="button"
-            onClick={() => setDate(toISODate(new Date()))}
-            style={{ ...arrowBtn, fontSize: 12, fontWeight: 500, padding: "5px 12px" }}
+            onClick={() => { if (!isToday) setDate(addDays(date, 1)); }}
+            style={{ ...arrowBtn, opacity: isToday ? 0.3 : 1, cursor: isToday ? "default" : "pointer" }}
+            disabled={isToday}
+            title={lang === "fr" ? "Jour suivant" : "Next day"}
           >
-            {lang === "fr" ? "Aujourd'hui" : "Today"}
+            ›
           </button>
-        )}
+
+          {!isToday && (
+            <button
+              type="button"
+              onClick={() => setDate(toISODate(new Date()))}
+              style={{ ...arrowBtn, fontSize: 12, fontWeight: 500, padding: "5px 12px" }}
+            >
+              {lang === "fr" ? "Aujourd'hui" : "Today"}
+            </button>
+          )}
+        </div>
+
+        <ShortsToggle showShorts={showShorts} onChange={setShowShorts} lang={lang} />
       </div>
 
       {/* ── Content ───────────────────────────────────────────── */}
@@ -559,9 +729,13 @@ export function VideosPage({
             ? "Aucune vidéo publiée ce jour sur les chaînes configurées"
             : "No videos published on this date from configured channels"}
         </p>
+      ) : visibleVideos.length === 0 ? (
+        <p style={{ color: color.textMuted, fontSize: 14, textAlign: "center", padding: "48px 0", maxWidth: 420, marginLeft: "auto", marginRight: "auto" }}>
+          {t("videosShortsHintAllHidden", lang)}
+        </p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
-          {videos.map((v) => (
+          {visibleVideos.map((v) => (
             <VideoCard
               key={v.videoId}
               v={v}

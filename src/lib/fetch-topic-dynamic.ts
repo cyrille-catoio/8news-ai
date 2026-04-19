@@ -2,10 +2,10 @@ import Parser from "rss-parser";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { decodeHtmlEntities } from "@/lib/html";
 import type { ParsedArticle } from "@/lib/types";
+import { SNIPPET_MAX } from "@/lib/constants";
 
 const rssParser = new Parser({ timeout: 5_000 });
 const FETCH_TIMEOUT_MS = 5_000;
-const SNIPPET_MAX = 600;
 
 export interface FetchResult {
   summary: string;

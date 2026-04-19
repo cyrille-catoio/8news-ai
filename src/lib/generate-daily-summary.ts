@@ -1,8 +1,8 @@
 import OpenAI from "openai";
 import type { Lang } from "@/lib/i18n";
 import type { ArticleSummary, SummaryBullet, AIAnalysis } from "@/lib/types";
-import { formatArticleList } from "@/lib/ai-analyze";
-import { generateFallbackPrompt } from "@/lib/ai-analyze";
+import { formatArticleList, generateFallbackPrompt } from "@/lib/ai-analyze";
+import { SNIPPET_MAX } from "@/lib/constants";
 import {
   getScoredArticles,
   getTopicPrompt,
@@ -11,8 +11,6 @@ import {
   insertDailySummary,
   insertSummaryBullets,
 } from "@/lib/supabase";
-
-const SNIPPET_MAX = 600;
 const MIN_SCORE = 3;
 const MAX_ARTICLES_FEED = 50;
 const MAX_ARTICLES_DISPLAY = 10;
@@ -23,6 +21,14 @@ const CONTROL_CHARS = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g;
 
 function sanitize(s: string): string {
   return s.replace(CONTROL_CHARS, " ").trim();
+}
+
+function slugify(input: string): string {
+  return input
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 function toArticleSummary(
@@ -220,10 +226,9 @@ export async function generateDailySummary(
     .map((w) => w.toLowerCase().replace(/[^a-z0-9]/g, ""))
     .filter(Boolean)
     .slice(0, 3);
-  const slugKeywords =
-    seoKeywords.length >= 3
-      ? seoKeywords.join("-")
-      : `${topicId}-${date.replace(/-/g, "")}`.slice(0, 30);
+  const fallbackSlug = slugify(`${topicId}-${date.replace(/-/g, "")}`) || "summary";
+  const slugFromKeywords = slugify(seoKeywords.join("-"));
+  const slugKeywords = (slugFromKeywords || fallbackSlug).slice(0, 80) || fallbackSlug;
   const seoTitle = (typeof parsed.seoTitle === "string" ? parsed.seoTitle : `${topicId} — ${date}`).slice(0, 120);
   const seoDescription = (typeof parsed.seoDescription === "string" ? parsed.seoDescription : bullets.map((b) => b.text).join(". ").slice(0, 155)).slice(0, 160);
 

@@ -256,7 +256,7 @@ export function AppHeader({
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <NavIconButton
-            active={currentPage === "home"}
+            active={currentPage === "videos"}
             onClick={onHomeReset}
             ariaLabel={t("navHomeAria", lang)}
           >

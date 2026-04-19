@@ -1,6 +1,6 @@
 "use client";
 
-import type { TopicItem } from "@/lib/types";
+import type { CategoryItem, TopicItem } from "@/lib/types";
 import { t, type Lang } from "@/lib/i18n";
 import {
   color,
@@ -9,28 +9,35 @@ import {
   spinnerStyle,
   sectionCard,
   primaryButtonStyle,
+  formInputStyle,
 } from "@/lib/theme";
 
 export function TopicsPageListView({
   lang,
   topics,
+  categories,
   loading,
   error,
   notice,
+  savingCategoryTopicId,
   onNewTopic,
   onLoadDetail,
   onReorder,
   onToggleDisplay,
+  onCategoryChange,
 }: {
   lang: Lang;
   topics: TopicItem[];
+  categories: CategoryItem[];
   loading: boolean;
   error: string | null;
   notice: string | null;
+  savingCategoryTopicId: string | null;
   onNewTopic: () => void;
   onLoadDetail: (id: string) => void;
   onReorder: (idA: string, idB: string) => void;
   onToggleDisplay: (id: string, value: boolean) => void;
+  onCategoryChange: (topicId: string, categoryId: number) => void;
 }) {
   return (
     <div>
@@ -119,8 +126,33 @@ export function TopicsPageListView({
                       {lang === "fr" ? tp.labelFr : tp.labelEn}
                     </button>
                   </td>
-                  <td className="col-hide" style={{ color: color.textMuted, fontSize: 12 }}>
-                    {tp.categoryLabel ?? "—"}
+                  <td className="col-hide" style={{ verticalAlign: "middle" }}>
+                    {categories.length > 0 ? (
+                      <select
+                        value={tp.categoryId ?? categories[0].id}
+                        disabled={savingCategoryTopicId === tp.id}
+                        onChange={(e) => {
+                          const next = Number(e.target.value);
+                          if (next === (tp.categoryId ?? categories[0].id)) return;
+                          onCategoryChange(tp.id, next);
+                        }}
+                        style={{
+                          ...formInputStyle,
+                          maxWidth: 200,
+                          fontSize: 12,
+                          padding: "6px 8px",
+                          cursor: savingCategoryTopicId === tp.id ? "wait" : "pointer",
+                        }}
+                      >
+                        {categories.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {lang === "fr" ? c.labelFr : c.labelEn}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span style={{ color: color.textMuted, fontSize: 12 }}>{tp.categoryLabel ?? "—"}</span>
+                    )}
                   </td>
                   <td>{tp.feedCount}</td>
                   <td className="col-hide">

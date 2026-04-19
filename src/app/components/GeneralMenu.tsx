@@ -66,20 +66,18 @@ export function GeneralMenu({
     <div style={barWrap}>
       <button
         type="button"
+        onClick={onNavigateVideos}
+        style={currentPage === "videos" ? activeStyle : base}
+      >
+        {t("videosBtn", lang)}
+      </button>
+      <button
+        type="button"
         onClick={onNavigateHome}
         style={currentPage === "home" ? activeStyle : base}
       >
-        {t("navHomeAria", lang)}
+        {t("generalMenuArticlesBtn", lang)}
       </button>
-      {isAuthenticated && (
-        <button
-          type="button"
-          onClick={onNavigateFavorites}
-          style={currentPage === "favorites" ? activeStyle : base}
-        >
-          {t("myFavoritesBtn", lang)}
-        </button>
-      )}
       <button
         type="button"
         onClick={onAnalyzeTop}
@@ -95,13 +93,15 @@ export function GeneralMenu({
       >
         {t("dailySummaryBtn", lang)}
       </button>
-      <button
-        type="button"
-        onClick={onNavigateVideos}
-        style={currentPage === "videos" ? activeStyle : base}
-      >
-        {t("videosBtn", lang)}
-      </button>
+      {isAuthenticated && (
+        <button
+          type="button"
+          onClick={onNavigateFavorites}
+          style={currentPage === "favorites" ? activeStyle : base}
+        >
+          {t("myFavoritesBtn", lang)}
+        </button>
+      )}
     </div>
   );
 }
@@ -120,23 +120,23 @@ export function SeoGeneralMenu({
 
   return (
     <div style={barWrap}>
-      <a href="/" style={activePage === "home" ? activeStyle : base}>
-        {t("navHomeAria", lang)}
+      <a href="/" style={activePage === "videos" ? activeStyle : base}>
+        {t("videosBtn", lang)}
       </a>
-      {authed && (
-        <a href="/favorites" style={activePage === "favorites" ? activeStyle : base}>
-          {t("myFavoritesBtn", lang)}
-        </a>
-      )}
+      <a href="/articles" style={activePage === "home" ? activeStyle : base}>
+        {t("generalMenuArticlesBtn", lang)}
+      </a>
       <a href="/top-articles" style={activePage === "topArticles" ? activeStyle : base}>
         {t("analyzeTopArticlesBtn", lang)}
       </a>
       <a href="/summaries" style={activePage === "summaries" ? activeStyle : base}>
         {t("dailySummaryBtn", lang)}
       </a>
-      <a href={authed ? "/videos" : "/"}  style={activePage === "videos" ? activeStyle : base}>
-        {t("videosBtn", lang)}
-      </a>
+      {authed && (
+        <a href="/favorites" style={activePage === "favorites" ? activeStyle : base}>
+          {t("myFavoritesBtn", lang)}
+        </a>
+      )}
     </div>
   );
 }

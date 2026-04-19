@@ -56,6 +56,9 @@ export interface VideoItem {
   link: string;
 }
 
+/** API list row: persisted AI summary for the requested UI language, if any. */
+export type VideoListResponseItem = VideoItem & { summaryMd: string | null };
+
 function toDateStr(d: Date): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
 }
@@ -112,6 +115,8 @@ export async function GET(req: NextRequest) {
 
   const dateParam = req.nextUrl.searchParams.get("date");
   const targetDate = dateParam ?? toDateStr(new Date());
+  const langParam = req.nextUrl.searchParams.get("lang");
+  const uiLang = langParam === "fr" ? "fr" : "en";
 
   // Always refresh from RSS to capture new videos
   await refreshFromRss(db);
@@ -150,18 +155,38 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const results: VideoItem[] = rows.map((r: Record<string, unknown>) => ({
-    videoId: r.video_id as string,
-    title: r.title as string,
-    description: r.description as string | null,
-    channelTitle: r.channel_title as string,
-    channelId: r.channel_id as string,
-    published: r.published as string,
-    thumbnail: r.thumbnail as string | null,
-    viewCount: r.view_count as string | null,
-    durationSec: (r.duration_sec as number | null) ?? null,
-    link: r.link as string,
-  }));
+  const videoIds = rows.map((r) => (r as Record<string, unknown>).video_id as string);
+  const summaryByVideoId = new Map<string, string>();
+  if (videoIds.length > 0) {
+    const { data: trows } = await db
+      .from("video_transcriptions")
+      .select("video_id, summary_md")
+      .in("video_id", videoIds)
+      .eq("lang", uiLang);
+    for (const row of trows ?? []) {
+      const tr = row as { video_id: string; summary_md: string | null };
+      if (tr.summary_md && tr.summary_md.length > 0) {
+        summaryByVideoId.set(tr.video_id, tr.summary_md);
+      }
+    }
+  }
+
+  const results: VideoListResponseItem[] = rows.map((r: Record<string, unknown>) => {
+    const videoId = r.video_id as string;
+    return {
+      videoId,
+      title: r.title as string,
+      description: r.description as string | null,
+      channelTitle: r.channel_title as string,
+      channelId: r.channel_id as string,
+      published: r.published as string,
+      thumbnail: r.thumbnail as string | null,
+      viewCount: r.view_count as string | null,
+      durationSec: (r.duration_sec as number | null) ?? null,
+      link: r.link as string,
+      summaryMd: summaryByVideoId.get(videoId) ?? null,
+    };
+  });
 
   return NextResponse.json(results);
 }

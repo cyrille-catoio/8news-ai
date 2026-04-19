@@ -65,7 +65,25 @@ export async function GET() {
     offset += PAGE;
   }
 
-  return NextResponse.json({ entries }, {
+  // Source of truth: CHANGELOG_ENTRIES. Hide DB rows for versions that have
+  // been superseded/merged in code (e.g. patch releases folded into a parent
+  // entry) and override stored title/body with the current code values so a
+  // single deploy is enough to refresh the public changelog.
+  const codeMap = new Map(CHANGELOG_ENTRIES.map((e) => [e.version, e]));
+  const filtered = entries
+    .filter((e) => codeMap.has(e.version))
+    .map((e) => {
+      const code = codeMap.get(e.version)!;
+      return {
+        ...e,
+        title_en: code.title_en,
+        title_fr: code.title_fr,
+        body_en: code.body_en,
+        body_fr: code.body_fr,
+      };
+    });
+
+  return NextResponse.json({ entries: filtered }, {
     headers: { "Cache-Control": "no-store" },
   });
 }

@@ -7,6 +7,7 @@ import {
   insertVideoBullets,
 } from "@/lib/supabase";
 import { createClient } from "@supabase/supabase-js";
+import { normalizeSummaryHeadings } from "@/lib/summary-headings";
 
 const AI_MODEL = "gpt-4.1-mini";
 
@@ -18,44 +19,62 @@ function targetWords(wordCount: number): string {
 
 function buildSummaryPrompt(lang: string, targetRange: string): string {
   if (lang === "fr") {
-    return `Tu es un analyste expert. Résume la transcription suivante d'une vidéo YouTube.
+    return `Tu rédiges un article de presse à partir du contenu fourni. Le texte source est une transcription, mais tu écris comme si tu traitais l'actualité directement.
 
 Règles :
 - Réponds UNIQUEMENT en Markdown, en français.
+- Écris à la troisième personne, ton journalistique, factuel et concret.
+- Ne mentionne JAMAIS la vidéo, la transcription, le contenu source, l'auteur, l'animateur, le présentateur, l'invité, l'épisode, le podcast, la chaîne, les spectateurs ou les abonnés.
+- N'utilise pas de formules méta du type « la vidéo aborde », « le speaker explique », « il est dit que », « selon l'auteur ». Présente directement les faits et les analyses.
+- Aucune référence entre parenthèses.
+- Mets en **gras** les chiffres clés, noms propres et termes importants.
 - Structure obligatoire :
 
-## TL;DR
-Une phrase de synthèse.
+## INTRO
+Une phrase de synthèse, factuelle, sans mention de la source.
 
 ## Points clés
-- **Point 1** : 2-4 phrases détaillées avec chiffres, noms, faits marquants.
-- **Point 2** : …
-(entre 5 et 15 bullet points selon la longueur)
+- **Point 1**
+
+  2-4 phrases détaillées avec chiffres, noms, faits marquants, écrites comme un paragraphe d'article.
+
+- **Point 2**
+
+  …
+
+(entre 5 et 15 bullet points selon la longueur ; pour chaque point : titre en **gras** seul sur sa ligne, ligne vide, puis le paragraphe indenté de deux espaces)
 
 - Longueur cible : ${targetRange} mots.
-- Mets en **gras** les chiffres clés, noms propres et termes importants.
-- Pas de références entre parenthèses.
-- Sois factuel et informatif, avec des anecdotes ou détails surprenants si disponibles.`;
+- Sois factuel et informatif, avec anecdotes ou détails surprenants quand ils sont présents.`;
   }
 
-  return `You are an expert analyst. Summarize the following YouTube video transcript.
+  return `You are writing a news article from the provided material. The source is a transcript, but write as if reporting on the topic directly.
 
 Rules:
 - Respond ONLY in Markdown, in English.
+- Use third person, neutral journalistic tone, factual and concrete.
+- NEVER mention the video, the transcript, the source, the author, the host, the speaker, the guest, the episode, the podcast, the channel, viewers or subscribers.
+- Avoid meta phrasing like "the video introduces", "the speaker explains", "it is said that", "according to the author". Present the facts and analysis directly.
+- No parenthetical references.
+- Use **bold** for key figures, proper nouns, and important terms.
 - Mandatory structure:
 
 ## TL;DR
-One summary sentence.
+One factual summary sentence, with no mention of the source.
 
 ## Key Points
-- **Point 1**: 2-4 detailed sentences with figures, names, key facts.
-- **Point 2**: …
-(between 5 and 15 bullet points depending on length)
+- **Point 1**
+
+  2-4 detailed sentences with figures, names, key facts, written as an article paragraph.
+
+- **Point 2**
+
+  …
+
+(between 5 and 15 bullet points depending on length; for each point: bold title alone on its line, blank line, then the paragraph indented by two spaces)
 
 - Target length: ${targetRange} words.
-- Use **bold** for key figures, proper nouns, and important terms.
-- No parenthetical references.
-- Be factual and informative, include surprising anecdotes or details when available.`;
+- Be factual and informative; include surprising anecdotes or details when they appear in the material.`;
 }
 
 function buildTranslatePrompt(targetLang: string): string {
@@ -63,9 +82,10 @@ function buildTranslatePrompt(targetLang: string): string {
     return `Tu es un traducteur expert. Traduis le résumé Markdown suivant en français.
 
 Règles :
-- Conserve exactement la même structure Markdown (## TL;DR, ## Points clés, bullet points).
+- Conserve exactement la même structure Markdown (## INTRO, ## Points clés, bullet points).
 - Conserve le **gras** sur les mêmes termes.
-- Traduis "## Key Points" en "## Points clés" et "## TL;DR" reste "## TL;DR".
+- Traduis "## Key Points" en "## Points clés" et remplace "## TL;DR" par "## INTRO".
+- Pour chaque point : titre en **gras** seul sur sa ligne, ligne vide, puis le paragraphe indenté de deux espaces (préserve ce format si l'original l'utilise, et applique-le si l'original a le titre et le paragraphe sur la même ligne).
 - Ne résume pas davantage, traduis fidèlement.`;
   }
 
@@ -74,7 +94,8 @@ Règles :
 Rules:
 - Keep the exact same Markdown structure (## TL;DR, ## Key Points, bullet points).
 - Keep **bold** on the same terms.
-- Translate "## Points clés" to "## Key Points" and "## TL;DR" stays "## TL;DR".
+- Translate "## Points clés" to "## Key Points" and replace "## INTRO" with "## TL;DR".
+- For each point: bold title alone on its line, blank line, then the paragraph indented by two spaces (preserve this format if the source uses it, and apply it if the source has the title and paragraph on the same line).
 - Do not further summarize, translate faithfully.`;
 }
 
@@ -113,7 +134,10 @@ export async function POST(req: Request) {
 
   const cached = await getVideoTranscription(videoId, safeLang);
   if (cached) {
-    return NextResponse.json({ summaryMd: cached.summary_md, cached: true });
+    return NextResponse.json({
+      summaryMd: normalizeSummaryHeadings(cached.summary_md ?? "", safeLang),
+      cached: true,
+    });
   }
 
   const apiKey = process.env.OPENAI_API_KEY;
@@ -216,7 +240,10 @@ export async function POST(req: Request) {
       await insertVideoBullets(bulletRows);
     }
 
-    return NextResponse.json({ summaryMd, cached: false });
+    return NextResponse.json({
+      summaryMd: normalizeSummaryHeadings(summaryMd, safeLang),
+      cached: false,
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     return NextResponse.json({ error: msg }, { status: 502 });

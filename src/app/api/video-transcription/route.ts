@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getVideoTranscriptionText } from "@/lib/supabase";
+import { normalizeSummaryHeadings } from "@/lib/summary-headings";
 
 export async function GET(req: NextRequest) {
   const videoId = req.nextUrl.searchParams.get("videoId");
@@ -16,5 +17,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ summaryMd });
+  return NextResponse.json({ summaryMd: normalizeSummaryHeadings(summaryMd, safeLang) });
 }

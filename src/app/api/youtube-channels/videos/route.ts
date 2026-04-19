@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getChannelLatest, type RssVideoResult } from "@/lib/transcript-api";
 import { createClient } from "@supabase/supabase-js";
+import { normalizeSummaryHeadings } from "@/lib/summary-headings";
 
 function getDb() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -166,7 +167,7 @@ export async function GET(req: NextRequest) {
     for (const row of trows ?? []) {
       const tr = row as { video_id: string; summary_md: string | null };
       if (tr.summary_md && tr.summary_md.length > 0) {
-        summaryByVideoId.set(tr.video_id, tr.summary_md);
+        summaryByVideoId.set(tr.video_id, normalizeSummaryHeadings(tr.summary_md, uiLang));
       }
     }
   }

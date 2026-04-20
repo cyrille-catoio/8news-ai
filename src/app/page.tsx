@@ -16,7 +16,7 @@ import { LandingFooter } from "@/app/components/landing/LandingFooter";
 export const metadata: Metadata = {
   title: "8news.ai — Tech decoded by AI · Two hours of YouTube, read in eight minutes",
   description:
-    "8news aggregates 160+ RSS feeds and the YouTube channels you actually care about, scores every article from 1 to 10 with GPT-4.1, and returns a bullet-point brief with sources. EN / FR.",
+    "8news aggregates 400++ RSS feeds and the YouTube channels you actually care about, scores every article from 1 to 10 with AI, and returns a bullet-point brief with sources. EN / FR.",
   alternates: {
     canonical: "https://8news.ai",
     languages: {
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "8news.ai — Tech decoded by AI",
-    description: "Two hours of YouTube, read in eight minutes. AI-curated tech news in EN / FR.",
+    description: "Two hours of YouTube, read in 8 minutes. AI-curated tech news in EN / FR.",
     url: "https://8news.ai",
     siteName: "8news.ai",
     type: "website",

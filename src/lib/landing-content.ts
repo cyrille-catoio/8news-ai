@@ -91,20 +91,20 @@ export const LANDING_CONTENT: LandingContent = {
   nav: {
     links: {
       en: [["features", "How it works"], ["topics", "Topics"], ["videos", "Video AI"], ["pricing", "Pricing"], ["faq", "FAQ"]],
-      fr: [["features", "Fonctionnement"], ["topics", "Sujets"], ["videos", "Vidéo IA"], ["pricing", "Tarifs"], ["faq", "FAQ"]],
+      fr: [["features", "Fonctionnement"], ["topics", "Topics"], ["videos", "Vidéo IA"], ["pricing", "Tarifs"], ["faq", "FAQ"]],
     },
     signin: { en: "Sign in", fr: "Se connecter" },
     cta: { en: "Try it now", fr: "Essayer" },
   },
   hero: {
-    kicker: { en: "v1.109 · LIVE ON 8NEWS.AI", fr: "v1.109 · EN LIGNE SUR 8NEWS.AI" },
+    kicker: { en: "Tech / AI / Crypto", fr: "Tech / IA / Crypto" },
     headline: {
-      en: "Two hours of YouTube, <em>read in eight minutes.</em>",
-      fr: "Deux heures de YouTube, <em>lues en huit minutes.</em>",
+      en: "Two hours of YouTube,<br /><em>read in 8 minutes.</em>",
+      fr: "2 heures de YouTube,<br /><em>lues en 8 minutes.</em>",
     },
     sub: {
-      en: "8news aggregates 160+ RSS feeds and the YouTube channels you actually care about, scores every article from 1 to 10 with GPT-4.1, and returns a bullet-point brief with sources. No feed. No rabbit hole. Just the signal.",
-      fr: "8news agrège 160+ flux RSS et les chaînes YouTube qui comptent, score chaque article de 1 à 10 avec GPT-4.1, et vous renvoie une note synthétique avec sources. Pas de feed. Pas de trou noir. Juste le signal.",
+      en: "8news aggregates 400+ RSS feeds and the YouTube channels you actually care about, scores every article from 1 to 10 with GPT-4.1, and returns a bullet-point brief with sources. No feed. No rabbit hole. Just the signal.",
+      fr: "8news agrège plus de 400 flux RSS et les chaînes YouTube qui comptent, score chaque article de 1 à 10 par IA, et vous renvoie une note synthétique avec sources. Pas de feed. Pas de trou noir. Juste le signal.",
     },
     ctaPrimary: { en: "Try it now →", fr: "Essayer →" },
     ctaSecondary: { en: "See a daily summary", fr: "Voir un résumé du jour" },
@@ -127,28 +127,28 @@ export const LANDING_CONTENT: LandingContent = {
   },
   ticker: {
     items_en: [
-      "AI · 412 articles today", "CRYPTO · 186", "ROBOTICS · 94", "BITCOIN · 203",
-      "ANTHROPIC · 58", "ELON · 147", "AI ENG. · 121", "VIDEO GAMES · 76",
-      "IRAN WAR · 68", "160+ RSS FEEDS", "24 YOUTUBE CHANNELS", "EN / FR",
+      "AI", "CRYPTO", "ROBOTICS", "BITCOIN",
+      "ANTHROPIC", "ELON", "AI ENG.", "VIDEO GAMES",
+      "IRAN WAR", "400+ RSS FEEDS", "24 YOUTUBE CHANNELS", "EN / FR",
     ],
     items_fr: [
-      "IA · 412 articles aujourd'hui", "CRYPTO · 186", "ROBOTIQUE · 94", "BITCOIN · 203",
-      "ANTHROPIC · 58", "ELON · 147", "AI ENG. · 121", "JEUX VIDÉO · 76",
-      "GUERRE IRAN · 68", "160+ FLUX RSS", "24 CHAÎNES YOUTUBE", "EN / FR",
+      "IA", "CRYPTO", "ROBOTIQUE", "BITCOIN",
+      "ANTHROPIC", "ELON", "AI ENG.", "JEUX VIDÉO",
+      "GUERRE IRAN", "400+ FLUX RSS", "24 CHAÎNES YOUTUBE", "EN / FR",
     ],
   },
   stats: {
     en: [
-      { n: "160", unit: "+", l: "Curated RSS feeds" },
-      { n: "4.2", unit: "K/d", l: "Articles fetched" },
-      { n: "3m25s", l: "Avg. fetch → score delay" },
-      { n: "9", unit: "topics", l: "Plus your own custom ones" },
+      { n: "400", unit: "+", l: "Curated RSS feeds" },
+      { n: "100", unit: "K+", l: "Articles fetched" },
+      { n: "90", unit: "%", l: "Time saved" },
+      { n: "36", unit: "topics", l: "Plus your own custom ones" },
     ],
     fr: [
-      { n: "160", unit: "+", l: "Flux RSS curés" },
-      { n: "4,2", unit: "K/j", l: "Articles collectés" },
-      { n: "3m25s", l: "Délai fetch → score" },
-      { n: "9", unit: "sujets", l: "Plus les vôtres, sur mesure" },
+      { n: "400", unit: "+", l: "Flux RSS curés" },
+      { n: "100", unit: "K+", l: "Articles collectés" },
+      { n: "90", unit: "%", l: "Temps gagné" },
+      { n: "36", unit: "topics", l: "Plus les vôtres, sur mesure" },
     ],
   },
   how: {
@@ -159,26 +159,26 @@ export const LANDING_CONTENT: LandingContent = {
     },
     steps: {
       en: [
-        { num: "01", title: "Fetch", body: "Every minute, scheduled Netlify functions poll 160+ RSS feeds across nine topics. Duplicates are dropped. 4,284 articles land in Supabase on an average day.", viz: "fetch" },
+        { num: "01", title: "Fetch", body: "Every minute, scheduled Netlify functions poll 400+ RSS feeds across 36 topics. Duplicates are dropped. 4,284 articles land in Supabase on an average day.", viz: "fetch" },
         { num: "02", title: "Score", body: "GPT-4.1-nano rates each article 1–10 against the topic's custom scoring tiers. Only 5+ gets summarized. Fresh articles are prioritized with an adaptive budget.", viz: "score" },
         { num: "03", title: "Summarize", body: "GPT-5.3-chat-latest reads the top 20–50 pre-scored articles and returns eight bullet points with source refs. ElevenLabs reads it aloud if you want.", viz: "summary" },
       ],
       fr: [
-        { num: "01", title: "Collecte", body: "Chaque minute, des fonctions Netlify interrogent 160+ flux RSS sur neuf sujets. Les doublons sont écartés. 4 284 articles atterrissent dans Supabase un jour moyen.", viz: "fetch" },
-        { num: "02", title: "Scoring", body: "GPT-4.1-nano note chaque article de 1 à 10 selon les paliers de scoring du sujet. Seuls les 5+ sont résumés. Les articles frais sont priorisés.", viz: "score" },
+        { num: "01", title: "Collecte", body: "Chaque minute, des fonctions Netlify interrogent 400+ flux RSS sur 36 topics. Les doublons sont écartés. 4 284 articles atterrissent dans Supabase un jour moyen.", viz: "fetch" },
+        { num: "02", title: "Scoring", body: "GPT-4.1-nano note chaque article de 1 à 10 selon les paliers de scoring du topic. Seuls les 5+ sont résumés. Les articles frais sont priorisés.", viz: "score" },
         { num: "03", title: "Résumé", body: "GPT-5.3-chat-latest lit les 20–50 meilleurs articles pré-scorés et renvoie huit puces avec sources. ElevenLabs peut vous le lire à voix haute.", viz: "summary" },
       ],
     },
   },
   topics: {
-    kicker: { en: "Topics", fr: "Sujets" },
+    kicker: { en: "Topics", fr: "Topics" },
     title: {
-      en: "Nine topics by default. <em>Infinite custom topics</em> in one click.",
-      fr: "Neuf sujets par défaut. <em>Sujets personnalisés à l'infini</em> en un clic.",
+      en: "36 topics by default. <em>Infinite custom topics</em> in one click.",
+      fr: "36 topics par défaut. <em>Topics personnalisés à l'infini</em> en un clic.",
     },
     sub: {
       en: "Describe a topic in plain English, and 8news auto-discovers RSS feeds and writes the scoring prompt. Takes about 20 seconds.",
-      fr: "Décrivez un sujet en français simple, et 8news trouve les flux RSS et écrit le prompt de scoring. Environ 20 secondes.",
+      fr: "Décrivez un topic en français simple, et 8news trouve les flux RSS et écrit le prompt de scoring. Environ 20 secondes.",
     },
     list: [
       { label_en: "AI", label_fr: "IA", feeds: 24 },
@@ -194,8 +194,8 @@ export const LANDING_CONTENT: LandingContent = {
   yt: {
     kicker: { en: "YouTube intelligence", fr: "Intelligence YouTube" },
     title: {
-      en: "A two-hour podcast, <em>summarized in eight bullets.</em>",
-      fr: "Un podcast de deux heures, <em>résumé en huit puces.</em>",
+      en: "A 2-hour podcast, <em>summarized in 8 key points.</em>",
+      fr: "Un podcast de 2 heures, <em>résumé en 8 points clés.</em>",
     },
     sub: {
       en: "Pick the YouTube channels you follow. 8news ingests daily uploads, transcribes the ones you click, and returns a structured Markdown summary. Cross-language: if an English summary exists, we translate it for 1/5th the cost.",
@@ -248,12 +248,12 @@ export const LANDING_CONTENT: LandingContent = {
     },
     plans: {
       en: [
-        { tag: "CURRENT", name: "Free", price: "$0", per: "/forever", desc: "Everything we shipped in v1.109. No credit card, no waitlist.", features: ["All 9 default topics with 160+ RSS feeds", "Top 50 daily with AI summary + sources", "YouTube transcription (5 per day)", "ElevenLabs text-to-speech (12 voices)", "Favorites, daily summaries archive", "Bilingual EN / FR"], cta: "Try it now", featured: false },
-        { tag: "COMING SOON", name: "Pro", price: "$9", per: "/month", desc: "For founders, analysts and builders who need custom topics and higher limits.", features: ["Unlimited custom topics with AI feed discovery", "Unlimited YouTube transcriptions", "Webhooks & API access (Top 50 / daily summaries)", "Morning email digest, your topics only", "Priority scoring queue", "Private team workspace (up to 10 seats)"], cta: "Join the waitlist", featured: true },
+        { tag: "CURRENT", name: "Free", price: "$0", per: "/forever", desc: "Everything we shipped in v1.109.1. No credit card, no waitlist.", features: ["All 36 default topics with 400+ RSS feeds", "Top 50 daily with AI summary + sources", "YouTube transcription (5 per day)", "ElevenLabs text-to-speech (12 voices)", "Favorites, daily summaries archive", "Bilingual EN / FR"], cta: "Try it now", featured: false },
+        { tag: "COMING SOON", name: "Pro", price: "$8", per: "/month", desc: "For founders, analysts and builders who need custom topics and higher limits.", features: ["Unlimited custom topics with AI feed discovery", "Unlimited YouTube transcriptions", "Webhooks & API access (Top 50 / daily summaries)", "Morning email digest, your topics only", "Priority scoring queue"], cta: "Join the waitlist", featured: true },
       ],
       fr: [
-        { tag: "ACTUEL", name: "Gratuit", price: "0 €", per: "/à vie", desc: "Tout ce qu'on a livré en v1.109. Sans carte bancaire, sans liste d'attente.", features: ["Les 9 sujets par défaut avec 160+ flux RSS", "Top 50 quotidien avec résumé IA + sources", "Transcription YouTube (5 par jour)", "Text-to-speech ElevenLabs (12 voix)", "Favoris, archive des résumés quotidiens", "Bilingue EN / FR"], cta: "Essayer", featured: false },
-        { tag: "BIENTÔT", name: "Pro", price: "9 €", per: "/mois", desc: "Pour fondateurs, analystes et builders qui veulent des sujets sur mesure et plus de volume.", features: ["Sujets personnalisés illimités avec découverte IA des flux", "Transcriptions YouTube illimitées", "Webhooks & accès API (Top 50 / résumés)", "Digest email matinal, uniquement vos sujets", "File de scoring prioritaire", "Workspace équipe privé (jusqu'à 10 sièges)"], cta: "Rejoindre la liste", featured: true },
+        { tag: "ACTUEL", name: "Gratuit", price: "0 €", per: "/à vie", desc: "Tout ce qu'on a livré en v1.109.1. Sans carte bancaire, sans liste d'attente.", features: ["Les 36 topics par défaut avec 400+ flux RSS", "Top 50 quotidien avec résumé IA + sources", "Transcription YouTube (5 par jour)", "Text-to-speech ElevenLabs (12 voix)", "Favoris, archive des résumés quotidiens", "Bilingue EN / FR"], cta: "Essayer", featured: false },
+        { tag: "BIENTÔT", name: "Pro", price: "8 €", per: "/mois", desc: "Pour fondateurs, analystes et builders qui veulent des topics sur mesure et plus de volume.", features: ["Topics personnalisés illimités avec découverte IA des flux", "Transcriptions YouTube illimitées", "Webhooks & accès API (Top 50 / résumés)", "Digest email matinal, uniquement vos topics", "File de scoring prioritaire"], cta: "Rejoindre la liste", featured: true },
       ],
     },
   },
@@ -272,7 +272,7 @@ export const LANDING_CONTENT: LandingContent = {
       fr: [
         ["En quoi c'est différent de Feedly ou Google News ?", "Feedly vous montre tout. Google News classe par popularité. 8news filtre avec l'IA : chaque article est scoré 1–10 sur un prompt que vous pouvez éditer, et seul le top 20–50 atteint le résumé. Vous lisez huit puces, pas 400 titres."],
         ["Quels modèles IA utilisez-vous ?", "GPT-4.1-nano pour le scoring par article (rapide, ~0,10 € par 1K articles), GPT-4.1-mini pour les résumés SEO quotidiens et les résumés YouTube, et GPT-5.3-chat-latest pour le Top 50 groupé de la homepage."],
-        ["Puis-je ajouter mon propre sujet ?", "Oui. Décrivez-le en une phrase, 8news génère les critères de scoring et découvre 10 flux RSS via IA. Vous pouvez éditer tous les prompts. Les owners ont le CRUD complet ; les membres personnalisent quels sujets ils voient."],
+        ["Puis-je ajouter mon propre topic ?", "Oui. Décrivez-le en une phrase, 8news génère les critères de scoring et découvre 10 flux RSS via IA. Vous pouvez éditer tous les prompts. Les owners ont le CRUD complet ; les membres personnalisent quels topics ils voient."],
         ["Stockez-vous mon historique de lecture ?", "Uniquement ce que vous mettez explicitement en favori. Pas de tracking pub. Le RLS Supabase est activé sur toutes les tables publiques."],
         ["Est-ce open source ?", "Le code est sur GitHub. Vous pouvez le lancer en local avec votre propre clé OpenAI en moins de dix minutes."],
         ["Français ou anglais ?", "Les deux, toggle dans l'en-tête. Les résumés d'articles et les pages SEO quotidiennes sont générés dans les deux langues. Les résumés YouTube sont traduits pour ne transcrire qu'une fois."],
@@ -281,8 +281,8 @@ export const LANDING_CONTENT: LandingContent = {
   },
   ctaStrip: {
     title: {
-      en: "Stop scrolling. <em>Start reading eight bullets.</em>",
-      fr: "Arrêtez de scroller. <em>Commencez à lire huit puces.</em>",
+      en: "The signal. <em>Not the noise.</em>",
+      fr: "Le signal. <em>Pas le bruit.</em>",
     },
     primary: { en: "Try it now →", fr: "Essayer →" },
     secondary: { en: "See today's daily summaries", fr: "Voir les résumés du jour" },
@@ -299,7 +299,7 @@ export const LANDING_CONTENT: LandingContent = {
         { h: "Legal", links: ["Terms", "Privacy", "Cookies"] },
       ],
       fr: [
-        { h: "Produit", links: ["Top 50", "Résumés quotidiens", "Vidéos YouTube", "Favoris", "Sujets sur mesure"] },
+        { h: "Produit", links: ["Top 50", "Résumés quotidiens", "Vidéos YouTube", "Favoris", "Topics sur mesure"] },
         { h: "Société", links: ["À propos", "Changelog", "GitHub", "Contact"] },
         { h: "Légal", links: ["CGU", "Confidentialité", "Cookies"] },
       ],

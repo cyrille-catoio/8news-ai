@@ -73,6 +73,21 @@
 .landing-root .kicker::before {
   content: ""; width: 22px; height: 1px; background: var(--gold);
 }
+/* Hero kicker gets a larger brand-tagline look ("Tech / AI / Crypto")
+   while every other section keeps the small all-caps mono label. */
+.landing-root .hero .kicker {
+  font-size: 22px;
+  letter-spacing: 0.08em;
+  font-weight: 500;
+  gap: 14px;
+}
+.landing-root .hero .kicker::before {
+  width: 40px;
+}
+@media (max-width: 700px) {
+  .landing-root .hero .kicker { font-size: 18px; }
+  .landing-root .hero .kicker::before { width: 32px; }
+}
 .landing-root h1,
 .landing-root h2,
 .landing-root h3 { font-family: var(--serif); font-weight: 400; letter-spacing: -0.01em; margin: 0; }
@@ -88,7 +103,9 @@
 }
 .landing-root .nav-inner {
   display: flex; align-items: center; justify-content: space-between;
-  height: 64px;
+  /* Taller nav bar so the /logo-8news.png image (up to 40px) has visible
+     breathing room above and below (~28px instead of ~12px). */
+  height: 96px;
 }
 .landing-root .logo {
   display: flex; align-items: baseline; gap: 0;
@@ -151,7 +168,9 @@
 .landing-root .hero { padding-top: 72px; padding-bottom: 80px; }
 .landing-root .hero-grid {
   display: grid;
-  grid-template-columns: 1.1fr 1fr;
+  /* Widened copy column so "2 heures de YouTube," / "Two hours of YouTube,"
+     fits on a single line at the max font-size on wide viewports. */
+  grid-template-columns: 1.3fr 1fr;
   gap: 64px;
   align-items: center;
 }
@@ -160,8 +179,11 @@
 }
 .landing-root .hero h1.headline {
   font-family: var(--serif);
-  font-size: clamp(44px, 6.2vw, 88px);
-  line-height: 1.02;
+  /* Capped at 64px (down from 88px): the copy column tops out around 600px
+     on the widest layout, which was too narrow for an 88px serif to keep
+     the first phrase on one line before the forced <br/>. */
+  font-size: clamp(44px, 4.8vw, 64px);
+  line-height: 1.05;
   letter-spacing: -0.025em;
   margin-top: 24px;
   color: var(--text);

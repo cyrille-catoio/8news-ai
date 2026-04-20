@@ -331,7 +331,20 @@ export function AppHeader({
         src="/logo-8news.png"
         alt="8news"
         onClick={onHomeReset}
-        style={{ height: "clamp(32px, 5vw, 48px)", width: "auto", display: "block", cursor: "pointer" }}
+        /**
+         * Dev escape hatch: double-click the logo to open the marketing
+         * landing page on `/` even when signed in. The middleware normally
+         * redirects authenticated users from `/` to `/app`; the `?preview=1`
+         * query param bypasses that redirect (see middleware.ts).
+         */
+        onDoubleClick={(e) => {
+          e.preventDefault();
+          if (typeof window !== "undefined") {
+            window.location.href = "/?preview=1";
+          }
+        }}
+        title="8news"
+        style={{ height: "clamp(32px, 5vw, 48px)", width: "auto", display: "block", cursor: "pointer", userSelect: "none" }}
       />
       <p style={{ color: color.textMuted, fontSize: 15, marginTop: 8, marginLeft: 0 }}>{t("subtitle", lang)}</p>
     </header>

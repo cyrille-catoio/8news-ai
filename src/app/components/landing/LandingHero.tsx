@@ -19,13 +19,13 @@ export function LandingHero({ lang }: { lang: LandingLang }) {
             >
               {h.ctaPrimary[lang]}
             </Link>
-            <a
-              href="#topics"
+            <Link
+              href="/app/top-articles"
               className="btn-ghost"
               style={{ padding: "14px 22px", fontSize: 14 }}
             >
               {h.ctaSecondary[lang]}
-            </a>
+            </Link>
             <span className="hint">· {h.hint[lang]}</span>
           </div>
         </div>

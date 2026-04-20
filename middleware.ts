@@ -59,11 +59,16 @@ export async function middleware(request: NextRequest) {
   });
 
   // Refresh session cookie. Strict equality on "/" guarantees only the
-  // marketing placeholder route is checked for the auth redirect — every
-  // SSR route ("/{topic}", "/{topic}/{date}/{slug}", "/summaries", "/api/**")
+  // marketing landing route is checked for the auth redirect — every SSR
+  // route ("/{topic}", "/{topic}/{date}/{slug}", "/summaries", "/api/**")
   // passes through untouched.
+  //
+  // Dev escape hatch: `?preview=1` bypasses the auth redirect so signed-in
+  // maintainers can still view the landing from within the app (double-
+  // click on the in-app 8news logo, see AppHeader.tsx).
   const { data: { user } } = await supabase.auth.getUser();
-  if (request.nextUrl.pathname === "/" && user) {
+  const previewLanding = request.nextUrl.searchParams.get("preview") === "1";
+  if (request.nextUrl.pathname === "/" && user && !previewLanding) {
     return NextResponse.redirect(new URL("/app", request.url));
   }
 

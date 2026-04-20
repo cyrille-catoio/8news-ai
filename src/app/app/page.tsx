@@ -602,14 +602,17 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (currentPage !== "home") return;
+    // Topics power not just the home grid but also the admin pages
+    // (daily-summaries, feeds, youtube-channels, stats), the personalization
+    // bar, and the per-topic article navigation. Load them once on mount so
+    // any page reached via direct URL or menu click has the data ready.
     setTopicsLoading(true);
     fetch("/api/topics", { cache: "no-store" })
       .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
       .then((list: TopicItem[]) => setTopics(list))
       .catch(() => {})
       .finally(() => setTopicsLoading(false));
-  }, [currentPage]);
+  }, []);
 
   const locale = dateLocale(lang);
   const currentTopicLabel = topicLabels.find((tp) => tp.id === topic)?.label ?? topic ?? "";

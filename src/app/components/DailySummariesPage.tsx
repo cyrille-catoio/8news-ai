@@ -154,6 +154,15 @@ function MiniCalendar({
 
 export function DailySummariesPage({ lang, topics }: { lang: Lang; topics: TopicLabel[] }) {
   const [selectedTopic, setSelectedTopic] = useState(topics[0]?.id ?? "");
+  // If topics weren't loaded yet at mount (e.g. direct navigation to
+  // /app/daily-summaries before the parent finished fetching /api/topics),
+  // pick the first topic as soon as the list arrives so the select isn't
+  // empty and `handleGenerate` is not blocked by `!selectedTopic`.
+  useEffect(() => {
+    if (!selectedTopic && topics.length > 0) {
+      setSelectedTopic(topics[0].id);
+    }
+  }, [topics, selectedTopic]);
   const [date, setDate] = useState(() => {
     const d = new Date(Date.now() - 86_400_000);
     return d.toISOString().slice(0, 10);

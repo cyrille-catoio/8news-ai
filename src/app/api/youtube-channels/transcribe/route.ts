@@ -15,6 +15,34 @@ const AI_MODEL = "gpt-4.1-mini";
 const SUMMARY_MAX_CHARS = 5000;
 
 /**
+ * Netlify Functions cap synchronous routes around 30s. Budget targets:
+ *   - TranscriptAPI fetch: ≤ 8s
+ *   - OpenAI call:         ≤ {@link OPENAI_TIMEOUT_MS} (passed as SDK option)
+ *   - DB writes + margin:  ≤ 4s
+ * Anything above is killed by the upstream proxy and surfaces as 502.
+ */
+const OPENAI_TIMEOUT_MS = 20_000;
+
+/**
+ * Long podcasts can produce 200K+ char transcripts; sending all of that to
+ * the model both inflates latency past our 30s budget and risks hitting
+ * context-window or rate-limit issues. We sample the head and the tail
+ * (intro + conclusion are usually the most signal-rich parts) and elide
+ * the middle. Threshold and sample sizes are picked so a typical 30 min
+ * video keeps its full transcript and only 1h+ ones get cropped.
+ */
+const TRANSCRIPT_MAX_CHARS = 50_000;
+const TRANSCRIPT_HEAD_CHARS = 32_000;
+const TRANSCRIPT_TAIL_CHARS = 14_000;
+
+function maybeTruncateTranscript(text: string): string {
+  if (text.length <= TRANSCRIPT_MAX_CHARS) return text;
+  const head = text.slice(0, TRANSCRIPT_HEAD_CHARS).trimEnd();
+  const tail = text.slice(-TRANSCRIPT_TAIL_CHARS).trimStart();
+  return `${head}\n\n[…]\n\n${tail}`;
+}
+
+/**
  * Word ranges are kept comfortably under the {@link SUMMARY_MAX_CHARS} hard
  * cap (≈ 6 chars/word in French including spaces and Markdown markup, so
  * 5000 chars ≈ 800 words at the very top end). The character cap always
@@ -260,17 +288,22 @@ export async function POST(req: Request) {
 
     if (otherCached && otherCached.summary_md) {
       const openai = new OpenAI({ apiKey });
-      const completion = await openai.chat.completions.create({
-        model: AI_MODEL,
-        messages: [
-          { role: "system", content: buildTranslatePrompt(safeLang) },
-          { role: "user", content: otherCached.summary_md },
-        ],
-      });
-      summaryMd = await compressSummaryIfNeeded(
-        openai,
-        safeLang,
-        completion.choices[0]?.message?.content ?? "",
+      const completion = await openai.chat.completions.create(
+        {
+          model: AI_MODEL,
+          messages: [
+            { role: "system", content: buildTranslatePrompt(safeLang) },
+            { role: "user", content: otherCached.summary_md },
+          ],
+        },
+        { timeout: OPENAI_TIMEOUT_MS },
+      );
+      // compressSummaryIfNeeded is intentionally skipped: each retry is
+      // another 10-20s OpenAI call and would push us past Netlify's 30s
+      // function timeout. The prompt already enforces SUMMARY_MAX_CHARS;
+      // an oversized output is acceptable, a 502 is not.
+      summaryMd = stripCodeFences(
+        stripTrailingEllipsis(completion.choices[0]?.message?.content ?? ""),
       );
       transcriptText = otherCached.transcript;
       wordCount = otherCached.word_count ?? 0;
@@ -279,18 +312,26 @@ export async function POST(req: Request) {
       const target = targetWords(transcript.wordCount);
       durationSec = transcript.durationSec;
 
+      const truncatedTranscript = maybeTruncateTranscript(transcript.text);
+      if (truncatedTranscript.length < transcript.text.length) {
+        console.warn(
+          `[transcribe] truncated transcript for ${videoId}: ${transcript.text.length} -> ${truncatedTranscript.length} chars`,
+        );
+      }
+
       const openai = new OpenAI({ apiKey });
-      const completion = await openai.chat.completions.create({
-        model: AI_MODEL,
-        messages: [
-          { role: "system", content: buildSummaryPrompt(safeLang, target) },
-          { role: "user", content: transcript.text },
-        ],
-      });
-      summaryMd = await compressSummaryIfNeeded(
-        openai,
-        safeLang,
-        completion.choices[0]?.message?.content ?? "",
+      const completion = await openai.chat.completions.create(
+        {
+          model: AI_MODEL,
+          messages: [
+            { role: "system", content: buildSummaryPrompt(safeLang, target) },
+            { role: "user", content: truncatedTranscript },
+          ],
+        },
+        { timeout: OPENAI_TIMEOUT_MS },
+      );
+      summaryMd = stripCodeFences(
+        stripTrailingEllipsis(completion.choices[0]?.message?.content ?? ""),
       );
       transcriptText = transcript.text;
       wordCount = transcript.wordCount;
@@ -358,6 +399,34 @@ export async function POST(req: Request) {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
-    return NextResponse.json({ error: msg }, { status: 502 });
+    // Always surface the failure to Netlify logs with the videoId so we
+    // can trace which assets / models / API providers misbehave.
+    console.error(`[transcribe] videoId=${videoId} lang=${safeLang} failed: ${msg}`);
+
+    // Map well-known failure shapes to friendlier user-facing messages.
+    // Order matters — match the most specific signal first.
+    let userMsg = msg;
+    let status = 502;
+    if (/timeout|timed out|aborted/i.test(msg)) {
+      userMsg =
+        safeLang === "fr"
+          ? "Vidéo trop longue : le résumé n'a pas tenu dans les 30 secondes allouées. Réessayez ; si l'erreur persiste, c'est que le contenu dépasse la capacité actuelle."
+          : "Video too long: the summary did not fit within the 30-second budget. Retry; if it keeps failing, the content exceeds the current capacity.";
+      status = 504;
+    } else if (/transcript .*404|no transcript|not available/i.test(msg)) {
+      userMsg =
+        safeLang === "fr"
+          ? "Cette vidéo ne propose pas de sous-titres exploitables, transcription impossible."
+          : "This video does not provide usable captions, transcription is not possible.";
+      status = 404;
+    } else if (/rate.?limit|429/i.test(msg)) {
+      userMsg =
+        safeLang === "fr"
+          ? "Limite de requêtes atteinte côté IA. Réessayez dans une minute."
+          : "AI rate limit hit. Retry in about a minute.";
+      status = 429;
+    }
+
+    return NextResponse.json({ error: userMsg, raw: msg }, { status });
   }
 }

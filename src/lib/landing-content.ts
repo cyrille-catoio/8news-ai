@@ -97,7 +97,7 @@ export const LANDING_CONTENT: LandingContent = {
     cta: { en: "Try it now", fr: "Essayer" },
   },
   hero: {
-    kicker: { en: "v1.108 · LIVE ON 8NEWS.AI", fr: "v1.108 · EN LIGNE SUR 8NEWS.AI" },
+    kicker: { en: "v1.109 · LIVE ON 8NEWS.AI", fr: "v1.109 · EN LIGNE SUR 8NEWS.AI" },
     headline: {
       en: "Two hours of YouTube, <em>read in eight minutes.</em>",
       fr: "Deux heures de YouTube, <em>lues en huit minutes.</em>",
@@ -248,11 +248,11 @@ export const LANDING_CONTENT: LandingContent = {
     },
     plans: {
       en: [
-        { tag: "CURRENT", name: "Free", price: "$0", per: "/forever", desc: "Everything we shipped in v1.108. No credit card, no waitlist.", features: ["All 9 default topics with 160+ RSS feeds", "Top 50 daily with AI summary + sources", "YouTube transcription (5 per day)", "ElevenLabs text-to-speech (12 voices)", "Favorites, daily summaries archive", "Bilingual EN / FR"], cta: "Try it now", featured: false },
+        { tag: "CURRENT", name: "Free", price: "$0", per: "/forever", desc: "Everything we shipped in v1.109. No credit card, no waitlist.", features: ["All 9 default topics with 160+ RSS feeds", "Top 50 daily with AI summary + sources", "YouTube transcription (5 per day)", "ElevenLabs text-to-speech (12 voices)", "Favorites, daily summaries archive", "Bilingual EN / FR"], cta: "Try it now", featured: false },
         { tag: "COMING SOON", name: "Pro", price: "$9", per: "/month", desc: "For founders, analysts and builders who need custom topics and higher limits.", features: ["Unlimited custom topics with AI feed discovery", "Unlimited YouTube transcriptions", "Webhooks & API access (Top 50 / daily summaries)", "Morning email digest, your topics only", "Priority scoring queue", "Private team workspace (up to 10 seats)"], cta: "Join the waitlist", featured: true },
       ],
       fr: [
-        { tag: "ACTUEL", name: "Gratuit", price: "0 €", per: "/à vie", desc: "Tout ce qu'on a livré en v1.108. Sans carte bancaire, sans liste d'attente.", features: ["Les 9 sujets par défaut avec 160+ flux RSS", "Top 50 quotidien avec résumé IA + sources", "Transcription YouTube (5 par jour)", "Text-to-speech ElevenLabs (12 voix)", "Favoris, archive des résumés quotidiens", "Bilingue EN / FR"], cta: "Essayer", featured: false },
+        { tag: "ACTUEL", name: "Gratuit", price: "0 €", per: "/à vie", desc: "Tout ce qu'on a livré en v1.109. Sans carte bancaire, sans liste d'attente.", features: ["Les 9 sujets par défaut avec 160+ flux RSS", "Top 50 quotidien avec résumé IA + sources", "Transcription YouTube (5 par jour)", "Text-to-speech ElevenLabs (12 voix)", "Favoris, archive des résumés quotidiens", "Bilingue EN / FR"], cta: "Essayer", featured: false },
         { tag: "BIENTÔT", name: "Pro", price: "9 €", per: "/mois", desc: "Pour fondateurs, analystes et builders qui veulent des sujets sur mesure et plus de volume.", features: ["Sujets personnalisés illimités avec découverte IA des flux", "Transcriptions YouTube illimitées", "Webhooks & accès API (Top 50 / résumés)", "Digest email matinal, uniquement vos sujets", "File de scoring prioritaire", "Workspace équipe privé (jusqu'à 10 sièges)"], cta: "Rejoindre la liste", featured: true },
       ],
     },

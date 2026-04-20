@@ -11,15 +11,32 @@ import { normalizeSummaryHeadings } from "@/lib/summary-headings";
 
 const AI_MODEL = "gpt-4.1-mini";
 
+/** Hard cap on the produced Markdown summary length, in characters. */
+const SUMMARY_MAX_CHARS = 5000;
+
+/**
+ * Word ranges are kept comfortably under the {@link SUMMARY_MAX_CHARS} hard
+ * cap (≈ 6 chars/word in French including spaces and Markdown markup, so
+ * 5000 chars ≈ 800 words at the very top end). The character cap always
+ * wins if there is any conflict — see prompt rules below.
+ */
 function targetWords(wordCount: number): string {
   if (wordCount < 500) return "200-300";
-  if (wordCount <= 2000) return "500-700";
-  return "700-1000";
+  if (wordCount <= 2000) return "450-650";
+  return "650-800";
 }
 
 function buildSummaryPrompt(lang: string, targetRange: string): string {
   if (lang === "fr") {
     return `Tu rédiges un article de presse à partir du contenu fourni. Le texte source est une transcription, mais tu écris comme si tu traitais l'actualité directement.
+
+CONTRAINTE ABSOLUE — LIMITE STRICTE DE LONGUEUR :
+- La réponse Markdown finale doit faire AU MAXIMUM ${SUMMARY_MAX_CHARS} caractères, espaces et ponctuation compris.
+- Cette limite est une contrainte technique non négociable. Une réponse de plus de ${SUMMARY_MAX_CHARS} caractères est INVALIDE.
+- Vise plutôt 4500-4800 caractères pour garder une marge de sécurité, et COMPTE mentalement les caractères avant d'envoyer.
+- Pour respecter la limite : prévois la longueur dès le début, réduis le nombre de bullets, condense les paragraphes, supprime les détails accessoires. La concision prime sur l'exhaustivité.
+- Cette limite de ${SUMMARY_MAX_CHARS} caractères PRIME toujours sur la longueur cible en mots indiquée plus bas.
+- Termine TOUJOURS par une phrase complète et un point final. N'utilise JAMAIS de points de suspension « … » ni « ... » ni aucun marqueur de troncature : il vaut mieux un résumé plus court mais complet qu'un résumé coupé.
 
 Règles :
 - Réponds UNIQUEMENT en Markdown, en français.
@@ -44,11 +61,21 @@ Une phrase de synthèse, factuelle, sans mention de la source.
 
 (entre 5 et 15 bullet points selon la longueur ; pour chaque point : titre en **gras** seul sur sa ligne, ligne vide, puis le paragraphe indenté de deux espaces)
 
-- Longueur cible : ${targetRange} mots.
-- Sois factuel et informatif, avec anecdotes ou détails surprenants quand ils sont présents.`;
+- Longueur cible indicative : ${targetRange} mots, MAIS sans jamais dépasser ${SUMMARY_MAX_CHARS} caractères au total.
+- Sois factuel et informatif, avec anecdotes ou détails surprenants quand ils sont présents.
+
+RAPPEL FINAL : la sortie Markdown complète DOIT faire au plus ${SUMMARY_MAX_CHARS} caractères et se terminer par une phrase complète, jamais par « … » ou « ... ». Si tu risques de dépasser, écris moins de bullets ou des paragraphes plus courts dès le début, ne tronque pas la fin.`;
   }
 
   return `You are writing a news article from the provided material. The source is a transcript, but write as if reporting on the topic directly.
+
+ABSOLUTE CONSTRAINT — STRICT LENGTH LIMIT:
+- The final Markdown response must be AT MOST ${SUMMARY_MAX_CHARS} characters, including spaces and punctuation.
+- This is a non-negotiable technical limit. A response longer than ${SUMMARY_MAX_CHARS} characters is INVALID.
+- Aim for 4500-4800 characters to keep a safety margin, and COUNT the characters mentally before sending.
+- To stay within the limit: plan the length from the start, reduce the number of bullet points, condense paragraphs, drop secondary details. Conciseness wins over completeness.
+- This ${SUMMARY_MAX_CHARS}-character cap ALWAYS overrides the word target listed below.
+- ALWAYS finish on a complete sentence ending with a full stop. NEVER use ellipsis "…" or "..." or any other truncation marker: a shorter complete summary is always better than a truncated one.
 
 Rules:
 - Respond ONLY in Markdown, in English.
@@ -73,8 +100,10 @@ One factual summary sentence, with no mention of the source.
 
 (between 5 and 15 bullet points depending on length; for each point: bold title alone on its line, blank line, then the paragraph indented by two spaces)
 
-- Target length: ${targetRange} words.
-- Be factual and informative; include surprising anecdotes or details when they appear in the material.`;
+- Indicative target length: ${targetRange} words, but NEVER exceed ${SUMMARY_MAX_CHARS} characters total.
+- Be factual and informative; include surprising anecdotes or details when they appear in the material.
+
+FINAL REMINDER: the full Markdown output MUST be at most ${SUMMARY_MAX_CHARS} characters and end with a complete sentence, never with "…" or "...". If you risk going over, write fewer bullets or shorter paragraphs from the start instead of truncating the ending.`;
 }
 
 function buildTranslatePrompt(targetLang: string): string {
@@ -86,7 +115,8 @@ Règles :
 - Conserve le **gras** sur les mêmes termes.
 - Traduis "## Key Points" en "## Points clés" et remplace "## TL;DR" par "## INTRO".
 - Pour chaque point : titre en **gras** seul sur sa ligne, ligne vide, puis le paragraphe indenté de deux espaces (préserve ce format si l'original l'utilise, et applique-le si l'original a le titre et le paragraphe sur la même ligne).
-- Ne résume pas davantage, traduis fidèlement.`;
+- Ne résume pas davantage, traduis fidèlement.
+- LIMITE STRICTE : la traduction Markdown doit faire au maximum ${SUMMARY_MAX_CHARS} caractères. La traduction française est en général plus longue que l'anglais ; si la traduction fidèle dépasse cette limite, raccourcis légèrement les paragraphes pour rester sous ${SUMMARY_MAX_CHARS} caractères tout en gardant les chiffres, noms propres et faits clés.`;
   }
 
   return `You are an expert translator. Translate the following Markdown summary into English.
@@ -96,7 +126,68 @@ Rules:
 - Keep **bold** on the same terms.
 - Translate "## Points clés" to "## Key Points" and replace "## INTRO" with "## TL;DR".
 - For each point: bold title alone on its line, blank line, then the paragraph indented by two spaces (preserve this format if the source uses it, and apply it if the source has the title and paragraph on the same line).
-- Do not further summarize, translate faithfully.`;
+- Do not further summarize, translate faithfully.
+- STRICT LIMIT: the translated Markdown must be at most ${SUMMARY_MAX_CHARS} characters. If a faithful translation goes over, slightly shorten the paragraphs to stay below ${SUMMARY_MAX_CHARS} characters while keeping all key figures, proper nouns and facts.`;
+}
+
+/** Strip a trailing "…" / "..." line accidentally added by a previous run. */
+function stripTrailingEllipsis(md: string): string {
+  return md.replace(/\n+\s*(?:…|\.\.\.)\s*$/u, "").trimEnd();
+}
+
+/**
+ * If the produced Markdown summary exceeds {@link SUMMARY_MAX_CHARS}, ask
+ * the model to rewrite it shorter (preserving structure, tone, and key
+ * facts) instead of truncating. We never cut the text mid-sentence because
+ * a truncated summary is worse UX than a slightly-over summary; if the
+ * model still misses after a couple of retries we return the latest version
+ * as-is.
+ */
+async function compressSummaryIfNeeded(
+  openai: OpenAI,
+  lang: string,
+  summaryMd: string,
+): Promise<string> {
+  let current = stripTrailingEllipsis(summaryMd ?? "");
+  if (!current) return current;
+
+  // We want to leave a small safety margin so the next render doesn't sit
+  // exactly at the cap and risk overflowing through later edits.
+  const TARGET_CHARS = Math.floor(SUMMARY_MAX_CHARS * 0.95);
+
+  for (let attempt = 0; attempt < 2 && current.length > SUMMARY_MAX_CHARS; attempt++) {
+    const overBy = current.length - SUMMARY_MAX_CHARS;
+    const system = lang === "fr"
+      ? `Tu réécris le résumé Markdown ci-dessous pour qu'il fasse AU PLUS ${SUMMARY_MAX_CHARS} caractères (cible idéale ${TARGET_CHARS}). Le texte actuel dépasse de ${overBy} caractères.
+
+Règles strictes :
+- Conserve la structure exacte : ## INTRO / ## Points clés / ## Key Points et bullet points avec titre en **gras** seul sur sa ligne, ligne vide, paragraphe indenté de deux espaces.
+- Conserve la langue, le ton journalistique, les chiffres clés, noms propres et faits marquants.
+- Pour raccourcir : supprime des bullets entiers (les moins importants), condense les paragraphes, retire les détails accessoires.
+- Termine toujours par une phrase complète. N'utilise JAMAIS de points de suspension « … » ni « ... » ni aucun marqueur de troncature.
+- Réponds UNIQUEMENT avec le Markdown réécrit, rien d'autre.`
+      : `You rewrite the Markdown summary below so it is AT MOST ${SUMMARY_MAX_CHARS} characters (ideal target ${TARGET_CHARS}). The current text is ${overBy} characters too long.
+
+Strict rules:
+- Keep the exact structure: ## INTRO / ## Points clés / ## Key Points and bullets with the bold title alone on its line, blank line, paragraph indented by two spaces.
+- Keep the language, journalistic tone, key figures, proper nouns and facts.
+- To shorten: drop entire bullets (the least important ones), condense paragraphs, remove secondary details.
+- Always end with a complete sentence. NEVER use ellipsis "…" or "..." or any truncation marker.
+- Respond ONLY with the rewritten Markdown, nothing else.`;
+
+    const completion = await openai.chat.completions.create({
+      model: AI_MODEL,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: current },
+      ],
+    });
+    const next = stripTrailingEllipsis(completion.choices[0]?.message?.content ?? "");
+    if (!next) break;
+    current = next;
+  }
+
+  return stripTrailingEllipsis(current);
 }
 
 function extractBulletsFromMarkdown(md: string): string[] {
@@ -163,7 +254,11 @@ export async function POST(req: Request) {
           { role: "user", content: otherCached.summary_md },
         ],
       });
-      summaryMd = completion.choices[0]?.message?.content ?? "";
+      summaryMd = await compressSummaryIfNeeded(
+        openai,
+        safeLang,
+        completion.choices[0]?.message?.content ?? "",
+      );
       transcriptText = otherCached.transcript;
       wordCount = otherCached.word_count ?? 0;
     } else {
@@ -179,7 +274,11 @@ export async function POST(req: Request) {
           { role: "user", content: transcript.text },
         ],
       });
-      summaryMd = completion.choices[0]?.message?.content ?? "";
+      summaryMd = await compressSummaryIfNeeded(
+        openai,
+        safeLang,
+        completion.choices[0]?.message?.content ?? "",
+      );
       transcriptText = transcript.text;
       wordCount = transcript.wordCount;
 

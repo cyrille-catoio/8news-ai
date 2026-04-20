@@ -113,8 +113,8 @@ export const LANDING_CONTENT: LandingContent = {
   console: {
     title: { en: "live · scoring console", fr: "live · console de scoring" },
     footer: {
-      en: "Fetched <b>4,284</b> articles · scored <b>3,918</b> · <b>avg delay 3m25s</b>",
-      fr: "Collectés <b>4 284</b> articles · scorés <b>3 918</b> · <b>délai moyen 3m25s</b>",
+      en: "Fetched <b>4,284</b> · <b>avg delay 1m25s</b>",
+      fr: "Collectés <b>4 284</b> · <b>délai moyen 1m25s</b>",
     },
     rows: [
       { s: 10, t_en: "OpenAI announces GPT-5.3 with native agentic memory and 2M-token context", t_fr: "OpenAI annonce GPT-5.3 avec mémoire agentique native et contexte de 2M tokens", src: "bloomberg.com", topic: "AI" },
@@ -265,16 +265,12 @@ export const LANDING_CONTENT: LandingContent = {
         ["How is this different from Feedly or Google News?", "Feedly shows you everything. Google News ranks by popularity. 8news filters with AI: every article is scored 1–10 against a prompt you can edit, and only the top 20–50 reach the summary. You read eight bullets, not 400 headlines."],
         ["Which AI models are you using?", "GPT-4.1-nano for per-article scoring (cheap, fast, ~$0.10 per 1K articles), GPT-4.1-mini for daily SEO summaries and YouTube transcription summaries, and GPT-5.3-chat-latest for the homepage Top 50 grouped summary."],
         ["Can I add my own topic?", "Yes. Describe it in one sentence, 8news generates the scoring criteria and auto-discovers 10 RSS feeds via AI. You can edit any prompt. Owners get full CRUD; members can personalize which topics they see."],
-        ["Do you store my reading history?", "Only what you explicitly favorite. No ad tracking. Supabase RLS is enabled on all public tables."],
-        ["Is it open source?", "The codebase lives on GitHub. Run it locally with your own OpenAI key in under ten minutes."],
         ["French or English?", "Both, toggle in the header. Article summaries and daily SEO pages are generated in both languages. YouTube summaries are translated cross-language so we only transcribe once."],
       ],
       fr: [
         ["En quoi c'est différent de Feedly ou Google News ?", "Feedly vous montre tout. Google News classe par popularité. 8news filtre avec l'IA : chaque article est scoré 1–10 sur un prompt que vous pouvez éditer, et seul le top 20–50 atteint le résumé. Vous lisez huit puces, pas 400 titres."],
         ["Quels modèles IA utilisez-vous ?", "GPT-4.1-nano pour le scoring par article (rapide, ~0,10 € par 1K articles), GPT-4.1-mini pour les résumés SEO quotidiens et les résumés YouTube, et GPT-5.3-chat-latest pour le Top 50 groupé de la homepage."],
         ["Puis-je ajouter mon propre topic ?", "Oui. Décrivez-le en une phrase, 8news génère les critères de scoring et découvre 10 flux RSS via IA. Vous pouvez éditer tous les prompts. Les owners ont le CRUD complet ; les membres personnalisent quels topics ils voient."],
-        ["Stockez-vous mon historique de lecture ?", "Uniquement ce que vous mettez explicitement en favori. Pas de tracking pub. Le RLS Supabase est activé sur toutes les tables publiques."],
-        ["Est-ce open source ?", "Le code est sur GitHub. Vous pouvez le lancer en local avec votre propre clé OpenAI en moins de dix minutes."],
         ["Français ou anglais ?", "Les deux, toggle dans l'en-tête. Les résumés d'articles et les pages SEO quotidiennes sont générés dans les deux langues. Les résumés YouTube sont traduits pour ne transcrire qu'une fois."],
       ],
     },

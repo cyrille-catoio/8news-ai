@@ -8,9 +8,12 @@ export function LandingFooter({ lang }: { lang: LandingLang }) {
       <div className="wrap">
         <div className="footer-grid">
           <div className="footer-col">
-            <Link href="#top" className="logo" style={{ fontSize: 22 }}>
-              <span className="eight">8</span>
-              <span className="news">news</span>
+            <Link href="#top" className="logo" aria-label="8news">
+              <img
+                src="/logo-8news.png"
+                alt="8news"
+                style={{ height: 32, width: "auto", display: "block" }}
+              />
             </Link>
             <p className="footer-tagline" style={{ marginTop: 16 }}>
               {f.tagline[lang]}

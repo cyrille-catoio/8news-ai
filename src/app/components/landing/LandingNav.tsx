@@ -11,9 +11,12 @@ export function LandingNav({ lang }: { lang: LandingLang }) {
   return (
     <nav className="nav">
       <div className="wrap nav-inner">
-        <Link href="#top" className="logo">
-          <span className="eight">8</span>
-          <span className="news">news</span>
+        <Link href="#top" className="logo" aria-label="8news">
+          <img
+            src="/logo-8news.png"
+            alt="8news"
+            style={{ height: "clamp(28px, 3.2vw, 40px)", width: "auto", display: "block" }}
+          />
         </Link>
         <div className="nav-links">
           {C.links[lang].map(([k, v]) => (

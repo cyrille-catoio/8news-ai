@@ -136,6 +136,19 @@ function stripTrailingEllipsis(md: string): string {
 }
 
 /**
+ * GPT sometimes wraps long Markdown responses in a fenced code block
+ * (```markdown ... ```). Stored as-is, ReactMarkdown renders the whole
+ * summary as a single `<pre><code>` (monospace, no word-wrap). Strip
+ * the wrapping fence at write time so the DB never holds it.
+ */
+function stripCodeFences(md: string): string {
+  if (!md) return md;
+  const trimmed = md.trim();
+  const m = trimmed.match(/^```[A-Za-z0-9_-]*\s*\n([\s\S]*?)\n```$/);
+  return m ? m[1] : md;
+}
+
+/**
  * If the produced Markdown summary exceeds {@link SUMMARY_MAX_CHARS}, ask
  * the model to rewrite it shorter (preserving structure, tone, and key
  * facts) instead of truncating. We never cut the text mid-sentence because
@@ -148,7 +161,7 @@ async function compressSummaryIfNeeded(
   lang: string,
   summaryMd: string,
 ): Promise<string> {
-  let current = stripTrailingEllipsis(summaryMd ?? "");
+  let current = stripCodeFences(stripTrailingEllipsis(summaryMd ?? ""));
   if (!current) return current;
 
   // We want to leave a small safety margin so the next render doesn't sit
@@ -182,7 +195,7 @@ Strict rules:
         { role: "user", content: current },
       ],
     });
-    const next = stripTrailingEllipsis(completion.choices[0]?.message?.content ?? "");
+    const next = stripCodeFences(stripTrailingEllipsis(completion.choices[0]?.message?.content ?? ""));
     if (!next) break;
     current = next;
   }

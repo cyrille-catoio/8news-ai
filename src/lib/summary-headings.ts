@@ -1,15 +1,38 @@
 /**
  * Read-time normalization of video transcription summaries.
  *
- * Two concerns:
- * 1. The intro heading: older French summaries were generated with `## TL;DR`;
+ * Three concerns:
+ * 1. Some completions arrive wrapped in a fenced code block (```markdown\n…\n```)
+ *    because GPT sometimes "frames" long Markdown responses. ReactMarkdown
+ *    then renders the whole block as a `<pre><code>` (monospace, no
+ *    word-wrap), which makes the summary look like raw MD. Strip these
+ *    fences first so every other normalization (and the renderer) sees
+ *    plain Markdown.
+ * 2. The intro heading: older French summaries were generated with `## TL;DR`;
  *    we now display `## INTRO` instead.
- * 2. Bullet layout under `## Points clés` / `## Key Points`: legacy summaries
+ * 3. Bullet layout under `## Points clés` / `## Key Points`: legacy summaries
  *    use a single-line `- **Title**: paragraph` form, but the current style is
  *    a loose-list form with the bold title on its own line, a blank line, and
  *    the paragraph indented by two spaces underneath. We reformat at read time
  *    so existing rows in `video_transcriptions` do not need to be regenerated.
  */
+
+/**
+ * Remove a single fenced code block that wraps the whole response, e.g.
+ *   ```markdown
+ *   ## INTRO
+ *   …
+ *   ```
+ * Conservative: only strips when both opening and closing fences are present
+ * at the very start/end of the trimmed string. Internal fenced code blocks
+ * inside a longer summary are kept intact.
+ */
+function stripCodeFences(md: string): string {
+  if (!md) return md;
+  const trimmed = md.trim();
+  const m = trimmed.match(/^```[A-Za-z0-9_-]*\s*\n([\s\S]*?)\n```$/);
+  return m ? m[1] : md;
+}
 
 function normalizeIntroHeading(summaryMd: string, lang: string): string {
   if (lang === "fr") {
@@ -50,5 +73,9 @@ function normalizeBulletLineBreaks(summaryMd: string): string {
 
 export function normalizeSummaryHeadings(summaryMd: string, lang: string): string {
   if (!summaryMd) return summaryMd;
-  return normalizeBulletLineBreaks(normalizeIntroHeading(summaryMd, lang));
+  // Order matters: strip the wrapping ```markdown fence FIRST, so the intro-
+  // heading replace and the bullet-line-break reflow see plain Markdown.
+  return normalizeBulletLineBreaks(
+    normalizeIntroHeading(stripCodeFences(summaryMd), lang),
+  );
 }

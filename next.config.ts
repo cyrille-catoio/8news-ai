@@ -1,30 +1,31 @@
 import type { NextConfig } from "next";
 
-// These are client-side SPA routes managed by pushState in page.tsx.
+// These are client-side SPA routes managed by pushState in src/app/app/page.tsx.
 // On a hard refresh, the browser requests them from the server. We rewrite
-// them to "/" before Next.js tries to match filesystem routes (otherwise
-// paths like /videos would hit [topic]/page.tsx → notFound() → 404).
+// them to "/app" before Next.js tries to match filesystem routes (otherwise
+// paths like /app/videos would hit a 404 since there is no [...] catch-all).
 const SPA_ROUTES = [
-  "/articles",
-  "/stats",
-  "/crons",
-  "/topics",
-  "/settings",
-  "/changelog",
-  "/feeds",
-  "/categories",
-  "/favorites",
-  "/daily-summaries",
-  "/videos",
-  "/youtube-channels",
-  "/top-articles",
-  "/summaries-browse",
+  "/app",
+  "/app/articles",
+  "/app/videos",
+  "/app/stats",
+  "/app/crons",
+  "/app/topics",
+  "/app/settings",
+  "/app/changelog",
+  "/app/feeds",
+  "/app/categories",
+  "/app/favorites",
+  "/app/daily-summaries",
+  "/app/youtube-channels",
+  "/app/top-articles",
+  "/app/summaries-browse",
 ];
 
 const nextConfig: NextConfig = {
   async rewrites() {
     return {
-      beforeFiles: SPA_ROUTES.map((source) => ({ source, destination: "/" })),
+      beforeFiles: SPA_ROUTES.map((source) => ({ source, destination: "/app" })),
     };
   },
 };

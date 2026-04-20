@@ -120,20 +120,20 @@ export function SeoGeneralMenu({
 
   return (
     <div style={barWrap}>
-      <a href="/" style={activePage === "videos" ? activeStyle : base}>
+      <a href="/app" style={activePage === "videos" ? activeStyle : base}>
         {t("videosBtn", lang)}
       </a>
-      <a href="/articles" style={activePage === "home" ? activeStyle : base}>
+      <a href="/app/articles" style={activePage === "home" ? activeStyle : base}>
         {t("generalMenuArticlesBtn", lang)}
       </a>
-      <a href="/top-articles" style={activePage === "topArticles" ? activeStyle : base}>
+      <a href="/app/top-articles" style={activePage === "topArticles" ? activeStyle : base}>
         {t("analyzeTopArticlesBtn", lang)}
       </a>
       <a href="/summaries" style={activePage === "summaries" ? activeStyle : base}>
         {t("dailySummaryBtn", lang)}
       </a>
       {authed && (
-        <a href="/favorites" style={activePage === "favorites" ? activeStyle : base}>
+        <a href="/app/favorites" style={activePage === "favorites" ? activeStyle : base}>
           {t("myFavoritesBtn", lang)}
         </a>
       )}

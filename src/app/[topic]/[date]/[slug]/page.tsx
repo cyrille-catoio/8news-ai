@@ -126,7 +126,7 @@ export default async function DailySummaryPage({ params }: PageProps) {
 
         {/* Breadcrumb */}
         <nav style={{ display: "flex", gap: 16, fontSize: 13, marginBottom: 24, flexWrap: "wrap" }}>
-          <Link href="/" style={{ color: color.gold, textDecoration: "none" }}>
+          <Link href="/app" style={{ color: color.gold, textDecoration: "none" }}>
             {lang === "fr" ? "Accueil" : "Home"}
           </Link>
           <Link href="/summaries" style={{ color: color.gold, textDecoration: "none" }}>
@@ -227,7 +227,7 @@ export default async function DailySummaryPage({ params }: PageProps) {
 
         {/* Footer */}
         <footer style={{ marginTop: 40, paddingTop: 20, borderTop: `1px solid ${color.border}`, textAlign: "center" }}>
-          <Link href="/" style={{ color: color.gold, textDecoration: "none", fontSize: 14, fontWeight: 600 }}>
+          <Link href="/app" style={{ color: color.gold, textDecoration: "none", fontSize: 14, fontWeight: 600 }}>
             8news.ai
           </Link>
           <p style={{ color: color.textDim, fontSize: 12, marginTop: 4 }}>

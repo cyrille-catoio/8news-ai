@@ -2,20 +2,21 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 const SPA_PATHS = new Set([
-  "/articles",
-  "/stats",
-  "/crons",
-  "/topics",
-  "/settings",
-  "/changelog",
-  "/feeds",
-  "/categories",
-  "/favorites",
-  "/daily-summaries",
-  "/videos",
-  "/youtube-channels",
-  "/top-articles",
-  "/summaries-browse",
+  "/app",
+  "/app/articles",
+  "/app/stats",
+  "/app/crons",
+  "/app/topics",
+  "/app/settings",
+  "/app/changelog",
+  "/app/feeds",
+  "/app/categories",
+  "/app/favorites",
+  "/app/daily-summaries",
+  "/app/videos",
+  "/app/youtube-channels",
+  "/app/top-articles",
+  "/app/summaries-browse",
 ]);
 
 export async function middleware(request: NextRequest) {
@@ -24,7 +25,7 @@ export async function middleware(request: NextRequest) {
   let supabaseResponse: NextResponse;
   if (isSpaPath) {
     const rewriteUrl = request.nextUrl.clone();
-    rewriteUrl.pathname = "/";
+    rewriteUrl.pathname = "/app";
     supabaseResponse = NextResponse.rewrite(rewriteUrl);
   } else {
     supabaseResponse = NextResponse.next({ request });
@@ -45,7 +46,7 @@ export async function middleware(request: NextRequest) {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
         if (isSpaPath) {
           const rewriteUrl = request.nextUrl.clone();
-          rewriteUrl.pathname = "/";
+          rewriteUrl.pathname = "/app";
           supabaseResponse = NextResponse.rewrite(rewriteUrl);
         } else {
           supabaseResponse = NextResponse.next({ request });
@@ -57,7 +58,14 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  await supabase.auth.getUser();
+  // Refresh session cookie. Strict equality on "/" guarantees only the
+  // marketing placeholder route is checked for the auth redirect — every
+  // SSR route ("/{topic}", "/{topic}/{date}/{slug}", "/summaries", "/api/**")
+  // passes through untouched.
+  const { data: { user } } = await supabase.auth.getUser();
+  if (request.nextUrl.pathname === "/" && user) {
+    return NextResponse.redirect(new URL("/app", request.url));
+  }
 
   return supabaseResponse;
 }

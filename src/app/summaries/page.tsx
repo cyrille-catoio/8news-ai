@@ -46,7 +46,7 @@ export default async function SummariesPage({
         <SeoGeneralMenu lang={lang} activePage="summaries" />
 
         <nav style={{ fontSize: 13, marginBottom: 24 }}>
-          <Link href="/" style={{ color: color.gold, textDecoration: "none" }}>
+          <Link href="/app" style={{ color: color.gold, textDecoration: "none" }}>
             {lang === "fr" ? "Accueil" : "Home"}
           </Link>
           <span style={{ color: color.textDim, margin: "0 8px" }}>/</span>
@@ -123,7 +123,7 @@ export default async function SummariesPage({
         </section>
 
         <footer style={{ marginTop: 40, paddingTop: 20, borderTop: `1px solid ${color.border}`, textAlign: "center" }}>
-          <Link href="/" style={{ color: color.gold, textDecoration: "none", fontSize: 14, fontWeight: 600 }}>
+          <Link href="/app" style={{ color: color.gold, textDecoration: "none", fontSize: 14, fontWeight: 600 }}>
             8news.ai
           </Link>
           <p style={{ color: color.textDim, fontSize: 12, marginTop: 4 }}>

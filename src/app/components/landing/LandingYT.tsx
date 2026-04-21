@@ -6,22 +6,44 @@ export function LandingYT({ lang }: { lang: LandingLang }) {
   return (
     <section id="videos" style={{ borderTop: "1px solid var(--border)" }}>
       <div className="wrap">
-        <div className="kicker">{y.kicker[lang]}</div>
-        <h2
-          className="big"
-          style={{
-            marginTop: 16,
-            // Force the title on a single line across viewports. Reduced
-            // max from the default h2.big (64px) so the full phrase (~50
-            // characters) fits the 1136px content area at desktop widths.
-            whiteSpace: "nowrap",
-            fontSize: "clamp(15px, 3.3vw, 40px)",
-          }}
-          dangerouslySetInnerHTML={{ __html: y.title[lang] }}
-        />
-        <p style={{ maxWidth: 620, fontSize: 16, color: "var(--text-2)", marginTop: 20, lineHeight: 1.55 }}>
-          {y.sub[lang]}
-        </p>
+        {/* Two-column layout: kicker + title + descriptive paragraph in the
+            left column, summary screenshot in the right column. Stacks
+            vertically at the same breakpoint as the hero (<= 960px). */}
+        <div className="yt-content">
+          <div className="yt-copy">
+            <div className="kicker">{y.kicker[lang]}</div>
+            <h2
+              className="big"
+              style={{ marginTop: 16 }}
+              dangerouslySetInnerHTML={{ __html: y.title[lang] }}
+            />
+            <p
+              className="yt-sub"
+              style={{ fontSize: 16, color: "var(--text-2)", marginTop: 20, lineHeight: 1.55 }}
+            >
+              {y.sub[lang]}
+            </p>
+          </div>
+          <div className="yt-preview">
+            <img
+              src="/landing/yt-summary-preview.png"
+              alt={
+                lang === "fr"
+                  ? "Aperçu d'un résumé vidéo YouTube généré par 8news avec lecteur audio, intro et points clés."
+                  : "Preview of an 8news YouTube video summary with audio player, intro and key points."
+              }
+              loading="lazy"
+              style={{
+                width: "100%",
+                height: "auto",
+                display: "block",
+                borderRadius: 12,
+                border: "1px solid var(--border)",
+                boxShadow: "0 20px 60px -20px rgba(201, 162, 39, 0.15), 0 0 0 1px rgba(255,255,255,0.02) inset",
+              }}
+            />
+          </div>
+        </div>
       </div>
     </section>
   );

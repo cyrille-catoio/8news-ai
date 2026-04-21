@@ -436,6 +436,22 @@
 @media (max-width: 960px) {
   .landing-root .yt-grid { grid-template-columns: 1fr; }
 }
+
+/* Two-column layout for the YT section: kicker + title + descriptive
+   paragraph in the left column, summary screenshot in the right. Stacks
+   on the same breakpoint as the hero so everything collapses consistently
+   on tablet/mobile. */
+.landing-root .yt-content {
+  display: grid;
+  grid-template-columns: 1fr 1.1fr;
+  gap: 48px;
+  align-items: center;
+}
+@media (max-width: 960px) {
+  .landing-root .yt-content { grid-template-columns: 1fr; gap: 32px; }
+}
+.landing-root .yt-copy { min-width: 0; }
+.landing-root .yt-preview { width: 100%; }
 .landing-root .yt-card {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: 12px; overflow: hidden;

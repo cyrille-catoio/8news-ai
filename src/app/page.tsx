@@ -16,7 +16,7 @@ import { LandingFooter } from "@/app/components/landing/LandingFooter";
 export const metadata: Metadata = {
   title: "8news.ai — Tech decoded by AI · Two hours of YouTube, read in eight minutes",
   description:
-    "8news aggregates 400++ RSS feeds and the YouTube channels you actually care about, scores every article from 1 to 10 with AI, and returns a bullet-point brief with sources. EN / FR.",
+    "8news aggregates the YouTube channels you actually care about and 400+ RSS feeds, scores every article from 1 to 10 with AI. EN / FR.",
   alternates: {
     canonical: "https://8news.ai",
     languages: {
@@ -52,9 +52,9 @@ export default async function Page({ searchParams }: PageProps) {
       <LandingHero lang={lang} />
       <LandingTicker lang={lang} />
       <LandingStats lang={lang} />
+      <LandingYT lang={lang} />
       <LandingHow lang={lang} />
       <LandingTopics lang={lang} />
-      <LandingYT lang={lang} />
       <LandingPricing lang={lang} />
       <LandingFAQ lang={lang} />
       <LandingCTA lang={lang} />

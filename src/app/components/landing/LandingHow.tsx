@@ -76,7 +76,7 @@ export function LandingHow({ lang }: { lang: LandingLang }) {
   const stepLabel = lang === "en" ? "Step" : "Étape";
 
   return (
-    <section id="features">
+    <section id="features" style={{ borderTop: "1px solid var(--border)" }}>
       <div className="wrap">
         <div className="kicker">{h.kicker[lang]}</div>
         <h2

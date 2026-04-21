@@ -9,6 +9,16 @@ export interface ChangelogEntryDef {
 
 export const CHANGELOG_ENTRIES: ChangelogEntryDef[] = [
   {
+    version: "1.109.2",
+    title_en: "v1.109.2: YT section gets a screenshot preview and moves above How",
+    title_fr: "v1.109.2 : La section YT gagne un screenshot et passe au-dessus de How",
+    body_en:
+      "Landing layout: the **YouTube intelligence** section is restructured into a **two-column block** (kicker + title + descriptive paragraph on the left, an actual product screenshot of an 8news YT summary on the right) and **moves above the How-it-works section** in the page order (Hero → Ticker → Stats → **YT** → How → Topics → Pricing → FAQ → CTA → Footer). The screenshot lives in `public/landing/yt-summary-preview.png` and is served with `loading=\"lazy\"`. The section stacks vertically below 960px on the same breakpoint as the hero. Copy refresh: hero sub now leads with the YouTube channels and mentions 400+ RSS feeds second; the YT sub mentions the smart-bilingual flow (under 10s translation EN→FR) and the new one-click download of the full transcript (.txt) or summary (.md). Section `#features` gets a `border-top` so the visual rhythm with the YT section above stays consistent. Root `<head>` description fixed (was \"400++\", now \"400+\") and reordered to match the hero copy.",
+    body_fr:
+      "Layout landing : la section **YouTube intelligence** est restructurée en **deux colonnes** (kicker + titre + paragraphe descriptif à gauche, vrai screenshot produit d'un résumé YT 8news à droite) et **passe au-dessus de la section How-it-works** dans l'ordre de la page (Hero → Ticker → Stats → **YT** → How → Topics → Pricing → FAQ → CTA → Footer). Le screenshot vit dans `public/landing/yt-summary-preview.png` et est servi en `loading=\"lazy\"`. La section stack en colonne unique en dessous de 960px (même breakpoint que le hero). Refresh copy : la sub du hero commence maintenant par les chaînes YouTube et mentionne les 400+ flux RSS en second ; la sub YT mentionne le flux bilingue intelligent (traduction EN→FR en moins de 10s) et le nouveau téléchargement en un clic de la transcription complète (.txt) ou du résumé (.md). La section `#features` reçoit un `border-top` pour garder un rythme visuel cohérent avec la section YT au-dessus. Description du `<head>` racine corrigée (était « 400++ », maintenant « 400+ ») et réordonnée pour matcher le copy du hero.",
+    created_at: "2026-04-20T09:00:00Z",
+  },
+  {
     version: "1.109.1",
     title_en: "v1.109.1: Landing copy & layout polish, image logo, dev escape hatch, release tooling",
     title_fr: "v1.109.1 : Polish copy & layout landing, logo image, raccourci dev, tooling de release",

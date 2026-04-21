@@ -30,7 +30,7 @@ export function LandingFooter({ lang }: { lang: LandingLang }) {
         </div>
         <div className="footer-bottom">
           <span>{f.copy[lang]}</span>
-          <span>v1.109.1 · 8NEWS.AI</span>
+          <span>v1.109.2 · 8NEWS.AI</span>
         </div>
       </div>
     </footer>

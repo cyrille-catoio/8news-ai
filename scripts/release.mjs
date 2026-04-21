@@ -16,6 +16,7 @@
  */
 
 import { promises as fs } from "node:fs";
+import { execSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -131,4 +132,60 @@ if (warnings.length > 0) {
   console.log("");
   console.log("⚠  Stale patterns (no version reference found, target may need updating):");
   for (const r of warnings) console.log(`  ⚠ ${r.file}: ${r.warning}`);
+}
+
+/* ── Changelog coverage check ───────────────────────────────────────────
+ * After syncing the version, we verify that the human-facing changelog
+ * is in sync with what was actually committed since the previous release.
+ * Two checks:
+ *   1. The current version exists as an entry in CHANGELOG_ENTRIES.
+ *   2. Every commit since the last `chore(release):` is plausibly covered
+ *      by that entry — listed here so the author can decide.
+ *
+ * Both are advisory. They surface as ⚠ and never fail the script (a
+ * release commit might still be in progress, or some commits may
+ * intentionally not be user-facing).
+ */
+function safeGit(args) {
+  try {
+    return execSync(`git ${args}`, { cwd: ROOT, encoding: "utf8" }).trim();
+  } catch {
+    return null;
+  }
+}
+
+console.log("");
+
+// 1. Is the current version listed in CHANGELOG_ENTRIES?
+try {
+  const cl = await fs.readFile(path.join(ROOT, "src/lib/changelog-entries.ts"), "utf8");
+  // Match `version: "1.109.2"` or `version: "1.109"` (with or without trailing .0).
+  const versionRe = new RegExp(`version:\\s*"${escapeRe(version)}"`);
+  if (!versionRe.test(cl)) {
+    console.log(`⚠  Changelog: no entry found for v${version} in src/lib/changelog-entries.ts`);
+    console.log(`   Add a { version: "${version}", title_en, title_fr, body_en, body_fr, created_at } block at the top of CHANGELOG_ENTRIES before pushing.`);
+  } else {
+    console.log(`✓ Changelog: entry for v${version} found.`);
+  }
+} catch (err) {
+  console.log(`⚠  Changelog check skipped: ${err.message}`);
+}
+
+// 2. Commits since the last `chore(release):` commit — surface them so
+//    they're not silently absent from the next changelog entry.
+const lastReleaseSha = safeGit('log --grep="^chore(release):" -1 --format="%H" HEAD');
+if (lastReleaseSha) {
+  const range = `${lastReleaseSha}..HEAD`;
+  const commits = safeGit(`log ${range} --pretty=format:%h\\ %s`);
+  const lines = commits ? commits.split("\n").filter(Boolean) : [];
+  if (lines.length > 0) {
+    console.log("");
+    console.log(`⚠  Commits since last release (${lastReleaseSha.slice(0, 7)}) not yet in any \`chore(release):\` commit:`);
+    for (const line of lines) console.log(`     ${line}`);
+    console.log(`   Make sure the v${version} changelog entry covers them — or that the next \`chore(release):\` commit will.`);
+  }
+}
+
+function escapeRe(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

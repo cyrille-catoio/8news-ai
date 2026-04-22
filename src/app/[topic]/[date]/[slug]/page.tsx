@@ -86,7 +86,11 @@ export default async function DailySummaryPage({ params }: PageProps) {
   const locale = lang === "fr" ? "fr-FR" : "en-US";
   const topicLabel = lang === "fr" ? topic.label_fr : topic.label_en;
   const bullets = (summary.bullets as Array<{ text: string; refs: Array<{ title: string; link: string; source: string }> }>) ?? [];
-  const articles = (summary.articles as ArticleSummary[]) ?? [];
+  // The persisted JSON may carry a per-article `relevance_score` from the
+  // articles table even though ArticleSummary's TS type doesn't expose it.
+  // Surface it as `score` so DailySummaryArticles can render the ScoreMeter.
+  const rawArticles = (summary.articles as Array<ArticleSummary & { relevance_score?: number | null; score?: number | null }>) ?? [];
+  const articles = rawArticles.map((a) => ({ ...a, score: a.score ?? a.relevance_score ?? null }));
   const meta = summary.meta as { totalArticles?: number; scoredArticles?: number; analyzedArticles?: number } | null;
 
   const altLang = lang === "fr" ? "en" : "fr";

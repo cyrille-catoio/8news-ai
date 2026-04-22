@@ -6,6 +6,7 @@ import { type Lang } from "@/lib/i18n";
 import { color, spinnerStyle } from "@/lib/theme";
 import { CopyLinkButton } from "@/app/components/CopyLinkButton";
 import { FavoriteButton } from "@/app/components/FavoriteButton";
+import { ScoreMeter } from "@/app/components/ScoreMeter";
 
 const ALL_ARTICLES_PAGE_SIZE = 50;
 
@@ -92,19 +93,13 @@ export function AllArticlesTab({
                   rel="noopener noreferrer"
                   style={{ textDecoration: "none", color: "inherit", display: "block" }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <span style={{ color: color.text, fontWeight: 500, fontSize: 15, flex: 1 }}>
                       {art.title}
                     </span>
                     {art.score != null && (
-                      <span style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: art.score >= 7 ? "#22c55e" : art.score >= 5 ? color.gold : color.textMuted,
-                        marginLeft: 8,
-                        flexShrink: 0,
-                      }}>
-                        {art.score}/10
+                      <span style={{ marginLeft: 12, flexShrink: 0 }}>
+                        <ScoreMeter score={art.score} />
                       </span>
                     )}
                   </div>

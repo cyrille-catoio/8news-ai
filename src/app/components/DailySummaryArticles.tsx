@@ -4,6 +4,7 @@ import { color } from "@/lib/theme";
 import { dateLocale, type Lang } from "@/lib/i18n";
 import { CopyLinkButton } from "@/app/components/CopyLinkButton";
 import { FavoriteButton } from "@/app/components/FavoriteButton";
+import { ScoreMeter } from "@/app/components/ScoreMeter";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useAuth } from "@/app/providers";
 import { useState } from "react";
@@ -15,6 +16,8 @@ interface Article {
   source: string;
   pubDate: string;
   snippet?: string;
+  /** Article relevance score, 0-10. When present a ScoreMeter is rendered. */
+  score?: number | null;
 }
 
 export function DailySummaryArticles({ articles, lang }: { articles: Article[]; lang: Lang }) {
@@ -43,9 +46,16 @@ export function DailySummaryArticles({ articles, lang }: { articles: Article[]; 
             rel="noopener noreferrer"
             style={{ textDecoration: "none", color: "inherit", display: "block" }}
           >
-            <h3 style={{ color: color.text, fontWeight: 500, fontSize: 17, margin: 0 }}>
-              {art.title}
-            </h3>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+              <h3 style={{ color: color.text, fontWeight: 500, fontSize: 17, margin: 0, flex: 1, minWidth: 0 }}>
+                {art.title}
+              </h3>
+              {art.score != null && (
+                <span style={{ flexShrink: 0 }}>
+                  <ScoreMeter score={art.score} />
+                </span>
+              )}
+            </div>
             {art.snippet && (
               <p style={{ color: color.articleSnippet, fontSize: 14, marginTop: 6, lineHeight: 1.5, marginBottom: 0 }}>
                 {art.snippet}

@@ -25,6 +25,11 @@ export function AuthModal({
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Switches the modal content from the form to a welcome screen right
+  // after a successful signup (Supabase email confirmation is disabled,
+  // so the session is live immediately). Closing the welcome screen
+  // navigates the visitor to the videos page.
+  const [justSignedUp, setJustSignedUp] = useState(false);
 
   const resetForm = useCallback(() => {
     setError(null);
@@ -39,17 +44,45 @@ export function AuthModal({
     if (!open) {
       resetForm();
       setMode("signin");
+      setJustSignedUp(false);
     }
   }, [open, resetForm]);
+
+  // Hard navigation to the videos page after the welcome screen is
+  // dismissed. window.location guarantees the SPA picks up the fresh
+  // Supabase session via middleware, regardless of where the modal was
+  // mounted (landing, SPA page, SSR page).
+  const goToVideos = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.location.href = "/app/videos";
+    }
+  }, []);
+
+  const handleWelcomeClose = useCallback(() => {
+    setJustSignedUp(false);
+    onClose();
+    resetForm();
+    goToVideos();
+  }, [goToVideos, onClose, resetForm]);
+
+  // Single dismiss handler: when the welcome screen is showing we always
+  // navigate to /app/videos, otherwise we just close the modal.
+  const dismiss = useCallback(() => {
+    if (justSignedUp) {
+      handleWelcomeClose();
+    } else {
+      onClose();
+    }
+  }, [justSignedUp, handleWelcomeClose, onClose]);
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") dismiss();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, dismiss]);
 
   if (!open) return null;
 
@@ -95,11 +128,14 @@ export function AuthModal({
       }
 
       if (data.session) {
-        onClose();
-        resetForm();
+        // Email confirmation is disabled in Supabase: the user is live
+        // immediately. Show the welcome screen instead of closing.
+        setJustSignedUp(true);
         return;
       }
 
+      // Fallback path: if email confirmation is ever re-enabled, surface
+      // the existing "check your inbox" message rather than break.
       setInfo(t("authSignUpCheckEmail", lang));
     } finally {
       setBusy(false);
@@ -138,7 +174,7 @@ export function AuthModal({
         padding: 20,
       }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) dismiss();
       }}
     >
       <div
@@ -156,7 +192,7 @@ export function AuthModal({
       >
         <button
           type="button"
-          onClick={onClose}
+          onClick={dismiss}
           aria-label={t("authCloseAria", lang)}
           style={{
             position: "absolute",
@@ -174,93 +210,119 @@ export function AuthModal({
           ×
         </button>
 
-        <h2
-          id="auth-modal-title"
-          style={{ margin: "0 0 20px", fontSize: 18, color: color.gold, fontWeight: 600 }}
-        >
-          {mode === "signin" ? t("authModalTitleSignIn", lang) : t("authModalTitleSignUp", lang)}
-        </h2>
+        {justSignedUp ? (
+          <>
+            <h2
+              id="auth-modal-title"
+              style={{ margin: "0 0 16px", fontSize: 18, color: color.gold, fontWeight: 600 }}
+            >
+              {t("authWelcomeTitle", lang)}
+            </h2>
+            <p
+              style={{
+                color: color.textSecondary,
+                fontSize: 14,
+                lineHeight: 1.55,
+                margin: "0 0 24px",
+              }}
+            >
+              {t("authWelcomeBody", lang)}
+            </p>
+            <button type="button" onClick={handleWelcomeClose} style={btnPrimary}>
+              {t("authWelcomeClose", lang)}
+            </button>
+          </>
+        ) : (
+          <>
+            <h2
+              id="auth-modal-title"
+              style={{ margin: "0 0 20px", fontSize: 18, color: color.gold, fontWeight: 600 }}
+            >
+              {mode === "signin" ? t("authModalTitleSignIn", lang) : t("authModalTitleSignUp", lang)}
+            </h2>
 
-        <form onSubmit={handleSubmit}>
-          {mode === "signup" && (
-            <>
-              <label style={labelStyle}>{t("authFirstName", lang)}</label>
+            <form onSubmit={handleSubmit}>
+              {mode === "signup" && (
+                <>
+                  <label style={labelStyle}>{t("authFirstName", lang)}</label>
+                  <input
+                    type="text"
+                    autoComplete="given-name"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    style={{ ...formInputStyle, marginBottom: 12 }}
+                    disabled={busy}
+                  />
+                  <label style={labelStyle}>{t("authLastName", lang)}</label>
+                  <input
+                    type="text"
+                    autoComplete="family-name"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    style={{ ...formInputStyle, marginBottom: 12 }}
+                    disabled={busy}
+                  />
+                </>
+              )}
+
+              <label style={labelStyle}>{t("authEmail", lang)}</label>
               <input
-                type="text"
-                autoComplete="given-name"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 style={{ ...formInputStyle, marginBottom: 12 }}
                 disabled={busy}
+                required
               />
-              <label style={labelStyle}>{t("authLastName", lang)}</label>
+
+              <label style={labelStyle}>{t("authPassword", lang)}</label>
               <input
-                type="text"
-                autoComplete="family-name"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
+                type="password"
+                autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 style={{ ...formInputStyle, marginBottom: 12 }}
                 disabled={busy}
+                required
+                minLength={6}
               />
-            </>
-          )}
 
-          <label style={labelStyle}>{t("authEmail", lang)}</label>
-          <input
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={{ ...formInputStyle, marginBottom: 12 }}
-            disabled={busy}
-            required
-          />
+              {error && (
+                <p style={{ color: color.errorText, fontSize: 13, margin: "8px 0 0" }}>{error}</p>
+              )}
+              {info && (
+                <p style={{ color: color.goldLight, fontSize: 13, margin: "8px 0 0" }}>{info}</p>
+              )}
 
-          <label style={labelStyle}>{t("authPassword", lang)}</label>
-          <input
-            type="password"
-            autoComplete={mode === "signin" ? "current-password" : "new-password"}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={{ ...formInputStyle, marginBottom: 12 }}
-            disabled={busy}
-            required
-            minLength={6}
-          />
+              <button type="submit" style={btnPrimary} disabled={busy}>
+                {mode === "signin" ? t("authSubmitSignIn", lang) : t("authSubmitSignUp", lang)}
+              </button>
+            </form>
 
-          {error && (
-            <p style={{ color: color.errorText, fontSize: 13, margin: "8px 0 0" }}>{error}</p>
-          )}
-          {info && (
-            <p style={{ color: color.goldLight, fontSize: 13, margin: "8px 0 0" }}>{info}</p>
-          )}
-
-          <button type="submit" style={btnPrimary} disabled={busy}>
-            {mode === "signin" ? t("authSubmitSignIn", lang) : t("authSubmitSignUp", lang)}
-          </button>
-        </form>
-
-        <button
-          type="button"
-          onClick={() => {
-            setMode(mode === "signin" ? "signup" : "signin");
-            setError(null);
-            setInfo(null);
-          }}
-          style={{
-            marginTop: 14,
-            width: "100%",
-            border: "none",
-            background: "transparent",
-            color: color.gold,
-            fontSize: 13,
-            cursor: "pointer",
-            textDecoration: "underline",
-            fontFamily: font.base,
-          }}
-        >
-          {mode === "signin" ? t("authSwitchToSignUp", lang) : t("authSwitchToSignIn", lang)}
-        </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode(mode === "signin" ? "signup" : "signin");
+                setError(null);
+                setInfo(null);
+              }}
+              style={{
+                marginTop: 14,
+                width: "100%",
+                border: "none",
+                background: "transparent",
+                color: color.gold,
+                fontSize: 13,
+                cursor: "pointer",
+                textDecoration: "underline",
+                fontFamily: font.base,
+              }}
+            >
+              {mode === "signin" ? t("authSwitchToSignUp", lang) : t("authSwitchToSignIn", lang)}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

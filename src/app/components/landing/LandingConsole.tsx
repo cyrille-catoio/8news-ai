@@ -30,9 +30,15 @@ export function LandingConsole({ lang }: { lang: LandingLang }) {
               : r.s >= 5 ? ""
               : r.s >= 3 ? "bar-orange"
               : "bar-red";
+          // Number color matches the bar tier so the score + bar read as
+          // one unit. Default tier (5-8) uses gold, same as the default bar.
+          const meterColor =
+            r.s >= 9 ? "var(--green)"
+              : r.s >= 5 ? "var(--gold)"
+              : r.s >= 3 ? "var(--orange)"
+              : "var(--red)";
           return (
             <div key={i} className="score-row" style={{ animationDelay: `${i * 0.1}s` }}>
-              <span className={`score-badge score-${r.s}`}>{r.s}</span>
               <div className="score-body">
                 <div className="title">{lang === "en" ? r.t_en : r.t_fr}</div>
                 <div className="src">
@@ -40,8 +46,11 @@ export function LandingConsole({ lang }: { lang: LandingLang }) {
                   {r.src} · {8 - i}m ago
                 </div>
               </div>
-              <div className={`score-bar ${barClass}`}>
-                <i style={{ width: `${w * 100}%` }} />
+              <div className="score-meter">
+                <span className="score-num" style={{ color: meterColor }}>{r.s}</span>
+                <div className={`score-bar ${barClass}`}>
+                  <i style={{ width: `${w * 100}%` }} />
+                </div>
               </div>
             </div>
           );

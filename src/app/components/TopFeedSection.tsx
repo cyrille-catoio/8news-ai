@@ -4,6 +4,7 @@ import { color, card, sectionHeading } from "@/lib/theme";
 import { t, type Lang } from "@/lib/i18n";
 import { CopyLinkButton } from "@/app/components/CopyLinkButton";
 import { FavoriteButton } from "@/app/components/FavoriteButton";
+import { ScoreMeter } from "@/app/components/ScoreMeter";
 import type { TopFeedArticle } from "@/hooks/useTopFeed";
 
 const NEW_THRESHOLD_MS = 3_600_000;
@@ -92,16 +93,8 @@ export function TopFeedSection({
                   </>
                 )}
               </div>
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: art.score >= 7 ? "#22c55e" : art.score >= 5 ? color.gold : color.textMuted,
-                  flexShrink: 0,
-                  lineHeight: 1.2,
-                }}
-              >
-                {art.score}/10
+              <span style={{ marginLeft: 12, flexShrink: 0 }}>
+                <ScoreMeter score={art.score} />
               </span>
             </div>
           </a>

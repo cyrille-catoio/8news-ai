@@ -138,7 +138,14 @@ export async function generateDailySummary(
     return { summaryId: 0, bulletCount: 0, slug: "", seoTitle: "", articleCount: 0, status: "no_articles" };
   }
 
-  const items = scoredRows.map((r) => toArticleSummary(r, lang));
+  // Preserve `relevance_score` alongside the trimmed ArticleSummary so it
+  // can be persisted in `daily_summaries.articles` and rendered as a
+  // ScoreMeter on the SEO page. The base ArticleSummary type doesn't
+  // expose score, but the runtime JSON keeps any extra field intact.
+  const items = scoredRows.map((r) => ({
+    ...toArticleSummary(r, lang),
+    relevance_score: r.relevance_score ?? null,
+  }));
 
   const promptTemplate = lang === "fr" ? topicPrompt.prompt_fr : topicPrompt.prompt_en;
   const basePrompt = promptTemplate

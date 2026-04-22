@@ -23,6 +23,12 @@ export interface ArticleSummary {
   source: string;
   pubDate: string;
   snippet: string;
+  /**
+   * AI relevance score (0-10). Set by the scorer cron and surfaced by
+   * /api/news + persisted into daily_summaries.articles. Optional because
+   * not every consumer carries it through (e.g. legacy summaries).
+   */
+  score?: number | null;
 }
 
 export interface SummaryBullet {

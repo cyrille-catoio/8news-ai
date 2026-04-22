@@ -138,6 +138,10 @@ export async function GET(request: NextRequest) {
     const filteredArticles: ArticleSummary[] = items.map((a, i) => {
       const entry = relevant.get(i);
       const row = scoredRows[i];
+      // Surface the per-article relevance score so consumers (the SPA's
+      // ArticleCard, the AllArticlesTab, the DailySummaryArticles) can
+      // render a ScoreMeter next to the title.
+      const score = row?.relevance_score ?? null;
       if (lang === "fr") {
         const hasDbFrSnippet = !!(row?.snippet_ai_fr && row.snippet_ai_fr.trim());
         return {
@@ -146,12 +150,14 @@ export async function GET(request: NextRequest) {
           snippet: hasDbFrSnippet
             ? a.snippet
             : (entry?.snippet && entry.snippet.trim()) || a.snippet,
+          score,
         };
       }
       return {
         ...a,
         title: entry?.title || a.title,
         snippet: entry?.snippet || a.snippet,
+        score,
       };
     });
 

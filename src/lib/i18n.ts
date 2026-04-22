@@ -6,8 +6,8 @@ const strings = {
     fr: "8news",
   },
   subtitle: {
-    en: "Tech * AI * Crypto",
-    fr: "Tech * AI * Crypto",
+    en: "Tech • IA • Crypto",
+    fr: "Tech • IA • Crypto",
   },
   selectPeriod: {
     en: "Select a time period:",
@@ -26,7 +26,7 @@ const strings = {
     fr: "Erreur inconnue",
   },
   summary: {
-    en: "AI Summary",
+    en: "Summary",
     fr: "Résumé IA",
   },
   relevantArticles: {
@@ -749,6 +749,18 @@ const strings = {
   authSignUpCheckEmail: {
     en: "Check your email to confirm your account, then sign in.",
     fr: "Consultez vos e-mails pour confirmer votre compte, puis connectez-vous.",
+  },
+  authWelcomeTitle: {
+    en: "Welcome to 8news",
+    fr: "Bienvenue sur 8news",
+  },
+  authWelcomeBody: {
+    en: "8news is going to evolve very quickly in the coming weeks. Your feedback is essential to help the team improve the product. Don't hesitate to share what could be better.",
+    fr: "8news va évoluer très rapidement dans les semaines à venir. Vos retours sont essentiels pour aider l'équipe à améliorer le produit. N'hésitez pas à nous faire part des points à améliorer.",
+  },
+  authWelcomeClose: {
+    en: "Close",
+    fr: "Fermer",
   },
   usersSection: {
     en: "Users",

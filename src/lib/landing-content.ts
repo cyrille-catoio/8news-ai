@@ -97,14 +97,14 @@ export const LANDING_CONTENT: LandingContent = {
     cta: { en: "Try it now", fr: "Essayer" },
   },
   hero: {
-    kicker: { en: "Tech / AI / Crypto", fr: "Tech / IA / Crypto" },
+    kicker: { en: "Tech · AI · Crypto", fr: "Tech · IA · Crypto" },
     headline: {
       en: "Two hours of YouTube,<br /><em>read in 8 minutes.</em>",
       fr: "2 heures de YouTube,<br /><em>lues en 8 minutes.</em>",
     },
     sub: {
-      en: "8news aggregates the YouTube channels you actually care about and 400+ RSS feeds, scores every article from 1 to 10 with AI. No feed. No rabbit hole. Just the signal.",
-      fr: "8news agrège les chaînes YouTube qui comptent et plus de 400 flux RSS, score chaque article de 1 à 10 par IA. Pas de feed. Pas de trou noir. Juste le signal.",
+      en: "8news aggregates the YouTube channels you actually care about and 400+ articles per day. AI scores every article from 1 to 10. No Noise. Just the signal.",
+      fr: "8news agrège les chaînes YouTube qui comptent et plus de 5000 articles par jour. L'IA score chaque article de 1 à 10. Pas de bruit. Juste le signal.",
     },
     ctaPrimary: { en: "Try it now →", fr: "Essayer →" },
     ctaSecondary: { en: "See a daily summary", fr: "Voir un résumé du jour" },
@@ -248,11 +248,11 @@ export const LANDING_CONTENT: LandingContent = {
     },
     plans: {
       en: [
-        { tag: "CURRENT", name: "Free", price: "$0", per: "/forever", desc: "Everything we shipped in v1.109.2. No credit card, no waitlist.", features: ["All 36 default topics with 400+ RSS feeds", "Top 50 daily with AI summary + sources", "YouTube transcription (5 per day)", "ElevenLabs text-to-speech (12 voices)", "Favorites, daily summaries archive", "Bilingual EN / FR"], cta: "Try it now", featured: false },
+        { tag: "CURRENT", name: "Free", price: "$0", per: "/forever", desc: "Everything we shipped in v1.110. No credit card, no waitlist.", features: ["All 36 default topics with 400+ RSS feeds", "Top 50 daily with AI summary + sources", "YouTube transcription (5 per day)", "ElevenLabs text-to-speech (12 voices)", "Favorites, daily summaries archive", "Bilingual EN / FR"], cta: "Try it now", featured: false },
         { tag: "COMING SOON", name: "Pro", price: "$8", per: "/month", desc: "For founders, analysts and builders who need custom topics and higher limits.", features: ["Unlimited custom topics with AI feed discovery", "Unlimited YouTube transcriptions", "Webhooks & API access (Top 50 / daily summaries)", "Morning email digest, your topics only", "Priority scoring queue", "Access to a Tech / AI / Crypto discussion community"], cta: "Join the waitlist", featured: true },
       ],
       fr: [
-        { tag: "ACTUEL", name: "Gratuit", price: "0 €", per: "/à vie", desc: "Tout ce qu'on a livré en v1.109.2. Sans carte bancaire, sans liste d'attente.", features: ["Les 36 topics par défaut avec 400+ flux RSS", "Top 50 quotidien avec résumé IA + sources", "Transcription YouTube (5 par jour)", "Text-to-speech ElevenLabs (12 voix)", "Favoris, archive des résumés quotidiens", "Bilingue EN / FR"], cta: "Essayer", featured: false },
+        { tag: "ACTUEL", name: "Gratuit", price: "0 €", per: "/à vie", desc: "Tout ce qu'on a livré en v1.110. Sans carte bancaire, sans liste d'attente.", features: ["Les 36 topics par défaut avec 400+ flux RSS", "Top 50 quotidien avec résumé IA + sources", "Transcription YouTube (5 par jour)", "Text-to-speech ElevenLabs (12 voix)", "Favoris, archive des résumés quotidiens", "Bilingue EN / FR"], cta: "Essayer", featured: false },
         { tag: "BIENTÔT", name: "Pro", price: "8 €", per: "/mois", desc: "Pour fondateurs, analystes et builders qui veulent des topics sur mesure et plus de volume.", features: ["Topics personnalisés illimités avec découverte IA des flux", "Transcriptions YouTube illimitées", "Webhooks & accès API (Top 50 / résumés)", "Digest email matinal, uniquement vos topics", "File de scoring prioritaire", "Accès à une communauté de discussion Tech / IA / Crypto"], cta: "Rejoindre la liste", featured: true },
       ],
     },

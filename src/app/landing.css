@@ -73,20 +73,25 @@
 .landing-root .kicker::before {
   content: ""; width: 22px; height: 1px; background: var(--gold);
 }
-/* Hero kicker gets a larger brand-tagline look ("Tech / AI / Crypto")
-   while every other section keeps the small all-caps mono label. */
+/* Hero kicker becomes the big brand tagline ("Tech / AI / Crypto"):
+   the element spans the full width of the hero copy column and the
+   text itself is sized big enough to visually fill that line at wide
+   breakpoints. Every other section keeps its small all-caps mono label. */
 .landing-root .hero .kicker {
-  font-size: 22px;
-  letter-spacing: 0.08em;
+  display: flex;
+  width: 100%;
+  font-size: clamp(17px, 3.9vw, 39px);
+  letter-spacing: 0.04em;
   font-weight: 500;
-  gap: 14px;
+  gap: 18px;
+  align-items: center;
+  white-space: nowrap;
 }
 .landing-root .hero .kicker::before {
-  width: 40px;
+  width: clamp(24px, 4vw, 48px);
 }
 @media (max-width: 700px) {
-  .landing-root .hero .kicker { font-size: 18px; }
-  .landing-root .hero .kicker::before { width: 32px; }
+  .landing-root .hero .kicker { gap: 12px; letter-spacing: 0.06em; }
 }
 .landing-root h1,
 .landing-root h2,
@@ -238,7 +243,10 @@
 
 .landing-root .score-row {
   display: grid;
-  grid-template-columns: 44px 1fr auto;
+  /* 2 columns: title + source on the left, score-meter (number stacked
+     above its bar) on the right. The dedicated 44px badge column was
+     dropped when the score number moved into the meter unit. */
+  grid-template-columns: 1fr auto;
   align-items: center;
   gap: 14px;
   padding: 10px 2px;
@@ -249,25 +257,24 @@
 .landing-root .score-row:last-child { border-bottom: none; }
 @keyframes landing-fadeUp { to { opacity: 1; transform: translateY(0); } }
 
-.landing-root .score-badge {
-  font-family: var(--mono);
-  font-size: 16px; font-weight: 600;
-  width: 44px; height: 36px;
-  display: inline-flex; align-items: center; justify-content: center;
-  border-radius: 6px;
-  border: 1px solid var(--border-2);
-  background: #050505;
+/* Score meter: small mono number stacked just above the progress bar so
+   the two read as one indicator. Number color is set inline on
+   .score-num to match the bar tier (.bar-green / default gold /
+   .bar-orange / .bar-red). */
+.landing-root .score-meter {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: 60px;
 }
-.landing-root .score-9,
-.landing-root .score-10 { color: var(--green); border-color: rgba(74,222,128,0.3); background: rgba(74,222,128,0.06); }
-.landing-root .score-7,
-.landing-root .score-8 { color: var(--gold); border-color: rgba(201,162,39,0.3); background: rgba(201,162,39,0.06); }
-.landing-root .score-5,
-.landing-root .score-6 { color: var(--gold); opacity: 0.8; }
-.landing-root .score-3,
-.landing-root .score-4 { color: var(--orange); }
-.landing-root .score-1,
-.landing-root .score-2 { color: var(--red); }
+.landing-root .score-num {
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
 
 .landing-root .score-body .title {
   font-size: 13.5px; line-height: 1.35; color: var(--text);

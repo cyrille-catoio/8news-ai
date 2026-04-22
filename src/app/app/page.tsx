@@ -16,6 +16,7 @@ import {
   spinnerStyle,
 } from "@/lib/theme";
 import { CopyLinkButton } from "@/app/components/CopyLinkButton";
+import { ScoreMeter } from "@/app/components/ScoreMeter";
 import { ChangelogPage } from "@/app/components/ChangelogPage";
 import { FeedsAdminPage } from "@/app/components/FeedsAdminPage";
 import { CategoriesPage } from "@/app/components/CategoriesPage";
@@ -45,7 +46,7 @@ import { YouTubeChannelsPage } from "@/app/components/YouTubeChannelsPage";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.109.2";
+const APP_VERSION = "1.110";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 
@@ -274,9 +275,16 @@ function ArticleCard({
         rel="noopener noreferrer"
         style={{ textDecoration: "none", color: "inherit", display: "block" }}
       >
-        <span style={{ color: color.text, fontWeight: 500, fontSize: 17 }}>
-          {article.title}
-        </span>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+          <span style={{ color: color.text, fontWeight: 500, fontSize: 17, flex: 1, minWidth: 0 }}>
+            {article.title}
+          </span>
+          {article.score != null && (
+            <span style={{ flexShrink: 0 }}>
+              <ScoreMeter score={article.score} />
+            </span>
+          )}
+        </div>
         <p style={{ color: color.articleSnippet, fontSize: 14, marginTop: 6, lineHeight: 1.5 }}>
           {article.snippet}
         </p>

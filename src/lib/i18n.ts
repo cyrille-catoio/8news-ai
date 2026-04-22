@@ -1006,6 +1006,10 @@ const strings = {
     en: "Daily Summaries",
     fr: "Résumés quotidiens",
   },
+  briefingBtn: {
+    en: "Briefing",
+    fr: "Briefing",
+  },
   videosBtn: {
     en: "Videos",
     fr: "Vidéos",

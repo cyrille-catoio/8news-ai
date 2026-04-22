@@ -44,6 +44,7 @@ export function GeneralMenu({
   currentPage,
   isAuthenticated,
   analyzeTopLoading,
+  onNavigateBriefing,
   onNavigateHome,
   onNavigateFavorites,
   onAnalyzeTop,
@@ -55,6 +56,7 @@ export function GeneralMenu({
   currentPage: AppNavPage;
   isAuthenticated: boolean;
   analyzeTopLoading: boolean;
+  onNavigateBriefing: () => void;
   onNavigateHome: () => void;
   onNavigateFavorites: () => void;
   onAnalyzeTop: () => void;
@@ -64,6 +66,13 @@ export function GeneralMenu({
 }) {
   return (
     <div style={barWrap}>
+      <button
+        type="button"
+        onClick={onNavigateBriefing}
+        style={currentPage === "briefing" ? activeStyle : base}
+      >
+        {t("briefingBtn", lang)}
+      </button>
       <button
         type="button"
         onClick={onNavigateVideos}
@@ -113,14 +122,17 @@ export function SeoGeneralMenu({
   activePage,
 }: {
   lang: Lang;
-  activePage?: "home" | "favorites" | "topArticles" | "summaries" | "videos";
+  activePage?: "briefing" | "home" | "favorites" | "topArticles" | "summaries" | "videos";
 }) {
   const { session } = useAuth();
   const authed = Boolean(session?.user);
 
   return (
     <div style={barWrap}>
-      <a href="/app" style={activePage === "videos" ? activeStyle : base}>
+      <a href="/app" style={activePage === "briefing" ? activeStyle : base}>
+        {t("briefingBtn", lang)}
+      </a>
+      <a href="/app/videos" style={activePage === "videos" ? activeStyle : base}>
         {t("videosBtn", lang)}
       </a>
       <a href="/app/articles" style={activePage === "home" ? activeStyle : base}>

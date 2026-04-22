@@ -64,6 +64,49 @@ function toDateStr(d: Date): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
 }
 
+/** Validate an IANA timezone string. Returns null if invalid or absent. */
+function safeTimeZone(tz: string | null): string | null {
+  if (!tz) return null;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz });
+    return tz;
+  } catch {
+    return null;
+  }
+}
+
+/** UTC offset (in ms) of `tz` at the given instant. East of UTC is positive. */
+function tzOffsetMs(at: Date, tz: string): number {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    timeZoneName: "longOffset",
+  });
+  const tzPart = dtf
+    .formatToParts(at)
+    .find((p) => p.type === "timeZoneName")?.value ?? "GMT+00:00";
+  // Examples: "GMT+02:00", "GMT-05:30", or simply "GMT" for UTC.
+  if (tzPart === "GMT") return 0;
+  const m = tzPart.match(/GMT([+-])(\d{2}):(\d{2})/);
+  if (!m) return 0;
+  const sign = m[1] === "+" ? 1 : -1;
+  return sign * (parseInt(m[2], 10) * 3600 + parseInt(m[3], 10) * 60) * 1000;
+}
+
+/**
+ * Compute the [start, end) UTC instants of the given local calendar day in
+ * the given IANA timezone. Used to resolve "give me everything published on
+ * 2026-04-19 in Europe/Paris" into a precise UTC time window so we don't
+ * miss videos published 00h–02h local that map to the previous UTC day.
+ */
+function zonedDayBounds(dateStr: string, tz: string): { start: Date; end: Date } {
+  const utcMidnight = new Date(`${dateStr}T00:00:00Z`);
+  const offset = tzOffsetMs(utcMidnight, tz);
+  // local = UTC + offset  ⟹  UTC instant of local-midnight = UTC midnight − offset
+  const start = new Date(utcMidnight.getTime() - offset);
+  const end = new Date(start.getTime() + 86_400_000);
+  return { start, end };
+}
+
 /**
  * Fetch latest videos from all active channels via TranscriptAPI RSS,
  * upsert them into youtube_videos, then return.
@@ -118,16 +161,32 @@ export async function GET(req: NextRequest) {
   const targetDate = dateParam ?? toDateStr(new Date());
   const langParam = req.nextUrl.searchParams.get("lang");
   const uiLang = langParam === "fr" ? "fr" : "en";
+  const tz = safeTimeZone(req.nextUrl.searchParams.get("tz"));
 
   // Always refresh from RSS to capture new videos
   await refreshFromRss(db);
 
-  // Query persisted videos by date
-  const { data, error } = await db
+  // Query persisted videos by date.
+  //
+  // When the caller provides their IANA timezone (`?tz=Europe/Paris`) we
+  // filter on the `published` timestamptz column with explicit local-day
+  // bounds so a video published at 01:00 Paris time (= 23:00 UTC the day
+  // before) is correctly listed under the requested local date. Without a
+  // timezone we fall back to the legacy `published_date` filter, which is
+  // computed in UTC and can shift videos by one day.
+  let query = db
     .from("youtube_videos")
     .select("*")
-    .eq("published_date", targetDate)
     .order("published", { ascending: false });
+
+  if (tz) {
+    const { start, end } = zonedDayBounds(targetDate, tz);
+    query = query.gte("published", start.toISOString()).lt("published", end.toISOString());
+  } else {
+    query = query.eq("published_date", targetDate);
+  }
+
+  const { data, error } = await query;
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

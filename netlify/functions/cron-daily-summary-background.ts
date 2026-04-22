@@ -5,6 +5,20 @@ const WALL_MS = 840_000;
 const BUDGET_MS = Number(process.env.DAILY_SUMMARY_BUDGET_MS ?? 810_000);
 const SAFETY_MS = 15_000;
 
+/**
+ * Hard cap on the number of topics processed per cron tick.
+ *
+ * The Netlify background-function wall is 15 min and a single OpenAI call can
+ * push 30–60 s. Capping the work per run avoids timeouts on days where many
+ * topics need a fresh summary (e.g. cold start). The cron is expected to run
+ * multiple times per day; each run picks up where the previous left off
+ * because already-generated `(topic, lang)` rows are fast-skipped via a
+ * single bulk SELECT below.
+ */
+const MAX_TOPICS_PER_RUN = Number(process.env.DAILY_SUMMARY_MAX_TOPICS_PER_RUN ?? 5);
+
+const ALL_LANGS = ["en", "fr"] as const;
+
 export default async () => {
   const startedAt = Date.now();
   const deadline = startedAt + Math.min(WALL_MS, BUDGET_MS);
@@ -34,34 +48,66 @@ export default async () => {
     return;
   }
 
-  console.log(`[cron-daily-summary] Found ${topics.length} active topics`);
+  console.log(`[cron-daily-summary] Found ${topics.length} active topics, max ${MAX_TOPICS_PER_RUN} per run`);
 
   const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+
+  // Bulk-load existing (topic, lang) summaries so the loop can fast-skip
+  // anything a previous cron tick already wrote — without an SQL round-trip
+  // per topic. This is what makes the run resumable across multiple ticks.
+  const { data: existingRows, error: existingErr } = await supabase
+    .from("daily_summaries")
+    .select("topic_id, lang")
+    .eq("summary_date", yesterday);
+
+  if (existingErr) {
+    console.log(`[cron-daily-summary] DB error (existing): ${existingErr.message}`);
+    return;
+  }
+
+  const doneSet = new Set<string>();
+  for (const r of existingRows ?? []) {
+    const row = r as { topic_id: string; lang: string };
+    doneSet.add(`${row.topic_id}|${row.lang}`);
+  }
+
+  // Deterministic ordering so consecutive cron ticks naturally pick up
+  // where the previous one stopped (already-done topics get fast-skipped
+  // before they consume any of the per-run cap).
+  const sortedTopics = [...topics].sort((a, b) =>
+    String((a as { id: string }).id).localeCompare(String((b as { id: string }).id)),
+  );
+
+  let processedTopics = 0;
+  let skippedTopics = 0;
   let generated = 0;
-  let skipped = 0;
   let errors = 0;
   let noArticles = 0;
+  let cappedReached = false;
 
-  for (const t of topics) {
+  for (const t of sortedTopics) {
     if (remaining() <= SAFETY_MS) {
       lines.push(`[budget] stopping — remaining=${Math.max(0, remaining())}ms`);
       break;
     }
 
-    for (const lang of ["en", "fr"] as const) {
-      const { data: existing } = await supabase
-        .from("daily_summaries")
-        .select("id")
-        .eq("topic_id", t.id)
-        .eq("summary_date", yesterday)
-        .eq("lang", lang)
-        .single();
+    const missingLangs = ALL_LANGS.filter((lang) => !doneSet.has(`${t.id}|${lang}`));
 
-      if (existing) {
-        skipped++;
-        continue;
-      }
+    if (missingLangs.length === 0) {
+      // Both langs already exist for this topic → nothing to do.
+      skippedTopics++;
+      continue;
+    }
 
+    if (processedTopics >= MAX_TOPICS_PER_RUN) {
+      cappedReached = true;
+      lines.push(`[cap] stopping — processed=${processedTopics} max=${MAX_TOPICS_PER_RUN}`);
+      break;
+    }
+
+    processedTopics++;
+
+    for (const lang of missingLangs) {
       if (remaining() <= SAFETY_MS) break;
 
       try {
@@ -73,6 +119,10 @@ export default async () => {
             lines.push(`[no_articles] topic=${t.id} lang=${lang}`);
           } else {
             generated++;
+            // Mark as done so a subsequent topic re-check inside the same
+            // run wouldn't double-count (defensive — currently we only
+            // visit each (topic, lang) once).
+            doneSet.add(`${t.id}|${lang}`);
             lines.push(`[ok] topic=${t.id} lang=${lang} slug=${result.slug} bullets=${result.bulletCount} articles=${result.articleCount}`);
           }
         } else {
@@ -87,7 +137,8 @@ export default async () => {
     }
   }
 
-  const summary = `[run] cron=daily-summary date=${yesterday} topics=${topics.length} generated=${generated} skipped=${skipped} no_articles=${noArticles} errors=${errors} elapsed_ms=${Date.now() - startedAt}`;
+  const remainingTopics = sortedTopics.length - skippedTopics - processedTopics;
+  const summary = `[run] cron=daily-summary date=${yesterday} topics=${sortedTopics.length} processed=${processedTopics} skipped=${skippedTopics} remaining=${remainingTopics} generated=${generated} no_articles=${noArticles} errors=${errors} capped=${cappedReached} elapsed_ms=${Date.now() - startedAt}`;
   lines.push(summary);
   console.log(lines.join("\n"));
   console.log(summary);

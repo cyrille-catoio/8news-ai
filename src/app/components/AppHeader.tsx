@@ -8,6 +8,7 @@ import { AuthModal } from "@/app/components/AuthModal";
 import { isOwnerUser } from "@/lib/user-type";
 
 export type AppNavPage =
+  | "briefing"
   | "home"
   | "stats"
   | "crons"
@@ -256,7 +257,7 @@ export function AppHeader({
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <NavIconButton
-            active={currentPage === "videos"}
+            active={currentPage === "briefing"}
             onClick={onHomeReset}
             ariaLabel={t("navHomeAria", lang)}
           >

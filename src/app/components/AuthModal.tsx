@@ -48,13 +48,13 @@ export function AuthModal({
     }
   }, [open, resetForm]);
 
-  // Hard navigation to the videos page after the welcome screen is
+  // Hard navigation to the Briefing homepage after the welcome screen is
   // dismissed. window.location guarantees the SPA picks up the fresh
   // Supabase session via middleware, regardless of where the modal was
   // mounted (landing, SPA page, SSR page).
-  const goToVideos = useCallback(() => {
+  const goToBriefing = useCallback(() => {
     if (typeof window !== "undefined") {
-      window.location.href = "/app/videos";
+      window.location.href = "/app";
     }
   }, []);
 
@@ -62,11 +62,11 @@ export function AuthModal({
     setJustSignedUp(false);
     onClose();
     resetForm();
-    goToVideos();
-  }, [goToVideos, onClose, resetForm]);
+    goToBriefing();
+  }, [goToBriefing, onClose, resetForm]);
 
   // Single dismiss handler: when the welcome screen is showing we always
-  // navigate to /app/videos, otherwise we just close the modal.
+  // navigate to /app (Briefing homepage), otherwise we just close the modal.
   const dismiss = useCallback(() => {
     if (justSignedUp) {
       handleWelcomeClose();

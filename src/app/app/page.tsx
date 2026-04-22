@@ -43,10 +43,11 @@ import { DailySummariesPage } from "@/app/components/DailySummariesPage";
 import { SummariesBrowsePage } from "@/app/components/SummariesBrowsePage";
 import { VideosPage } from "@/app/components/VideosPage";
 import { YouTubeChannelsPage } from "@/app/components/YouTubeChannelsPage";
+import { BriefingPage } from "@/app/components/BriefingPage";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "1.110";
+const APP_VERSION = "2.0";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 
@@ -425,7 +426,8 @@ export default function Home() {
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const PAGE_PATHS: Record<AppNavPage, string> = {
-    videos: "/app",
+    briefing: "/app",
+    videos: "/app/videos",
     home: "/app/articles",
     stats: "/app/stats",
     crons: "/app/crons",
@@ -442,14 +444,16 @@ export default function Home() {
   };
 
   const pathToPage = (path: string): AppNavPage => {
-    if (path === "/app/videos" || path === "/") return "videos";
+    // Briefing is the SPA's home: hard refresh on /app, on /, or on
+    // /app/briefing all land here.
+    if (path === "/" || path === "/app" || path === "/app/briefing") return "briefing";
     for (const [page, p] of Object.entries(PAGE_PATHS) as [AppNavPage, string][]) {
       if (p === path) return page;
     }
-    return "videos";
+    return "briefing";
   };
 
-  const [currentPage, setCurrentPageRaw] = useState<AppNavPage>("videos");
+  const [currentPage, setCurrentPageRaw] = useState<AppNavPage>("briefing");
 
   const setCurrentPage = useCallback((page: AppNavPage, replace = false) => {
     setCurrentPageRaw(page);
@@ -502,13 +506,13 @@ export default function Home() {
   useEffect(() => {
     if (authLoading) return;
     if (!authOwner && (currentPage === "feeds" || currentPage === "categories" || currentPage === "dailySummaries" || currentPage === "youtubeChannels")) {
-      setCurrentPage("videos", true);
+      setCurrentPage("briefing", true);
     }
     if (!isAuthenticated && currentPage === "topics") {
-      setCurrentPage("videos", true);
+      setCurrentPage("briefing", true);
     }
     if (!isAuthenticated && currentPage === "favorites") {
-      setCurrentPage("videos", true);
+      setCurrentPage("briefing", true);
     }
   }, [authLoading, authOwner, isAuthenticated, currentPage]);
 
@@ -750,7 +754,7 @@ export default function Home() {
             setCurrentPage(page);
           }}
           onHomeReset={() => {
-            setCurrentPage("videos");
+            setCurrentPage("briefing");
             handleReset();
           }}
           onLangChange={handleLangChange}
@@ -764,6 +768,7 @@ export default function Home() {
           currentPage={currentPage}
           isAuthenticated={isAuthenticated}
           analyzeTopLoading={topFeedLoading || topSummaryLoading}
+          onNavigateBriefing={() => { setCurrentPage("briefing"); handleReset(); }}
           onNavigateHome={() => { setCurrentPage("home"); handleReset(); }}
           onNavigateFavorites={() => setCurrentPage("favorites")}
           onAnalyzeTop={() => setCurrentPage("topArticles")}
@@ -772,7 +777,20 @@ export default function Home() {
           onRequestAuth={() => setAuthModalOpen(true)}
         />
 
-        {currentPage === "stats" ? (
+        {currentPage === "briefing" ? (
+          <BriefingPage
+            lang={lang}
+            isAuthenticated={isAuthenticated}
+            favoriteUrls={favoriteUrls}
+            onToggleFavorite={toggleFavorite}
+            onRequestAuth={() => setAuthModalOpen(true)}
+            onNavigate={(page) => setCurrentPage(page)}
+            topicLabels={topicLabels}
+            preferredTopicIds={preferredTopicIds}
+            ttsSpeed={ttsSpeed}
+            ttsVoice={lang === "fr" ? ttsVoiceFr : ttsVoice}
+          />
+        ) : currentPage === "stats" ? (
           <StatsPage
             lang={lang}
             topics={topicLabels}
@@ -794,11 +812,11 @@ export default function Home() {
               canManage={authOwner}
               startInCreate={topicsStartInCreate}
               onExit={() => {
-                setCurrentPage("videos");
+                setCurrentPage("briefing");
                 setTopicsStartInCreate(false);
               }}
               onMemberCreatedTopic={(message) => {
-                setCurrentPage("videos");
+                setCurrentPage("briefing");
                 setTopicsStartInCreate(false);
                 showHomeToast(message, 5000);
               }}

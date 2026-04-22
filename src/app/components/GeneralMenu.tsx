@@ -23,11 +23,19 @@ const base: CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
   cursor: "pointer",
-  padding: "6px 12px",
+  padding: "6px 14px",
+  // Floor keeps the shortest labels (Vidéos, Topics) visually balanced
+  // next to the longest ones without forcing every pill to the same
+  // width — content-sized nav remains the intent.
+  minWidth: 72,
+  textAlign: "center",
   borderRadius: 999,
   fontFamily: "inherit",
   transition: "all .15s ease",
   textDecoration: "none",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
 };
 
 const activeStyle: CSSProperties = {

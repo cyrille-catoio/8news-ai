@@ -104,27 +104,64 @@
   position: sticky; top: 0; z-index: 50;
   background: rgba(0,0,0,0.75);
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
 }
 .landing-root .nav-inner {
   display: flex; align-items: center; justify-content: space-between;
-  /* Taller nav bar so the /logo-8news.png image (up to 40px) has visible
-     breathing room above and below (~28px instead of ~12px). */
-  height: 96px;
+  gap: 24px;
+  /* Desktop: 80px gives the 40px logo image ~20px of breathing space top
+     & bottom. Mobile shrinks to 64px to preserve viewport. */
+  height: 80px;
+  min-width: 0;
 }
 .landing-root .logo {
-  display: flex; align-items: baseline; gap: 0;
-  font-family: var(--serif);
-  font-size: 26px;
-  font-style: italic;
-  letter-spacing: -0.01em;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  transition: opacity 0.15s ease;
 }
-.landing-root .logo .eight { color: var(--gold); font-weight: 500; font-style: normal; font-family: var(--sans); font-size: 24px; letter-spacing: -0.04em; margin-right: 2px; }
-.landing-root .logo .news { color: var(--text); }
-.landing-root .nav-links { display: flex; align-items: center; gap: 28px; }
-.landing-root .nav-links a { font-size: 13px; color: var(--text-2); }
+.landing-root .logo:hover { opacity: 0.8; }
+.landing-root .nav-links {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  flex: 1 1 auto;
+  justify-content: center;
+  /* Guarantee that every link stays on one line — fixes "Vidéo IA"
+     wrapping onto two lines at cramped widths. */
+  white-space: nowrap;
+  min-width: 0;
+}
+.landing-root .nav-links a {
+  position: relative;
+  font-size: 13px;
+  color: var(--text-2);
+  transition: color 0.15s ease;
+  padding: 6px 0;
+  text-decoration: none;
+}
+/* Subtle gold underline grows under the link on hover — gives the
+   center nav more life than a simple color change. */
+.landing-root .nav-links a::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 0;
+  height: 1px;
+  background: var(--gold);
+  transform: translateX(-50%);
+  transition: width 0.2s ease;
+}
 .landing-root .nav-links a:hover { color: var(--gold); }
-.landing-root .nav-right { display: flex; align-items: center; gap: 14px; }
+.landing-root .nav-links a:hover::after { width: 100%; }
+.landing-root .nav-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
 .landing-root .lang-switch {
   display: inline-flex;
   border: 1px solid var(--border-2);
@@ -140,19 +177,47 @@
   letter-spacing: 0.1em;
   text-decoration: none;
   display: inline-block;
+  transition: background 0.15s ease, color 0.15s ease;
 }
+.landing-root .lang-switch a:hover:not(.active),
+.landing-root .lang-switch button:hover:not(.active) { color: var(--text); }
 .landing-root .lang-switch a.active,
 .landing-root .lang-switch button.active { background: var(--gold); color: #000; }
+
+/* Secondary entry for returning users. No button chrome — stays visually
+   quiet and lets the primary gold CTA dominate. */
+.landing-root .nav-signin {
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  padding: 6px 4px;
+  transition: color 0.15s ease;
+}
+.landing-root .nav-signin:hover { color: var(--gold); }
+
 .landing-root .btn-primary {
   display: inline-flex; align-items: center; gap: 8px;
   background: var(--gold); color: #000;
   border: none; padding: 10px 16px; border-radius: 6px;
   font-size: 13px; font-weight: 600; cursor: pointer;
   font-family: var(--sans);
-  transition: background 0.15s;
+  transition: background 0.15s, transform 0.15s;
   text-decoration: none;
 }
 .landing-root .btn-primary:hover { background: var(--gold-2); }
+.landing-root .btn-primary:active { transform: translateY(1px); }
+
+/* Keyboard focus ring — accessible, visible only on keyboard navigation. */
+.landing-root .nav a:focus-visible,
+.landing-root .btn-primary:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Legacy ghost button class — retained for external uses (footer etc.)
+   but no longer referenced from the nav itself. */
 .landing-root .btn-ghost {
   background: transparent; color: var(--text);
   border: 1px solid var(--border-2);
@@ -162,6 +227,40 @@
   display: inline-block;
 }
 .landing-root .btn-ghost:hover { border-color: var(--gold); color: var(--gold); }
+
+/* ----- Responsive nav -----
+   Progressively strip content from the nav as viewport shrinks so the
+   logo, the primary CTA and the lang switch always have room to breathe
+   without overlapping. The center nav is nice-to-have anchor links for
+   a single-page marketing site — users can still scroll to each section
+   on mobile. */
+
+/* Below 1100 px (tablet landscape and under), tighten spacing. */
+@media (max-width: 1100px) {
+  .landing-root .nav-inner { gap: 16px; }
+  .landing-root .nav-links { gap: 22px; }
+  .landing-root .nav-links a { font-size: 12.5px; }
+}
+
+/* Below 1000 px the center anchors start to pinch the CTA — drop them. */
+@media (max-width: 1000px) {
+  .landing-root .nav-links { display: none; }
+  .landing-root .wrap { padding: 0 24px; }
+}
+
+/* Below 720 px the "Sign in" secondary link fights the CTA — drop it. */
+@media (max-width: 720px) {
+  .landing-root .nav-signin { display: none; }
+}
+
+/* Below 520 px, compact everything to keep the CTA + lang switch safe. */
+@media (max-width: 520px) {
+  .landing-root .nav-inner { height: 64px; gap: 10px; }
+  .landing-root .wrap { padding: 0 16px; }
+  .landing-root .btn-primary { padding: 8px 12px; font-size: 12px; }
+  .landing-root .btn-primary svg { display: none; }
+  .landing-root .nav-right { gap: 8px; }
+}
 
 /* ---------- SECTIONS ---------- */
 .landing-root section { padding: 96px 0; position: relative; }

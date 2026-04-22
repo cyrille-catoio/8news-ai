@@ -14,6 +14,7 @@ import {
   font,
   card,
   spinnerStyle,
+  primaryButtonStyle,
 } from "@/lib/theme";
 import { CopyLinkButton } from "@/app/components/CopyLinkButton";
 import { ScoreMeter } from "@/app/components/ScoreMeter";
@@ -47,7 +48,7 @@ import { BriefingPage } from "@/app/components/BriefingPage";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.0";
+const APP_VERSION = "2.1";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 
@@ -539,6 +540,13 @@ export default function Home() {
 
   const [topSummary, setTopSummary] = useState<SummaryResponse | null>(null);
   const [topSummaryLoading, setTopSummaryLoading] = useState(false);
+  /**
+   * Whether the user has explicitly asked for the AI summary on the
+   * Top-du-jour page. We no longer auto-generate on landing — it costs
+   * OpenAI tokens on every visit even when the user just wants to browse
+   * the article list. A gold CTA triggers the fetch.
+   */
+  const [topSummaryRequested, setTopSummaryRequested] = useState(false);
   const topSummaryKeyRef = useRef<string>("");
 
   // Topics to display: all in personalization mode (so user can toggle any),
@@ -564,8 +572,11 @@ export default function Home() {
     enabled: isTopArticlesPage,
   });
 
+  // Only kicks off once the user has clicked the gold "Generate AI summary"
+  // CTA. A reopened page with the same top-50 list won't re-spend OpenAI
+  // tokens because the dedup key is stored in topSummaryKeyRef.
   useEffect(() => {
-    if (!isTopArticlesPage || topFeed.length === 0) return;
+    if (!isTopArticlesPage || !topSummaryRequested || topFeed.length === 0) return;
     const key = topFeed.map((a) => a.link).join("|");
     if (key === topSummaryKeyRef.current) return;
     topSummaryKeyRef.current = key;
@@ -590,7 +601,7 @@ export default function Home() {
       .then((json: SummaryResponse) => setTopSummary(json))
       .catch(() => {})
       .finally(() => setTopSummaryLoading(false));
-  }, [isTopArticlesPage, topFeed, lang]);
+  }, [isTopArticlesPage, topFeed, lang, topSummaryRequested]);
 
   useEffect(() => {
     const check = async () => {
@@ -705,6 +716,7 @@ export default function Home() {
     setAllArticlesLoading(false);
     setTopSummary(null);
     setTopSummaryLoading(false);
+    setTopSummaryRequested(false);
     topSummaryKeyRef.current = "";
     clearTopFeed();
   }
@@ -720,6 +732,7 @@ export default function Home() {
     setAllArticlesLoading(false);
     setTopSummary(null);
     setTopSummaryLoading(false);
+    setTopSummaryRequested(false);
     topSummaryKeyRef.current = "";
     clearTopFeed();
   }
@@ -900,27 +913,105 @@ export default function Home() {
               </div>
             ) : topFeed.length > 0 ? (
               <>
-                {topSummaryLoading && (
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "24px 0" }}>
-                    <span style={spinnerStyle(24)} />
-                    <span style={{ color: color.gold, fontSize: 14, fontWeight: 600 }}>
-                      {lang === "fr" ? "Analyse IA — Génération du résumé" : "AI Analysis — Generating summary"}
-                    </span>
-                  </div>
-                )}
-                <RevealBox active={!!topSummary && !topSummaryLoading}>
-                  {topSummary && (
-                    <SummaryBox
-                      data={topSummary}
-                      locale={locale}
-                      lang={lang}
-                      hours={24}
-                      topicName={t("analyzeTopArticlesBtn", lang)}
-                      speed={ttsSpeed}
-                      voice={lang === "fr" ? ttsVoiceFr : ttsVoice}
-                    />
-                  )}
-                </RevealBox>
+                {/* Single gold-bordered card. Its content switches between
+                    three states computed from one variable so no render
+                    can ever land on "all branches false" — which was the
+                    source of the 1-frame flicker on click. The AI summary
+                    is expensive (full top-50 sent to OpenAI), so we don't
+                    auto-fire. */}
+                {(() => {
+                  const state: "idle" | "loading" | "ready" = topSummary
+                    ? "ready"
+                    : topSummaryRequested || topSummaryLoading
+                    ? "loading"
+                    : "idle";
+
+                  return (
+                    <div
+                      style={{
+                        border: `1px solid ${color.gold}`,
+                        borderRadius: 12,
+                        padding: "24px 22px",
+                        margin: "16px 0 24px",
+                        background: "rgba(212, 175, 55, 0.06)",
+                        transition: "padding 200ms ease",
+                      }}
+                    >
+                      {state === "idle" && (
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, textAlign: "center" }}>
+                          <div style={{ color: color.gold, fontSize: 18, fontWeight: 700, letterSpacing: "0.02em" }}>
+                            {t("topSummaryCtaTitle", lang)}
+                          </div>
+                          <div style={{ color: color.textSecondary, fontSize: 14, lineHeight: 1.5, maxWidth: 520 }}>
+                            {t("topSummaryCtaHint", lang)}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              // Set both flags synchronously so the card jumps
+                              // directly from "idle" to "loading" on the very
+                              // same render — no empty intermediate frame.
+                              setTopSummaryRequested(true);
+                              setTopSummaryLoading(true);
+                            }}
+                            style={{
+                              ...primaryButtonStyle,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 8,
+                              padding: "12px 28px",
+                              fontSize: 15,
+                              fontWeight: 700,
+                              marginTop: 4,
+                            }}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                              <path d="M12 2l2.39 7.36H22l-6.19 4.5L18.2 21 12 16.5 5.8 21l2.39-7.14L2 9.36h7.61L12 2z" />
+                            </svg>
+                            {t("topSummaryCtaButton", lang)}
+                          </button>
+                        </div>
+                      )}
+                      {state === "loading" && (
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 14,
+                            padding: "32px 0",
+                            animation: "topSummaryFadeIn 220ms ease-out both",
+                          }}
+                        >
+                          <span style={spinnerStyle(32)} />
+                          <span style={{ color: color.gold, fontSize: 14, fontWeight: 600, letterSpacing: "0.02em" }}>
+                            {lang === "fr" ? "Analyse IA — Génération du résumé" : "AI Analysis — Generating summary"}
+                          </span>
+                          <span style={{ color: color.textDim, fontSize: 12 }}>
+                            {lang === "fr" ? "Cela prend quelques secondes." : "This takes a few seconds."}
+                          </span>
+                        </div>
+                      )}
+                      {state === "ready" && topSummary && (
+                        <div
+                          style={{ animation: "topSummaryFadeIn 260ms ease-out both" }}
+                        >
+                          <SummaryBox
+                            data={topSummary}
+                            locale={locale}
+                            lang={lang}
+                            hours={24}
+                            topicName={t("analyzeTopArticlesBtn", lang)}
+                            speed={ttsSpeed}
+                            voice={lang === "fr" ? ttsVoiceFr : ttsVoice}
+                            embedded
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                 <TopFeedSection
                   articles={topFeed}
                   loading={topFeedLoading}

@@ -650,8 +650,8 @@ const strings = {
     fr: "Sélectionner une durée pour lancer l'analyse IA",
   },
   homeTop20Subtitle: {
-    en: "Top Articles from the last 24h",
-    fr: "Top Articles des dernières 24h",
+    en: "Top 50 Articles from the last 24h",
+    fr: "Top 50 Articles des dernières 24h",
   },
   actionRefresh: {
     en: "Refresh",
@@ -827,8 +827,20 @@ const strings = {
     fr: "Personnaliser mes topics",
   },
   analyzeTopArticlesBtn: {
-    en: "Today's Top",
-    fr: "Top du jour",
+    en: "Today's Top 50",
+    fr: "Top 50 du jour",
+  },
+  topSummaryCtaTitle: {
+    en: "AI summary of today's top",
+    fr: "Résumé IA du top du jour",
+  },
+  topSummaryCtaHint: {
+    en: "Get a 2-minute digest of the 50 most relevant stories across all your topics.",
+    fr: "Obtenez un condensé de 2 min des 50 actus les plus pertinentes, tous topics confondus.",
+  },
+  topSummaryCtaButton: {
+    en: "Generate AI summary",
+    fr: "Générer le résumé IA",
   },
   myTopicsEdit: {
     en: "Edit",

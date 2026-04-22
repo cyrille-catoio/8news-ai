@@ -34,7 +34,12 @@ function ttsIntro(hours: number, lang: Lang, topicName: string): string {
   return `${topicName}. Here is the news analyzed for ${period}.`;
 }
 
-export function SummaryBox({ data, locale, lang, hours, topicName, speed, voice, showAnalyzedCount = false }: { data: SummaryResponse; locale: string; lang: Lang; hours: number; topicName: string; speed: number; voice: string; showAnalyzedCount?: boolean }) {
+export function SummaryBox({ data, locale, lang, hours, topicName, speed, voice, showAnalyzedCount = false, embedded = false }: { data: SummaryResponse; locale: string; lang: Lang; hours: number; topicName: string; speed: number; voice: string; showAnalyzedCount?: boolean;
+  /** When true, skip the default gray card chrome (border, background,
+   * padding, margin). Use when the parent already provides a frame —
+   * e.g. the gold CTA container on the Top-du-jour page. */
+  embedded?: boolean;
+}) {
   const raw = typeof data.summary === "string" ? data.summary : String(data.summary ?? "");
   const ttsOutro = lang === "fr" ? "... ... Analyse terminée. Vous pouvez reprendre une activité normale." : "... ... That's all folks!";
   const intro = ttsIntro(hours, lang, topicName);
@@ -46,8 +51,12 @@ export function SummaryBox({ data, locale, lang, hours, topicName, speed, voice,
   const loc = lang === "fr" ? "fr-FR" : "en-US";
   const fmt = (n: number) => n.toLocaleString(loc);
 
+  const rootStyle = embedded
+    ? { position: "relative" as const }
+    : { ...card, borderRadius: 12, padding: 20, marginBottom: 28, position: "relative" as const };
+
   return (
-    <div style={{ ...card, borderRadius: 12, padding: 20, marginBottom: 28, position: "relative" }}>
+    <div style={rootStyle}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
         <h2 style={{ ...sectionHeading, margin: 0 }}>
           {t("summary", lang)}

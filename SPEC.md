@@ -262,9 +262,9 @@ Entries are defined in **`src/lib/changelog-entries.ts`** and auto-synced to the
 | Hours | Cache duration |
 |---|---|
 | ≤1h | 5 min |
-| ≤6h | 15 min |
-| ≤24h | 30 min |
-| >24h | 60 min |
+| ≤6h | 10 min |
+| ≤24h | 10 min |
+| >24h | 30 min |
 
 ---
 

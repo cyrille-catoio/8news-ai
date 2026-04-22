@@ -92,11 +92,14 @@ export function BriefingPage({
 
   // ─── Latest daily summary (today or yesterday fallback) ─────────────
   const [summaryRoutes, setSummaryRoutes] = useState<SummaryRoute[]>([]);
+  const [summaryLoading, setSummaryLoading] = useState(true);
   useEffect(() => {
+    setSummaryLoading(true);
     fetch("/api/summaries/routes", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : []))
       .then((rows: SummaryRoute[]) => setSummaryRoutes(Array.isArray(rows) ? rows : []))
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setSummaryLoading(false));
   }, []);
 
   const latestSummary = useMemo(() => {
@@ -157,8 +160,10 @@ export function BriefingPage({
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [videoSummaries, setVideoSummaries] = useState<Record<string, string>>({});
   const [transcribing, setTranscribing] = useState<Record<string, boolean>>({});
+  const [videosLoading, setVideosLoading] = useState(true);
   useEffect(() => {
     let cancelled = false;
+    setVideosLoading(true);
     const today = new Date();
     const yesterday = new Date(Date.now() - 86_400_000);
     const tz = browserTimeZone();
@@ -185,7 +190,10 @@ export function BriefingPage({
         setVideos(items);
         setVideoSummaries(summaries);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setVideosLoading(false);
+      });
     return () => { cancelled = true; };
   }, [lang]);
 
@@ -236,31 +244,50 @@ export function BriefingPage({
           )}
 
           {/* Order under Trending: recent transcribed videos, then the
-              latest daily summary right below them, then Top 5. */}
-          {videos.length > 0 && (
-            <VideosBriefingSection
-              videos={videos}
-              videoSummaries={videoSummaries}
-              transcribing={transcribing}
-              onTranscribe={handleTranscribe}
-              lang={lang}
-              ttsSpeed={ttsSpeed}
-              ttsVoice={ttsVoice}
-              favoriteUrls={favoriteUrls}
-              onToggleFavorite={onToggleFavorite}
-              isAuthenticated={isAuthenticated}
-              onRequestAuth={onRequestAuth}
-              onSeeAll={() => onNavigate("videos")}
+              latest daily summary right below them, then Top 5. While
+              the videos / summary fetches are pending we render a tiny
+              skeleton (kicker + spinner card) so the layout doesn't
+              jump when data arrives a few seconds later. */}
+          {videosLoading ? (
+            <SectionSpinner
+              label={lang === "fr" ? "Vidéos transcrites · récentes" : "Recent transcribed videos"}
             />
+          ) : (
+            videos.length > 0 && (
+              <VideosBriefingSection
+                videos={videos}
+                videoSummaries={videoSummaries}
+                transcribing={transcribing}
+                onTranscribe={handleTranscribe}
+                lang={lang}
+                ttsSpeed={ttsSpeed}
+                ttsVoice={ttsVoice}
+                favoriteUrls={favoriteUrls}
+                onToggleFavorite={onToggleFavorite}
+                isAuthenticated={isAuthenticated}
+                onRequestAuth={onRequestAuth}
+                onSeeAll={() => onNavigate("videos")}
+              />
+            )
           )}
 
-          {latestSummary && (
-            <DailySummaryTeaser
-              route={latestSummary}
-              lang={lang}
-              locale={locale}
-              topicLabels={topicLabels}
+          {summaryLoading ? (
+            <SectionSpinner
+              label={
+                lang === "fr"
+                  ? "Résumé du jour · chargement"
+                  : "Daily summary · loading"
+              }
             />
+          ) : (
+            latestSummary && (
+              <DailySummaryTeaser
+                route={latestSummary}
+                lang={lang}
+                locale={locale}
+                topicLabels={topicLabels}
+              />
+            )
           )}
 
           {top5.length > 0 && (
@@ -754,6 +781,36 @@ function FooterCTAs({
       <button type="button" onClick={onVideos} style={ctaBtn}>
         {lang === "fr" ? "Toutes les vidéos" : "All videos"}
       </button>
+    </section>
+  );
+}
+
+/* ────────────────── Section spinner placeholder ──────
+ *
+ * Shown while a section's data is still being fetched. Keeps the kicker
+ * (so the user can already see what's coming) and renders a small
+ * centered spinner card underneath. Same outer marginBottom as the
+ * other sections so the layout doesn't jump when the real content
+ * replaces the placeholder.
+ */
+function SectionSpinner({ label }: { label: string }) {
+  return (
+    <section style={{ marginBottom: 36 }}>
+      <div style={{ ...kicker(color.gold), marginBottom: 12 }}>{label}</div>
+      <div
+        style={{
+          ...card,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "32px 16px",
+          minHeight: 92,
+        }}
+        aria-busy="true"
+        aria-live="polite"
+      >
+        <span style={spinnerStyle(22)} aria-hidden />
+      </div>
     </section>
   );
 }

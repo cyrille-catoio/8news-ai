@@ -15,11 +15,18 @@ function getServerClient(): Promise<SupabaseClient> | null {
   return _clientPromise;
 }
 
+/**
+ * TTL of the server-side cache for AI news summaries, picked by the time
+ * window the user is asking for. Always non-decreasing: a shorter window
+ * means fresher data is more valuable, so we re-spend OpenAI tokens sooner.
+ *
+ * ≤1h → 5 min, ≤6h / ≤24h → 10 min, >24h → 30 min.
+ */
 function getCacheTtlMinutes(hours: number): number {
   if (hours <= 1) return 5;
-  if (hours <= 6) return 15;
-  if (hours <= 24) return 30;
-  return 60;
+  if (hours <= 6) return 10;
+  if (hours <= 24) return 10;
+  return 30;
 }
 
 export interface CachedResponse {

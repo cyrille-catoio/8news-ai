@@ -9,6 +9,16 @@ export interface ChangelogEntryDef {
 
 export const CHANGELOG_ENTRIES: ChangelogEntryDef[] = [
   {
+    version: "2.3",
+    title_en: "v2.3: Recent transcribed videos list on Briefing, menu copy tweak, AI summary heading shortened",
+    title_fr: "v2.3 : Liste des vidéos transcrites récentes sur le Briefing, copy menu, titre du résumé raccourci",
+    body_en:
+      "**Recent video pages on the Briefing.** New section at the bottom of the SPA homepage (`/app`) lists every transcribed YouTube video with an SSR page from the last 7 days, in the visitor's lang. Backed by a new `GET /api/video-pages/recent?days=7&lang=fr` endpoint (capped at 100 rows, edge-cached 60s + stale-while-revalidate 5min). Pulled from `video_transcriptions` joined on the new `slug_keywords + topic_id + published_date` triplet from v2.2. Rendered as a single card grouped by day (« ven. 25 avr. ») with each row showing a gold topic pill + the video title, all clickable into the SSR `/v/` page. Powers in-product discovery and pushes link juice to the `/v/` SEO pages from inside the SPA.\n\n**Menu copy.** The « Vidéos » / « Videos » pill becomes **« Vidéos du jour »** / **« Today's Video »** to make it clearer that this surface is the day-specific Videos page (not the SSR briefings hub).\n\n**SSR `/v/` heading.** « Résumé IA » / « AI summary » → **« Résumé »** / **« Summary »** on the per-video SSR page — shorter, cleaner, and the AI provenance is already obvious from the rest of the page.\n\n**Release.** Bump 2.2.0 → 2.3.0 via `npm run release:minor`.",
+    body_fr:
+      "**Vidéos récentes sur le Briefing.** Nouvelle section en bas de la home SPA (`/app`) qui liste chaque vidéo YouTube transcrite ayant une page SSR sur les 7 derniers jours, dans la langue du visiteur. Alimentée par un nouvel endpoint `GET /api/video-pages/recent?days=7&lang=fr` (capé à 100 rows, cache edge 60s + stale-while-revalidate 5min). Tiré de `video_transcriptions` joint sur le triplet `slug_keywords + topic_id + published_date` introduit en v2.2. Rendu en une card unique groupée par jour (« ven. 25 avr. »), chaque ligne avec un pill or topic + le titre vidéo, le tout cliquable vers la page SSR `/v/`. Booste la découverte in-product et redistribue du jus SEO vers les pages `/v/` depuis l'intérieur de la SPA.\n\n**Copy menu.** Le pill « Vidéos » / « Videos » devient **« Vidéos du jour »** / **« Today's Video »** pour clarifier que cette surface est la page Vidéos jour-par-jour (pas le hub des briefings SSR).\n\n**Titre `/v/`.** « Résumé IA » / « AI summary » → **« Résumé »** / **« Summary »** sur la page per-vidéo SSR — plus court, plus propre, et la provenance IA est déjà évidente depuis le reste de la page.\n\n**Release.** Bump 2.2.0 → 2.3.0 via `npm run release:minor`.",
+    created_at: "2026-04-22T18:00:00Z",
+  },
+  {
     version: "2.2",
     title_en: "v2.2: SSR video pages (/v/), per-topic roundups (/r/), /briefings hub, dynamic landing console, top-story API",
     title_fr: "v2.2 : Pages SSR vidéo (/v/), briefings per-topic (/r/), hub /briefings, console landing dynamique, API top-story",

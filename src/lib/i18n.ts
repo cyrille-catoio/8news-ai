@@ -1027,8 +1027,8 @@ const strings = {
     fr: "Briefings vidéo",
   },
   videosBtn: {
-    en: "Videos",
-    fr: "Vidéos",
+    en: "Today's Video",
+    fr: "Vidéos du jour",
   },
   videoKindLong: {
     en: "Long",

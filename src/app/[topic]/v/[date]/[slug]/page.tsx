@@ -298,7 +298,7 @@ export default async function VideoSeoPage({ params }: PageProps) {
           borderRadius: 10, padding: "20px 24px", marginBottom: 24,
         }}>
           <h2 style={{ color: color.gold, fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 0, marginBottom: 8 }}>
-            {lang === "fr" ? "Résumé IA" : "AI summary"}
+            {lang === "fr" ? "Résumé" : "Summary"}
           </h2>
           <ReactMarkdown components={mdComponents}>{summaryMd}</ReactMarkdown>
         </section>

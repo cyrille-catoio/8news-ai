@@ -34,6 +34,18 @@ interface TrendingTopic {
   count: number;
 }
 
+/** A SSR per-video page surfaced in the bottom "Toutes les vidéos
+ *  transcrites" list. Same shape as the response of
+ *  GET /api/video-pages/recent. */
+interface RecentVideoPage {
+  videoId: string;
+  title: string;
+  topicId: string;
+  publishedDate: string;
+  slug: string;
+  lang: string;
+}
+
 function relativeTime(pubDate: string, lang: Lang): string {
   const ms = Date.now() - new Date(pubDate).getTime();
   if (ms < 0 || isNaN(ms)) return "";
@@ -149,6 +161,22 @@ export function BriefingPage({
         }
       })
       .catch(() => {});
+  }, [lang]);
+
+  // ─── Recent SSR per-video pages (last 7 days) ───────────────────────
+  // Drives the "Toutes les vidéos transcrites · 7 derniers jours"
+  // section at the bottom of the page. Each row links to the SSR
+  // article page /{topic}/v/{date}/{slug}.
+  const [recentVideoPages, setRecentVideoPages] = useState<RecentVideoPage[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/video-pages/recent?days=7&lang=${lang}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: RecentVideoPage[]) => {
+        if (!cancelled) setRecentVideoPages(Array.isArray(rows) ? rows : []);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
   }, [lang]);
 
   // ─── Per-preferred-topic mini strips (logged-in users) ──────────────
@@ -348,6 +376,14 @@ export function BriefingPage({
               isAuthenticated={isAuthenticated}
               onRequestAuth={onRequestAuth}
               onSeeAllForTopic={() => onNavigate("home")}
+            />
+          )}
+
+          {recentVideoPages.length > 0 && (
+            <RecentVideoPagesSection
+              pages={recentVideoPages}
+              topicLabels={topicLabels}
+              lang={lang}
             />
           )}
 
@@ -764,6 +800,95 @@ function YourTopicsSection({
           </div>
         );
       })}
+    </section>
+  );
+}
+
+/* ────────────────── Recent video pages list ────────── */
+
+/**
+ * Bottom-of-page list of every transcribed video that has an SSR page,
+ * over the last 7 days. Drives traffic to `/v/` pages from inside the
+ * SPA (and gives the visitor a sense of how much content was processed
+ * recently). Compact format: date · topic pill · title link.
+ *
+ * Topic labels are looked up locally from `topicLabels` so we don't add
+ * a second API roundtrip just to humanize a slug.
+ */
+function RecentVideoPagesSection({
+  pages,
+  topicLabels,
+  lang,
+}: {
+  pages: RecentVideoPage[];
+  topicLabels: TopicLabel[];
+  lang: Lang;
+}) {
+  const labelById = new Map(topicLabels.map((t) => [t.id, t.label]));
+  const locale = dateLocale(lang);
+
+  // Group by date for visual rhythm — same as the /briefings hub.
+  const byDate = new Map<string, RecentVideoPage[]>();
+  for (const p of pages) {
+    const arr = byDate.get(p.publishedDate) ?? [];
+    arr.push(p);
+    byDate.set(p.publishedDate, arr);
+  }
+  const sortedDates = [...byDate.keys()].sort((a, b) => (a < b ? 1 : -1));
+
+  return (
+    <section style={{ marginBottom: 36 }}>
+      <div style={{ ...kicker(color.gold), marginBottom: 12 }}>
+        {lang === "fr"
+          ? "Toutes les vidéos transcrites · 7 derniers jours"
+          : "All transcribed videos · last 7 days"}
+      </div>
+      <div style={{
+        ...card,
+        display: "block",
+        padding: "12px 16px",
+      }}>
+        {sortedDates.map((date) => {
+          const items = byDate.get(date) ?? [];
+          return (
+            <div key={date} style={{ marginBottom: 12 }}>
+              <div style={{
+                color: color.textMuted,
+                fontSize: 11,
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                marginBottom: 6,
+              }}>
+                {new Date(`${date}T00:00:00`).toLocaleDateString(locale, {
+                  weekday: "short", day: "numeric", month: "short",
+                })}
+              </div>
+              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                {items.map((p) => (
+                  <li key={p.videoId} style={{ marginBottom: 4 }}>
+                    <a
+                      href={`/${p.topicId}/v/${p.publishedDate}/${p.slug}`}
+                      style={{ color: color.text, textDecoration: "none", fontSize: 14, lineHeight: 1.4 }}
+                    >
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, color: color.gold,
+                        border: `1px solid ${color.gold}`, borderRadius: 3,
+                        padding: "1px 5px", marginRight: 8, letterSpacing: "0.03em",
+                        textTransform: "uppercase",
+                      }}>
+                        {labelById.get(p.topicId) ?? p.topicId}
+                      </span>
+                      <span style={{ color: color.gold, marginRight: 6 }}>→</span>
+                      {p.title}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }

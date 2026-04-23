@@ -16,30 +16,43 @@ const AI_MODEL = "gpt-4.1-mini";
 const SUMMARY_MAX_CHARS = 5000;
 
 /**
- * Netlify Functions cap synchronous routes around 30s. Budget targets:
- *   - TranscriptAPI fetch: ≤ 8s
+ * Netlify Functions cap synchronous routes at 30s on our plan. Budget targets:
+ *   - TranscriptAPI fetch: ≤ 3s
  *   - OpenAI call:         ≤ {@link OPENAI_TIMEOUT_MS} (passed as SDK option)
- *   - DB writes + margin:  ≤ 4s
+ *   - DB writes + margin:  ≤ 2s
  * Anything above is killed by the upstream proxy and surfaces as 502.
+ * 25s leaves enough headroom for the fetch + DB + the ~1s SDK overhead.
  */
-const OPENAI_TIMEOUT_MS = 20_000;
+const OPENAI_TIMEOUT_MS = 25_000;
 
 /**
  * Long podcasts can produce 200K+ char transcripts; sending all of that to
  * the model both inflates latency past our 30s budget and risks hitting
  * context-window or rate-limit issues. We sample the head and the tail
  * (intro + conclusion are usually the most signal-rich parts) and elide
- * the middle. Threshold and sample sizes are picked so a typical 30 min
- * video keeps its full transcript and only 1h+ ones get cropped.
+ * the middle. Three tiers:
+ *   - ≤ 50K:      no truncation (typical 30 min video)
+ *   - 50K – 150K: 32K head + 14K tail (~46K total, ~11K tokens) — normal
+ *   - > 150K:     28K head + 12K tail (~40K total, ~10K tokens) — aggressive
+ *
+ * With a 25s OpenAI timeout, 11K tokens of input fits comfortably; the
+ * aggressive tier exists as a safety net for 3h+ podcasts where even
+ * GPT-4.1-mini starts stalling on 11K+ token inputs.
  */
 const TRANSCRIPT_MAX_CHARS = 50_000;
+const TRANSCRIPT_AGGRESSIVE_THRESHOLD = 150_000;
 const TRANSCRIPT_HEAD_CHARS = 32_000;
 const TRANSCRIPT_TAIL_CHARS = 14_000;
+const TRANSCRIPT_HEAD_CHARS_AGGRESSIVE = 28_000;
+const TRANSCRIPT_TAIL_CHARS_AGGRESSIVE = 12_000;
 
 function maybeTruncateTranscript(text: string): string {
   if (text.length <= TRANSCRIPT_MAX_CHARS) return text;
-  const head = text.slice(0, TRANSCRIPT_HEAD_CHARS).trimEnd();
-  const tail = text.slice(-TRANSCRIPT_TAIL_CHARS).trimStart();
+  const aggressive = text.length > TRANSCRIPT_AGGRESSIVE_THRESHOLD;
+  const headSize = aggressive ? TRANSCRIPT_HEAD_CHARS_AGGRESSIVE : TRANSCRIPT_HEAD_CHARS;
+  const tailSize = aggressive ? TRANSCRIPT_TAIL_CHARS_AGGRESSIVE : TRANSCRIPT_TAIL_CHARS;
+  const head = text.slice(0, headSize).trimEnd();
+  const tail = text.slice(-tailSize).trimStart();
   return `${head}\n\n[…]\n\n${tail}`;
 }
 
@@ -315,8 +328,9 @@ export async function POST(req: Request) {
 
       const truncatedTranscript = maybeTruncateTranscript(transcript.text);
       if (truncatedTranscript.length < transcript.text.length) {
+        const tier = transcript.text.length > TRANSCRIPT_AGGRESSIVE_THRESHOLD ? "aggressive" : "normal";
         console.warn(
-          `[transcribe] truncated transcript for ${videoId}: ${transcript.text.length} -> ${truncatedTranscript.length} chars`,
+          `[transcribe] truncated transcript for ${videoId} (${tier}): ${transcript.text.length} -> ${truncatedTranscript.length} chars, words=${transcript.wordCount}`,
         );
       }
 

@@ -9,6 +9,16 @@ export interface ChangelogEntryDef {
 
 export const CHANGELOG_ENTRIES: ChangelogEntryDef[] = [
   {
+    version: "2.3.1",
+    title_en: "v2.3.1: Longer videos transcribe reliably (25s OpenAI budget, 3-tier sampling), EN copy fix",
+    title_fr: "v2.3.1 : Vidéos longues transcrites de façon fiable (budget OpenAI 25s, sampling 3 tiers), fix copy EN",
+    body_en:
+      "**Transcribe — fewer 504s on long podcasts.** `/api/youtube-channels/transcribe` was hitting a 20s OpenAI timeout on 1h30+ videos and surfacing as `HTTP 504 Vidéo trop longue`. Two changes to use the full 30s Netlify budget:\n\n1. `OPENAI_TIMEOUT_MS` bumped 20s → **25s**, leaving ~5s for TranscriptAPI fetch + DB writes + SDK overhead.\n2. New 3-tier transcript sampling instead of 2 tiers:\n   - ≤ 50K chars: full transcript (≤ 30 min videos)\n   - 50K – 150K: 32K head + 14K tail = 46K chars (~11K tokens) — most podcasts up to ~2h30\n   - **> 150K: 28K head + 12K tail = 40K chars (~10K tokens)** — safety net for 3h+ podcasts\n\nThe aggressive threshold moved 120K → 150K and the aggressive sample grew 30K → 40K, both made possible by the longer GPT budget. The existing `[transcribe] truncated transcript ... (normal|aggressive)` log line now also includes the wordCount, making it easy to diagnose which tier a stuck video falls into in Netlify Function logs.\n\n**EN copy fix.** The menu pill label `videosBtn` was « Today's Video » (singular) — corrected to **« Today's Videos »** to match the FR « Vidéos du jour ».\n\n**Release.** Bump 2.3.0 → 2.3.1 via `npm run release:patch`.",
+    body_fr:
+      "**Transcribe — moins de 504 sur les podcasts longs.** `/api/youtube-channels/transcribe` tombait sur un timeout OpenAI de 20s pour les vidéos de 1h30+ et remontait en `HTTP 504 Vidéo trop longue`. Deux changements pour exploiter le budget 30s de Netlify :\n\n1. `OPENAI_TIMEOUT_MS` passe de 20s → **25s**, laissant ~5s pour le fetch TranscriptAPI + les writes DB + l'overhead SDK.\n2. Nouveau sampling de transcript en 3 tiers au lieu de 2 :\n   - ≤ 50K chars : transcript complet (vidéos ≤ 30 min)\n   - 50K – 150K : 32K head + 14K tail = 46K chars (~11K tokens) — la plupart des podcasts jusqu'à ~2h30\n   - **> 150K : 28K head + 12K tail = 40K chars (~10K tokens)** — filet de sécurité pour les podcasts 3h+\n\nLe seuil agressif passe 120K → 150K et l'échantillon agressif grandit 30K → 40K, les deux rendus possibles par le budget GPT plus large. Le log existant `[transcribe] truncated transcript ... (normal|aggressive)` inclut désormais aussi le wordCount, ce qui rend trivial de diagnostiquer dans quel tier tombe une vidéo qui plante dans les Netlify Function logs.\n\n**Fix copy EN.** Le pill menu `videosBtn` était « Today's Video » (singulier) — corrigé en **« Today's Videos »** pour matcher le FR « Vidéos du jour ».\n\n**Release.** Bump 2.3.0 → 2.3.1 via `npm run release:patch`.",
+    created_at: "2026-04-23T10:00:00Z",
+  },
+  {
     version: "2.3",
     title_en: "v2.3: Recent transcribed videos list on Briefing, menu copy tweak, AI summary heading shortened",
     title_fr: "v2.3 : Liste des vidéos transcrites récentes sur le Briefing, copy menu, titre du résumé raccourci",

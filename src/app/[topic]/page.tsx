@@ -1,7 +1,13 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getTopicById, listDailySummaries, type DailySummaryRow } from "@/lib/supabase";
+import {
+  getTopicById,
+  listDailySummaries,
+  getRecentVideoPagesForTopic,
+  getRecentVideoRoundups,
+  type DailySummaryRow,
+} from "@/lib/supabase";
 import { color, font } from "@/lib/theme";
 import { SeoNavBar } from "@/app/components/SeoNavBar";
 import { SeoGeneralMenu } from "@/app/components/GeneralMenu";
@@ -48,7 +54,13 @@ export default async function TopicHubPage({ params, searchParams }: PageProps) 
   if (!topic) notFound();
 
   const topicLabel = lang === "fr" ? topic.label_fr : topic.label_en;
-  const { rows, total } = await listDailySummaries(topicId, lang, page, PAGE_SIZE);
+  const [{ rows, total }, recentVideos, recentRoundups] = await Promise.all([
+    listDailySummaries(topicId, lang, page, PAGE_SIZE),
+    // Show video coverage only on page 1 — keeps the rest of the
+    // pagination clean and SEO-focused on article daily summaries.
+    page === 1 ? getRecentVideoPagesForTopic(topicId, lang, 5) : Promise.resolve([]),
+    page === 1 ? getRecentVideoRoundups(topicId, lang, 3) : Promise.resolve([]),
+  ]);
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
@@ -79,6 +91,84 @@ export default async function TopicHubPage({ params, searchParams }: PageProps) 
         <p style={{ color: color.textMuted, fontSize: 14, marginTop: 0, marginBottom: 24 }}>
           {lang === "fr" ? "Résumés quotidiens IA" : "Daily AI News Summaries"}
         </p>
+
+        {/* Video coverage section — only on page 1. Lists the latest
+            transcribed videos + briefings for this topic so SEO crawlers
+            see the cross-links from the topic hub into both /v/ and /r/
+            content. Anchor `#video-coverage` for cross-linking from
+            the per-video pages' "Voir tous les briefings" CTA. */}
+        {page === 1 && (recentVideos.length > 0 || recentRoundups.length > 0) && (
+          <section
+            id="video-coverage"
+            style={{
+              background: color.surface,
+              border: `1px solid ${color.border}`,
+              borderRadius: 10,
+              padding: "16px 20px",
+              marginBottom: 28,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12, gap: 12, flexWrap: "wrap" }}>
+              <h2 style={{ color: color.gold, fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>
+                {lang === "fr" ? "Couverture vidéo" : "Video coverage"}
+              </h2>
+              <Link
+                href={`/briefings?lang=${lang}`}
+                style={{ color: color.gold, fontSize: 12, fontWeight: 500, textDecoration: "none" }}
+              >
+                {lang === "fr" ? "Tous les briefings →" : "All briefings →"}
+              </Link>
+            </div>
+
+            {recentRoundups.length > 0 && (
+              <div style={{ marginBottom: recentVideos.length > 0 ? 14 : 0 }}>
+                <div style={{ color: color.textMuted, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+                  {lang === "fr" ? "Derniers briefings" : "Latest briefings"}
+                </div>
+                <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                  {recentRoundups.map((r) => (
+                    <li key={`${r.roundup_date}-roundup`} style={{ marginBottom: 4 }}>
+                      <a
+                        href={`/${topicId}/r/${r.roundup_date}/${r.slug_keywords}`}
+                        style={{ color: color.text, textDecoration: "none", fontSize: 14 }}
+                      >
+                        <span style={{ color: color.gold, marginRight: 6 }}>→</span>
+                        {r.seo_title}
+                        <span style={{ color: color.textMuted, fontSize: 12, marginLeft: 8 }}>
+                          · {new Date(`${r.roundup_date}T00:00:00`).toLocaleDateString(locale, { day: "numeric", month: "short" })}
+                        </span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {recentVideos.length > 0 && (
+              <div>
+                <div style={{ color: color.textMuted, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+                  {lang === "fr" ? "Dernières vidéos transcrites" : "Latest transcribed videos"}
+                </div>
+                <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                  {recentVideos.map((v) => (
+                    <li key={v.video_id} style={{ marginBottom: 4 }}>
+                      <a
+                        href={`/${topicId}/v/${v.published_date}/${v.slug_keywords}`}
+                        style={{ color: color.text, textDecoration: "none", fontSize: 14 }}
+                      >
+                        <span style={{ color: color.gold, marginRight: 6 }}>→</span>
+                        {v.title}
+                        <span style={{ color: color.textMuted, fontSize: 12, marginLeft: 8 }}>
+                          · {new Date(`${v.published_date}T00:00:00`).toLocaleDateString(locale, { day: "numeric", month: "short" })}
+                        </span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </section>
+        )}
 
         {rows.length === 0 ? (
           <p style={{ color: color.textDim, fontSize: 15, textAlign: "center", padding: "40px 0" }}>

@@ -29,6 +29,15 @@ export interface VideoItem {
   viewCount: string | null;
   durationSec: number | null;
   link: string;
+  /**
+   * SSR per-video page coordinates for the current UI lang. All three
+   * are non-null when the video has been transcribed AND its channel
+   * has an assigned topic_id. Used to render the "Read article" link
+   * pointing at /{topicId}/v/{publishedDate}/{slugKeywords}.
+   */
+  topicId?: string | null;
+  slugKeywords?: string | null;
+  publishedDate?: string | null;
 }
 
 export function isTranscriptionErrorMarkdown(md: string | null): boolean {
@@ -338,6 +347,17 @@ export function VideoCard({
               <>
                 <span>·</span>
                 <span>{formatViews(v.viewCount)} {lang === "fr" ? "vues" : "views"}</span>
+              </>
+            )}
+            {v.topicId && v.slugKeywords && v.publishedDate && (
+              <>
+                <span>·</span>
+                <a
+                  href={`/${v.topicId}/v/${v.publishedDate}/${v.slugKeywords}`}
+                  style={{ color: color.gold, fontWeight: 500, textDecoration: "none" }}
+                >
+                  {lang === "fr" ? "Lire l'article →" : "Read article →"}
+                </a>
               </>
             )}
           </div>

@@ -103,8 +103,8 @@ export const LANDING_CONTENT: LandingContent = {
       fr: "2 heures de YouTube,<br /><em>lues en 8 minutes.</em>",
     },
     sub: {
-      en: "8news aggregates the YouTube channels you actually care about and 400+ articles per day. AI scores every article from 1 to 10. No Noise. Just the signal.",
-      fr: "8news agrège les chaînes YouTube qui comptent et plus de 5000 articles par jour. L'IA score chaque article de 1 à 10. Pas de bruit. Juste le signal.",
+      en: "8news aggregates the YouTube channels you actually care about and 400+ articles per day. AI scores every article from 1 to 10.",
+      fr: "8news agrège les chaînes YouTube qui comptent et plus de 5000 articles par jour. L'IA score chaque article de 1 à 10.",
     },
     ctaPrimary: { en: "Try it now →", fr: "Essayer →" },
     ctaSecondary: { en: "See a daily summary", fr: "Voir un résumé du jour" },
@@ -248,12 +248,12 @@ export const LANDING_CONTENT: LandingContent = {
     },
     plans: {
       en: [
-        { tag: "CURRENT", name: "Free", price: "$0", per: "/forever", desc: "Everything we shipped in v2.1. No credit card, no waitlist.", features: ["All 36 default topics with 400+ RSS feeds", "Top 50 daily with AI summary + sources", "YouTube transcription (5 per day)", "ElevenLabs text-to-speech (12 voices)", "Favorites, daily summaries archive", "Bilingual EN / FR"], cta: "Try it now", featured: false },
-        { tag: "COMING SOON", name: "Pro", price: "$8", per: "/month", desc: "For founders, analysts and builders who need custom topics and higher limits.", features: ["Unlimited custom topics with AI feed discovery", "Unlimited YouTube transcriptions", "Webhooks & API access (Top 50 / daily summaries)", "Morning email digest, your topics only", "Priority scoring queue", "Access to a Tech / AI / Crypto discussion community"], cta: "Join the waitlist", featured: true },
+        { tag: "CURRENT", name: "Free", price: "$0", per: "/forever", desc: "Everything we shipped in v2.2. No credit card, no waitlist.", features: ["All 36 default topics with 400+ RSS feeds", "Top 50 daily with AI summary + sources", "YouTube transcription (5 per day)", "ElevenLabs text-to-speech (12 voices)", "Favorites, daily summaries archive", "Bilingual EN / FR"], cta: "Try it now", featured: false },
+        { tag: "COMING SOON", name: "Pro", price: "$8", per: "/month", desc: "For founders, analysts and builders who need custom topics and higher limits.", features: ["Unlimited custom topics with AI feed discovery", "Unlimited YouTube transcriptions, add your favorite YouTube channels", "Webhooks & API access (Top 50 / daily summaries)", "Morning email digest, your topics only", "Priority scoring queue", "Access to a Tech / AI / Crypto discussion community"], cta: "Join the waitlist", featured: true },
       ],
       fr: [
-        { tag: "ACTUEL", name: "Gratuit", price: "0 €", per: "/à vie", desc: "Tout ce qu'on a livré en v2.1. Sans carte bancaire, sans liste d'attente.", features: ["Les 36 topics par défaut avec 400+ flux RSS", "Top 50 quotidien avec résumé IA + sources", "Transcription YouTube (5 par jour)", "Text-to-speech ElevenLabs (12 voix)", "Favoris, archive des résumés quotidiens", "Bilingue EN / FR"], cta: "Essayer", featured: false },
-        { tag: "BIENTÔT", name: "Pro", price: "8 €", per: "/mois", desc: "Pour fondateurs, analystes et builders qui veulent des topics sur mesure et plus de volume.", features: ["Topics personnalisés illimités avec découverte IA des flux", "Transcriptions YouTube illimitées", "Webhooks & accès API (Top 50 / résumés)", "Digest email matinal, uniquement vos topics", "File de scoring prioritaire", "Accès à une communauté de discussion Tech / IA / Crypto"], cta: "Rejoindre la liste", featured: true },
+        { tag: "ACTUEL", name: "Gratuit", price: "0 €", per: "/à vie", desc: "Tout ce qu'on a livré en v2.2. Sans carte bancaire, sans liste d'attente.", features: ["Les 36 topics par défaut avec 400+ flux RSS", "Top 50 quotidien avec résumé IA + sources", "Transcription YouTube (5 par jour)", "Text-to-speech ElevenLabs (12 voix)", "Favoris, archive des résumés quotidiens", "Bilingue EN / FR"], cta: "Essayer", featured: false },
+        { tag: "BIENTÔT", name: "Pro", price: "8 €", per: "/mois", desc: "Pour fondateurs, analystes et builders qui veulent des topics sur mesure et plus de volume.", features: ["Topics personnalisés illimités avec découverte IA des flux", "Transcriptions YouTube illimitées, ajout de vos chaînes YouTube favorites", "Webhooks & accès API (Top 50 / résumés)", "Digest email matinal, uniquement vos topics", "File de scoring prioritaire", "Accès à une communauté de discussion Tech / IA / Crypto"], cta: "Rejoindre la liste", featured: true },
       ],
     },
   },
@@ -265,13 +265,13 @@ export const LANDING_CONTENT: LandingContent = {
         ["How is this different from Feedly or Google News?", "Feedly shows you everything. Google News ranks by popularity. 8news filters with AI: every article is scored 1–10 against a prompt you can edit, and only the top 20–50 reach the summary. You read eight bullets, not 400 headlines."],
         ["Which AI models are you using?", "GPT-4.1-nano for per-article scoring (cheap, fast, ~$0.10 per 1K articles), GPT-4.1-mini for daily SEO summaries and YouTube transcription summaries, and GPT-5.3-chat-latest for the homepage Top 50 grouped summary."],
         ["Can I add my own topic?", "Yes. Describe it in one sentence, 8news generates the scoring criteria and auto-discovers 10 RSS feeds via AI. You can edit any prompt. Owners get full CRUD; members can personalize which topics they see."],
-        ["French or English?", "Both, toggle in the header. Article summaries and daily SEO pages are generated in both languages. YouTube summaries are translated cross-language so we only transcribe once."],
+        ["French or English?", "Both, toggle in the header. Article summaries and daily SEO pages are generated in both languages. YouTube summaries can be transcribed either in English or in French, regardless of the original video language."],
       ],
       fr: [
         ["En quoi c'est différent de Feedly ou Google News ?", "Feedly vous montre tout. Google News classe par popularité. 8news filtre avec l'IA : chaque article est scoré 1–10 sur un prompt que vous pouvez éditer, et seul le top 20–50 atteint le résumé. Vous lisez huit puces, pas 400 titres."],
         ["Quels modèles IA utilisez-vous ?", "GPT-4.1-nano pour le scoring par article (rapide, ~0,10 € par 1K articles), GPT-4.1-mini pour les résumés SEO quotidiens et les résumés YouTube, et GPT-5.3-chat-latest pour le Top 50 groupé de la homepage."],
         ["Puis-je ajouter mon propre topic ?", "Oui. Décrivez-le en une phrase, 8news génère les critères de scoring et découvre 10 flux RSS via IA. Vous pouvez éditer tous les prompts. Les owners ont le CRUD complet ; les membres personnalisent quels topics ils voient."],
-        ["Français ou anglais ?", "Les deux, toggle dans l'en-tête. Les résumés d'articles et les pages SEO quotidiennes sont générés dans les deux langues. Les résumés YouTube sont traduits pour ne transcrire qu'une fois."],
+        ["Français ou anglais ?", "Les deux, toggle dans l'en-tête. Les résumés d'articles et les pages SEO quotidiennes sont générés dans les deux langues. Les résumés YouTube ont la possibilité d'être transcrits, soit en anglais, soit en français, peu importe la langue d'origine de la vidéo."],
       ],
     },
   },

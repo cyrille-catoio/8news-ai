@@ -31,7 +31,7 @@ const fontJetBrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "8news.ai — AI that decodes the news",
+  title: "8news.ai —  Tech • IA • Crypto",
   description:
     "8news.ai — AI-powered summary of the latest news on conflict, AI, crypto and robotics.",
   icons: {

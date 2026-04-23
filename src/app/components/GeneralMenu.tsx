@@ -88,6 +88,12 @@ export function GeneralMenu({
       >
         {t("videosBtn", lang)}
       </button>
+      {/* Hard <a> link: /briefings is an SSR route outside the SPA, so
+          we want a full navigation (not pushState). The current SPA can't
+          render this page in-place. */}
+      <a href="/briefings" style={base}>
+        {t("videoBriefingsBtn", lang)}
+      </a>
       <button
         type="button"
         onClick={onNavigateHome}
@@ -130,7 +136,7 @@ export function SeoGeneralMenu({
   activePage,
 }: {
   lang: Lang;
-  activePage?: "briefing" | "home" | "favorites" | "topArticles" | "summaries" | "videos";
+  activePage?: "briefing" | "home" | "favorites" | "topArticles" | "summaries" | "videos" | "videoBriefings";
 }) {
   const { session } = useAuth();
   const authed = Boolean(session?.user);
@@ -142,6 +148,9 @@ export function SeoGeneralMenu({
       </a>
       <a href="/app/videos" style={activePage === "videos" ? activeStyle : base}>
         {t("videosBtn", lang)}
+      </a>
+      <a href="/briefings" style={activePage === "videoBriefings" ? activeStyle : base}>
+        {t("videoBriefingsBtn", lang)}
       </a>
       <a href="/app/articles" style={activePage === "home" ? activeStyle : base}>
         {t("generalMenuArticlesBtn", lang)}

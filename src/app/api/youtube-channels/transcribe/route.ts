@@ -8,6 +8,7 @@ import {
 } from "@/lib/supabase";
 import { createClient } from "@supabase/supabase-js";
 import { normalizeSummaryHeadings } from "@/lib/summary-headings";
+import { slugifyVideoTitle, uniquifyVideoSlug } from "@/lib/slug";
 
 const AI_MODEL = "gpt-4.1-mini";
 
@@ -349,8 +350,12 @@ export async function POST(req: Request) {
       }
     }
 
-    // Fetch topic_id from the cached video row
+    // Fetch topic_id + published_date from the cached video row. Both
+    // are needed to compute the SSR slug — without either, the per-video
+    // page /{topic}/v/{date}/{slug} cannot exist (the row is still
+    // inserted, just without slug_keywords; backfill can fix it later).
     let topicId: string | null = null;
+    let publishedDate: string | null = null;
     try {
       const db = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -359,11 +364,38 @@ export async function POST(req: Request) {
       );
       const { data: vid } = await db
         .from("youtube_videos")
-        .select("topic_id")
+        .select("topic_id, published_date")
         .eq("video_id", videoId)
         .single();
       if (vid?.topic_id) topicId = vid.topic_id;
+      if (vid?.published_date) publishedDate = vid.published_date;
     } catch { /* non-critical */ }
+
+    // Compute slug if we have everything we need (topic + date + a non-empty
+    // base from the title). Skipping is safe — the row is still useful for
+    // the SPA, only the SSR page won't exist.
+    let slug: string | null = null;
+    if (topicId && publishedDate) {
+      const base = slugifyVideoTitle(title ?? "Untitled", safeLang);
+      if (base) {
+        try {
+          const db = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!,
+            { auth: { persistSession: false } },
+          );
+          slug = await uniquifyVideoSlug(db, base, topicId, publishedDate, safeLang, videoId);
+        } catch (err) {
+          // Fall back to the base slug if the uniquifier query fails — a
+          // potential collision is preferable to no slug at all (the
+          // unique index on the table will reject the duplicate INSERT
+          // and the row will still be created without slug_keywords via
+          // the catch path in insertVideoTranscription).
+          console.error(`[transcribe] uniquifyVideoSlug failed for ${videoId}:`, err);
+          slug = base;
+        }
+      }
+    }
 
     const transcriptionId = await insertVideoTranscription({
       video_id: videoId,
@@ -374,6 +406,8 @@ export async function POST(req: Request) {
       transcript: transcriptText,
       summary_md: summaryMd,
       word_count: wordCount,
+      slug_keywords: slug,
+      published_date: publishedDate,
     });
 
     if (transcriptionId) {

@@ -58,7 +58,18 @@ export interface VideoItem {
 }
 
 /** API list row: persisted AI summary for the requested UI language, if any. */
-export type VideoListResponseItem = VideoItem & { summaryMd: string | null };
+export type VideoListResponseItem = VideoItem & {
+  summaryMd: string | null;
+  /**
+   * Slug + topic_id of the SSR per-video page (`/{topic}/v/{date}/{slug}`)
+   * for the requested UI language. Both null until the video is transcribed
+   * AND the channel has an assigned topic_id (without which the route can't
+   * exist). Consumed by `VideoCard` to show a "Read article" link.
+   */
+  topicId: string | null;
+  slugKeywords: string | null;
+  publishedDate: string | null;
+};
 
 function toDateStr(d: Date): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
@@ -217,22 +228,40 @@ export async function GET(req: NextRequest) {
 
   const videoIds = rows.map((r) => (r as Record<string, unknown>).video_id as string);
   const summaryByVideoId = new Map<string, string>();
+  // Per-video SSR slug for the current UI lang. Only set when the video
+  // has been transcribed AND a topic+slug are present (the route
+  // /{topic}/v/{date}/{slug} can't exist without all three).
+  const slugByVideoId = new Map<string, { topicId: string; slug: string; publishedDate: string }>();
   if (videoIds.length > 0) {
     const { data: trows } = await db
       .from("video_transcriptions")
-      .select("video_id, summary_md")
+      .select("video_id, summary_md, topic_id, slug_keywords, published_date")
       .in("video_id", videoIds)
       .eq("lang", uiLang);
     for (const row of trows ?? []) {
-      const tr = row as { video_id: string; summary_md: string | null };
+      const tr = row as {
+        video_id: string;
+        summary_md: string | null;
+        topic_id: string | null;
+        slug_keywords: string | null;
+        published_date: string | null;
+      };
       if (tr.summary_md && tr.summary_md.length > 0) {
         summaryByVideoId.set(tr.video_id, normalizeSummaryHeadings(tr.summary_md, uiLang));
+      }
+      if (tr.topic_id && tr.slug_keywords && tr.published_date) {
+        slugByVideoId.set(tr.video_id, {
+          topicId: tr.topic_id,
+          slug: tr.slug_keywords,
+          publishedDate: tr.published_date,
+        });
       }
     }
   }
 
   const results: VideoListResponseItem[] = rows.map((r: Record<string, unknown>) => {
     const videoId = r.video_id as string;
+    const slug = slugByVideoId.get(videoId);
     return {
       videoId,
       title: r.title as string,
@@ -245,6 +274,9 @@ export async function GET(req: NextRequest) {
       durationSec: (r.duration_sec as number | null) ?? null,
       link: r.link as string,
       summaryMd: summaryByVideoId.get(videoId) ?? null,
+      topicId: slug?.topicId ?? null,
+      slugKeywords: slug?.slug ?? null,
+      publishedDate: slug?.publishedDate ?? null,
     };
   });
 

@@ -82,13 +82,39 @@ export function BriefingPage({
 }) {
   const locale = dateLocale(lang);
 
-  // ─── Top feed (powers Hero + Top 5) ─────────────────────────────────
+  // ─── Top feed (powers Top 5; the hero gets its own freshness-priority
+  //      query — see heroStory below) ───────────────────────────────────
   const { articles: topFeed, loading: topFeedLoading } = useTopFeed({
     poll: false,
     lang,
     preferredTopics: null,
     enabled: true,
   });
+
+  // ─── Top story (Hero) ────────────────────────────────────────────────
+  // Dedicated /api/news/top-story query so the hero shows the freshest
+  // 10/10 article from the last hour (with a built-in fallback ladder:
+  // score=10/1h → ≥9/1h → 10/24h → ≥9/24h). The endpoint returns null
+  // when nothing matches, in which case we fall back to topFeed[0] so
+  // the hero never goes empty.
+  const [heroStory, setHeroStory] = useState<TopFeedArticle | null>(null);
+  const [heroLoading, setHeroLoading] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    setHeroLoading(true);
+    fetch(`/api/news/top-story?lang=${lang}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : { article: null }))
+      .then((json: { article: TopFeedArticle | null }) => {
+        if (!cancelled) setHeroStory(json.article ?? null);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setHeroLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [lang]);
 
   // ─── Latest daily summary (today or yesterday fallback) ─────────────
   const [summaryRoutes, setSummaryRoutes] = useState<SummaryRoute[]>([]);
@@ -222,12 +248,21 @@ export function BriefingPage({
     }
   }, [lang]);
 
-  const heroArticle = topFeed[0] ?? null;
-  const top5 = topFeed.slice(1, 6);
+  // Prefer the dedicated /api/news/top-story result for the hero; fall
+  // back to the highest-scored item in the top feed if the dedicated
+  // endpoint returned null (e.g. nothing scored ≥ 9 in the last 24 h).
+  // While both queries are still in flight, drop into a plain spinner
+  // — the hero is the page's anchor so we'd rather wait than flash.
+  const heroArticle = heroStory ?? topFeed[0] ?? null;
+  const heroBlocked = heroLoading && topFeedLoading && !heroArticle;
+  // Top 5 excludes whatever is currently in the hero so the same
+  // article never shows up twice on the page.
+  const heroLink = heroArticle?.link ?? null;
+  const top5 = topFeed.filter((a) => a.link !== heroLink).slice(0, 5);
 
   return (
     <div>
-      {topFeedLoading && topFeed.length === 0 ? (
+      {heroBlocked ? (
         <div style={{ display: "flex", justifyContent: "center", padding: "60px 0" }}>
           <span style={spinnerStyle(28)} />
         </div>

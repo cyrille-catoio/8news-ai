@@ -1022,6 +1022,10 @@ const strings = {
     en: "Briefing",
     fr: "Briefing",
   },
+  videoBriefingsBtn: {
+    en: "Video briefings",
+    fr: "Briefings vidéo",
+  },
   videosBtn: {
     en: "Videos",
     fr: "Vidéos",

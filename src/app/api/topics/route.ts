@@ -6,6 +6,7 @@ import {
 } from "@/lib/supabase";
 import type { TopicItem } from "@/lib/types";
 import { requireOwnerSession, requireSession } from "@/lib/auth-api";
+import { isReservedTopicSlug } from "@/lib/topics";
 
 export async function GET(req: NextRequest) {
   try {
@@ -110,6 +111,16 @@ export async function POST(req: NextRequest) {
     if (!id || !SLUG_RE.test(id)) {
       return NextResponse.json(
         { error: "id must be 2-30 lowercase alphanumeric chars or hyphens" },
+        { status: 400 },
+      );
+    }
+
+    // Block topic IDs that would shadow a fixed route segment in the
+    // Next.js routing tree (e.g. "v", "r", "briefings"). See
+    // src/lib/topics.ts for the full reserved list.
+    if (isReservedTopicSlug(id)) {
+      return NextResponse.json(
+        { error: `"${id}" is a reserved slug used by the routing tree and cannot be used as a topic id` },
         { status: 400 },
       );
     }

@@ -39,6 +39,15 @@ const MIN_VIDEOS = 2;
 const PER_VIDEO_SUMMARY_MAX = 1500;
 
 /**
+ * Window (in days, inclusive on both bounds) used by the cron to fetch
+ * source videos. A roundup keyed to roundup_date=X bundles videos with
+ * published_date in [X - (WINDOW_DAYS - 1), X]. With WINDOW_DAYS=2 this
+ * is the last 48 h up to end-of-day X — usually enough material for a
+ * dense 8-bullet briefing even on slower news days.
+ */
+const WINDOW_DAYS = 2;
+
+/**
  * Briefing target shape. Tuned together: 8 bullets × 3-5 sentences
  * gives ~25-40 sentences of structured editorial — long enough to feel
  * substantial vs the previous one-paragraph intro, short enough to stay
@@ -162,8 +171,14 @@ export async function generateVideoRoundup(
     return { status: "no_openai", videoCount: 0, errorMessage: "OPENAI_API_KEY not configured" };
   }
 
-  // Pull every transcribed video the topic published on `date`.
-  const videos = await getVideoTranscriptionsForRoundup(topicId, date, lang);
+  // Pull every transcribed video the topic published in the last
+  // {@link WINDOW_DAYS} days up to and including `date`. The roundup
+  // is still keyed to (topic, date, lang) — the wider source window
+  // just gives the model more material to converge on.
+  const fromDate = new Date(`${date}T00:00:00Z`);
+  fromDate.setUTCDate(fromDate.getUTCDate() - (WINDOW_DAYS - 1));
+  const fromDateStr = fromDate.toISOString().slice(0, 10);
+  const videos = await getVideoTranscriptionsForRoundup(topicId, fromDateStr, date, lang);
   if (videos.length < MIN_VIDEOS) {
     return { status: "no_videos", videoCount: videos.length };
   }

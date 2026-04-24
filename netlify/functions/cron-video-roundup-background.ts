@@ -6,6 +6,12 @@ import { generateVideoRoundup } from "./shared/generate-video-roundup";
  * for every (topic, lang) bucket that has at least 2 transcribed videos
  * and doesn't already have a roundup row.
  *
+ * The roundup is KEYED to roundup_date=yesterday (the unique index in
+ * `video_roundups`), but `generateVideoRoundup` internally pulls source
+ * material from a 48 h window — i.e. videos with published_date in
+ * [day-before-yesterday, yesterday] inclusive. See WINDOW_DAYS in
+ * `src/lib/generate-video-roundup.ts`.
+ *
  * Mirror of `cron-daily-summary-background.ts`: same wall budget, same
  * MAX_TOPICS_PER_RUN cap, same fast-skip pattern via a single bulk
  * SELECT of existing rows. Multiple ticks per night cover the full set

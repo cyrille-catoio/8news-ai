@@ -6,7 +6,7 @@ import {
   getVideoRoundupBySlug,
   getVideoRoundupAltLang,
   getRecentVideoRoundups,
-  getVideoTranscriptionsForRoundup,
+  getVideoTranscriptionsByIds,
   getTopicById,
 } from "@/lib/supabase";
 import { color, font } from "@/lib/theme";
@@ -132,16 +132,20 @@ export default async function VideoRoundupPage({ params }: PageProps) {
   const locale = lang === "fr" ? "fr-FR" : "en-US";
   const topicLabel = lang === "fr" ? topicRow.label_fr : topicRow.label_en;
 
+  // Fetch videos by the EXACT id list persisted in the roundup, not by
+  // (topic, date, lang) — the cron pulls a 48 h window so a roundup
+  // keyed to date X may bundle videos with published_date = X-1.
+  // Going through the IDs is the only way to faithfully render every
+  // video the briefing references, regardless of window.
   const [videosRaw, recent, altLang] = await Promise.all([
-    getVideoTranscriptionsForRoundup(topicId, date, lang),
+    getVideoTranscriptionsByIds(roundup.video_ids, lang),
     getRecentVideoRoundups(topicId, lang, 3, date),
     getVideoRoundupAltLang(topicId, date, lang),
   ]);
 
   // Re-order videos to match the editorial order persisted in
-  // roundup.video_ids. Items missing from the list are appended at
-  // the end (defensive — should never happen, but ensures we never
-  // drop content).
+  // roundup.video_ids. Items missing from the list (deleted upstream?)
+  // are appended at the end as a defensive fallback.
   const orderIndex = new Map(roundup.video_ids.map((id, i) => [id, i]));
   const videos = [...videosRaw].sort((a, b) => {
     const ia = orderIndex.get(a.video_id) ?? 999;
@@ -172,7 +176,10 @@ export default async function VideoRoundupPage({ params }: PageProps) {
     itemListElement: videos.map((v, i) => ({
       "@type": "ListItem",
       position: i + 1,
-      url: `https://8news.ai/${topicId}/v/${date}/${v.slug_keywords}`,
+      // Per-video SSR page route is keyed on the video's own
+      // published_date, not the roundup_date — the two diverge for
+      // videos pulled from the previous calendar day.
+      url: `https://8news.ai/${topicId}/v/${v.published_date ?? date}/${v.slug_keywords}`,
       name: v.title,
     })),
   };
@@ -251,11 +258,12 @@ export default async function VideoRoundupPage({ params }: PageProps) {
             textTransform: "uppercase", letterSpacing: "0.08em",
             marginBottom: 16,
           }}>
-            {lang === "fr" ? "Les vidéos du jour" : "Today's videos"}
+            {lang === "fr" ? "Vidéos couvertes" : "Videos covered"}
           </h2>
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
             {videos.map((v) => {
               const bullets = bulletsFromSummary(v.summary_md, lang, 3);
+              const videoUrl = `/${topicId}/v/${v.published_date ?? date}/${v.slug_keywords}`;
               return (
                 <li
                   key={v.video_id}
@@ -265,7 +273,7 @@ export default async function VideoRoundupPage({ params }: PageProps) {
                   }}
                 >
                   <a
-                    href={`/${topicId}/v/${date}/${v.slug_keywords}`}
+                    href={videoUrl}
                     style={{ textDecoration: "none", color: "inherit", display: "block" }}
                   >
                     <h3 style={{ color: color.text, fontSize: 17, fontWeight: 600, lineHeight: 1.35, margin: 0 }}>
@@ -283,7 +291,7 @@ export default async function VideoRoundupPage({ params }: PageProps) {
                     </ul>
                   )}
                   <a
-                    href={`/${topicId}/v/${date}/${v.slug_keywords}`}
+                    href={videoUrl}
                     style={{ color: color.gold, fontSize: 13, fontWeight: 500, textDecoration: "none" }}
                   >
                     {lang === "fr" ? "Lire l'article complet →" : "Read full article →"}

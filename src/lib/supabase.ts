@@ -1377,14 +1377,21 @@ export async function getVideoRoundupAltLang(
 }
 
 /**
- * All transcribed videos with a slug for a (topic, date, lang) bucket,
- * ordered by published time descending. Drives the roundup generator
- * (collects the day's source material) and the SSR `/r/` page (renders
- * each video as a card).
+ * All transcribed videos with a slug for a (topic, date-range, lang)
+ * bucket, ordered by created_at ascending. Drives the roundup generator
+ * (collects the source material — the cron passes a 48 h window).
+ *
+ * The window is inclusive on both bounds and matches on `published_date`
+ * (a DATE column), so passing the same value for both bounds yields the
+ * legacy single-day behaviour. The SSR `/r/` page does NOT call this —
+ * it fetches by the persisted `video_ids` array via
+ * {@link getVideoTranscriptionsByIds} so it stays correct regardless of
+ * how wide the generator's window was at write-time.
  */
 export async function getVideoTranscriptionsForRoundup(
   topicId: string,
-  date: string,
+  fromDate: string,
+  toDate: string,
   lang: string,
 ): Promise<Array<{
   id: number;
@@ -1402,7 +1409,8 @@ export async function getVideoTranscriptionsForRoundup(
       .from("video_transcriptions")
       .select("id, video_id, title, summary_md, slug_keywords, channel_id")
       .eq("topic_id", topicId)
-      .eq("published_date", date)
+      .gte("published_date", fromDate)
+      .lte("published_date", toDate)
       .eq("lang", lang)
       .not("slug_keywords", "is", null)
       .order("created_at", { ascending: true });
@@ -1414,6 +1422,54 @@ export async function getVideoTranscriptionsForRoundup(
       summary_md: string;
       slug_keywords: string;
       channel_id: string;
+    }>;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Hydrate the exact list of `video_transcriptions` referenced by a
+ * persisted roundup's `video_ids` array. Used by the SSR `/r/` page
+ * which needs to render every video that was bundled into the briefing,
+ * regardless of its `published_date` (the cron pulls a 48 h window so
+ * a roundup keyed to date X may include videos from X-1).
+ *
+ * No `topic_id` / `published_date` filter on purpose — the IDs ARE the
+ * source of truth. Lang is still filtered because `(video_id, lang)` is
+ * the row's natural key in `video_transcriptions`.
+ */
+export async function getVideoTranscriptionsByIds(
+  videoIds: string[],
+  lang: string,
+): Promise<Array<{
+  id: number;
+  video_id: string;
+  title: string;
+  summary_md: string;
+  slug_keywords: string;
+  channel_id: string;
+  published_date: string | null;
+}>> {
+  if (videoIds.length === 0) return [];
+  const clientP = getServerClient();
+  if (!clientP) return [];
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("video_transcriptions")
+      .select("id, video_id, title, summary_md, slug_keywords, channel_id, published_date")
+      .in("video_id", videoIds)
+      .eq("lang", lang);
+    if (error || !data) return [];
+    return data as Array<{
+      id: number;
+      video_id: string;
+      title: string;
+      summary_md: string;
+      slug_keywords: string;
+      channel_id: string;
+      published_date: string | null;
     }>;
   } catch {
     return [];

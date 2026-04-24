@@ -1676,6 +1676,49 @@ export async function getVideoIdsWithTranscription(
   }
 }
 
+/**
+ * Persist the 8 structured bullets emitted by `generateVideoRoundup`
+ * into `summary_bullets`. Same delete-then-insert cycle as the video
+ * transcription path (migration 014) so re-running a roundup keeps the
+ * per-bullet rows strictly in sync with `video_roundups.intro_md`.
+ *
+ * The `text` field stores `**Title**\n\nBody` Markdown so any consumer
+ * (TTS, search index, RSS) can render or strip it the same way as the
+ * other source_types.
+ */
+export async function insertVideoRoundupBullets(
+  bullets: Array<{
+    video_roundup_id: number;
+    topic_id: string;
+    lang: string;
+    summary_date: string;
+    bullet_index: number;
+    text: string;
+    source_type: string;
+    entities: string[];
+  }>,
+): Promise<boolean> {
+  if (bullets.length === 0) return true;
+  const clientP = getServerClient();
+  if (!clientP) return false;
+  try {
+    const supabase = await clientP;
+    await supabase
+      .from("summary_bullets")
+      .delete()
+      .eq("video_roundup_id", bullets[0].video_roundup_id);
+    const { error } = await supabase.from("summary_bullets").insert(bullets);
+    if (error) {
+      console.error("[insertVideoRoundupBullets] insert failed:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("[insertVideoRoundupBullets] unexpected error:", err);
+    return false;
+  }
+}
+
 export async function insertTopSummaryBullets(
   lang: string,
   summaryDate: string,

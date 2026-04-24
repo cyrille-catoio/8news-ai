@@ -21,10 +21,23 @@ interface PageProps {
 
 const mdComponents = {
   p: ({ children, ...props }: React.ComponentProps<"p">) => (
-    <p style={{ color: color.textSecondary, fontSize: 16, lineHeight: 1.65, margin: "10px 0" }} {...props}>{children}</p>
+    <p style={{ color: color.textSecondary, fontSize: 16, lineHeight: 1.65, margin: "8px 0 18px" }} {...props}>{children}</p>
   ),
   strong: ({ children, ...props }: React.ComponentProps<"strong">) => (
     <strong style={{ color: color.text, fontWeight: 700 }} {...props}>{children}</strong>
+  ),
+  // The briefing is serialized as a sequence of `### Title` blocks
+  // followed by a body paragraph (see `bulletsToMarkdown` in
+  // generate-video-roundup.ts). Style h3 as the bullet title — gold,
+  // tight to the body that follows.
+  h3: ({ children, ...props }: React.ComponentProps<"h3">) => (
+    <h3 style={{
+      color: color.gold,
+      fontSize: 17,
+      fontWeight: 700,
+      lineHeight: 1.35,
+      margin: "20px 0 4px",
+    }} {...props}>{children}</h3>
   ),
 };
 
@@ -214,11 +227,20 @@ export default async function VideoRoundupPage({ params }: PageProps) {
           </div>
         </header>
 
-        {/* AI-generated intro paragraph */}
+        {/* AI-generated structured briefing (8 bullets, 3-5 sentences each).
+            Stored as Markdown with ### headings — see `bulletsToMarkdown`
+            in src/lib/generate-video-roundup.ts. */}
         <section style={{
           background: color.surface, border: `1px solid ${color.border}`,
-          borderRadius: 10, padding: "20px 24px", marginBottom: 28,
+          borderRadius: 10, padding: "20px 24px 24px", marginBottom: 28,
         }}>
+          <h2 style={{
+            color: color.gold, fontSize: 13, fontWeight: 700,
+            textTransform: "uppercase", letterSpacing: "0.08em",
+            marginTop: 0, marginBottom: 8,
+          }}>
+            {lang === "fr" ? "Briefing" : "Briefing"}
+          </h2>
           <ReactMarkdown components={mdComponents}>{roundup.intro_md}</ReactMarkdown>
         </section>
 

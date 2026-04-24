@@ -2,17 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 /**
- * GET /api/video-pages/recent?days=7&lang=fr
+ * GET /api/video-pages/recent?page=0&lang=fr
  *
- * Returns every transcribed video that has a slug + topic_id (i.e. an
- * SSR page at `/{topic_id}/v/{published_date}/{slug_keywords}`)
- * published in the last `days` days, in the requested `lang`. Ordered
- * published_date DESC, created_at DESC.
+ * Returns one paginated 2-day chunk of transcribed-video SSR pages
+ * (`/{topic}/v/{published_date}/{slug}`), ordered most-recent first.
  *
- * Powers the "Toutes les vidéos transcrites · 7 derniers jours" block
- * at the bottom of the SPA Briefing homepage. Caps at 100 rows so the
- * payload stays small even on a busy week.
+ *  - `page=0` → today + yesterday  (the default chunk on first render)
+ *  - `page=1` → 2 and 3 days ago
+ *  - `page=2` → 4 and 5 days ago
+ *  - …
+ *
+ * The response embeds `hasMore` so the client can disable the
+ * « Plus ancien » button without making a second probe call.
+ *
+ * Powers the "Toutes les vidéos transcrites" block at the bottom of
+ * the SPA Briefing homepage.
  */
+
+const PAGE_SIZE_DAYS = 2;
+const MAX_PAGE = 30;     // 60 days back is more than enough for SPA browsing
 
 interface VideoPageItem {
   videoId: string;
@@ -23,38 +31,81 @@ interface VideoPageItem {
   lang: string;
 }
 
+interface PaginatedResponse {
+  items: VideoPageItem[];
+  page: number;
+  pageSizeDays: number;
+  fromDate: string;
+  toDate: string;
+  hasMore: boolean;
+}
+
+function ymd(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
 export async function GET(req: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    return NextResponse.json([], { headers: { "Cache-Control": "no-store" } });
-  }
-
-  const daysParam = parseInt(req.nextUrl.searchParams.get("days") ?? "7", 10);
-  const days = Math.min(30, Math.max(1, isNaN(daysParam) ? 7 : daysParam));
   const langParam = req.nextUrl.searchParams.get("lang");
   const lang = langParam === "fr" ? "fr" : "en";
 
-  const sinceISO = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+  const pageParam = parseInt(req.nextUrl.searchParams.get("page") ?? "0", 10);
+  const page = Math.min(MAX_PAGE, Math.max(0, isNaN(pageParam) ? 0 : pageParam));
+
+  // page=0 → [today-1, today], page=1 → [today-3, today-2], etc.
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const toDateD = new Date(today);
+  toDateD.setUTCDate(toDateD.getUTCDate() - page * PAGE_SIZE_DAYS);
+  const fromDateD = new Date(toDateD);
+  fromDateD.setUTCDate(fromDateD.getUTCDate() - (PAGE_SIZE_DAYS - 1));
+  const fromDate = ymd(fromDateD);
+  const toDate = ymd(toDateD);
+
+  if (!url || !key) {
+    const empty: PaginatedResponse = {
+      items: [], page, pageSizeDays: PAGE_SIZE_DAYS, fromDate, toDate, hasMore: false,
+    };
+    return NextResponse.json(empty, { headers: { "Cache-Control": "no-store" } });
+  }
 
   const db = createClient(url, key, { auth: { persistSession: false } });
 
-  const { data, error } = await db
-    .from("video_transcriptions")
-    .select("video_id, title, topic_id, published_date, slug_keywords, lang, created_at")
-    .eq("lang", lang)
-    .gte("published_date", sinceISO)
-    .not("topic_id", "is", null)
-    .not("slug_keywords", "is", null)
-    .order("published_date", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(100);
+  // Two queries in parallel:
+  //  - the page itself (rows for [fromDate, toDate])
+  //  - a probe for "anything older than fromDate" → hasMore boolean
+  const olderProbeBound = ymd(new Date(fromDateD.getTime() - 86_400_000));
+  const [pageRes, probeRes] = await Promise.all([
+    db
+      .from("video_transcriptions")
+      .select("video_id, title, topic_id, published_date, slug_keywords, lang, created_at")
+      .eq("lang", lang)
+      .gte("published_date", fromDate)
+      .lte("published_date", toDate)
+      .not("topic_id", "is", null)
+      .not("slug_keywords", "is", null)
+      .order("published_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(200),
+    db
+      .from("video_transcriptions")
+      .select("video_id", { count: "exact", head: true })
+      .eq("lang", lang)
+      .lte("published_date", olderProbeBound)
+      .not("topic_id", "is", null)
+      .not("slug_keywords", "is", null)
+      .limit(1),
+  ]);
 
-  if (error) {
-    return NextResponse.json([], { headers: { "Cache-Control": "no-store" } });
+  if (pageRes.error) {
+    const empty: PaginatedResponse = {
+      items: [], page, pageSizeDays: PAGE_SIZE_DAYS, fromDate, toDate, hasMore: false,
+    };
+    return NextResponse.json(empty, { headers: { "Cache-Control": "no-store" } });
   }
 
-  const items: VideoPageItem[] = (data ?? []).map((r) => {
+  const items: VideoPageItem[] = (pageRes.data ?? []).map((r) => {
     const row = r as {
       video_id: string;
       title: string;
@@ -73,9 +124,21 @@ export async function GET(req: NextRequest) {
     };
   });
 
-  return NextResponse.json(items, {
+  const hasMore = page < MAX_PAGE && (probeRes.count ?? 0) > 0;
+
+  const body: PaginatedResponse = {
+    items,
+    page,
+    pageSizeDays: PAGE_SIZE_DAYS,
+    fromDate,
+    toDate,
+    hasMore,
+  };
+
+  return NextResponse.json(body, {
     // Short edge cache: list refreshes whenever a new transcription
-    // lands, but at most once a minute.
+    // lands, but at most once a minute. Each (page, lang) combo gets
+    // its own cache entry via Next.js automatic URL-based caching.
     headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" },
   });
 }

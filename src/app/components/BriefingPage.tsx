@@ -35,7 +35,7 @@ interface TrendingTopic {
 }
 
 /** A SSR per-video page surfaced in the bottom "Toutes les vidéos
- *  transcrites" list. Same shape as the response of
+ *  transcrites" list. Same shape as the items in the response of
  *  GET /api/video-pages/recent. */
 interface RecentVideoPage {
   videoId: string;
@@ -44,6 +44,16 @@ interface RecentVideoPage {
   publishedDate: string;
   slug: string;
   lang: string;
+}
+
+/** Server response shape — items + pagination metadata. */
+interface RecentVideoPagesResponse {
+  items: RecentVideoPage[];
+  page: number;
+  pageSizeDays: number;
+  fromDate: string;
+  toDate: string;
+  hasMore: boolean;
 }
 
 function relativeTime(pubDate: string, lang: Lang): string {
@@ -163,21 +173,10 @@ export function BriefingPage({
       .catch(() => {});
   }, [lang]);
 
-  // ─── Recent SSR per-video pages (last 7 days) ───────────────────────
-  // Drives the "Toutes les vidéos transcrites · 7 derniers jours"
-  // section at the bottom of the page. Each row links to the SSR
-  // article page /{topic}/v/{date}/{slug}.
-  const [recentVideoPages, setRecentVideoPages] = useState<RecentVideoPage[]>([]);
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`/api/video-pages/recent?days=7&lang=${lang}`, { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((rows: RecentVideoPage[]) => {
-        if (!cancelled) setRecentVideoPages(Array.isArray(rows) ? rows : []);
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [lang]);
+  // ─── Recent SSR per-video pages ─────────────────────────────────────
+  // The list itself owns its pagination state — see
+  // `RecentVideoPagesSection`. Default page size = 2 days, with
+  // « Plus ancien / Plus récent » buttons to walk backwards.
 
   // ─── Per-preferred-topic mini strips (logged-in users) ──────────────
   const [yourTopicArticles, setYourTopicArticles] = useState<Record<string, MiniArticle[]>>({});
@@ -379,13 +378,10 @@ export function BriefingPage({
             />
           )}
 
-          {recentVideoPages.length > 0 && (
-            <RecentVideoPagesSection
-              pages={recentVideoPages}
-              topicLabels={topicLabels}
-              lang={lang}
-            />
-          )}
+          <RecentVideoPagesSection
+            topicLabels={topicLabels}
+            lang={lang}
+          />
 
           <FooterCTAs
             lang={lang}
@@ -807,90 +803,233 @@ function YourTopicsSection({
 /* ────────────────── Recent video pages list ────────── */
 
 /**
- * Bottom-of-page list of every transcribed video that has an SSR page,
- * over the last 7 days. Drives traffic to `/v/` pages from inside the
- * SPA (and gives the visitor a sense of how much content was processed
- * recently). Compact format: date · topic pill · title link.
+ * Bottom-of-page list of every transcribed video that has an SSR page.
+ * Paginated by 2-day chunks (`?page=N`) — page 0 = today + yesterday.
+ * « Plus ancien » walks backwards in time, « Plus récent » brings the
+ * user back towards today. The « Plus ancien » button is disabled
+ * when the server response says `hasMore: false`.
  *
- * Topic labels are looked up locally from `topicLabels` so we don't add
- * a second API roundtrip just to humanize a slug.
+ * Drives traffic to `/v/` pages from inside the SPA. Compact format:
+ * date · topic pill · title link. Topic labels are looked up locally
+ * from `topicLabels` so we don't add a second API roundtrip just to
+ * humanize a slug.
  */
 function RecentVideoPagesSection({
-  pages,
   topicLabels,
   lang,
 }: {
-  pages: RecentVideoPage[];
   topicLabels: TopicLabel[];
   lang: Lang;
 }) {
-  const labelById = new Map(topicLabels.map((t) => [t.id, t.label]));
+  const labelById = useMemo(
+    () => new Map(topicLabels.map((t) => [t.id, t.label])),
+    [topicLabels],
+  );
   const locale = dateLocale(lang);
 
-  // Group by date for visual rhythm — same as the /briefings hub.
-  const byDate = new Map<string, RecentVideoPage[]>();
-  for (const p of pages) {
-    const arr = byDate.get(p.publishedDate) ?? [];
-    arr.push(p);
-    byDate.set(p.publishedDate, arr);
-  }
-  const sortedDates = [...byDate.keys()].sort((a, b) => (a < b ? 1 : -1));
+  const [page, setPage] = useState(0);
+  const [data, setData] = useState<RecentVideoPagesResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Refetch whenever page or lang changes. The `lang` reset to page=0
+  // is handled by the `lang` reset effect below — preserving the page
+  // when toggling FR ↔ EN feels surprising.
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/video-pages/recent?page=${page}&lang=${lang}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json: RecentVideoPagesResponse | null) => {
+        if (!cancelled) setData(json);
+      })
+      .catch(() => {
+        if (!cancelled) setData(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [page, lang]);
+
+  // Reset to page 0 on lang switch — otherwise toggling EN/FR could
+  // land the user on an empty page (different content cadence per lang).
+  useEffect(() => {
+    setPage(0);
+  }, [lang]);
+
+  // Group items by date for visual rhythm — same as the /briefings hub.
+  const byDate = useMemo(() => {
+    const map = new Map<string, RecentVideoPage[]>();
+    for (const p of data?.items ?? []) {
+      const arr = map.get(p.publishedDate) ?? [];
+      arr.push(p);
+      map.set(p.publishedDate, arr);
+    }
+    return map;
+  }, [data]);
+  const sortedDates = useMemo(
+    () => [...byDate.keys()].sort((a, b) => (a < b ? 1 : -1)),
+    [byDate],
+  );
+
+  // Hide the section entirely on the first load when there's nothing —
+  // matches the previous behavior of "no list until we have data".
+  // Once the user has paginated past page 0, we always render so the
+  // pagination controls stay visible (otherwise they'd lose their way
+  // back to recent days).
+  const items = data?.items ?? [];
+  if (page === 0 && !loading && items.length === 0) return null;
+
+  const hasMore = data?.hasMore ?? false;
+  const fromDate = data?.fromDate;
+  const toDate = data?.toDate;
+
+  // Subtitle: « 23 – 24 avr. » (or single « 24 avr. » when both bounds
+  // collapse to the same day, which can happen at UTC day-boundary).
+  const subtitle = fromDate && toDate
+    ? formatDateRange(fromDate, toDate, locale, lang)
+    : "";
+
+  const btnBase: CSSProperties = {
+    background: "transparent",
+    color: color.gold,
+    border: `1px solid ${color.gold}`,
+    borderRadius: 6,
+    padding: "6px 12px",
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: "pointer",
+    fontFamily: "inherit",
+  };
+  const btnDisabled: CSSProperties = {
+    ...btnBase,
+    opacity: 0.35,
+    cursor: "not-allowed",
+  };
+
+  const onPrev = useCallback(() => {
+    if (hasMore && !loading) setPage((p) => p + 1);
+  }, [hasMore, loading]);
+  const onNext = useCallback(() => {
+    if (page > 0 && !loading) setPage((p) => Math.max(0, p - 1));
+  }, [page, loading]);
 
   return (
     <section style={{ marginBottom: 36 }}>
-      <div style={{ ...kicker(color.gold), marginBottom: 12 }}>
-        {lang === "fr"
-          ? "Toutes les vidéos transcrites · 7 derniers jours"
-          : "All transcribed videos · last 7 days"}
-      </div>
       <div style={{
-        ...card,
-        display: "block",
-        padding: "12px 16px",
+        display: "flex", justifyContent: "space-between", alignItems: "baseline",
+        marginBottom: 12, flexWrap: "wrap", gap: 8,
       }}>
-        {sortedDates.map((date) => {
-          const items = byDate.get(date) ?? [];
-          return (
-            <div key={date} style={{ marginBottom: 12 }}>
-              <div style={{
-                color: color.textMuted,
-                fontSize: 11,
-                fontWeight: 600,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                marginBottom: 6,
-              }}>
-                {new Date(`${date}T00:00:00`).toLocaleDateString(locale, {
-                  weekday: "short", day: "numeric", month: "short",
-                })}
+        <div style={{ ...kicker(color.gold) }}>
+          {lang === "fr" ? "Toutes les vidéos transcrites" : "All transcribed videos"}
+        </div>
+        {subtitle && (
+          <div style={{ color: color.textMuted, fontSize: 12 }}>{subtitle}</div>
+        )}
+      </div>
+
+      <div style={{ ...card, display: "block", padding: "12px 16px" }}>
+        {loading ? (
+          <div style={{ color: color.textMuted, fontSize: 13, textAlign: "center", padding: "16px 0" }}>
+            {lang === "fr" ? "Chargement…" : "Loading…"}
+          </div>
+        ) : items.length === 0 ? (
+          <div style={{ color: color.textMuted, fontSize: 13, textAlign: "center", padding: "16px 0" }}>
+            {lang === "fr" ? "Aucune vidéo transcrite sur cette période." : "No transcribed videos in this window."}
+          </div>
+        ) : (
+          sortedDates.map((date) => {
+            const dayItems = byDate.get(date) ?? [];
+            return (
+              <div key={date} style={{ marginBottom: 12 }}>
+                <div style={{
+                  color: color.textMuted,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                  marginBottom: 6,
+                }}>
+                  {new Date(`${date}T00:00:00`).toLocaleDateString(locale, {
+                    weekday: "short", day: "numeric", month: "short",
+                  })}
+                </div>
+                <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                  {dayItems.map((p) => (
+                    <li key={p.videoId} style={{ marginBottom: 4 }}>
+                      <a
+                        href={`/${p.topicId}/v/${p.publishedDate}/${p.slug}`}
+                        style={{ color: color.text, textDecoration: "none", fontSize: 14, lineHeight: 1.4 }}
+                      >
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, color: color.gold,
+                          border: `1px solid ${color.gold}`, borderRadius: 3,
+                          padding: "1px 5px", marginRight: 8, letterSpacing: "0.03em",
+                          textTransform: "uppercase",
+                        }}>
+                          {labelById.get(p.topicId) ?? p.topicId}
+                        </span>
+                        <span style={{ color: color.gold, marginRight: 6 }}>→</span>
+                        {p.title}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                {items.map((p) => (
-                  <li key={p.videoId} style={{ marginBottom: 4 }}>
-                    <a
-                      href={`/${p.topicId}/v/${p.publishedDate}/${p.slug}`}
-                      style={{ color: color.text, textDecoration: "none", fontSize: 14, lineHeight: 1.4 }}
-                    >
-                      <span style={{
-                        fontSize: 10, fontWeight: 700, color: color.gold,
-                        border: `1px solid ${color.gold}`, borderRadius: 3,
-                        padding: "1px 5px", marginRight: 8, letterSpacing: "0.03em",
-                        textTransform: "uppercase",
-                      }}>
-                        {labelById.get(p.topicId) ?? p.topicId}
-                      </span>
-                      <span style={{ color: color.gold, marginRight: 6 }}>→</span>
-                      {p.title}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
+      </div>
+
+      {/* Pagination controls — always rendered (even at page 0 with one
+          button disabled) so the user has a clear next step. */}
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        marginTop: 10,
+      }}>
+        <button
+          type="button"
+          onClick={onNext}
+          disabled={page === 0 || loading}
+          aria-label={lang === "fr" ? "Jours plus récents" : "More recent days"}
+          style={page === 0 || loading ? btnDisabled : btnBase}
+        >
+          {lang === "fr" ? "← Plus récent" : "← Newer"}
+        </button>
+        <div style={{ color: color.textDim, fontSize: 11 }}>
+          {lang === "fr" ? `Page ${page + 1}` : `Page ${page + 1}`}
+        </div>
+        <button
+          type="button"
+          onClick={onPrev}
+          disabled={!hasMore || loading}
+          aria-label={lang === "fr" ? "Jours plus anciens" : "Older days"}
+          style={!hasMore || loading ? btnDisabled : btnBase}
+        >
+          {lang === "fr" ? "Plus ancien →" : "Older →"}
+        </button>
       </div>
     </section>
   );
+}
+
+/**
+ * Format a [from, to] inclusive date range as a short, locale-aware
+ * subtitle: « 23 – 24 avr. », « Apr 23 – 24 », or just « 24 avr. »
+ * when both bounds collapse to the same day.
+ */
+function formatDateRange(fromDate: string, toDate: string, locale: string, lang: Lang): string {
+  const from = new Date(`${fromDate}T00:00:00`);
+  const to = new Date(`${toDate}T00:00:00`);
+  const fmt: Intl.DateTimeFormatOptions = { day: "numeric", month: "short" };
+  if (fromDate === toDate) {
+    return to.toLocaleDateString(locale, fmt);
+  }
+  const fromStr = from.toLocaleDateString(locale, fmt);
+  const toStr = to.toLocaleDateString(locale, fmt);
+  return lang === "fr" ? `${fromStr} – ${toStr}` : `${fromStr} – ${toStr}`;
 }
 
 /* ────────────────── Footer CTA strip ────────────────── */

@@ -13,6 +13,12 @@ const mdComponents = {
   h2: ({ children, ...props }: React.ComponentProps<"h2">) => (
     <h2 style={{ color: color.gold, fontSize: 15, fontWeight: 700, margin: "14px 0 6px" }} {...props}>{children}</h2>
   ),
+  // h3 is the per-key-point title promoted from `- **Title**` bullets by
+  // `promoteBulletTitlesToHeadings`. Gold to match the rest of the brand
+  // and the roundup briefings.
+  h3: ({ children, ...props }: React.ComponentProps<"h3">) => (
+    <h3 style={{ color: color.gold, fontSize: 14, fontWeight: 700, lineHeight: 1.35, margin: "10px 0 4px" }} {...props}>{children}</h3>
+  ),
   p: ({ children, ...props }: React.ComponentProps<"p">) => (
     <p style={{ color: color.textSecondary, fontSize: 13, lineHeight: 1.6, margin: "4px 0" }} {...props}>{children}</p>
   ),
@@ -62,7 +68,10 @@ const pillActive: CSSProperties = {
 
 function summaryMdToTtsText(summaryMd: string, videoTitle: string, lang: Lang): string {
   const plain = summaryMd
+    // h2 = section markers (drop). h3 = per-key-point title (keep text,
+    // drop just the `### ` prefix) so TTS speaks them as body content.
     .replace(/^##\s+.+$/gm, "")
+    .replace(/^###\s+/gm, "")
     .replace(/\*\*/g, "")
     .replace(/^\s*[-*]\s+/gm, "")
     .replace(/\n{2,}/g, "\n")

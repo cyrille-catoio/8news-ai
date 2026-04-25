@@ -42,7 +42,14 @@ function readVoice(lang: Lang): string {
  */
 export function summaryMdToVideoTtsText(summaryMd: string, videoTitle: string, lang: Lang): string {
   const plain = summaryMd
+    // h2 lines (## INTRO, ## Key Points) are section markers — drop the
+    // whole line so TTS doesn't speak the navigation labels.
     .replace(/^##\s+.+$/gm, "")
+    // h3 lines (### Title) are per-key-point titles promoted from
+    // `- **Title**` bullets — keep the title text inline by stripping
+    // only the `### ` prefix (NOT the line) so TTS speaks it as part
+    // of the body.
+    .replace(/^###\s+/gm, "")
     .replace(/\*\*/g, "")
     .replace(/^\s*[-*]\s+/gm, "")
     .replace(/\n{2,}/g, "\n")

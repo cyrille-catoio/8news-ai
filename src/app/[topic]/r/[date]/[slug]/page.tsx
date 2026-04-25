@@ -49,6 +49,12 @@ function isValidDate(d: string): boolean {
  * Strip the AI INTRO heading + bold/bullet markup down to a plain
  * 3-bullet preview for each video card. ~3 lines per card keeps the
  * page scannable.
+ *
+ * Post-`normalizeSummaryHeadings`, key-point titles are `### Title`
+ * lines (promoted from the legacy `- **Title**` bullets — see the
+ * `promoteBulletTitlesToHeadings` doc in `src/lib/summary-headings.ts`).
+ * We also tolerate the legacy bullet form for older rows that haven't
+ * been re-served through the promotion path (defensive, idempotent).
  */
 function bulletsFromSummary(summaryMd: string, lang: Lang, count: number): string[] {
   const normalized = normalizeSummaryHeadings(summaryMd, lang);
@@ -62,9 +68,20 @@ function bulletsFromSummary(summaryMd: string, lang: Lang, count: number): strin
     }
     if (inKeyPoints && /^##\s/.test(raw)) break;
     if (!inKeyPoints) continue;
-    const m = raw.match(/^\s*[-*]\s+(.+)$/);
-    if (m) {
-      const text = m[1].replace(/\*\*/g, "").trim();
+
+    // Promoted form: `### Title`.
+    const headingMatch = raw.match(/^###\s+(.+)$/);
+    if (headingMatch) {
+      const text = headingMatch[1].replace(/\*\*/g, "").trim();
+      if (text) bullets.push(text);
+      if (bullets.length >= count) break;
+      continue;
+    }
+
+    // Legacy form: `- **Title** …` — kept for defense in depth.
+    const bulletMatch = raw.match(/^\s*[-*]\s+(.+)$/);
+    if (bulletMatch) {
+      const text = bulletMatch[1].replace(/\*\*/g, "").trim();
       if (text) bullets.push(text);
       if (bullets.length >= count) break;
     }

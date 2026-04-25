@@ -32,6 +32,12 @@ const mdComponents = {
   h2: ({ children, ...props }: React.ComponentProps<"h2">) => (
     <h2 style={{ color: color.gold, fontSize: 18, fontWeight: 700, margin: "24px 0 10px" }} {...props}>{children}</h2>
   ),
+  // h3 is the per-key-point title promoted from `- **Title**` bullets by
+  // `promoteBulletTitlesToHeadings`. Styled in gold to match the roundup
+  // pages' bullet titles for visual consistency.
+  h3: ({ children, ...props }: React.ComponentProps<"h3">) => (
+    <h3 style={{ color: color.gold, fontSize: 17, fontWeight: 700, lineHeight: 1.35, margin: "20px 0 4px" }} {...props}>{children}</h3>
+  ),
   p: ({ children, ...props }: React.ComponentProps<"p">) => (
     <p style={{ color: color.textSecondary, fontSize: 15, lineHeight: 1.6, margin: "8px 0" }} {...props}>{children}</p>
   ),
@@ -55,7 +61,11 @@ const mdComponents = {
  */
 function descriptionFromSummary(summaryMd: string): string {
   const stripped = summaryMd
+    // h2 = section markers (drop the line). h3 = per-key-point title
+    // (keep text by stripping just the `### ` prefix) so a key-point
+    // title can serve as the meta description if it leads.
     .replace(/^##\s+.+$/gm, "")
+    .replace(/^###\s+/gm, "")
     .replace(/\*\*/g, "")
     .replace(/^\s*[-*]\s+/gm, "")
     .replace(/\n{2,}/g, " ")

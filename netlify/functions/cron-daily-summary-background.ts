@@ -15,9 +15,46 @@ const SAFETY_MS = 15_000;
  * because already-generated `(topic, lang)` rows are fast-skipped via a
  * single bulk SELECT below.
  */
-const MAX_TOPICS_PER_RUN = Number(process.env.DAILY_SUMMARY_MAX_TOPICS_PER_RUN ?? 5);
+const MAX_TOPICS_PER_RUN = Number(process.env.DAILY_SUMMARY_MAX_TOPICS_PER_RUN ?? 12);
 
 const ALL_LANGS = ["en", "fr"] as const;
+
+/**
+ * Compute "yesterday" in the editorial timezone (Europe/Paris) instead
+ * of UTC. Without this, a cron tick firing between 22:00 UTC and 23:59
+ * UTC (= 00:00-01:59 CET the next day) would compute `yesterday` as
+ * the day BEFORE the one that just ended editorially, summarizing the
+ * wrong calendar day. Mirrors the same fix in
+ * `cron-video-roundup-background.ts`. The `DAILY_SUMMARY_DATE` env
+ * override is honored first so the cron can be re-pointed to backfill
+ * a specific historical date without redeploying.
+ */
+const EDITORIAL_TZ = "Europe/Paris";
+
+function todayInTz(tz: string): string {
+  const fmt = new Intl.DateTimeFormat("fr-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  return fmt.format(new Date());
+}
+
+function yesterdayInTz(tz: string): string {
+  const today = todayInTz(tz);
+  const d = new Date(`${today}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function resolveTargetDate(): { date: string; source: "override" | "yesterday-cet" } {
+  const override = (process.env.DAILY_SUMMARY_DATE ?? "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(override)) {
+    return { date: override, source: "override" };
+  }
+  return { date: yesterdayInTz(EDITORIAL_TZ), source: "yesterday-cet" };
+}
 
 export default async () => {
   const startedAt = Date.now();
@@ -48,9 +85,11 @@ export default async () => {
     return;
   }
 
-  console.log(`[cron-daily-summary] Found ${topics.length} active topics, max ${MAX_TOPICS_PER_RUN} per run`);
-
-  const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  const { date: yesterday, source: dateSource } = resolveTargetDate();
+  const utcNow = new Date().toISOString();
+  console.log(
+    `[cron-daily-summary] Found ${topics.length} active topics, max ${MAX_TOPICS_PER_RUN} per run, target_date=${yesterday} (source=${dateSource}, utc_now=${utcNow})`,
+  );
 
   // Bulk-load existing (topic, lang) summaries so the loop can fast-skip
   // anything a previous cron tick already wrote — without an SQL round-trip

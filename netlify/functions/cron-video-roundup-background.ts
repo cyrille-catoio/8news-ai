@@ -27,13 +27,58 @@ const BUDGET_MS = Number(process.env.VIDEO_ROUNDUP_BUDGET_MS ?? 810_000);
 const SAFETY_MS = 15_000;
 
 /**
- * Hard cap on the number of (topic × lang) buckets generated per run.
- * Each generation is a single OpenAI call (~10-30 s) so 5 × 2 = 10
- * calls fits comfortably under the 15-min wall.
+ * Hard cap on the number of topics processed per run (each topic
+ * generates up to 2 buckets — one per lang). With ~10-30 s per OpenAI
+ * call, 12 topics × 2 langs = 24 calls comfortably fits in the 14-min
+ * effective wall (BUDGET_MS - SAFETY_MS). Bumped from the original 5
+ * once the catalog grew past 30 topics: at 5/run it took 8 ticks to
+ * drain a single date, which never finished if the cron only fired
+ * 1-2 times a night.
  */
-const MAX_TOPICS_PER_RUN = Number(process.env.VIDEO_ROUNDUP_MAX_TOPICS_PER_RUN ?? 5);
+const MAX_TOPICS_PER_RUN = Number(process.env.VIDEO_ROUNDUP_MAX_TOPICS_PER_RUN ?? 12);
 
 const ALL_LANGS = ["en", "fr"] as const;
+
+/**
+ * Compute "yesterday" in the editorial timezone (Europe/Paris) rather
+ * than UTC. A roundup keyed to date X is meant to summarize the day X
+ * as the user thinks of it (in their local TZ), not as UTC sees it.
+ *
+ * Without this, a cron tick firing between 22:00 UTC and 23:59 UTC
+ * (= 00:00-01:59 CET the next day) would compute `yesterday` as the
+ * day BEFORE the one that just ended editorially, producing roundups
+ * for the wrong date and missing the day the user actually wanted.
+ *
+ * The optional `ROUNDUP_DATE` env var override is honored first so the
+ * cron can be re-pointed to backfill a specific historical date
+ * without redeploying.
+ */
+const EDITORIAL_TZ = "Europe/Paris";
+
+function todayInTz(tz: string): string {
+  const fmt = new Intl.DateTimeFormat("fr-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  return fmt.format(new Date());
+}
+
+function yesterdayInTz(tz: string): string {
+  const today = todayInTz(tz);
+  const d = new Date(`${today}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function resolveTargetDate(): { date: string; source: "override" | "yesterday-cet" } {
+  const override = (process.env.ROUNDUP_DATE ?? "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(override)) {
+    return { date: override, source: "override" };
+  }
+  return { date: yesterdayInTz(EDITORIAL_TZ), source: "yesterday-cet" };
+}
 
 export default async () => {
   const startedAt = Date.now();
@@ -64,12 +109,14 @@ export default async () => {
     return;
   }
 
-  console.log(`[cron-video-roundup] Found ${topics.length} active topics, max ${MAX_TOPICS_PER_RUN} per run`);
+  const { date: yesterday, source: dateSource } = resolveTargetDate();
+  const utcNow = new Date().toISOString();
+  console.log(
+    `[cron-video-roundup] Found ${topics.length} active topics, max ${MAX_TOPICS_PER_RUN} per run, target_date=${yesterday} (source=${dateSource}, utc_now=${utcNow})`,
+  );
 
-  const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
-
-  // Bulk-load existing (topic, lang) roundups for yesterday so the loop
-  // can fast-skip what a previous tick already wrote.
+  // Bulk-load existing (topic, lang) roundups for the target date so
+  // the loop can fast-skip what a previous tick already wrote.
   const { data: existingRows, error: existingErr } = await supabase
     .from("video_roundups")
     .select("topic_id, lang")
@@ -135,7 +182,15 @@ export default async () => {
             break;
           case "no_videos":
             noVideos++;
-            lines.push(`[no_videos] topic=${t.id} lang=${lang} count=${result.videoCount}`);
+            // Distinguish 0 vs below-threshold so the operator can tell
+            // "no source material" from "MIN_VIDEOS not yet met" — both
+            // legitimately produce no roundup but the second often
+            // resolves itself once more channels post for the day.
+            lines.push(
+              result.videoCount === 0
+                ? `[no_videos] topic=${t.id} lang=${lang} count=0`
+                : `[insufficient_videos] topic=${t.id} lang=${lang} count=${result.videoCount} (need ≥2)`,
+            );
             break;
           case "ai_invalid_json":
           case "ai_error":

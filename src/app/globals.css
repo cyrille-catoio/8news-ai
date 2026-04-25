@@ -343,3 +343,25 @@ body {
     padding: 12px 14px !important;
   }
 }
+
+/* App typography — paragraphs (article snippets, video summaries, descriptions).
+   Bumped on mobile so long-form content stays comfortable on small screens. */
+.app-paragraph-sm { font-size: 13px; line-height: 1.5; }
+.app-paragraph    { font-size: 14px; line-height: 1.55; }
+.app-paragraph-lg { font-size: 15px; line-height: 1.6; }
+
+/* App typography — titles (article title in lists, video title, markdown h2).
+   Bumped on mobile in lockstep with paragraphs to keep visual hierarchy consistent. */
+.app-title-sm { font-size: 15px; line-height: 1.35; }
+.app-title    { font-size: 16px; line-height: 1.35; }
+.app-title-lg { font-size: 17px; line-height: 1.35; }
+
+@media (max-width: 640px) {
+  .app-paragraph-sm { font-size: 15px; line-height: 1.55; }
+  .app-paragraph    { font-size: 16px; line-height: 1.6;  }
+  .app-paragraph-lg { font-size: 17px; line-height: 1.65; }
+
+  .app-title-sm { font-size: 17px; }
+  .app-title    { font-size: 18px; }
+  .app-title-lg { font-size: 19px; }
+}

@@ -94,7 +94,7 @@ export function AllArticlesTab({
                   style={{ textDecoration: "none", color: "inherit", display: "block" }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <span style={{ color: color.text, fontWeight: 500, fontSize: 15, flex: 1 }}>
+                    <span className="app-title-sm" style={{ color: color.text, fontWeight: 500, flex: 1 }}>
                       {art.title}
                     </span>
                     {art.score != null && (
@@ -104,7 +104,7 @@ export function AllArticlesTab({
                     )}
                   </div>
                   {art.snippet && (
-                    <p style={{ color: color.articleSnippet, fontSize: 13, marginTop: 4, lineHeight: 1.5 }}>
+                    <p className="app-paragraph-sm" style={{ color: color.articleSnippet, marginTop: 4 }}>
                       {art.snippet}
                     </p>
                   )}

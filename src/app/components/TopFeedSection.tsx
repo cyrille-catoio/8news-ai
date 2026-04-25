@@ -65,16 +65,15 @@ export function TopFeedSection({
               <div style={{ flex: 1, minWidth: 0 }}>
                 {lang === "fr" && art.snippet ? (
                   <>
-                    <span style={{ color: color.text, fontWeight: 500, fontSize: 17, lineHeight: 1.35, display: "block" }}>
+                    <span className="app-title-lg" style={{ color: color.text, fontWeight: 500, display: "block" }}>
                       {art.snippet}
                     </span>
                     <p
+                      className="app-paragraph-sm"
                       style={{
                         color: color.articleSnippet,
-                        fontSize: 13,
                         marginTop: 6,
                         marginBottom: 0,
-                        lineHeight: 1.45,
                       }}
                     >
                       {art.title}
@@ -82,11 +81,11 @@ export function TopFeedSection({
                   </>
                 ) : (
                   <>
-                    <span style={{ color: color.text, fontWeight: 500, fontSize: 17, lineHeight: 1.35, display: "block" }}>
+                    <span className="app-title-lg" style={{ color: color.text, fontWeight: 500, display: "block" }}>
                       {art.title}
                     </span>
                     {art.snippet ? (
-                      <p style={{ color: color.articleSnippet, fontSize: 14, marginTop: 6, marginBottom: 0, lineHeight: 1.5 }}>
+                      <p className="app-paragraph" style={{ color: color.articleSnippet, marginTop: 6, marginBottom: 0 }}>
                         {art.snippet}
                       </p>
                     ) : null}

@@ -77,16 +77,16 @@ const toggleLink: CSSProperties = {
 
 const mdComponents = {
   h2: ({ children, ...props }: React.ComponentProps<"h2">) => (
-    <h2 style={{ color: color.gold, fontSize: 16, fontWeight: 700, margin: "18px 0 8px" }} {...props}>{children}</h2>
+    <h2 className="app-title" style={{ color: color.gold, fontWeight: 700, margin: "18px 0 8px" }} {...props}>{children}</h2>
   ),
   p: ({ children, ...props }: React.ComponentProps<"p">) => (
-    <p style={{ color: color.textSecondary, fontSize: 14, lineHeight: 1.6, margin: "6px 0" }} {...props}>{children}</p>
+    <p className="app-paragraph" style={{ color: color.textSecondary, margin: "6px 0" }} {...props}>{children}</p>
   ),
   ul: ({ children, ...props }: React.ComponentProps<"ul">) => (
     <ul style={{ paddingLeft: 20, margin: "6px 0" }} {...props}>{children}</ul>
   ),
   li: ({ children, ...props }: React.ComponentProps<"li">) => (
-    <li style={{ color: color.textSecondary, fontSize: 14, lineHeight: 1.6, marginBottom: 8 }} {...props}>{children}</li>
+    <li className="app-paragraph" style={{ color: color.textSecondary, marginBottom: 8 }} {...props}>{children}</li>
   ),
   strong: ({ children, ...props }: React.ComponentProps<"strong">) => (
     <strong style={{ color: color.text, fontWeight: 700 }} {...props}>{children}</strong>
@@ -325,12 +325,12 @@ export function VideoCard({
         </div>
         <div className="video-body" style={bodyStyle}>
           <a href={v.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-            <div style={{ color: color.text, fontSize: 15, fontWeight: 600, lineHeight: 1.35, marginBottom: 6 }}>{v.title}</div>
+            <div className="app-title-sm" style={{ color: color.text, fontWeight: 600, marginBottom: 6 }}>{v.title}</div>
           </a>
 
           {/* Description — truncated with "Voir plus" */}
           {v.description && (
-            <div style={{ color: color.textMuted, fontSize: 13, lineHeight: 1.5, marginBottom: 8 }}>
+            <div className="app-paragraph-sm" style={{ color: color.textMuted, marginBottom: 8 }}>
               {descTruncated ? (
                 <>
                   {v.description.slice(0, DESC_MAX)}…{" "}

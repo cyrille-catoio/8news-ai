@@ -92,10 +92,9 @@ export function SummaryBox({ data, locale, lang, hours, topicName, speed, voice,
           {bullets.map((bullet, i) => (
             <li
               key={i}
+              className="app-paragraph-lg"
               style={{
                 color: color.textSecondary,
-                lineHeight: 1.6,
-                fontSize: 15,
                 padding: "5px 0",
               }}
             >
@@ -133,7 +132,7 @@ export function SummaryBox({ data, locale, lang, hours, topicName, speed, voice,
           ))}
         </ul>
       ) : (
-        <p style={{ color: color.textSecondary, lineHeight: 1.6, whiteSpace: "pre-wrap", margin: 0, fontSize: 15 }}>
+        <p className="app-paragraph-lg" style={{ color: color.textSecondary, whiteSpace: "pre-wrap", margin: 0 }}>
           {raw}
         </p>
       )}

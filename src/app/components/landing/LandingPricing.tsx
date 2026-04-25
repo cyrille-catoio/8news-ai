@@ -17,9 +17,19 @@ export function LandingPricing({ lang }: { lang: LandingLang }) {
             <div key={i} className={`plan${pl.featured ? " featured" : ""}`}>
               <div className="tag">{pl.tag}</div>
               <h3>{pl.name}</h3>
-              <div className="price">
-                {pl.price}
-                <small>{pl.per}</small>
+              <div className="price-row">
+                <div className="price">
+                  {pl.price}
+                  <small>{pl.per}</small>
+                </div>
+                {pl.priceYear && (
+                  <div className="price-year">
+                    {lang === "fr" ? "ou " : "or "}
+                    <strong>{pl.priceYear}</strong>
+                    <span className="price-year-per">{pl.perYear}</span>
+                    {pl.saveLabel && <span className="price-save">{pl.saveLabel}</span>}
+                  </div>
+                )}
               </div>
               <div className="desc">{pl.desc}</div>
               <ul>

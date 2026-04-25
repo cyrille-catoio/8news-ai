@@ -63,8 +63,8 @@ export interface LandingContent {
     kicker: { en: string; fr: string };
     title: { en: string; fr: string };
     plans: {
-      en: Array<{ tag: string; name: string; price: string; per: string; desc: string; features: string[]; cta: string; featured: boolean }>;
-      fr: Array<{ tag: string; name: string; price: string; per: string; desc: string; features: string[]; cta: string; featured: boolean }>;
+      en: Array<{ tag: string; name: string; price: string; per: string; priceYear?: string; perYear?: string; saveLabel?: string; desc: string; features: string[]; cta: string; featured: boolean }>;
+      fr: Array<{ tag: string; name: string; price: string; per: string; priceYear?: string; perYear?: string; saveLabel?: string; desc: string; features: string[]; cta: string; featured: boolean }>;
     };
   };
   faq: {
@@ -248,12 +248,12 @@ export const LANDING_CONTENT: LandingContent = {
     },
     plans: {
       en: [
-        { tag: "CURRENT", name: "Free", price: "$0", per: "/forever", desc: "Everything we shipped in v2.5.3. No credit card, no waitlist.", features: ["All 36 default topics with 400+ RSS feeds", "Top 50 daily with AI summary + sources", "YouTube transcription (5 per day)", "ElevenLabs text-to-speech (12 voices)", "Favorites, daily summaries archive", "Bilingual EN / FR"], cta: "Try it now", featured: false },
-        { tag: "COMING SOON", name: "Pro", price: "$8", per: "/month", desc: "For founders, analysts and builders who need custom topics and higher limits.", features: ["Unlimited custom topics with AI feed discovery", "Unlimited YouTube transcriptions, add your favorite YouTube channels", "Webhooks & API access (Top 50 / daily summaries)", "Morning email digest, your topics only", "Priority scoring queue", "Access to a Tech / AI / Crypto discussion community"], cta: "Join the waitlist", featured: true },
+        { tag: "CURRENT", name: "Free", price: "$0", per: "/forever", desc: "Everything we shipped in v2.5.3. No credit card, no waitlist.", features: ["Choose 8 topics out of 36 available, powered by 400+ RSS feeds", "Top 50 daily with AI summary + sources, favorites and daily summaries archive", "YouTube transcription (5 per day)", "Bilingual EN / FR"], cta: "Try it now", featured: false },
+        { tag: "COMING SOON", name: "Pro", price: "$8", per: "/month", priceYear: "$88", perYear: "/year", saveLabel: "Save 8%", desc: "For founders, analysts and builders who need custom topics and higher limits.", features: ["Unlimited custom topics with AI feed discovery", "Unlimited YouTube transcriptions, add your favorite YouTube channels", "Morning email digest covering all your topics.", "Access to our Tech / AI / Crypto discussion community"], cta: "Join the waitlist", featured: true },
       ],
       fr: [
-        { tag: "ACTUEL", name: "Gratuit", price: "0 €", per: "/à vie", desc: "Tout ce qu'on a livré en v2.5.3. Sans carte bancaire, sans liste d'attente.", features: ["Les 36 topics par défaut avec 400+ flux RSS", "Top 50 quotidien avec résumé IA + sources", "Transcription YouTube (5 par jour)", "Text-to-speech ElevenLabs (12 voix)", "Favoris, archive des résumés quotidiens", "Bilingue EN / FR"], cta: "Essayer", featured: false },
-        { tag: "BIENTÔT", name: "Pro", price: "8 €", per: "/mois", desc: "Pour fondateurs, analystes et builders qui veulent des topics sur mesure et plus de volume.", features: ["Topics personnalisés illimités avec découverte IA des flux", "Transcriptions YouTube illimitées, ajout de vos chaînes YouTube favorites", "Webhooks & accès API (Top 50 / résumés)", "Digest email matinal, uniquement vos topics", "File de scoring prioritaire", "Accès à une communauté de discussion Tech / IA / Crypto"], cta: "Rejoindre la liste", featured: true },
+        { tag: "ACTUEL", name: "Gratuit", price: "0 €", per: "/à vie", desc: "Tout ce qu'on a livré en v2.5.3. Sans carte bancaire, sans liste d'attente.", features: ["Choisissez 8 topics parmi les 36 disponibles, alimentés par 400+ flux RSS", "Top 50 quotidien avec résumé IA + sources, favoris et archive des résumés quotidiens", "Transcription YouTube (5 par jour)", "Bilingue EN / FR"], cta: "Essayer", featured: false },
+        { tag: "BIENTÔT", name: "Pro", price: "8 €", per: "/mois", priceYear: "88 €", perYear: "/an", saveLabel: "−8 % à l'année", desc: "Pour fondateurs, analystes et builders qui veulent des topics sur mesure et plus de volume.", features: ["Topics personnalisés illimités avec découverte IA des flux", "Transcriptions YouTube illimitées, ajout de vos chaînes YouTube favorites", "Digest email matinal reprenant tous vos topics.", "Accès à notre communauté de discussion Tech / IA / Crypto"], cta: "Rejoindre la liste", featured: true },
       ],
     },
   },

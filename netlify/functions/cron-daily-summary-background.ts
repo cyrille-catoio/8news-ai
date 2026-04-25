@@ -20,40 +20,35 @@ const MAX_TOPICS_PER_RUN = Number(process.env.DAILY_SUMMARY_MAX_TOPICS_PER_RUN ?
 const ALL_LANGS = ["en", "fr"] as const;
 
 /**
- * Compute "yesterday" in the editorial timezone (Europe/Paris) instead
- * of UTC. Without this, a cron tick firing between 22:00 UTC and 23:59
- * UTC (= 00:00-01:59 CET the next day) would compute `yesterday` as
- * the day BEFORE the one that just ended editorially, summarizing the
- * wrong calendar day. Mirrors the same fix in
- * `cron-video-roundup-background.ts`. The `DAILY_SUMMARY_DATE` env
- * override is honored first so the cron can be re-pointed to backfill
- * a specific historical date without redeploying.
+ * Compute "yesterday" in UTC. As of v2.5.9 the entire date pipeline is
+ * UTC-aligned end-to-end — the cron is intended to be scheduled at
+ * 00:00 UTC sharp on cron-job.org (= 02:00 CEST in summer / 01:00 CET
+ * in winter). Configure the cron-job.org timezone to UTC, not
+ * Europe/Paris, so the trigger point stays stable across DST.
+ *
+ * Why UTC. `generateDailySummary` queries `articles.fetched_at`
+ * (TIMESTAMPTZ) with explicit ISO bounds `${date}T00:00:00Z` /
+ * `${date}T23:59:59.999Z`. Targeting "yesterday in UTC" keeps the
+ * date key produced here in lockstep with the bounds the lib uses,
+ * so a cron firing at 00:00 UTC summarizes the calendar day that
+ * just ended in UTC.
+ *
+ * The optional `DAILY_SUMMARY_DATE` env var override is honored first
+ * so the cron can be re-pointed to backfill a specific historical date
+ * (YYYY-MM-DD) without a redeploy.
  */
-const EDITORIAL_TZ = "Europe/Paris";
-
-function todayInTz(tz: string): string {
-  const fmt = new Intl.DateTimeFormat("fr-CA", {
-    timeZone: tz,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  return fmt.format(new Date());
-}
-
-function yesterdayInTz(tz: string): string {
-  const today = todayInTz(tz);
-  const d = new Date(`${today}T12:00:00Z`);
+function yesterdayUtc(): string {
+  const d = new Date();
   d.setUTCDate(d.getUTCDate() - 1);
   return d.toISOString().slice(0, 10);
 }
 
-function resolveTargetDate(): { date: string; source: "override" | "yesterday-cet" } {
+function resolveTargetDate(): { date: string; source: "override" | "yesterday-utc" } {
   const override = (process.env.DAILY_SUMMARY_DATE ?? "").trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(override)) {
     return { date: override, source: "override" };
   }
-  return { date: yesterdayInTz(EDITORIAL_TZ), source: "yesterday-cet" };
+  return { date: yesterdayUtc(), source: "yesterday-utc" };
 }
 
 export default async () => {

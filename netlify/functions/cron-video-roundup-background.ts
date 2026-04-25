@@ -40,44 +40,41 @@ const MAX_TOPICS_PER_RUN = Number(process.env.VIDEO_ROUNDUP_MAX_TOPICS_PER_RUN ?
 const ALL_LANGS = ["en", "fr"] as const;
 
 /**
- * Compute "yesterday" in the editorial timezone (Europe/Paris) rather
- * than UTC. A roundup keyed to date X is meant to summarize the day X
- * as the user thinks of it (in their local TZ), not as UTC sees it.
+ * Compute "yesterday" in UTC. As of v2.5.9 the entire date pipeline is
+ * UTC-aligned end-to-end so the cron is intended to be scheduled at
+ * 00:00 UTC sharp on cron-job.org (= 02:00 CEST in summer / 01:00 CET
+ * in winter — the configured wall-clock time on cron-job.org should
+ * use timezone=UTC, not Europe/Paris, to keep the trigger point
+ * stable across DST transitions).
  *
- * Without this, a cron tick firing between 22:00 UTC and 23:59 UTC
- * (= 00:00-01:59 CET the next day) would compute `yesterday` as the
- * day BEFORE the one that just ended editorially, producing roundups
- * for the wrong date and missing the day the user actually wanted.
+ * Why UTC. The data layer this cron talks to is already UTC-aligned:
+ * `video_transcriptions.published_date` (a DATE column) is populated
+ * from `getUTCDate()` on insert in the youtube-channels videos route,
+ * and `articles.fetched_at` (TIMESTAMPTZ) is queried with explicit
+ * ISO UTC bounds in `generateDailySummary`. Targeting "yesterday in
+ * UTC" makes the date-key produced here match what the lib will fetch.
+ *
+ * Behavior at the edge. When the cron fires at 00:00 UTC, "yesterday
+ * UTC" is the calendar day that just ended in UTC. If a manual or
+ * cron-job.org tick fires later in the day, "yesterday UTC" is still
+ * the same calendar day — the function is idempotent within a UTC day.
  *
  * The optional `ROUNDUP_DATE` env var override is honored first so the
  * cron can be re-pointed to backfill a specific historical date
- * without redeploying.
+ * (YYYY-MM-DD) without a redeploy.
  */
-const EDITORIAL_TZ = "Europe/Paris";
-
-function todayInTz(tz: string): string {
-  const fmt = new Intl.DateTimeFormat("fr-CA", {
-    timeZone: tz,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  return fmt.format(new Date());
-}
-
-function yesterdayInTz(tz: string): string {
-  const today = todayInTz(tz);
-  const d = new Date(`${today}T12:00:00Z`);
+function yesterdayUtc(): string {
+  const d = new Date();
   d.setUTCDate(d.getUTCDate() - 1);
   return d.toISOString().slice(0, 10);
 }
 
-function resolveTargetDate(): { date: string; source: "override" | "yesterday-cet" } {
+function resolveTargetDate(): { date: string; source: "override" | "yesterday-utc" } {
   const override = (process.env.ROUNDUP_DATE ?? "").trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(override)) {
     return { date: override, source: "override" };
   }
-  return { date: yesterdayInTz(EDITORIAL_TZ), source: "yesterday-cet" };
+  return { date: yesterdayUtc(), source: "yesterday-utc" };
 }
 
 export default async () => {

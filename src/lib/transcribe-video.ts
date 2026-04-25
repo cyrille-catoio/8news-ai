@@ -36,7 +36,17 @@ import {
 import { normalizeSummaryHeadings } from "./summary-headings";
 import { slugifyVideoTitle, uniquifyVideoSlug } from "./slug";
 
-const AI_MODEL = "gpt-4.1-mini";
+/**
+ * Default model for the synchronous API route. The cron passes a more
+ * capable model (`gpt-5.3-chat-latest`) via `opts.model` since it has
+ * a 15 min budget — see `cron-video-transcribe-background.ts`.
+ *
+ * Why default to the smaller model here: the synchronous route is a
+ * fallback for very-fresh videos that haven't been picked up yet by a
+ * cron tick. A 504 on this path is much worse UX than a slightly less
+ * polished summary, so we keep latency predictable (< 30 s budget).
+ */
+const DEFAULT_AI_MODEL = "gpt-4.1-mini";
 
 /** Hard cap on the produced Markdown summary length, in characters. */
 const SUMMARY_MAX_CHARS = 5000;
@@ -259,8 +269,13 @@ export interface TranscribeMeta {
 
 export interface TranscribeOptions {
   /** OpenAI per-call timeout. Default 25_000 (synchronous API route).
-   *  Pass a larger value (e.g. 90_000) for the background cron. */
+   *  Pass a larger value (e.g. 180_000) for the background cron. */
   openaiTimeoutMs?: number;
+  /** OpenAI chat model. Default `gpt-4.1-mini` (synchronous API route,
+   *  optimized for the 30 s Netlify budget). The cron passes
+   *  `gpt-5.3-chat-latest` for higher-quality summaries since it has a
+   *  15 min budget. */
+  model?: string;
 }
 
 /**
@@ -278,6 +293,7 @@ export async function transcribeVideo(
   }
   const safeLang: "en" | "fr" = lang === "fr" ? "fr" : "en";
   const openaiTimeoutMs = opts.openaiTimeoutMs ?? DEFAULT_OPENAI_TIMEOUT_MS;
+  const model = opts.model ?? DEFAULT_AI_MODEL;
   const { title, channelId } = meta;
 
   // Fast path: cache hit. Same shape as the API route's previous behavior.
@@ -311,7 +327,7 @@ export async function transcribeVideo(
       const openai = new OpenAI({ apiKey });
       const completion = await openai.chat.completions.create(
         {
-          model: AI_MODEL,
+          model,
           messages: [
             { role: "system", content: buildTranslatePrompt(safeLang) },
             { role: "user", content: otherCached.summary_md },
@@ -345,7 +361,7 @@ export async function transcribeVideo(
       const openai = new OpenAI({ apiKey });
       const completion = await openai.chat.completions.create(
         {
-          model: AI_MODEL,
+          model,
           messages: [
             { role: "system", content: buildSummaryPrompt(safeLang, target) },
             { role: "user", content: truncatedTranscript },

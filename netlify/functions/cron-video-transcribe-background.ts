@@ -28,7 +28,7 @@ import { enrichDurations } from "../../src/lib/youtube-duration";
 
 const WALL_MS = 840_000;                                                // 14 min
 const BUDGET_MS = Number(process.env.TRANSCRIBE_BUDGET_MS ?? 810_000);  // 13.5 min
-const SAFETY_MS = 30_000;                                                // 1 full transcribe budget
+const SAFETY_MS = 200_000;                                              // > CRON_OPENAI_TIMEOUT_MS — never start a transcribe we can't finish
 const MAX_BUCKETS_PER_RUN = Number(process.env.TRANSCRIBE_MAX_PER_RUN ?? 40);
 
 /**
@@ -44,8 +44,17 @@ const WINDOW_HOURS = 24;
 const MIN_DURATION_SEC = 120;
 
 /** Background functions have a 15 min budget; we can afford a much
- *  longer per-call OpenAI timeout than the synchronous route. */
-const CRON_OPENAI_TIMEOUT_MS = 90_000;
+ *  longer per-call OpenAI timeout than the synchronous route. Bumped
+ *  to 180s to comfortably accommodate `gpt-5.3-chat-latest` latency
+ *  on long podcasts (typically 40-90s, but spikes happen). */
+const CRON_OPENAI_TIMEOUT_MS = 180_000;
+
+/** Higher-quality model for the pre-warm cache. The synchronous API
+ *  route stays on `gpt-4.1-mini` (faster, predictable < 30 s) since
+ *  it's only a fallback for very-fresh videos not yet picked up by a
+ *  cron tick. Same model family already used by `/api/news/top-summary`
+ *  and the per-topic video roundup. */
+const CRON_AI_MODEL = "gpt-5.3-chat-latest";
 
 const ALL_LANGS = ["en", "fr"] as const;
 
@@ -188,7 +197,7 @@ export default async () => {
           c.video_id,
           lang,
           { title: c.title ?? undefined, channelId: c.channel_id },
-          { openaiTimeoutMs: CRON_OPENAI_TIMEOUT_MS },
+          { openaiTimeoutMs: CRON_OPENAI_TIMEOUT_MS, model: CRON_AI_MODEL },
         );
         switch (result.status) {
           case "ok":

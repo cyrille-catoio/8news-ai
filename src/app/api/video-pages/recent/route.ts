@@ -4,12 +4,12 @@ import { createClient } from "@supabase/supabase-js";
 /**
  * GET /api/video-pages/recent?page=0&lang=fr
  *
- * Returns one paginated 2-day chunk of transcribed-video SSR pages
+ * Returns one calendar-day worth of transcribed-video SSR pages
  * (`/{topic}/v/{published_date}/{slug}`), ordered most-recent first.
  *
- *  - `page=0` → today + yesterday  (the default chunk on first render)
- *  - `page=1` → 2 and 3 days ago
- *  - `page=2` → 4 and 5 days ago
+ *  - `page=0` → today
+ *  - `page=1` → yesterday
+ *  - `page=2` → 2 days ago
  *  - …
  *
  * The response embeds `hasMore` so the client can disable the
@@ -19,8 +19,8 @@ import { createClient } from "@supabase/supabase-js";
  * the SPA Briefing homepage.
  */
 
-const PAGE_SIZE_DAYS = 2;
-const MAX_PAGE = 30;     // 60 days back is more than enough for SPA browsing
+const PAGE_SIZE_DAYS = 1;
+const MAX_PAGE = 60;     // 60 calendar days back is plenty for SPA browsing
 
 interface VideoPageItem {
   videoId: string;
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
   const pageParam = parseInt(req.nextUrl.searchParams.get("page") ?? "0", 10);
   const page = Math.min(MAX_PAGE, Math.max(0, isNaN(pageParam) ? 0 : pageParam));
 
-  // page=0 → [today-1, today], page=1 → [today-3, today-2], etc.
+  // page=0 → today, page=1 → yesterday, page=2 → 2 days ago, etc.
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);
   const toDateD = new Date(today);

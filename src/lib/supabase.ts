@@ -1765,7 +1765,28 @@ export async function insertVideoRoundupBullets(
       .eq("video_roundup_id", bullets[0].video_roundup_id);
     const { error } = await supabase.from("summary_bullets").insert(bullets);
     if (error) {
-      console.error("[insertVideoRoundupBullets] insert failed:", error.message);
+      // Detect the specific "column does not exist" case so the
+      // operator gets a single, immediately actionable line in the
+      // Netlify logs instead of a noisy ERROR every cron tick.
+      // PostgREST surfaces missing columns as PGRST204 with a
+      // message like:
+      //   Could not find the 'video_roundup_id' column of
+      //   'summary_bullets' in the schema cache
+      const msg = error.message ?? "";
+      const code = (error as { code?: string }).code ?? "";
+      const isMissingColumn =
+        code === "PGRST204" ||
+        code === "42703" ||
+        (msg.includes("video_roundup_id") && msg.includes("schema cache"));
+      if (isMissingColumn) {
+        console.warn(
+          "[insertVideoRoundupBullets] skipped: summary_bullets.video_roundup_id is missing — " +
+            "run migration 018-roundup-bullets.sql in Supabase to enable the bullets mirror " +
+            "(roundup itself was persisted; mirror is non-fatal).",
+        );
+      } else {
+        console.error("[insertVideoRoundupBullets] insert failed:", msg);
+      }
       return false;
     }
     return true;

@@ -281,6 +281,7 @@ export default async function VideoSeoPage({ params }: PageProps) {
             title={page.video?.title ?? page.title}
             style={{ width: "100%", height: "100%", border: "none", display: "block" }}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            referrerPolicy="strict-origin-when-cross-origin"
             allowFullScreen
           />
         </div>

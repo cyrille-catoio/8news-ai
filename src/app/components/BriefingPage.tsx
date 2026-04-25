@@ -175,8 +175,9 @@ export function BriefingPage({
 
   // ─── Recent SSR per-video pages ─────────────────────────────────────
   // The list itself owns its pagination state — see
-  // `RecentVideoPagesSection`. Default page size = 2 days, with
-  // « Plus ancien / Plus récent » buttons to walk backwards.
+  // `RecentVideoPagesSection`. Page size = 1 calendar day (today by
+  // default), with « Plus ancien / Plus récent » buttons to walk
+  // through history one day at a time.
 
   // ─── Per-preferred-topic mini strips (logged-in users) ──────────────
   const [yourTopicArticles, setYourTopicArticles] = useState<Record<string, MiniArticle[]>>({});
@@ -804,10 +805,17 @@ function YourTopicsSection({
 
 /**
  * Bottom-of-page list of every transcribed video that has an SSR page.
- * Paginated by 2-day chunks (`?page=N`) — page 0 = today + yesterday.
- * « Plus ancien » walks backwards in time, « Plus récent » brings the
- * user back towards today. The « Plus ancien » button is disabled
- * when the server response says `hasMore: false`.
+ * Paginated one calendar day at a time (`?page=N`) — page 0 = today,
+ * page 1 = yesterday, page 2 = the day before, etc. « Plus ancien »
+ * walks backwards in time, « Plus récent » brings the user back
+ * towards today. The « Plus ancien » button is disabled when the
+ * server response says `hasMore: false`.
+ *
+ * On the first render we always render the section (even if today has
+ * zero transcribed videos yet) as long as the server reports older
+ * days exist — that way the user can still navigate back through the
+ * archive. Only when both today AND the archive are empty do we hide
+ * the section completely.
  *
  * Drives traffic to `/v/` pages from inside the SPA. Compact format:
  * date · topic pill · title link. Topic labels are looked up locally
@@ -874,20 +882,21 @@ function RecentVideoPagesSection({
     [byDate],
   );
 
-  // Hide the section entirely on the first load when there's nothing —
-  // matches the previous behavior of "no list until we have data".
-  // Once the user has paginated past page 0, we always render so the
-  // pagination controls stay visible (otherwise they'd lose their way
-  // back to recent days).
   const items = data?.items ?? [];
-  if (page === 0 && !loading && items.length === 0) return null;
-
   const hasMore = data?.hasMore ?? false;
   const fromDate = data?.fromDate;
   const toDate = data?.toDate;
 
-  // Subtitle: « 23 – 24 avr. » (or single « 24 avr. » when both bounds
-  // collapse to the same day, which can happen at UTC day-boundary).
+  // Hide the section entirely only when we're on page 0, today has no
+  // transcribed videos AND there's nothing in the archive either —
+  // otherwise we keep the section rendered so the user can still walk
+  // backwards through previous days using « Plus ancien ».
+  if (page === 0 && !loading && items.length === 0 && !hasMore) return null;
+
+  // Subtitle: a single day label (« 24 avr. ») since each page is
+  // exactly one calendar day. We still call formatDateRange in case
+  // PAGE_SIZE_DAYS is widened again in the future — it gracefully
+  // collapses identical bounds to a single date.
   const subtitle = fromDate && toDate
     ? formatDateRange(fromDate, toDate, locale, lang)
     : "";
@@ -937,7 +946,13 @@ function RecentVideoPagesSection({
           </div>
         ) : items.length === 0 ? (
           <div style={{ color: color.textMuted, fontSize: 13, textAlign: "center", padding: "16px 0" }}>
-            {lang === "fr" ? "Aucune vidéo transcrite sur cette période." : "No transcribed videos in this window."}
+            {page === 0
+              ? (lang === "fr"
+                  ? "Aucune vidéo transcrite aujourd'hui pour le moment."
+                  : "No transcribed videos yet today.")
+              : (lang === "fr"
+                  ? "Aucune vidéo transcrite ce jour-là."
+                  : "No transcribed videos for this day.")}
           </div>
         ) : (
           sortedDates.map((date) => {

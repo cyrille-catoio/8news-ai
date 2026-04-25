@@ -226,6 +226,28 @@ export function VideoCard({
   };
 
   const descTruncated = v.description && v.description.length > DESC_MAX && !descExpanded;
+  const youtubeEmbedSrc = (() => {
+    const isLocal =
+      typeof window !== "undefined" &&
+      (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+    const host = isLocal ? "https://www.youtube-nocookie.com" : "https://www.youtube.com";
+    const params = new URLSearchParams({
+      autoplay: "1",
+      rel: "0",
+      modestbranding: "1",
+      playsinline: "1",
+    });
+
+    // Keep the fragile JS API/origin pair for production only. YouTube
+    // embeds can be picky with 127.0.0.1 origins in local dev, and we do
+    // not use the iframe JS API here anyway.
+    if (!isLocal && typeof window !== "undefined") {
+      params.set("enablejsapi", "1");
+      params.set("origin", window.location.origin);
+    }
+
+    return `${host}/embed/${encodeURIComponent(v.videoId)}?${params.toString()}`;
+  })();
 
   return (
     <div style={cardStyle}>
@@ -234,10 +256,11 @@ export function VideoCard({
           <div style={thumbWrap}>
             {playing ? (
               <iframe
-                src={`https://www.youtube.com/embed/${v.videoId}?autoplay=1&rel=0&modestbranding=1`}
+                src={youtubeEmbedSrc}
                 title={v.title}
                 style={{ width: "100%", height: "100%", border: "none", display: "block" }}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                referrerPolicy="strict-origin-when-cross-origin"
                 allowFullScreen
               />
             ) : (

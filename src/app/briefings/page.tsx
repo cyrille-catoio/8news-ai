@@ -4,7 +4,7 @@ import { getActiveTopics, getAllVideoRoundupRoutes } from "@/lib/supabase";
 import { color, font } from "@/lib/theme";
 import { SeoNavBar } from "@/app/components/SeoNavBar";
 import { SeoGeneralMenu } from "@/app/components/GeneralMenu";
-import type { Lang } from "@/lib/i18n";
+import { resolveServerLang } from "@/lib/server-lang";
 
 /**
  * /briefings — public SSR hub that lists every video roundup grouped
@@ -26,7 +26,11 @@ interface PageProps {
 
 export default async function BriefingsPage({ searchParams }: PageProps) {
   const { lang: rawLang } = await searchParams;
-  const lang: Lang = rawLang === "fr" ? "fr" : "en";
+  // Resolution order: ?lang= (explicit override) → user_metadata.preferred_lang
+  // (logged-in users) → cookie `lang` (anonymous users) → default `en`.
+  // Fixes the bug where a French-speaking visitor landing on /briefings
+  // saw the page in English just because no ?lang= was on the URL.
+  const lang = await resolveServerLang(rawLang);
 
   // Two parallel reads: active topic labels + all roundup routes from
   // the last 90 days (capped by SITEMAP_RECENT_DAYS in supabase.ts).

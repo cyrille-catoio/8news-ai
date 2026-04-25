@@ -11,6 +11,7 @@ import {
 import { color, font } from "@/lib/theme";
 import { SeoNavBar } from "@/app/components/SeoNavBar";
 import { SeoGeneralMenu } from "@/app/components/GeneralMenu";
+import { resolveServerLang } from "@/lib/server-lang";
 
 const PAGE_SIZE = 30;
 
@@ -22,7 +23,7 @@ interface PageProps {
 export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { topic: topicId } = await params;
   const { lang: rawLang } = await searchParams;
-  const lang = rawLang === "fr" ? "fr" : "en";
+  const lang = await resolveServerLang(rawLang);
   const topic = await getTopicById(topicId);
   if (!topic) return { title: "Not Found" };
 
@@ -46,7 +47,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
 export default async function TopicHubPage({ params, searchParams }: PageProps) {
   const { topic: topicId } = await params;
   const { lang: rawLang, page: rawPage } = await searchParams;
-  const lang = rawLang === "fr" ? "fr" : "en";
+  const lang = await resolveServerLang(rawLang);
   const locale = lang === "fr" ? "fr-FR" : "en-US";
   const page = Math.max(1, parseInt(rawPage ?? "1", 10) || 1);
 

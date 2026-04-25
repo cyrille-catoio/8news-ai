@@ -9,6 +9,7 @@ import type {
 } from "@/lib/types";
 import { t, dateLocale, type Lang } from "@/lib/i18n";
 import { getCookie, setCookie } from "@/lib/cookies";
+import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 import {
   color,
   font,
@@ -48,7 +49,7 @@ import { BriefingPage } from "@/app/components/BriefingPage";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.5.2";
+const APP_VERSION = "2.5.3";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 
@@ -366,15 +367,74 @@ function playNotificationBeep() {
 }
 
 export default function Home() {
+  // Lang resolution order:
+  //   1. Logged-in user's `user_metadata.preferred_lang` (BDD-backed)
+  //   2. Cookie `lang` (anonymous visitors)
+  //   3. Default "en"
+  // The query string `?lang=` is not consulted on this client SPA — it
+  // is purely a SSR-page concern (see resolveServerLang). The auth
+  // session arrives async, so we initialize from the cookie and then
+  // upgrade to the user's preference once the session is known. If the
+  // user is signed in but has no preferred_lang in their metadata yet,
+  // we lazily seed it with whatever cookie value is currently in use,
+  // so subsequent visits across browsers stay consistent.
   const [lang, setLang] = useState<Lang>("en");
+  const supabaseRef = useRef<ReturnType<typeof createBrowserSupabaseClient> | null>(null);
+  if (supabaseRef.current === null && typeof window !== "undefined") {
+    supabaseRef.current = createBrowserSupabaseClient();
+  }
+
   useEffect(() => {
     const l = getCookie("lang");
     if (l === "fr") setLang("fr");
+    else if (l === "en") setLang("en");
   }, []);
+
+  // Pulled up from below: we need `session` to drive the lang sync /
+  // persistence below.
+  const { session, loading: authLoading } = useAuth();
+  const authUser = session?.user ?? null;
+  const authOwner = Boolean(authUser && isOwnerUser(authUser));
+  const isAuthenticated = Boolean(authUser);
+
+  // Whenever the auth session changes, prefer the user's stored
+  // preferred_lang (BDD) over the cookie. If the user is signed in but
+  // has no preferred_lang yet (legacy accounts), seed it with the
+  // current cookie / lang so future visits stay coherent.
+  useEffect(() => {
+    if (authLoading) return;
+    if (!authUser) return;
+    const meta = (authUser.user_metadata ?? {}) as { preferred_lang?: unknown };
+    const userLang = meta.preferred_lang;
+    if (userLang === "fr" || userLang === "en") {
+      setLang(userLang);
+      setCookie("lang", userLang);
+      return;
+    }
+    const supa = supabaseRef.current;
+    if (!supa) return;
+    void supa.auth.updateUser({
+      data: { ...authUser.user_metadata, preferred_lang: lang },
+    });
+  // We intentionally do NOT depend on `lang` — that would re-run this
+  // effect every time the user changes the language and overwrite their
+  // choice with the seed value.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authUser?.id, authLoading]);
+
   const handleLangChange = useCallback((newLang: Lang) => {
     setCookie("lang", newLang);
     setLang(newLang);
-  }, []);
+    // Persist the choice for signed-in users so it follows them across
+    // browsers / devices. Unauthenticated visitors only get the cookie.
+    const supa = supabaseRef.current;
+    if (authUser && supa) {
+      void supa.auth.updateUser({
+        data: { ...authUser.user_metadata, preferred_lang: newLang },
+      });
+    }
+  }, [authUser]);
+
   const [topics, setTopics] = useState<TopicItem[]>([]);
   const [topicsLoading, setTopicsLoading] = useState(true);
   const topicLabels: TopicLabel[] = topics.map((tp) => ({ id: tp.id, label: lang === "fr" ? tp.labelFr : tp.labelEn }));
@@ -485,10 +545,6 @@ export default function Home() {
 
   const [topicsStartInCreate, setTopicsStartInCreate] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
-  const { session, loading: authLoading } = useAuth();
-  const authUser = session?.user ?? null;
-  const authOwner = Boolean(authUser && isOwnerUser(authUser));
-  const isAuthenticated = Boolean(authUser);
 
   const {
     preferredTopicIds,

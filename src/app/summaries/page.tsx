@@ -5,7 +5,7 @@ import { color, font } from "@/lib/theme";
 import { SummaryExplorer } from "@/app/components/SummaryExplorer";
 import { SeoNavBar } from "@/app/components/SeoNavBar";
 import { SeoGeneralMenu } from "@/app/components/GeneralMenu";
-import type { Lang } from "@/lib/i18n";
+import { resolveServerLang } from "@/lib/server-lang";
 
 export const metadata: Metadata = {
   title: "Daily AI News Summaries — 8news.ai",
@@ -19,7 +19,8 @@ export default async function SummariesPage({
   searchParams: Promise<{ lang?: string }>;
 }) {
   const { lang: rawLang } = await searchParams;
-  const lang: Lang = rawLang === "fr" ? "fr" : "en";
+  // ?lang= override → user_metadata.preferred_lang → cookie → "en".
+  const lang = await resolveServerLang(rawLang);
 
   const [topics, routes] = await Promise.all([
     getActiveTopics(false),

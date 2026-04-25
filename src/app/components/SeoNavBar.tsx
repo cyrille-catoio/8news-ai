@@ -1,11 +1,13 @@
 "use client";
 
-import { type CSSProperties, type ReactNode, useState, useRef, useEffect } from "react";
+import { type CSSProperties, type MouseEvent as ReactMouseEvent, type ReactNode, useState, useRef, useEffect, useMemo } from "react";
 import { color } from "@/lib/theme";
 import { t, type Lang } from "@/lib/i18n";
 import { useAuth } from "@/app/providers";
 import { isOwnerUser } from "@/lib/user-type";
 import { AuthModal } from "@/app/components/AuthModal";
+import { setCookie } from "@/lib/cookies";
+import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 
 function NavLink({ href, ariaLabel, children }: { href: string; ariaLabel: string; children: ReactNode }) {
   const style: CSSProperties = {
@@ -27,6 +29,12 @@ function NavLink({ href, ariaLabel, children }: { href: string; ariaLabel: strin
 }
 
 function LangToggle({ lang, altLangUrl }: { lang: Lang; altLangUrl?: string }) {
+  const { session } = useAuth();
+  const supabase = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    try { return createBrowserSupabaseClient(); } catch { return null; }
+  }, []);
+
   const btn = (value: Lang, isLeft: boolean): CSSProperties => ({
     padding: "4px 10px",
     fontSize: 10.4,
@@ -41,13 +49,35 @@ function LangToggle({ lang, altLangUrl }: { lang: Lang; altLangUrl?: string }) {
     display: "inline-block",
   });
 
+  // When the user clicks the toggle on a SSR page, we have to persist
+  // the choice BEFORE the browser navigates — otherwise the next page
+  // load (any page, not just the alt-lang URL we're going to) would
+  // again resolve through the old cookie / metadata. The cookie write
+  // is synchronous and is enough for `resolveServerLang` to pick up the
+  // new value on the next request. The user_metadata update is
+  // fire-and-forget; if the user is offline the cookie still keeps
+  // them in the right language until the next sync.
+  const switchTo = (target: Lang) => (e: ReactMouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    setCookie("lang", target);
+    const user = session?.user;
+    if (user && supabase) {
+      void supabase.auth.updateUser({
+        data: { ...user.user_metadata, preferred_lang: target },
+      });
+    }
+    if (altLangUrl) {
+      window.location.href = altLangUrl;
+    }
+  };
+
   return (
     <div style={{ display: "flex", borderRadius: 5, overflow: "hidden", border: `1px solid ${color.gold}` }}>
       {lang === "en" ? (
         <>
           <span style={btn("en", true)}>EN</span>
           {altLangUrl ? (
-            <a href={altLangUrl} style={btn("fr", false)}>FR</a>
+            <a href={altLangUrl} onClick={switchTo("fr")} style={btn("fr", false)}>FR</a>
           ) : (
             <span style={{ ...btn("fr", false), opacity: 0.4, cursor: "default" }}>FR</span>
           )}
@@ -55,7 +85,7 @@ function LangToggle({ lang, altLangUrl }: { lang: Lang; altLangUrl?: string }) {
       ) : (
         <>
           {altLangUrl ? (
-            <a href={altLangUrl} style={btn("en", true)}>EN</a>
+            <a href={altLangUrl} onClick={switchTo("en")} style={btn("en", true)}>EN</a>
           ) : (
             <span style={{ ...btn("en", true), opacity: 0.4, cursor: "default" }}>EN</span>
           )}

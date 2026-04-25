@@ -12,6 +12,7 @@ import { LandingPricing } from "@/app/components/landing/LandingPricing";
 import { LandingFAQ } from "@/app/components/landing/LandingFAQ";
 import { LandingCTA } from "@/app/components/landing/LandingCTA";
 import { LandingFooter } from "@/app/components/landing/LandingFooter";
+import { resolveServerLang } from "@/lib/server-lang";
 
 export const metadata: Metadata = {
   title: "8news.ai — Tech decoded by AI · Two hours of YouTube, read in eight minutes",
@@ -44,7 +45,12 @@ interface PageProps {
 
 export default async function Page({ searchParams }: PageProps) {
   const params = await searchParams;
-  const lang: LandingLang = params.lang === "en" ? "en" : "fr";
+  // Same resolution order as the rest of the app: ?lang= override →
+  // user_metadata.preferred_lang (logged-in) → cookie `lang` →
+  // default. Landing historically defaulted to FR — we keep that as
+  // the fallback when nothing else is set, since the bulk of
+  // unidentified traffic comes from FR-speaking visitors.
+  const lang: LandingLang = await resolveServerLang(params.lang, "fr");
 
   return (
     <div className="landing-root" data-lang={lang} data-hero="sober">

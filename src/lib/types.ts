@@ -4,6 +4,15 @@ export interface ScoreResult {
   reason: string;
   summary_en?: string;
   summary_fr?: string;
+  /**
+   * Translated title — produced by the scoring prompt for articles scoring ≥ 5
+   * alongside the bilingual summary, persisted to `articles.title_ai_en` /
+   * `articles.title_ai_fr`. Consumed by the Top story hero on /app so the
+   * headline reads in the user's selected language. Optional: legacy rows and
+   * sub-5 articles fall back to the original feed `title`.
+   */
+  title_en?: string;
+  title_fr?: string;
 }
 
 export interface ParsedArticle {

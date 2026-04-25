@@ -36,6 +36,8 @@ interface TopStoryRow {
   content: string | null;
   snippet_ai_en: string | null;
   snippet_ai_fr: string | null;
+  title_ai_en: string | null;
+  title_ai_fr: string | null;
 }
 
 function parseLang(raw: string | null): Lang {
@@ -46,6 +48,18 @@ function pickSnippet(r: TopStoryRow, lang: Lang): string {
   const aiSnippet = lang === "fr" ? r.snippet_ai_fr : r.snippet_ai_en;
   const base = (aiSnippet || r.snippet || r.content || "").trim();
   return base.slice(0, SNIPPET_MAX);
+}
+
+/**
+ * Prefer the AI-translated title in the user's selected language. Falls back
+ * to the raw feed `title` for legacy rows scored before migration 019 (where
+ * `title_ai_*` is still null). Trim defensively — the scorer caps the field
+ * at 300 chars but old rows or future widening shouldn't surface as a
+ * runaway hero headline on the home page.
+ */
+function pickTitle(r: TopStoryRow, lang: Lang): string {
+  const ai = lang === "fr" ? r.title_ai_fr : r.title_ai_en;
+  return (ai || r.title || "").trim();
 }
 
 export async function GET(request: NextRequest) {
@@ -75,7 +89,7 @@ export async function GET(request: NextRequest) {
     let q = db
       .from("articles")
       .select(
-        "title, link, source, topic, pub_date, fetched_at, relevance_score, snippet, content, snippet_ai_en, snippet_ai_fr",
+        "title, link, source, topic, pub_date, fetched_at, relevance_score, snippet, content, snippet_ai_en, snippet_ai_fr, title_ai_en, title_ai_fr",
       )
       .gte("fetched_at", since)
       .order("fetched_at", { ascending: false })
@@ -110,7 +124,7 @@ export async function GET(request: NextRequest) {
   }
 
   const article = {
-    title: row.title,
+    title: pickTitle(row, lang),
     snippet: pickSnippet(row, lang),
     link: row.link,
     source: row.source,

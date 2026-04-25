@@ -7,6 +7,26 @@ const MAX_ARTICLES_PER_RUN = 50;
 const OPENAI_TIMEOUT_MS = 6_000;
 export const SCORE_WINDOW_HOURS = 168;
 
+/**
+ * Module-level latch: flips to `false` the first time a Supabase UPDATE
+ * surfaces a "column does not exist" error mentioning `title_ai_*` (raised
+ * either as PGRST204 by PostgREST's schema cache or as 42703 by Postgres
+ * itself). Once tripped, subsequent batches skip the translated-title
+ * fields entirely so the scoring pipeline keeps writing scores + snippets
+ * in production environments where migration 019-articles-title-ai.sql
+ * hasn't been applied yet. Resets naturally on next process restart, so
+ * applying the migration + redeploying re-enables the path automatically.
+ */
+let titleAiColumnsAvailable = true;
+
+function isTitleAiMissingColumnError(err: { code?: string; message?: string } | null | undefined): boolean {
+  if (!err) return false;
+  const code = err.code ?? "";
+  const msg = err.message ?? "";
+  if (code !== "PGRST204" && code !== "42703") return false;
+  return msg.includes("title_ai_en") || msg.includes("title_ai_fr") || msg.includes("title_ai");
+}
+
 interface DbRow {
   id: number;
   title: string;
@@ -67,7 +87,9 @@ function buildScoringPrompt(c: ScoringCriteria): string {
   return `You are a senior news editor specialized in ${c.scoring_domain}.
 
 Rate each article's relevance and importance from 1 to 10 (integer).
-For articles scoring 5 or above, also write a factual 2-sentence summary in English AND in French.
+For articles scoring 5 or above, also write:
+  - A factual 2-sentence summary in English AND in French.
+  - A translated headline in English AND in French (concise, faithful to the original — no clickbait, no editorial spin, ≤ 110 chars).
 
 ## Scoring scale for ${c.scoring_domain}:
 - 9-10: ${c.scoring_tier1}
@@ -82,11 +104,12 @@ For articles scoring 5 or above, also write a factual 2-sentence summary in Engl
 - Clickbait or vague opinion pieces without facts = max score 4.
 - Must include concrete data (names, numbers, dates) to score above 6.
 - Summaries must include key facts: who, what, where, when, specific numbers.
+- Translated headlines preserve all proper nouns / brand names / product codes verbatim (e.g. "GPT-5", "Anthropic", "ETF") and must NOT introduce new claims that aren't in the source title.
 
 Respond ONLY with a JSON object containing a "scores" array. No markdown, no explanation:
-{"scores": [{"index": 0, "score": 7, "reason": "New GPT-5 model announced with benchmarks", "summary_en": "OpenAI announced GPT-5 with...", "summary_fr": "OpenAI a annoncé GPT-5 avec..."}, ...]}
+{"scores": [{"index": 0, "score": 7, "reason": "New GPT-5 model announced with benchmarks", "title_en": "OpenAI launches GPT-5 with new benchmarks", "title_fr": "OpenAI lance GPT-5 avec de nouveaux benchmarks", "summary_en": "OpenAI announced GPT-5 with...", "summary_fr": "OpenAI a annoncé GPT-5 avec..."}, ...]}
 
-For articles scoring below 5, omit summary_en and summary_fr.`;
+For articles scoring below 5, omit title_en, title_fr, summary_en, summary_fr.`;
 }
 
 async function scoreArticleBatch(
@@ -241,8 +264,7 @@ async function runScoreTopic(
       const { results, debug } = await scoreArticleBatch(batch, prompt, openai, collectAiDebug);
       if (debug) aiDebug.push(debug);
 
-      const updates = results.map((r) => {
-        const article = batch[r.index];
+      const buildFields = (r: ScoreResult, includeTitleAi: boolean): Record<string, unknown> => {
         const fields: Record<string, unknown> = {
           relevance_score: Math.min(10, Math.max(1, Math.round(r.score))),
           score_reason: (r.reason || "").slice(0, 200),
@@ -250,11 +272,54 @@ async function runScoreTopic(
         };
         if (r.summary_en) fields.snippet_ai_en = r.summary_en.slice(0, 500);
         if (r.summary_fr) fields.snippet_ai_fr = r.summary_fr.slice(0, 500);
-        return supabase.from("articles").update(fields).eq("id", article.id);
-      });
+        // Translated headlines persisted alongside the bilingual snippets so
+        // the home « Top story » hero (and any future SEO surface) can render
+        // the title in the user's selected language. Capped at 300 chars to
+        // match a sensible headline budget while leaving room for long brand
+        // chains (e.g. "Anthropic / Claude 5 Opus / Operator preview release").
+        if (includeTitleAi) {
+          if (r.title_en) fields.title_ai_en = r.title_en.slice(0, 300);
+          if (r.title_fr) fields.title_ai_fr = r.title_fr.slice(0, 300);
+        }
+        return fields;
+      };
 
-      await Promise.all(updates);
-      scored += updates.length;
+      const responses = await Promise.all(
+        results.map((r) =>
+          supabase
+            .from("articles")
+            .update(buildFields(r, titleAiColumnsAvailable))
+            .eq("id", batch[r.index].id),
+        ),
+      );
+
+      // If migration 019-articles-title-ai.sql hasn't been applied in this
+      // environment, every UPDATE just failed with PGRST204/42703 because of
+      // the new title_ai_* fields. Flip the latch so subsequent batches skip
+      // those fields entirely, log a single actionable warning (not per-row),
+      // and retry just the failed updates without the translated titles so
+      // the score + snippet still land. Happy-path cost: one extra `.some()`
+      // scan over the responses array per batch.
+      const titleAiMissing = titleAiColumnsAvailable && responses.some((r) => isTitleAiMissingColumnError(r.error));
+      if (titleAiMissing) {
+        titleAiColumnsAvailable = false;
+        console.warn(
+          `[${topicId}] articles.title_ai_* missing — run migration 019-articles-title-ai.sql in Supabase to enable translated headlines on the home « Top story » hero. Falling back to score+snippet only for this batch (and all subsequent batches in this process).`,
+        );
+        const failed = results.filter((_, i) => isTitleAiMissingColumnError(responses[i].error));
+        const retryResponses = await Promise.all(
+          failed.map((r) =>
+            supabase
+              .from("articles")
+              .update(buildFields(r, false))
+              .eq("id", batch[r.index].id),
+          ),
+        );
+        const retrySucceeded = retryResponses.filter((r) => !r.error).length;
+        scored += responses.filter((r) => !r.error).length + retrySucceeded;
+      } else {
+        scored += responses.filter((r) => !r.error).length;
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[${topicId}] Scoring batch error:`, msg);

@@ -1,22 +1,51 @@
 # 8news.ai — Technical Specification
 
-**Version**: v1.105
-**Last updated**: 19 April 2026
+**Version**: v2.5.4
+**Last updated**: 25 April 2026
 
 ---
 
 ## 1. Overview
 
-**8news.ai** is an AI-powered news aggregation and summarisation platform. It fetches articles from curated RSS feeds across multiple **dynamic, database-driven topics**, pre-scores them with AI via scheduled Netlify cron jobs (stored in Supabase), then analyses the top-scoring articles with OpenAI (topic summaries via GPT-4.1-nano; homepage Top summary via GPT-5.3-chat-latest; daily SEO summaries via GPT-4.1-mini) for structured summarisation. Results are presented in a dark-themed, bilingual (EN/FR) web interface with ElevenLabs text-to-speech playback.
+**8news.ai** is an AI-powered tech / AI / crypto intelligence platform built around two complementary content pipelines:
 
-Users can **create custom topics** from the UI, with AI-assisted generation of scoring criteria and automatic RSS feed discovery. **v1.94+**: Article **favorites** system (star icon, per-user storage). **v1.95+**: Public **SEO daily summary pages** per topic with AI entity extraction, dynamic sitemap, and JSON-LD structured data. **v1.98+**: Persistent **General Menu** (first item: **Topics** — homepage / topic grid — **v1.105+**; My Favorites; Top 50; Daily Summaries; Videos) across all pages; admin items merged into user dropdown. **v1.99+**: **YouTube video monitoring** with channel management, daily video listing, and **AI-powered video transcription** (TranscriptAPI + GPT-4.1-mini Markdown summaries). **v1.105+**: Topics admin **list** includes an **inline category** `<select>` per row (`PATCH /api/topics/:id` with `categoryId` only, optimistic UI, `topicCategorySaveError` on failure).
+1. **RSS articles** — fetched from 400+ curated feeds across **dynamic, database-driven topics**, pre-scored 1-10 with AI via scheduled Netlify cron jobs, stored in Supabase, and surfaced as a daily Top 50 (homepage feed) and per-topic SEO daily summary pages.
+2. **YouTube transcriptions** — for a curated set of channels, the cron pre-transcribes every "today's" video (≥ 120 s) in EN+FR, GPT-summarises each one into a Markdown article, and aggregates them per topic per day into structured 8-bullet "video roundup" briefings.
 
-**v1.80+**: Optional **Supabase Auth** (email + password). **v1.81+**: **`user_type`** in **`user_metadata`** — **`member`** (default at sign-up) or **`owner`**. The app remains **fully usable without signing in** (home, stats, crons, changelog, settings). Signed-in **members** use the same public areas as guests. **Topics** and **Feed management** are **`owner`**-only (promote in **Supabase Dashboard → Authentication → Users**; user must sign in again for JWT refresh). Admin APIs: **`401`** unsigned, **`403`** **`member`**. **v1.82+**: Settings **My Account** (any authenticated user, editable name) + **Users** management (`owner`-only, inline edit of name and user type).
+Both pipelines feed into a hybrid rendering model: a black-and-gold **client-side SPA at `/app`** for the authenticated / power-user surface, plus a **server-rendered SEO surface** at `/`, `/briefings`, `/summaries`, `/[topic]`, `/[topic]/[date]/[slug]`, `/[topic]/v/[date]/[slug]` and `/[topic]/r/[date]/[slug]` for indexability.
 
-**Tagline**: "Tech intelligence, powered by AI." / "La tech décodée par l'IA"
+**OpenAI models in use**:
+- `gpt-4.1-nano` — per-article scoring (1-10) and per-topic Relevant-articles summary (`/api/news` flow).
+- `gpt-4.1-mini` — daily SEO summaries (`/api/summaries`), synchronous on-demand video transcription (`/api/youtube-channels/transcribe`, fallback path < 30 s).
+- `gpt-5.3-chat-latest` — homepage Top 50 grouped summary (`/api/news/top-summary`), per-topic-per-day video roundups (`generate-video-roundup.ts`), and **v2.5.4+** the background pre-warm video transcription cron (`cron-video-transcribe-background`).
+
+**Tagline**: "Tech / AI / Crypto" (same EN + FR — sub on the landing varies per surface).
 
 **Live URL**: https://8news.ai
 **Repository**: https://github.com/cyrille-catoio/8news-ai
+
+### 1.1 Surfaces — quick map
+
+| URL | Rendering | Purpose |
+|---|---|---|
+| `/` | SSR | Marketing landing (hero, ticker, stats, YT, how-it-works, topics, pricing, FAQ, CTA, footer) |
+| `/app` and `/app/<page>` | Client SPA (rewritten via `next.config.ts`) | Briefing homepage + Top 50 / Videos / Stats / Crons / Topics / Settings / etc. |
+| `/briefings` | SSR | Public hub: every video roundup grouped by date desc |
+| `/summaries` | SSR + client | Public hub: daily SEO summaries explorer |
+| `/[topic]` | SSR | Per-topic hub (paginated daily summaries + recent video pages) |
+| `/[topic]/[date]/[slug]` | SSR | Daily SEO summary page (bullets + articles + JSON-LD + hreflang) |
+| `/[topic]/v/[date]/[slug]` | SSR | Per-video transcribed-summary page |
+| `/[topic]/r/[date]/[slug]` | SSR | Per-topic-per-day **video roundup** (8-bullet briefing) |
+| `/sitemap.xml` | SSR | Dynamic sitemap covering all SSR pages |
+
+### 1.2 Auth + roles
+
+**Optional Supabase Auth** (email + password). All public surfaces (landing, briefings, summaries, SSR pages, the `/app` Briefing homepage / Top 50 / Daily Summaries / Videos) are usable without signing in.
+
+`user_metadata` carries:
+- `first_name`, `last_name` — editable in Settings → My Account.
+- `user_type` — `member` (default at sign-up) or `owner`. Only `owner` may use Topics, Feed management, Categories, Daily Summaries (admin), YouTube Channels, and Users.
+- **v2.5.3+** `preferred_lang` — `en` | `fr`. Persisted on every language toggle (cookie + `auth.users.raw_user_meta_data`) so signed-in users keep their language across SSR navigation. Resolution priority on SSR pages: `?lang=` query param → `preferred_lang` → cookie `lang` → page default. Anonymous users use the cookie only.
 
 ---
 
@@ -27,16 +56,17 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 | Framework | Next.js (App Router) | 16.1.6 |
 | Language | TypeScript | ^5 |
 | Frontend | React | 19.2.3 |
-| CSS | `globals.css` (tables, grids, keyframes) + `theme.ts` tokens + inline styles | — |
+| CSS | `globals.css` (tables, grids, keyframes) + `landing.css` (SSR landing only) + `theme.ts` tokens + inline styles | — |
 | RSS Parsing | rss-parser | ^3.13.0 |
-| AI (text analysis) | OpenAI API — `gpt-4.1-nano` (scoring, topics), `gpt-4.1-mini` (daily SEO summaries, video transcription summaries) | via `openai` ^6.25.0 |
+| AI (text analysis) | OpenAI API — `gpt-4.1-nano` (scoring + per-topic relevant summary), `gpt-4.1-mini` (daily SEO summaries + sync video transcription fallback), `gpt-5.3-chat-latest` (Top-50 grouped summary, video roundups, **v2.5.4+** pre-warm video transcription cron) | via `openai` ^6.25.0 |
 | AI (text-to-speech) | ElevenLabs API — `eleven_flash_v2_5` model | via REST API |
 | YouTube transcription | TranscriptAPI — `/channel/latest` (free), `/channel/resolve` (free), `/transcript` (1 credit) | via REST API |
-| Markdown rendering | `react-markdown` (dynamic import, SSR disabled) | ^9 |
-| Database | Supabase (PostgreSQL) | via `@supabase/supabase-js` |
-| Auth (session cookies) | Supabase Auth + `@supabase/ssr` | **v1.80+** — browser anon client + `middleware.ts` refresh |
+| YouTube metadata | YouTube Data API v3 — `/videos?part=contentDetails` to backfill `youtube_videos.duration_sec` (Shorts filter) | via REST API |
+| Markdown rendering | `react-markdown` (dynamic import, SSR disabled in SPA / inline in SSR pages) | ^9 |
+| Database | Supabase (PostgreSQL) | via `@supabase/supabase-js` ^2.99.2 |
+| Auth (session cookies) | Supabase Auth + `@supabase/ssr` ^0.10.2 — browser anon client + `middleware.ts` refresh + `resolveServerLang()` SSR helper | — |
 | Hosting | Netlify | via `@netlify/plugin-nextjs` ^5.15.8 |
-| Cron Jobs | Netlify Scheduled Functions | `@netlify/functions` |
+| Cron Jobs | Netlify Background Functions (15 min budget) triggered every minute (fetching/scoring) or every 15 min (transcribe/summary/roundup) by **cron-job.org** | `@netlify/functions` ^5.1.4 |
 | Domain | 8news.ai (redirect from 8news.netlify.app) | |
 
 ---
@@ -45,118 +75,153 @@ Users can **create custom topics** from the UI, with AI-assisted generation of s
 
 ```
 8news/
-├── middleware.ts               # **v1.80+**: Supabase session cookie refresh on each request
+├── middleware.ts                       # Supabase session cookie refresh on each matched request
+├── next.config.ts                      # Rewrites every /app/* SPA route to /app (otherwise hard refreshes 404)
 ├── public/
-│   ├── logo-8news.png          # App logo (PNG, "8" gold / "news" light grey)
-│   ├── favicon.svg             # Browser favicon — gold "8" on black, 512×512
-│   ├── apple-touch-icon.svg    # iOS home screen icon — gold "8" on black, 180×180
-│   └── version.json            # {"version":"1.105"} — deployed release string for auto-update banner (bump each production push)
+│   ├── logo-8news.png                  # App logo (PNG, "8" gold / "news" light grey)
+│   ├── favicon.svg                     # Browser favicon — gold "8" on black, 512×512
+│   ├── apple-touch-icon.svg            # iOS home screen icon — gold "8" on black, 180×180
+│   ├── version.json                    # {"version":"2.5.4"} — kept in sync by `scripts/release.mjs`
+│   └── landing/                        # Landing assets (yt-summary-preview.png, etc.)
+├── scripts/
+│   └── release.mjs                     # Single-source-of-truth version sync — bumps version.json, APP_VERSION, landing copy, footer
 ├── src/
 │   ├── app/
-│   │   ├── layout.tsx          # Root layout, metadata, favicons, **v1.80+** `AuthProvider` wrapper, **v1.82+** Google Analytics, **v1.96+** SEO footer
-│   │   ├── providers.tsx       # **v1.80+**: `AuthProvider` / `useAuth` (Supabase session)
-│   │   ├── globals.css         # Global CSS reset + base styles
-│   │   ├── page.tsx            # Main client shell: home flow + `currentPage` router to feature components
-│   │   ├── sitemap.ts          # **v1.95+**: Dynamic sitemap.xml (home, topic hubs, daily summaries)
-│   │   ├── summaries/page.tsx  # **v1.96+**: Public daily summaries explorer (SSR + client)
-│   │   ├── [topic]/            # **v1.95+**: SEO pages (server-rendered)
-│   │   │   ├── layout.tsx      # Minimal passthrough layout
-│   │   │   ├── page.tsx        # Topic hub: paginated list of daily summaries
-│   │   │   └── [date]/[slug]/page.tsx  # Daily summary page (bullets, articles, JSON-LD, hreflang)
-│   │   ├── components/         # Feature UI: AppHeader, GeneralMenu, AuthModal, TopFeedSection, TopicsPage/, StatsPage, FeedsAdminPage, FavoritesPage, FavoriteButton, DailySummariesPage, SummaryExplorer, VideosPage, YouTubeChannelsPage, MyAccountSection, UsersSection, …
-│   │   └── api/
-│   │       ├── news/
-│   │       │   ├── route.ts            # GET /api/news — Supabase read + AI analysis
-│   │       │   ├── all/route.ts        # GET /api/news/all — All articles (lazy load, up to 1000)
-│   │       │   ├── top/route.ts         # GET /api/news/top — Top scored articles (homepage feed, Top 50)
-│   │       │   └── top-summary/route.ts # POST /api/news/top-summary — homepage AI grouped summary
-│   │       ├── cron-stats/route.ts     # GET /api/cron-stats — Cron monitoring KPIs & timeline
-│   │       ├── tts/route.ts            # POST /api/tts — ElevenLabs Text-to-Speech
-│   │       ├── stats/route.ts          # GET /api/stats — Dashboard statistics
-│   │       ├── fetch-feeds/route.ts    # GET /api/fetch-feeds — manual RSS fetch
-│   │       ├── feeds-admin/route.ts    # GET /api/feeds-admin — feeds + stats (**v1.80+**: session required)
-│   │       ├── changelog/route.ts      # GET /api/changelog — update log entries from DB
-│   │       ├── test-score/route.ts     # GET /api/test-score — manual scoring
-│   │       └── topics/
-│   │           ├── route.ts                    # GET/POST /api/topics — list (public without `?all=1`) & create (session **v1.80+**)
-│   │           ├── generate-scoring/route.ts   # POST — AI-generate scoring criteria
-│   │           ├── generate-labels/route.ts    # **v1.82+**: POST — AI-generate slug, label FR, domain from label EN
-│   │           ├── reorder/route.ts            # POST /api/topics/reorder — swap sort order between two topics
-│   │           └── [id]/
-│   │               ├── route.ts                # GET/PATCH/DELETE /api/topics/:id
-│   │               ├── feeds/
-│   │               │   ├── route.ts            # POST /api/topics/:id/feeds
-│   │               │   └── [feedId]/
-│   │               │       ├── route.ts        # PATCH/DELETE feed
-│   │               │       ├── articles/route.ts # DELETE — remove DB articles for topic+source
-│   │               │       └── score/route.ts  # POST — score up to 50 unscored articles (all ages, newest first)
-│   │               └── discover-feeds/route.ts # POST — AI auto-discover RSS feeds
-│   │       ├── users/
-│   │       │   ├── route.ts                   # **v1.82+**: GET — list all users (**owner** only, service role)
-│   │       │   └── [id]/route.ts              # **v1.82+**: PATCH — update user name / type (**owner** only)
-│   │       ├── user/
-│   │       │   ├── topics/route.ts            # **v1.84+**: GET/PUT user topic preferences
-│   │       │   └── favorites/route.ts         # **v1.94+**: GET/POST/DELETE article favorites
-│   │       ├── summaries/
-│   │       │   ├── generate/route.ts          # **v1.95+**: POST — generate daily summary (owner or CRON_SECRET)
-│   │       │   ├── routes/route.ts            # **v1.98+**: GET — all summary routes (client SPA)
-│   │       │   └── [topic]/[date]/route.ts    # **v1.96+**: GET — public read of a daily summary
-│   │       └── youtube-channels/
-│   │           ├── route.ts                   # **v1.99+**: GET/POST/PATCH — YouTube channels CRUD + metadata refresh
-│   │           ├── [id]/route.ts              # **v1.99+**: DELETE — remove channel
-│   │           ├── videos/route.ts            # **v1.99+**: GET — videos by date (RSS fetch + DB cache)
-│   │           └── transcribe/route.ts        # **v1.99+**: POST — video transcription + AI Markdown summary
+│   │   ├── layout.tsx                  # Root layout, metadata, favicons, AuthProvider, Google Analytics, SSR footer hook
+│   │   ├── providers.tsx               # AuthProvider / useAuth (Supabase session, exposes user + session)
+│   │   ├── globals.css                 # Global CSS reset + base styles
+│   │   ├── landing.css                 # Landing-only stylesheet (loaded only by `/`)
+│   │   ├── page.tsx                    # SSR landing page (composed of LandingNav/Hero/Ticker/Stats/YT/How/Topics/Pricing/FAQ/CTA/Footer)
+│   │   ├── sitemap.ts                  # Dynamic sitemap.xml — every active topic hub, every daily summary, every roundup, every per-video page
+│   │   ├── app/
+│   │   │   └── page.tsx                # **The SPA**: client shell with currentPage router (Briefing → Top 50 → Videos → Stats → Crons → Topics → Settings → …). Default landing page is the **Briefing** (BriefingPage) since v2.x.
+│   │   ├── briefings/
+│   │   │   └── page.tsx                # SSR `/briefings` hub — every video roundup grouped by date desc, EN+FR
+│   │   ├── summaries/
+│   │   │   └── page.tsx                # SSR `/summaries` hub — daily SEO summaries explorer (SSR section + client SummaryExplorer)
+│   │   ├── [topic]/
+│   │   │   ├── layout.tsx              # Minimal passthrough layout
+│   │   │   ├── page.tsx                # Topic hub: paginated daily summaries + recent video pages list
+│   │   │   ├── [date]/[slug]/page.tsx  # Daily summary page (bullets + articles + JSON-LD + hreflang + prev/next)
+│   │   │   ├── v/[date]/[slug]/page.tsx  # SSR per-video transcribed-summary page (with related videos block)
+│   │   │   └── r/[date]/[slug]/page.tsx  # SSR per-topic-per-day **video roundup** (8-bullet briefing + ItemList of covered videos)
+│   │   ├── components/                 # Shared feature UI — see §3.1
+│   │   └── api/                        # API routes — see §3.2
 │   ├── hooks/
-│   │   ├── useTopFeed.ts       # Homepage Top 50: GET /api/news/top (v1.76+: `?lang=` + localized snippet; refetch on lang change), refresh, clear, 5 min poll when home + no topic, **v1.82+** `lastUpdatedAt` timestamp
-│   │   ├── useUserTopics.ts    # **v1.84+**: Per-user topic preferences (personalization mode)
-│   │   └── useFavorites.ts     # **v1.94+**: Article favorites (Set of URLs, optimistic toggle)
+│   │   ├── useTopFeed.ts               # Top 50 hook (`/api/news/top?limit=50&days=1&lang=`), poll on Briefing-with-no-topic, lastUpdatedAt
+│   │   ├── useUserTopics.ts            # Per-user topic personalization (8/36 topics)
+│   │   └── useFavorites.ts             # Article favorites (Set of URLs, optimistic toggle, auth-gated)
 │   └── lib/
-│       ├── types.ts            # TypeScript interfaces (TopicItem, TopicDetail, etc.)
-│       ├── theme.ts            # Design tokens (colors, fonts, shared styles)
-│       ├── i18n.ts             # EN/FR translation strings (100+ keys)
-│       ├── supabase.ts         # Supabase **service-role** client, caching, article/topic/feed queries (not for browser auth)
-│       ├── supabase-browser.ts # **v1.80+**: `createBrowserSupabaseClient()` — anon key, sign-in / sign-up
-│       ├── auth-api.ts         # **v1.80+**: `getSessionUser()`, `requireOwnerSession()` (cookie session)
-│       ├── user-type.ts        # **v1.81+**: `user_type` metadata — `member` | `owner`; `isOwnerUser()`
-│       ├── html.ts             # HTML entity decoder
-│       ├── cookies.ts          # getCookie / setCookie (client prefs: lang, maxArticles, TTS)
-│       ├── fetch-topic-dynamic.ts  # RSS fetch + upsert (used by API + Netlify)
-│       ├── score-topic-dynamic.ts # AI scoring batches → Supabase (used by API + Netlify)
-│       ├── ai-analyze.ts         # Shared OpenAI analysis helpers (analyzeWithAI, prompts/messages)
-│       ├── generate-daily-summary.ts  # **v1.95+**: Daily SEO summary generation (AI + DB insert)
-│       ├── transcript-api.ts      # **v1.99+**: TranscriptAPI client (resolve, latest, transcript)
-│       └── changelog-entries.ts   # **v1.90+**: Changelog entries (auto-synced to DB)
+│       ├── types.ts                    # TypeScript interfaces (TopicItem, TopicDetail, SummaryResponse, ArticleSummary, …)
+│       ├── theme.ts                    # Design tokens (colors, fonts, shared styles)
+│       ├── i18n.ts                     # EN/FR translation strings (1000+ lines)
+│       ├── constants.ts                # Cross-cutting constants
+│       ├── supabase.ts                 # Service-role client + caching + article/topic/feed/video queries (server only)
+│       ├── supabase-browser.ts         # `createBrowserSupabaseClient()` — anon key for browser auth
+│       ├── auth-api.ts                 # `getSessionUser()`, `requireOwnerSession()` (cookie session helpers)
+│       ├── server-lang.ts              # **v2.5.3+**: `resolveServerLang()` — query > user_metadata.preferred_lang > cookie > default
+│       ├── user-type.ts                # `user_type` metadata — `member` | `owner`; `isOwnerUser()`
+│       ├── html.ts                     # HTML entity decoder
+│       ├── slug.ts                     # `slugifyVideoTitle`, `uniquifyVideoSlug` (SEO slug generation)
+│       ├── summary-headings.ts         # `normalizeSummaryHeadings()` — KEY POINTS / INTRO renaming per lang
+│       ├── cookies.ts                  # getCookie / setCookie (client prefs: lang, maxArticles, TTS)
+│       ├── topics.ts                   # Topic list helpers (active topics, sort)
+│       ├── fetch-topic-dynamic.ts      # RSS fetch + upsert (used by API + cron)
+│       ├── score-topic-dynamic.ts      # AI scoring batches → Supabase (used by API + cron)
+│       ├── ai-analyze.ts               # Shared OpenAI analysis helpers (analyzeWithAI, prompts/messages)
+│       ├── generate-daily-summary.ts   # Daily SEO summary generation (`gpt-4.1-mini`, AI + DB insert + bullets mirror)
+│       ├── generate-video-roundup.ts   # **v2.4+**: Per-topic-per-day video roundup (`gpt-5.3-chat-latest`, 8 bullets, 48 h source window)
+│       ├── transcribe-video.ts         # **v2.5+**: Core video transcription pipeline — extracted from /api/youtube-channels/transcribe so it's shared between the sync route (`gpt-4.1-mini`, 25 s timeout) and the cron pre-warm (**v2.5.4+** `gpt-5.3-chat-latest`, 180 s timeout)
+│       ├── transcript-api.ts           # TranscriptAPI client (resolve, latest, transcript)
+│       ├── youtube-duration.ts         # `enrichDurations()` — YouTube Data API v3 backfill of `youtube_videos.duration_sec` (Shorts filter)
+│       ├── landing-content.ts          # Static content for the SSR landing page (EN+FR copy, pricing plans)
+│       └── changelog-entries.ts        # Release entries (auto-synced to DB on first /api/changelog after deploy)
 ├── netlify/
 │   └── functions/
 │       ├── shared/
-│       │   ├── fetch-topic.ts  # Re-exports `@/lib/fetch-topic-dynamic` for cron bundling
-│       │   └── score-topic.ts  # Re-exports `@/lib/score-topic-dynamic` for cron bundling
-│       ├── cron-fetching-background.ts  # Background: multi-pass RSS fetch (15min budget)
-│       ├── cron-scoring-background.ts  # Background: multi-pass AI scoring (15min budget)
-│       └── cron-daily-summary.ts       # **v1.95+**: Daily SEO summary generation (all topics, EN+FR)
+│       │   ├── fetch-topic.ts                  # Re-exports `@/lib/fetch-topic-dynamic` for cron bundling
+│       │   ├── score-topic.ts                  # Re-exports `@/lib/score-topic-dynamic` for cron bundling
+│       │   └── transcribe-video.ts             # **v2.5+**: Re-exports `@/lib/transcribe-video` for cron bundling
+│       ├── cron-fetching-background.ts         # Multi-pass RSS fetch (15 min wall budget, every minute)
+│       ├── cron-scoring-background.ts          # Multi-pass AI scoring (15 min wall budget, every minute)
+│       ├── cron-daily-summary-background.ts    # Daily SEO summary generation (every 15 min, all topics × EN+FR, skip-if-exists)
+│       ├── cron-video-roundup-background.ts    # **v2.4+**: Per-topic-per-day roundups, **v2.4.1+** 48 h source window
+│       └── cron-video-transcribe-background.ts # **v2.5+**: Pre-warm transcribe of every "today's" video, EN+FR; **v2.5.4+** uses `gpt-5.3-chat-latest` with a 180 s OpenAI timeout
 ├── migrations/
-│   ├── 001-topics-feeds.sql    # Create topics + feeds tables, seed 8 topics + ~160 feeds
-│   ├── 002-prompts.sql         # Add prompt_en/prompt_fr columns, seed prompts
-│   ├── 003-topic-anthropic.sql # Add Anthropic topic with scoring + prompts
-│   ├── 004-feeds-anthropic.sql # Add 20 RSS feeds for Anthropic
-│   ├── 005-changelog.sql       # changelog table + seed (in-app update log)
-│   ├── 006-topic-display.sql    # Add topics.is_displayed (homepage visibility toggle)
-│   ├── 007-user-topic-preferences.sql  # Per-user topic personalization table
-│   ├── 008-categories.sql       # Topic categories table + FK on topics
-│   ├── 009-fix-sort-order.sql   # Re-sequence sort_order values
-│   ├── 010-user-favorites.sql   # **v1.94+**: Per-user article favorites table
-│   ├── 011-daily-summaries.sql  # **v1.95+**: daily_summaries + summary_bullets tables (SEO)
-│   ├── 012-enable-rls-all-tables.sql  # **v1.98+**: RLS on all public tables
-│   ├── 013-youtube-channels.sql       # **v1.99+**: YouTube channels table
-│   ├── 014-video-transcriptions.sql   # **v1.99+**: youtube_videos cache, video_transcriptions, summary_bullets source_type
-│   └── 015-daily-summaries-slug-guard.sql  # **v1.105+**: CHECK on `daily_summaries.slug_keywords` (kebab-case, max length) `NOT VALID` for existing rows
-├── .gitignore                  # Next/Node ignores; **v1.77+**: `.claude/` (local Claude/Cursor worktrees, not committed)
-├── .env                        # API keys (not committed)
-├── .env.example                # Placeholder for API keys
-├── netlify.toml                # Netlify build + redirect config
-├── package.json
+│   ├── 001-topics-feeds.sql                # topics + feeds tables, seed 8 topics + ~160 feeds
+│   ├── 002-prompts.sql                     # prompt_en/prompt_fr columns, seed prompts
+│   ├── 003-topic-anthropic.sql             # Anthropic topic with scoring + prompts
+│   ├── 004-feeds-anthropic.sql             # 20 RSS feeds for Anthropic
+│   ├── 005-changelog.sql                   # changelog table + seed
+│   ├── 006-topic-display.sql               # topics.is_displayed
+│   ├── 007-user-topic-preferences.sql      # Per-user topic personalization table
+│   ├── 008-categories.sql                  # Topic categories table + FK on topics
+│   ├── 009-fix-sort-order.sql              # Re-sequence sort_order values
+│   ├── 010-user-favorites.sql              # Per-user article favorites table
+│   ├── 011-daily-summaries.sql             # daily_summaries + summary_bullets tables (SEO)
+│   ├── 012-enable-rls-all-tables.sql       # RLS on all public tables
+│   ├── 013-youtube-channels.sql            # YouTube channels table
+│   ├── 014-video-transcriptions.sql        # youtube_videos cache, video_transcriptions, summary_bullets.source_type + video_transcription_id
+│   ├── 015-daily-summaries-slug-guard.sql  # CHECK on daily_summaries.slug_keywords (kebab-case, NOT VALID)
+│   ├── 016-video-pages.sql                 # **v2.x+**: video_transcriptions.slug_keywords + published_date + idx_vt_route + idx_vt_topic_recent
+│   ├── 017-video-roundups.sql              # **v2.4+**: video_roundups table (per-topic-per-day briefings)
+│   └── 018-roundup-bullets.sql             # **v2.4+**: summary_bullets.video_roundup_id + idx_bullets_video_roundup
+├── .gitignore
+├── .env                                    # API keys (not committed)
+├── netlify.toml                            # Netlify build + redirect config
+├── package.json                            # version is the source of truth (synced by scripts/release.mjs)
 ├── tsconfig.json
-└── next.config.ts
+└── SPEC.md                                 # This file
+```
+
+### 3.1 `src/app/components/` — feature UI
+
+**SPA + shared**: `AppHeader`, `GeneralMenu` (+ `SeoGeneralMenu`), `SeoNavBar` (**v2.5.3+** intercepts language toggle to persist `preferred_lang`), `AuthModal`, `BriefingPage` (the SPA's default landing — composed of Top 50 + recent transcribed videos pagination), `TopFeedSection`, `SummaryBox`, `AllArticlesTab`, `StatsPage`, `CronMonitorPage`, `TopicsPage/`, `FeedsAdminPage`, `CategoriesPage`, `FavoritesPage`, `FavoriteButton`, `CopyLinkButton`, `ScoreMeter`, `ChangelogPage`, `SettingsPage` (`MyAccountSection`, `UsersSection`, `VoiceAccordion`), `AudioPlayer`, `TopicPersonalizationBar`, `TopicOnboardingModal`, `SummariesBrowsePage`.
+
+**Video surface**: `VideosPage` (today / day-by-day video list with Shorts toggle), `VideoCard` (iframe embed with **v2.x+** localhost-aware `youtube-nocookie` swap to fix black-screen), `VideoPageAudio`, `DownloadTranscriptButton`.
+
+**SSR-page-specific**: `DailySummariesPage` (admin generator), `DailySummaryArticles`, `DailySummaryAudio`, `SummaryExplorer` (client-side embed inside `/summaries`), `YouTubeChannelsPage` (admin).
+
+**Landing only** (under `landing/`): `LandingNav`, `LandingHero`, `LandingTicker`, `LandingStats`, `LandingHow`, `LandingTopics`, `LandingYT`, `LandingPricing` (**v2.5.4+** monthly + annual price side-by-side via `.price-row` flex), `LandingFAQ`, `LandingCTA`, `LandingFooter`, `LandingConsole`.
+
+### 3.2 `src/app/api/` — route handlers
+
+```
+api/
+├── news/
+│   ├── route.ts                  # GET /api/news — Supabase read + AI analysis (per-topic relevant articles)
+│   ├── all/route.ts              # GET /api/news/all — All articles (lazy load, up to 1000)
+│   ├── top/route.ts              # GET /api/news/top — Top scored articles (Top 50)
+│   └── top-summary/route.ts      # POST /api/news/top-summary — Top 50 grouped summary (gpt-5.3-chat-latest)
+├── summaries/
+│   ├── generate/route.ts         # POST — generate daily SEO summary (owner or CRON_SECRET)
+│   ├── routes/route.ts           # GET — all generated summary routes (used by SPA + sitemap)
+│   └── [topic]/[date]/route.ts   # GET — public read of a daily summary
+├── roundups/
+│   └── generate/route.ts         # **v2.4+**: POST — generate one video roundup (owner or CRON_SECRET)
+├── video-pages/
+│   └── recent/route.ts           # **v2.3+**: GET — paginated list of recent transcribed video pages (1 day per page since v2.5.2)
+├── video-transcription/
+│   └── route.ts                  # GET — public read of a single transcribed video
+├── youtube-channels/
+│   ├── route.ts                  # GET/POST/PATCH — channels CRUD + metadata refresh (owner)
+│   ├── [id]/route.ts             # DELETE channel (owner)
+│   ├── videos/route.ts           # GET — videos by date (RSS fetch + DB cache + duration backfill)
+│   ├── transcribe/route.ts       # POST — synchronous transcribe (gpt-4.1-mini, 25 s timeout)
+│   └── transcript/route.ts       # **v2.5+**: GET — raw transcript download (.txt)
+├── topics/                       # see §6.2
+├── users/                        # owner-only user list / patch
+├── user/
+│   ├── topics/route.ts           # GET/PUT user topic preferences
+│   └── favorites/route.ts        # GET/POST/DELETE article favorites
+├── categories/                   # GET/POST/PATCH/DELETE — category CRUD (owner)
+├── feeds-admin/route.ts          # GET — feeds + per-source stats (owner)
+├── fetch-feeds/route.ts          # GET — manual RSS fetch (CRON_SECRET)
+├── test-score/route.ts           # GET — manual scoring run (CRON_SECRET)
+├── stats/route.ts                # GET — dashboard statistics
+├── cron-stats/route.ts           # GET — cron monitoring KPIs + timeline
+├── tts/route.ts                  # POST — ElevenLabs Text-to-Speech
+└── changelog/route.ts            # GET — release notes (auto-syncs `changelog-entries.ts` to DB on first call)
 ```
 
 ---
@@ -198,16 +263,17 @@ Users can create new topics from the Topics page. Each topic includes:
 | `topics` | Topic definitions, scoring criteria, prompts, round-robin timestamps |
 | `feeds` | RSS feed URLs per topic |
 | `articles` | All fetched articles with scores, AI summaries |
-| `categories` | **v1.89+**: Topic categories (Technology, Health, Sport, ...) |
+| `categories` | Topic categories (Technology, Health, Sport, ...) |
 | `changelog` | In-app release notes (version, bilingual title/body, `created_at`) |
 | `news_cache` | Cached API responses (TTL-based) |
-| `user_topic_preferences` | **v1.84+**: Per-user topic selection (array of topic IDs) |
-| `user_favorites` | **v1.94+**: Per-user article bookmarks (URL, title, source, date) |
-| `daily_summaries` | **v1.95+**: SEO daily summary pages (bullets, articles, SEO metadata) |
-| `summary_bullets` | **v1.95+**: Individual bullets with AI-extracted named entities (GIN-indexed). **v1.99+**: `source_type` column (`article` or `video`), nullable `daily_summary_id`, optional `video_transcription_id` FK |
-| `youtube_channels` | **v1.99+**: YouTube channel registry (channel_id, handle, title, thumbnail) |
-| `youtube_videos` | **v1.99+**: Cached video metadata from RSS (persists for past-date lookups) |
-| `video_transcriptions` | **v1.99+**: Full transcript text + AI Markdown summary per video per language |
+| `user_topic_preferences` | Per-user topic selection (array of topic IDs, max 8) |
+| `user_favorites` | Per-user article bookmarks (URL, title, source, date) |
+| `daily_summaries` | SEO daily summary pages (bullets, articles, SEO metadata) — `slug_keywords` is CHECK-guarded since migration 015 |
+| `summary_bullets` | Individual bullets with AI-extracted named entities (GIN-indexed). **`source_type`** column = `article` \| `video` \| `video_roundup`. Optional FKs: `daily_summary_id`, `video_transcription_id`, **v2.4+ `video_roundup_id`** (migration 018). Used as a uniform queryable mirror across all bullet sources. |
+| `youtube_channels` | YouTube channel registry (channel_id, handle, title, thumbnail). Auto-refreshed when title/thumbnail are missing. |
+| `youtube_videos` | Cached video metadata from RSS (persists past-date lookups). **Includes `duration_sec`** (backfilled by `enrichDurations()` via YouTube Data API v3 — drives Shorts filtering in both the SPA and the cron) and **`topic_id`** (set when the parent channel belongs to a topic — required for `/v/` SSR slug). |
+| `video_transcriptions` | Full transcript text + AI Markdown summary per (video, lang). **v2.x+** `slug_keywords` + `published_date` columns + `idx_vt_route` (route resolution by `(topic_id, published_date, lang, slug_keywords)`) and `idx_vt_topic_recent` (recent-videos block) — migration 016. |
+| `video_roundups` | **v2.4+** Per-topic-per-day **video roundup** briefings (8-bullet structured Markdown). Columns: `topic_id`, `roundup_date`, `lang`, `slug_keywords`, `seo_title`, `seo_description`, `intro_md`, `video_ids TEXT[]` (ordered list of `video_transcriptions.video_id`). `UNIQUE(topic_id, roundup_date, lang)`. Drives `/{topic}/r/{date}/{slug}` and `/briefings`. Migration 017. |
 
 ### 5.2 `topics` table
 
@@ -270,32 +336,71 @@ Entries are defined in **`src/lib/changelog-entries.ts`** and auto-synced to the
 
 ## 6. Backend Architecture
 
-### 6.1 Netlify Scheduled Functions (Cron Jobs)
+### 6.1 Netlify Background Functions (Cron Jobs)
 
-Articles are fetched and pre-scored by **2 scheduled Netlify functions** (not per-topic files): **batched fetch** plus **prioritized score** (see below). Canonical implementations live in **`src/lib/score-topic-dynamic.ts`** (`scoreAndStoreTopicDynamic`, `scoreTopicForCron`, optional `ScoreTopicOptions.maxArticles` / `windowHours` / `maxArticlesCap` / `maxElapsedMs`) and **`src/lib/fetch-topic-dynamic.ts`** (`fetchAndStoreTopicDynamic`, returns `FetchResult` with `summary`, `inserted`, `feedsOk`, `feedsFailed`, `totalParsed`, `duplicatesSkipped`). `netlify/functions/shared/*.ts` re-export those modules for the cron bundle. **`GET /api/fetch-feeds`** and **`GET /api/test-score`** call the same libraries (auth via `secret` + `CRON_SECRET`).
+All cron functions run as **Netlify background functions** (15 min wall budget). Triggers come from **cron-job.org** (POST every minute or every 15 min depending on the function — Netlify's own scheduling is not used so the cadence stays decoupled from the deploy). Background functions return 202 immediately; cron-job.org accepts that as success.
 
-**`cron-fetch.ts`** — RSS fetching:
-- Runs **every minute** (`* * * * *`), same cadence as scoring
+Canonical implementations live in `src/lib/`:
+- `fetch-topic-dynamic.ts` (`fetchAndStoreTopicDynamic`, returns `FetchResult`)
+- `score-topic-dynamic.ts` (`scoreAndStoreTopicDynamic`, `scoreTopicForCron`)
+- `generate-daily-summary.ts` (`generateDailySummary`)
+- `generate-video-roundup.ts` (`generateVideoRoundup`) — **v2.4+**
+- `transcribe-video.ts` (`transcribeVideo`) — **v2.5+**, shared between the synchronous API route and the pre-warm cron
+
+`netlify/functions/shared/*.ts` re-export those modules for the cron bundle. `GET /api/fetch-feeds`, `GET /api/test-score`, `POST /api/summaries/generate`, `POST /api/roundups/generate` and `POST /api/youtube-channels/transcribe` call the same libraries (auth via cookie session and/or `CRON_SECRET`).
+
+#### `cron-fetching-background.ts` — RSS fetching
+
+- Triggered every minute by cron-job.org
+- `CRON_WALL_MS = 840_000` (14 min), default internal `CRON_BUDGET_MS = 810_000` (13.5 min), `CRON_SAFETY_RESERVE_MS = 10_000`
 - Loads active topics ordered by oldest `last_fetched_at` (nulls first)
-- Uses a strict runtime budget aligned with Netlify cap: `CRON_WALL_MS=13000`, internal default `CRON_BUDGET_MS=11800`, `CRON_SAFETY_RESERVE_MS=1200`
-- Processes **`k` topics per run**: `k = min(max(1, ceil(N/10)), FETCH_TOPICS_MAX_PER_RUN)` with default cap **3** (env configurable)
+- Multi-pass: keeps fetching topics until the budget guard fires
 - For each selected topic: updates `last_fetched_at` **before** fetching, then fetches all active RSS feeds, parses, upserts into `articles`
-- `fetchAndStoreTopicDynamic` returns a `FetchResult` (includes `summary`, `inserted`, and aggregate feed/article counts) — `inserted` drives the adaptive mini-score
-- **Adaptive post-fetch scoring** runs only when budget allows (`remaining > FETCH_SCORE_CALL_RESERVE_MS + reserve`): uses `scoreTopicForCron(..., maxElapsedMs=...)` and adaptive `maxArticles` clamped between **15** and **50**
-- Emits structured run metrics (`elapsed_ms`, inserted, mini_scored, deadline stops)
+- Adaptive post-fetch mini-score runs when budget allows
+- Emits structured run metrics (elapsed, inserted, mini_scored, deadline stops)
 
-**`cron-score.ts`** — AI scoring:
-- Runs **every minute** (`* * * * *`)
-- Uses the same strict budget model (`CRON_WALL_MS=13000`, default internal budget **11.8s** + reserve)
-- Loads **all active topics**, counts **all** unscored articles (`relevance_score IS NULL`, **no `pub_date` cutoff**) and computes a **fresh backlog** (`fetched_at >= now - 5min`, configurable via `SCORE_FRESH_WINDOW_MIN`)
-- **Sort order (fresh-first)**: topics with fresh backlog first (largest first, then newest `last_fetched_at`), then remaining backlog topics, then idle topics
-- **Adaptive per-topic quota**: `maxArticles` is adjusted from remaining budget + backlog pressure (defaults around **12–80** bounds, env-configurable)
-- **Fairness guard**: periodically forces one least-recently-scored backlog topic (`SCORE_FAIRNESS_EVERY_N_TOPICS`) to avoid starvation
-- Stops cleanly before deadline and logs per-topic metrics (`fresh_backlog`, backlog, scored/candidates, partial, elapsed, remaining budget)
-- Crons still pass **`windowHours: null`** so older backlog remains eligible; `GET /api/test-score` keeps default **168h** unless overridden
-- Each scored article stores: relevance score (1-10), reason, AI EN/FR summaries (score ≥5)
+#### `cron-scoring-background.ts` — AI scoring
 
-**Scoring criteria** (stored in `topics` table):
+- Triggered every minute by cron-job.org
+- `CRON_WALL_MS = 840_000`, default internal `CRON_BUDGET_MS = 810_000`, `CRON_SAFETY_RESERVE_MS = 15_000`
+- Per-run: `SCORE_MIN_ARTICLES_PER_RUN = 15`, `SCORE_MAX_ARTICLES_PER_RUN = 150`, hard cap `SCORE_HARD_ARTICLE_CAP = 300`
+- Loads **all active topics**, counts unscored articles (`relevance_score IS NULL`, no `pub_date` cutoff), computes a fresh backlog (`fetched_at >= now - 5min`, configurable)
+- **Sort order (fresh-first)**: topics with fresh backlog first (largest first, then newest `last_fetched_at`), then remaining backlog, then idle topics
+- **Adaptive per-topic quota** + **fairness guard** (periodically forces one least-recently-scored topic)
+- Each scored article stores: relevance score (1-10), reason, AI EN/FR summaries (score ≥ 5)
+- Uses **`gpt-4.1-nano`**
+
+#### `cron-daily-summary-background.ts` — Daily SEO summaries
+
+- Triggered every 15 min by cron-job.org
+- `WALL_MS = 840_000`, `BUDGET_MS = 810_000`, `SAFETY_MS = 15_000`, `MAX_TOPICS_PER_RUN = 5`
+- For each active topic × `(en, fr)` × yesterday's date, calls `generateDailySummary` (skip-if-exists via SELECT on `daily_summaries`)
+- Uses **`gpt-4.1-mini`** with up to 50 articles fed in, top 10 displayed on the page
+- Mirrors bullets to `summary_bullets` with `source_type = 'article'` and `daily_summary_id` FK
+
+#### `cron-video-roundup-background.ts` — **v2.4+** Per-topic-per-day video roundups
+
+- Triggered every 15 min by cron-job.org (typically a single nightly tick produces yesterday's roundups; subsequent ticks are no-ops)
+- `WALL_MS = 840_000`, `BUDGET_MS = 810_000`, `SAFETY_MS = 15_000`, `MAX_TOPICS_PER_RUN = 5`
+- For each active topic × `(en, fr)` × yesterday's `roundup_date`, calls `generateVideoRoundup`:
+  - **v2.4.1+** Source window: 48 h ending at end-of-yesterday (covers `published_date IN [day-before-yesterday, yesterday]` so the briefing is dense even on slow news days)
+  - Pulls the matching `video_transcriptions` rows for `(topic, lang)`
+  - **`gpt-5.3-chat-latest`** generates a structured 8-bullet briefing (each: bold journalistic title 3-8 words + 3-5 sentence body), plus `seo_title` (no generic phrasing), 5-7 specific kebab-case `slug_keywords` (forbidden: `news`, `briefing`, `daily`, `ai`, `tech`, `video`, `today`), and a `seo_description` with ≥ 3 specific terms
+  - Persists in `video_roundups` (`UNIQUE(topic_id, roundup_date, lang)` — re-runs update in place)
+  - **v2.4+ Mirrors the 8 bullets** into `summary_bullets` with `source_type = 'video_roundup'`, `bullet_index = 0..7`, `text = '**Title**\\n\\nBody'`, `video_roundup_id` FK (migration 018; if the migration hasn't been applied, the mirror logs a single `WARN` with the actionable line `run migration 018-roundup-bullets.sql in Supabase…` and does not fail the roundup itself)
+
+#### `cron-video-transcribe-background.ts` — **v2.5+** Pre-warm video transcription cache
+
+- Triggered every 15 min by cron-job.org
+- `WALL_MS = 840_000`, `BUDGET_MS = 810_000`, **v2.5.4+ `SAFETY_MS = 200_000`** (must be > the per-call OpenAI timeout so the budget guard never starts a transcribe it can't finish), `MAX_BUCKETS_PER_RUN = 40`
+- Source pool: `youtube_videos` published in the last 24 h, with `topic_id` set (so the `/v/` SSR page can be generated downstream)
+- Backfills missing `duration_sec` via `enrichDurations()` (YouTube Data API v3) before filtering
+- **Skip Shorts**: any video with `duration_sec < 120` is excluded (matches the SPA's default toggle)
+- Single bulk SELECT on `video_transcriptions(video_id, lang)` builds a `Set<videoId|lang>` of already-done buckets — fast-skip pattern, no per-bucket cache check
+- For each candidate × `(en, fr)`: full pipeline on the first lang (~25-90 s on `gpt-5.3-chat-latest`), then translate path on the second lang (~15-25 s) since the alt-lang cache row now exists
+- **v2.5.4+** Calls `transcribeVideo()` with `model: "gpt-5.3-chat-latest"` and `openaiTimeoutMs: 180_000` (vs the synchronous route's `gpt-4.1-mini` + 25 s budget). Result: ~95 % of summaries a real visitor sees come from this higher-quality background pre-warm path; the synchronous on-demand button is now only a fallback for very-fresh videos not yet picked up by a tick
+
+**Scoring criteria** (stored in `topics` table, used by `gpt-4.1-nano` scoring runs):
 - **9-10**: Major breaking news
 - **7-8**: Significant development
 - **5-6**: Interesting content
@@ -376,7 +481,33 @@ Homepage default feed. Returns top-scored articles across all topics (by `releva
 
 #### `POST /api/news/top-summary`
 
-Homepage-only AI summary endpoint. Accepts `{ articles, lang }` from the Top feed and returns `SummaryResponse` with grouped bullet points (`globalSummary`) and source references (`refs`) rendered by `SummaryBox`. Uses dedicated homepage prompt rules (homogeneous grouping + mandatory refs) and OpenAI `gpt-5.3-chat-latest`.
+Homepage-only AI summary endpoint. Accepts `{ articles, lang }` from the Top feed and returns `SummaryResponse` with grouped bullet points (`globalSummary`) and source references (`refs`) rendered by `SummaryBox`. Uses dedicated homepage prompt rules (homogeneous grouping + mandatory refs) and OpenAI **`gpt-5.3-chat-latest`**.
+
+#### Daily Summaries API
+
+| Route | Method | Description |
+|---|---|---|
+| `/api/summaries/generate` | POST | Generate (or regenerate) one daily SEO summary for `(topic, date, lang)`. Auth: cookie session **owner** OR header `Authorization: Bearer ${CRON_SECRET}` (used by the cron). Skip-if-exists guard unless `?force=1`. |
+| `/api/summaries/routes` | GET | All `daily_summaries` route triplets `(topic, date, slug)` × langs — used by the SPA's `SummariesBrowsePage` and by `sitemap.ts`. |
+| `/api/summaries/[topic]/[date]` | GET | Public read of one daily summary (bullets + articles + SEO metadata) — `?lang=` selects the variant. |
+
+#### Video Roundups API — v2.4+
+
+| Route | Method | Description |
+|---|---|---|
+| `/api/roundups/generate` | POST | Generate (or regenerate) one **video roundup** for `(topic, date, lang)`. Auth: cookie session **owner** OR header `Authorization: Bearer ${CRON_SECRET}`. Body: `{ topicId, date, lang, force? }`. Mirrors the 8 bullets into `summary_bullets` (silent best-effort if migration 018 is missing). |
+
+The matching SSR pages (`/briefings`, `/[topic]/r/[date]/[slug]`) read `video_roundups` directly via the service-role client in `lib/supabase.ts` (`getAllVideoRoundupRoutes`, `getVideoRoundupByRoute`) — no client API call required.
+
+#### Video transcription / video pages API
+
+| Route | Method | Description |
+|---|---|---|
+| `/api/youtube-channels/videos` | GET | Day-by-day video list per channel (RSS fetch + DB cache + `enrichDurations()` backfill). Drives the SPA `VideosPage`. |
+| `/api/youtube-channels/transcribe` | POST | **Synchronous** on-demand transcribe — calls `transcribeVideo()` with `model = "gpt-4.1-mini"` and a 25 s OpenAI timeout (Netlify cap is 30 s on serverless functions). Cross-language optimization: if a transcription exists in the other language, translates the existing summary instead of re-transcribing (saves 1 TranscriptAPI credit + ~80 % tokens). |
+| `/api/youtube-channels/transcript` | GET | **v2.5+** Returns the raw transcript text for one `(video_id, lang)` as `text/plain` so the user can download a `.txt` from the SPA (`DownloadTranscriptButton`). |
+| `/api/video-transcription` | GET | Public read of a single transcribed video (used by SSR `/[topic]/v/[date]/[slug]`). |
+| `/api/video-pages/recent` | GET | **v2.3+** Paginated list of recent transcribed videos for the SPA's Briefing homepage. Params: `?lang=` (en/fr), `?page=` (0 = today, 1 = yesterday, …). **v2.5.2+**: page size = **1 day** so the default view shows only today's transcribed videos and the prev/next buttons walk one day at a time; `MAX_PAGE = 60`. The "Toutes les vidéos transcrites" section stays visible even when today is empty as long as older content exists. |
 
 #### `GET /api/cron-stats`
 
@@ -511,23 +642,41 @@ The app root is `src/app/page.tsx` (`"use client"`): **home** topic/period flow,
 
 ### 8.2 Navigation
 
-The app has **14 pages** managed by `currentPage` state (`"home"` | `"stats"` | `"crons"` | `"topics"` | `"feeds"` | `"categories"` | `"dailySummaries"` | `"favorites"` | `"topArticles"` | `"summaries"` | `"videos"` | `"youtubeChannels"` | `"changelog"` | `"settings"`). **v1.80+**: **`topics`**, **`feeds`**, **`categories`**, **`dailySummaries`**, and **`youtubeChannels`** are reachable only for **`owner`** users. **`favorites`** requires any authenticated user.
+The SPA at `/app` has 15+ pseudo-pages managed by `currentPage` state (`"briefing"` | `"home"` (= Top 50) | `"stats"` | `"crons"` | `"topics"` | `"feeds"` | `"categories"` | `"dailySummaries"` | `"favorites"` | `"topArticles"` | `"summaries"` | `"videos"` | `"youtubeChannels"` | `"changelog"` | `"settings"`). Route-mapped via `next.config.ts` rewrites for hard-refresh resilience. `topics`, `feeds`, `categories`, `dailySummaries`, `youtubeChannels` are owner-only. `favorites` requires any authenticated user.
 
-**General Menu** (`GeneralMenu`, **v1.98+**, visible on all pages):
-- Persistent navigation bar: **Topics** (`generalMenuArticlesBtn` — **v1.105+**; EN/FR label **Topics**, still navigates SPA/SSR to **homepage** / topic flow), **My Favorites** (authenticated only), **Top 50** (`analyzeTopArticlesBtn`), **Daily Summaries**, **Videos**
+**General Menu** (`GeneralMenu`, visible on all SPA pages):
+- Persistent navigation bar: **Briefing** (default), **Top 50**, **Daily Summaries**, **Videos**, **My Favorites** (authenticated only)
 - Active button highlighted with gold border/background
-- SSR variant (`SeoGeneralMenu`) used on SEO pages with `<a>` links
+- SSR variant (`SeoGeneralMenu`) used on every SSR page (landing, briefings, summaries, `/[topic]/...`) with `<a>` links
 
-**Header** (`AppHeader`, shared across all pages):
-- **Logo**: PNG image (`/logo-8news.png`), responsive height — **clicking logo resets to homepage Top 50 feed**
-- **Subtitle**: "Tech decoded by AI" / "La tech décodée par l'IA" (`t("subtitle", lang)`)
+**Header** (`AppHeader`, shared across all SPA pages):
+- **Logo**: PNG image (`/logo-8news.png`), responsive height — **clicking logo resets to Briefing**
+- **Subtitle**: "Tech / AI / Crypto" — same EN/FR
 - **Top-right controls**:
-  - **Icon row** (left to right): **Home** (house); **Stats** (bars), **Cron Monitor** (pulse), **Changelog** (clock), **Settings** (gear); **User menu** (user icon with crown for owners — dropdown contains admin items: Topics, Categories, Feed management, Daily Summaries, YouTube Channels; plus sign-in/sign-out)
-  - **Row below icons**: **Sign in** button (if not authenticated) **to the left of** the **language toggle** (EN/FR), right-aligned
+  - **Icon row** (left to right): **Home** (house, → Briefing); **Stats** (bars), **Cron Monitor** (pulse), **Changelog** (clock), **Settings** (gear); **User menu** (user icon with crown for owners — dropdown contains admin items: Topics, Categories, Feed management, Daily Summaries, YouTube Channels; plus sign-in/sign-out)
+  - **Row below icons**: **Sign in** button (if not authenticated) **to the left of** the **language toggle** (EN/FR), right-aligned. **v2.5.3+**: Toggling the language persists to **both** the cookie and `auth.users.raw_user_meta_data.preferred_lang` (for authenticated users) before navigating.
 
-### 8.3 Home Page
+**SSR `SeoNavBar`** (top of every SSR page): same logo + subtitle pattern, with a `LangToggle` that intercepts the click, sets the cookie synchronously, asynchronously updates `preferred_lang` for authenticated users, then navigates.
 
-#### Default Homepage Feed (Top 50)
+### 8.3 Landing page `/` — v2.x
+
+A pure SSR marketing page composed of `LandingNav` → `LandingHero` → `LandingTicker` → `LandingStats` → `LandingHow` → `LandingTopics` → `LandingYT` → `LandingPricing` → `LandingFAQ` → `LandingCTA` → `LandingFooter`. Defaults to **FR** (overridable by `?lang=`, `preferred_lang`, or cookie). Static copy lives in `src/lib/landing-content.ts`.
+
+**Pricing — v2.5.4 state**:
+- **Free** plan: "Choose 8 topics out of 36 available, powered by 400+ RSS feeds" + "Top 50 daily with AI summary + sources, favorites and daily summaries archive" + the rest. ElevenLabs TTS line removed.
+- **Pro** plan: monthly + **annual** price displayed side-by-side via `.price-row` flex (e.g. `9€/mo · 88€/year · -8%`). "Webhooks & API access" line removed. "Morning email digest covering all your topics" replaces the prior wording. "Priority scoring queue" line removed.
+
+### 8.4 The SPA `/app` (default landing: Briefing)
+
+Lives at `src/app/app/page.tsx`. The whole `/app/*` namespace is routed to a single client component via the `next.config.ts` rewrite list — pseudo-routes (`/app/articles`, `/app/videos`, `/app/stats`, …) are managed by `pushState`. Cold-loading e.g. `/app/videos` rewrites to `/app` and the SPA reads the path on mount to set `currentPage`.
+
+**Default page**: `BriefingPage` — a composite landing inside the SPA that shows:
+1. The Top 50 feed (`TopFeedSection` + opt-in AI grouped summary via `/api/news/top-summary`)
+2. The "All transcribed videos" pagination block driven by `/api/video-pages/recent` — **v2.5.2+** one day per page, default = today, prev/next walks one day at a time, section stays visible if today is empty but older content exists
+
+**Language sync** (v2.5.3+): on session load, the SPA reads `authUser.user_metadata.preferred_lang` and reconciles `lang` state. If `preferred_lang` is unset for an authenticated user, it's initialised from the current cookie. `handleLangChange()` writes to **both** the cookie and `auth.users.raw_user_meta_data.preferred_lang` via `supabase.auth.updateUser`.
+
+#### Top 50 Feed (default sub-view of Briefing)
 
 On launch (no topic or period selected), the homepage displays the **Top 50 best-scored articles from the last 24 hours** across displayed topics, fetched from **`/api/news/top`** ( **`v1.83+`**: `?limit=50&days=1&lang={ui lang}` ). UI: **`TopFeedSection`** (caption, sorted rows, NEW badge, topic pill, copy link, **v1.82+** last-updated timestamp `— Mise à jour HH:MM` / `— Updated HH:MM`). Data + polling: **`useTopFeed`** with `poll === true` only when **`currentPage === "home"`** and **`topic === null`** (initial fetch on mount, silent 5 min refresh, `refresh()` after logo/home reset, `clear()` when user picks a topic). **`v1.76+`**: hook shape **`useTopFeed({ poll, lang })`** — **language change refetches** the Top 50. **v1.82+**: hook also exposes **`lastUpdatedAt`** (`Date | null`), updated on every successful fetch. (`cache: "no-store"` on fetches.)
 
@@ -580,7 +729,7 @@ When a topic is selected but no period chosen, the Top 50 disappears and a messa
 
 A floating button appears after scrolling down 400px, allowing quick return to the top of the page.
 
-### 8.4 Stats Page
+### 8.5 Stats Page
 
 Three-state dashboard: **home** (no selection), **topic chosen** (waiting for period), **full view** (topic + period).
 
@@ -603,7 +752,7 @@ Three-state dashboard: **home** (no selection), **topic chosen** (waiting for pe
 - **Article ranking**: Up to **500** best-scored articles with score, reason, link. Displayed **50 at a time** with a "Show 50 more" lazy-load button
 - **Topic comparison**: Table comparing all topics (articles, coverage, avg score, Score ≥ 7, active feeds (7d/7j))
 
-### 8.5 Cron Monitor Page (`CronMonitorPage`)
+### 8.6 Cron Monitor Page (`CronMonitorPage`)
 
 Real-time monitoring dashboard for fetch and scoring cron jobs. Auto-refreshes every **60 seconds**.
 
@@ -620,7 +769,7 @@ Real-time monitoring dashboard for fetch and scoring cron jobs. Auto-refreshes e
 
 **Activity Last 24 Hours**: Hourly timeline showing fetched and scored article counts per hour. Displayed in **user's local timezone** (via `Intl.DateTimeFormat`). Future hours are filtered out to avoid displaying erroneous data.
 
-### 8.6 Topics Page (`TopicsPage/`)
+### 8.7 Topics Page (`TopicsPage/`)
 
 Full CRUD management for topics and feeds. **`index.tsx`** holds state and API handlers; **three view components**: `TopicsPageListView`, `TopicsPageCreateView`, `TopicsPageDetailView`.
 
@@ -643,7 +792,7 @@ Full CRUD management for topics and feeds. **`index.tsx`** holds state and API h
 - Feeds list (name, domain link, delete button) + add feed form
 - **"🔍 Discover feeds by AI"** button: discovers and adds 10 new feeds to an existing topic
 
-### 8.7 Feed management (`FeedsAdminPage`)
+### 8.8 Feed management (`FeedsAdminPage`)
 
 Dedicated **RSS / feed operations** view (not the same as Topics CRUD):
 
@@ -655,7 +804,7 @@ Dedicated **RSS / feed operations** view (not the same as Topics CRUD):
   - **Delete feed** (trash): `DELETE .../feeds/:feedId`
 - **Toasts** (fixed bottom center): loading spinner + message while waiting; success / info / error with auto-dismiss (replaces `alert` for these actions)
 
-### 8.8 Favorites Page (`FavoritesPage`) — v1.94+
+### 8.9 Favorites Page (`FavoritesPage`) — v1.94+
 
 Accessible via star icon in the header (authenticated users only).
 - Lists all bookmarked articles sorted by most recently added
@@ -664,11 +813,11 @@ Accessible via star icon in the header (authenticated users only).
 - Data from `GET /api/user/favorites`
 - `FavoriteButton` component appears on every article across all views (ArticleCard, TopFeedSection, AllArticlesTab, StatsPage) with optimistic toggle and auth guard
 
-### 8.9 Categories Page (`CategoriesPage`) — v1.89+
+### 8.10 Categories Page (`CategoriesPage`) — v1.89+
 
 Admin page (owner-only) for managing topic categories. CRUD via `/api/categories`.
 
-### 8.10 Daily Summaries Generator (`DailySummariesPage`) — v1.95+
+### 8.11 Daily Summaries Generator (`DailySummariesPage`) — v1.95+
 
 Admin page (owner-only) for generating SEO daily summaries:
 - Topic selector + date picker → generate single topic summary (EN+FR)
@@ -676,35 +825,54 @@ Admin page (owner-only) for generating SEO daily summaries:
 - Anti-doublon: skips already-generated summaries
 - Results display: generated/skipped/no_articles/error with links to SEO pages
 
-### 8.11 Daily Summaries Explorer (`/summaries`) — v1.96+
+### 8.12 Daily Summaries Explorer (`/summaries`) — v1.96+
 
 Public page at `/summaries`:
 - **SSR section** (crawlable by Google): grid of all active topics with links to hubs and recent summaries
 - **Client section** (`SummaryExplorer`): topic selector + date picker, fetches and displays summary inline
 - Link to full SEO page for each summary
 
-### 8.12 SEO Daily Summary Pages — v1.95+
+### 8.13 SEO Daily Summary Pages — v1.95+
 
 Server-rendered public pages for search engine indexing:
-- **Topic hub** (`/[topic]`): paginated list of all daily summaries for a topic
+- **Topic hub** (`/[topic]`): paginated list of all daily summaries for a topic + a "recent transcribed videos" sidebar
 - **Daily summary** (`/[topic]/[date]/[slug]`): full AI summary with bullets, articles, JSON-LD, hreflang, OG metadata, prev/next navigation
-- **Sitemap** (`/sitemap.xml`): dynamic, covers all generated pages
+- **Sitemap** (`/sitemap.xml`): dynamic, covers every active topic hub, every daily summary, every video roundup, every per-video page
 - URL format: `8news.ai/{topic}/{YYYY-MM-DD}/{keyword1-keyword2-keyword3}`
 - Generated via `gpt-4.1-mini` with 50 articles, top 10 displayed, enriched prompts for detailed bullets
 
-### 8.13 Videos Page (`VideosPage`) — v1.99+
+### 8.14 SEO Per-Video Pages — v2.x
+
+`/{topic}/v/{date}/{slug}` (e.g. `/ai/v/2026-04-25/sora-3-realtime-preview`). Server-rendered from `video_transcriptions` rows joined with `youtube_videos`, with the AI-generated Markdown summary, the embedded video, JSON-LD `VideoObject`, hreflang, and a "Latest videos transcribed in this topic" block driven by `idx_vt_topic_recent`.
+
+### 8.15 SEO Per-Topic-Per-Day Video Roundups — v2.4+
+
+`/{topic}/r/{date}/{slug}` (e.g. `/ai/r/2026-04-24/foundation-models-launch-week`). Server-rendered from `video_roundups` rows. Renders:
+- `seo_title` (h1)
+- The structured 8-bullet `intro_md` Markdown (each bullet = bold journalistic title 3-8 words + 3-5 sentence body)
+- An `ItemList` of the underlying videos (`video_ids`) with thumbnails, titles, channels, durations, links to their `/v/` pages
+- JSON-LD `Article` + `ItemList`, hreflang to the EN/FR variant, OG metadata
+
+### 8.16 Briefings Hub `/briefings` — v2.x
+
+Public SSR hub at `/briefings`. Lists every `video_roundups` row grouped by `roundup_date DESC` (filtered by resolved language). Each card links to the matching `/{topic}/r/{date}/{slug}`. Aligned with `/summaries` in pattern. URL is intentionally `/briefings` (no "video") so future briefing types can land here too.
+
+### 8.17 Videos Page (`VideosPage`) — v1.99+, evolved through v2.x
 
 Accessible via the General Menu "Videos" button (all users).
 
 - **Date navigation**: prev/next day arrows with MiniCalendar picker between them, plus "Today" shortcut
-- **Video cards**: horizontal layout (320px thumbnail + title, truncated description with "See more", channel, time, views)
-- **Transcription button**: triggers AI transcription flow per video (TranscriptAPI + GPT-4.1-mini)
-- **AI summary display**: Markdown rendered via `react-markdown` (dynamic import, SSR disabled), collapsible
-- **Cross-language optimization**: if a transcription exists in the other language, translates the existing summary instead of re-transcribing (saves 1 TranscriptAPI credit + ~80% tokens)
-- **Video caching**: `youtube_videos` table persists video metadata from RSS on each fetch, enabling past-date lookups
-- **Channel metadata**: auto-refreshed on admin page load if missing (retry with @handle fallback)
+- **Shorts toggle**: on/off switch on the same line as the date picker, right-aligned. **Default: off** — Shorts (`duration_sec < 120`, i.e. < 2 min) are hidden until the user flips the switch
+- **Transcribed badge**: when a `(video_id, lang)` has an existing `video_transcriptions` row, the action button renders a check icon (instead of the "T" text icon). Same color / no panel expansion — clicking still toggles the summary panel.
+- **Video cards**: horizontal layout (320 px thumbnail + title, truncated description with "See more", channel, time, views, duration)
+- **Transcription button**: triggers AI transcription flow per video (TranscriptAPI + GPT-4.1-mini sync). **v2.x+** Inline spinner inside the button while loading.
+- **AI summary display**: Markdown rendered via `react-markdown` (dynamic import, SSR disabled), collapsible. The "Key Points" / "INTRO" headings are normalized via `summary-headings.ts` (FR uses `INTRO`; both langs put a blank line between bold title and body).
+- **YouTube embed**: `<iframe>` with `enablejsapi=1`, `playsinline=1`, `origin`, and `referrerPolicy="strict-origin-when-cross-origin"`. **v2.x+ localhost fix**: when `window.location.host` starts with `localhost`, swap the embed host to `youtube-nocookie.com` to bypass the strict-origin black-screen.
+- **Pre-warmed by cron**: most "today's" non-Shorts videos already have a `video_transcriptions` row by the time a visitor arrives, thanks to `cron-video-transcribe-background` (every 15 min). The button is the fallback for very-fresh videos.
+- **Cross-language optimization**: if a transcription exists in the other language, translates the existing summary instead of re-transcribing (saves 1 TranscriptAPI credit + ~80 % tokens)
+- **Video caching**: `youtube_videos` table persists metadata from RSS on each fetch, enabling past-date lookups; `enrichDurations()` backfills `duration_sec` (retry with @handle fallback)
 
-### 8.14 YouTube Channels Admin (`YouTubeChannelsPage`) — v1.99+
+### 8.18 YouTube Channels Admin (`YouTubeChannelsPage`) — v1.99+
 
 Owner-only page accessible via the user dropdown menu.
 
@@ -712,12 +880,12 @@ Owner-only page accessible via the user dropdown menu.
 - **Channel list**: table with thumbnail (or fallback icon), title, handle, channel ID, delete button
 - **Auto-refresh**: on page load, channels with missing title or thumbnail are automatically refreshed from TranscriptAPI with retry logic (channel_id → @handle fallback, 2 attempts each)
 
-### 8.15 Changelog page (`ChangelogPage`)
+### 8.19 Changelog page (`ChangelogPage`)
 
 - Loads **`GET /api/changelog`**
 - Lists version badge, date, bilingual title/body from **`changelog`** table
 
-### 8.16 Settings Page (`SettingsPage`)
+### 8.20 Settings Page (`SettingsPage`)
 
 Up to four sections depending on auth status:
 
@@ -737,7 +905,7 @@ Up to four sections depending on auth status:
 - Inline editing per row (first name, last name, user type dropdown) via `PATCH /api/users/[id]`
 - Data fetched from `GET /api/users` (service role)
 
-### 8.17 Audio Player (`AudioPlayer`)
+### 8.21 Audio Player (`AudioPlayer`)
 
 Text-to-Speech player for the global summary, using ElevenLabs API.
 
@@ -762,28 +930,36 @@ Text-to-Speech player for the global summary, using ElevenLabs API.
 | `thomas` | Thomas | FR | `GBv7mTt0atIp3Br8iCZE` |
 | `callum` | Callum | FR | `N2lVS1w4EtoT3dr4eOWO` |
 
-### 8.18 Auto-Update Banner
+### 8.22 Auto-Update Banner
 
-The app checks `public/version.json` every **5 minutes**. If the version string **differs** from the bundled **`APP_VERSION`** constant in `page.tsx`, a gold banner appears at the **top-right** of the screen (copy: `homeNewVersionBanner` in `i18n.ts`). Clicking reloads the page. No auto-reload.
+The SPA checks `public/version.json` every **5 minutes**. If the version string **differs** from the bundled `APP_VERSION` constant, a gold banner appears at the **top-right** (copy: `homeNewVersionBanner` in `i18n.ts`). Clicking reloads the page. No auto-reload.
 
-**Release workflow**: Bump **`public/version.json`** to the shipped release after each production deploy (e.g. **1.105**). On the main branch, **`APP_VERSION`** is usually set to the **next** patch (e.g. **1.106**) so the footer shows the in-development label and browsers that already fetched the new `version.json` still see the banner until the next deploy aligns both.
+**Release workflow** — single-source-of-truth via `scripts/release.mjs`:
+1. `npm run release:patch` (or `:minor` / `:major`) — bumps `package.json`, then runs `release.mjs` which propagates the new version to `public/version.json`, the SPA's `APP_VERSION`, the footer, and any other tracked spot in one atomic edit
+2. Add an entry to `src/lib/changelog-entries.ts` (auto-synced to the `changelog` DB table on first `/api/changelog` after deploy)
+3. Commit + push
 
-### 8.19 Version Footer
+### 8.23 Version Footer
 
-Fixed bottom-right: `v{APP_VERSION}` from `page.tsx` (not necessarily equal to `version.json` during the post-release dev window — see §8.18).
+Fixed bottom-right: `v{APP_VERSION}`, kept in sync by `scripts/release.mjs` so it always matches `version.json`.
 
 ---
 
 ## 9. Internationalisation (i18n)
 
-Defined in `src/lib/i18n.ts` — **100+ translation keys** (includes feed admin, changelog, toasts, home loading / Top 50 / version banner / nav aria-labels, **v1.105+** `topicCategorySaveError` for failed topic category PATCH from the admin list).
+Defined in `src/lib/i18n.ts` — 1000+ lines of EN/FR keys covering all SPA, SSR, admin, toasts, error messages, video / briefing / roundup labels, and ARIA strings.
 
 - **Languages**: English (`en`), French (`fr`)
-- **Toggle**: Segmented control in header — sets cookie, reloads page
-- **Scope**: All UI text, error messages, loading messages, topic management, stats labels
-- **AI output**: Language-specific prompts from DB (`prompt_en` / `prompt_fr`)
+- **Resolution priority** (SSR pages, via `lib/server-lang.ts → resolveServerLang()`):
+  1. `?lang=en` / `?lang=fr` query param (explicit override)
+  2. `auth.users.raw_user_meta_data.preferred_lang` (authenticated users — **v2.5.3+**)
+  3. `lang` cookie (anonymous users)
+  4. Page default (typically `en`, `fr` for the landing)
+- **Toggle**: Segmented control in `AppHeader` (SPA) or `SeoNavBar` (SSR). On click: synchronously writes the `lang` cookie, asynchronously persists `preferred_lang` for authenticated users via `supabase.auth.updateUser`, then reloads / navigates. The SPA also reconciles `lang` state on session load (`useEffect` listening on `authUser`).
+- **Scope**: All UI text, error messages, loading messages, topic management, stats labels, briefings, video roundups, landing copy
+- **AI output**: Language-specific prompts from DB (`prompt_en` / `prompt_fr`); video roundups generated with FR or EN system prompt depending on `lang` column
 - **TTS voice**: Auto-selects from EN or FR voice pool
-- **Date formatting**: `en-US` or `fr-FR` locale
+- **Date formatting**: `en-US` or `fr-FR` locale via `dateLocale(lang)` helper
 
 ---
 
@@ -929,53 +1105,44 @@ interface CronStatsResponse {
 ## 13. Data Flow
 
 ```
-          ┌──────────────────────────────────────────────────┐
-          │  BACKGROUND (Netlify Scheduled Functions)        │
-          │                                                  │
-          │  cron-fetch.ts (* * * * *)                       │
-          │  - k topics/run: ceil(N/10), max 3, ~13s budget  │
-          │  - Oldest last_fetched_at first (nulls first)    │
-          │  - Update last_fetched_at BEFORE each fetch      │
-          │  - RSS → parse → upsert `articles`               │
-          │  - Adaptive mini-score: min(50, max(15, inserted))│
-          │                                                  │
-          │  cron-score.ts (* * * * *, ~13s budget)             │
-          │  - Multi-topic: continues if backlog ≤20        │
-          │  - Backlog topics first; newest fetch first      │
-          │  - Skip no-backlog (update last_scored_at only)  │
-          │  - ≤50 unscored articles/topic (7d), DESC       │
-          │  - gpt-4.1-nano → Supabase                      │
-          └──────────────────────────────────────────────────┘
+          ┌────────────────────────────────────────────────────────────┐
+          │  BACKGROUND (Netlify Background Functions, cron-job.org)   │
+          │                                                            │
+          │  cron-fetching-background.ts        (every 1 min)          │
+          │  - Multi-pass over active topics (oldest last_fetched_at)  │
+          │  - RSS → parse → upsert `articles`                         │
+          │  - Adaptive post-fetch mini-score                          │
+          │                                                            │
+          │  cron-scoring-background.ts         (every 1 min)          │
+          │  - Fresh-backlog first, fairness guard                     │
+          │  - gpt-4.1-nano → relevance + EN/FR snippets               │
+          │                                                            │
+          │  cron-daily-summary-background.ts   (every 15 min)         │
+          │  - For each (topic × {en,fr}) yesterday: generate summary  │
+          │  - gpt-4.1-mini → daily_summaries + summary_bullets        │
+          │                                                            │
+          │  cron-video-transcribe-background.ts (every 15 min)        │
+          │  - Today's videos with topic_id, duration_sec >= 120 s     │
+          │  - First lang: full pipeline (transcript + summary)        │
+          │  - Second lang: translate path (reuses transcript)         │
+          │  - gpt-5.3-chat-latest, 180 s OpenAI timeout (v2.5.4+)     │
+          │                                                            │
+          │  cron-video-roundup-background.ts   (every 15 min)         │
+          │  - For each (topic × {en,fr}) yesterday's roundup_date:    │
+          │    pull last 48 h transcribed videos for the topic         │
+          │  - gpt-5.3-chat-latest → 8 structured bullets + SEO meta   │
+          │  - Persist video_roundups + mirror to summary_bullets      │
+          └────────────────────────────────────────────────────────────┘
 
-User clicks period button
-        │
-        ▼
-  GET /api/news?hours=X&lang=Y&topic=Z&count=N
-        │
-        ▼
-  ┌─────────────────────────────────────────────┐
-  │  Server: Check cache (Supabase news_cache)  │
-  │  → If valid, return cached response         │
-  └─────────────────────┬───────────────────────┘
-                        │ (cache miss)
-                        ▼
-  ┌─────────────────────────────────────────────┐
-  │  Server: Read from Supabase                 │
-  │  - Scored articles (score >= minScore)      │
-  │  - All articles (for "All" tab)             │
-  │  - Fetch prompt from topics table           │
-  └─────────────────────┬───────────────────────┘
-                        │
-                        ▼
-  ┌─────────────────────────────────────────────┐
-  │  Server: analyzeWithAI()                    │
-  │  - Send top articles to gpt-4.1-nano       │
-  │  - Use topic-specific prompt from DB        │
-  │  - Parse relevant[] and globalSummary[]     │
-  └─────────────────────┬───────────────────────┘
-                        │
-                        ▼
-  JSON response → Client (+ async cache write)
+User opens / (landing) → SSR landing
+User opens /app       → client SPA → BriefingPage (default)
+                              ├─ Top 50 via /api/news/top  (poll 5 min)
+                              ├─ Opt-in /api/news/top-summary  (gpt-5.3-chat-latest)
+                              └─ /api/video-pages/recent  (1 day per page, default = today)
+
+User opens /briefings, /summaries, /[topic], /[topic]/[date]/[slug],
+           /[topic]/v/[date]/[slug], /[topic]/r/[date]/[slug]
+       → SSR via lib/supabase.ts (service-role read), no AI call at request time
 ```
 
 ---
@@ -987,7 +1154,8 @@ User clicks period button
 - **Build command**: `npm run build`
 - **Publish directory**: `.next`
 - **Plugin**: `@netlify/plugin-nextjs`
-- **Scheduled functions**: 2 cron jobs (batched fetch + prioritized score across active topics)
+- **Background functions**: 5 cron jobs — `cron-fetching-background`, `cron-scoring-background`, `cron-daily-summary-background`, `cron-video-roundup-background`, `cron-video-transcribe-background` (triggered by cron-job.org every 1 min or every 15 min depending on the function)
+- **Rewrites**: every `/app/*` SPA pseudo-route is rewritten to `/app` via `next.config.ts.beforeFiles` (hard-refresh resilience for the SPA)
 - **Domain**: `8news.ai`
 - **Redirect**: `8news.netlify.app/*` → `8news.ai/:splat` (301)
 
@@ -995,13 +1163,14 @@ User clicks period button
 
 | Variable | Required | Description |
 |---|---|---|
-| `OPENAI_API_KEY` | Yes | OpenAI API key for GPT-4.1-nano |
+| `OPENAI_API_KEY` | Yes | OpenAI API key (gpt-4.1-nano + gpt-4.1-mini + gpt-5.3-chat-latest) |
 | `ELEVENLABS_API_KEY` | Yes | ElevenLabs API key for TTS |
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anon (public) key — **v1.80+** browser auth + session validation in API routes |
-| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anon (public) key — browser auth + session validation in API routes |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key (server-side only — never expose) |
 | `TRANSCRIPT_API_KEY` | Yes | TranscriptAPI key for YouTube video transcription |
-| `CRON_SECRET` | Yes | Secret for manual API route invocation |
+| `YOUTUBE_API_KEY` | No | YouTube Data API v3 key — only used to backfill `youtube_videos.duration_sec` so the Shorts filter is reliable. When unset, `enrichDurations()` is a silent no-op (videos display as-is and Shorts filtering falls back to RSS metadata only). |
+| `CRON_SECRET` | Yes | Bearer token used by cron-job.org for `/api/fetch-feeds`, `/api/test-score`, `/api/summaries/generate`, `/api/roundups/generate`, and the cron functions themselves. |
 
 ---
 
@@ -1042,17 +1211,29 @@ The topic immediately appears in the homepage topic selector, stats page, and cr
 
 Release history is maintained in **`src/lib/changelog-entries.ts`** and auto-synced to the `changelog` DB table on first `GET /api/changelog` call after deploy. The in-app Changelog page displays all entries. This SPEC does not duplicate the changelog — see the source file or the in-app page for the full history.
 
-**Recent**: **v1.105** — Topics admin list category picker; General Menu first button label **Topics**; migration **015** slug guard on `daily_summaries.slug_keywords`; version banner / `version.json` vs `APP_VERSION` (sections **8.18** and **8.19**).
+**Recent (v2.x highlights)**:
+- **v2.5.4** — Hybrid OpenAI strategy: synchronous video transcription stays on `gpt-4.1-mini` (sub-30 s budget), pre-warm cron upgraded to `gpt-5.3-chat-latest` with a 180 s OpenAI timeout (cron `SAFETY_MS = 200_000`). Landing pricing: annual price for Pro displayed side-by-side with monthly via `.price-row`; "Choose 8 topics out of 36 available, powered by 400+ RSS feeds"; merged Top 50 + favorites + archive lines for Free; removed ElevenLabs / Webhooks-API / Priority-scoring lines; "Morning email digest covering all your topics".
+- **v2.5.3** — Language persistence: SSR pages now resolve via `resolveServerLang()` (query → `preferred_lang` → cookie → default); SPA + `SeoNavBar` write `preferred_lang` to `user_metadata` on every toggle; introduced `src/lib/server-lang.ts`.
+- **v2.5.2** — Briefing's "All transcribed videos" pagination = 1 day per page, default = today, section stays visible if today is empty; PostgREST `PGRST204` on missing `summary_bullets.video_roundup_id` logged as a single WARN (run migration 018).
+- **v2.5** — `cron-video-transcribe-background` (every 15 min): pre-transcribe today's videos in EN+FR (skip Shorts < 120 s) so the SPA shows instant summaries.
+- **v2.4 / v2.4.1** — Video roundups rebuilt: 8 structured bullets (3-8 word bold title + 3-5 sentence body), `gpt-5.3-chat-latest`, mirrored to `summary_bullets` (migration 018), 48 h source window in the cron.
+- **v2.3 / v2.3.1** — Long videos transcribe reliably (3-tier sampling); recent transcribed videos block on the Briefing.
+- **v2.2** — SSR per-topic-per-day video roundups (`/{topic}/r/{date}/{slug}`) + per-video pages (`/{topic}/v/{date}/{slug}`) + `/briefings` hub (migrations 016 + 017).
+- **v2.x base** — Landing extracted to `/`, SPA moved to `/app/*` with `next.config.ts` rewrites, default landing page inside the SPA is the **Briefing**, tagline updated to **Tech / AI / Crypto**, dynamic sitemap covers everything.
 
 ---
 
 ## 18. Known Limitations
 
-- **Partial authentication (v1.80+ / roles v1.81+)** — **Supabase Auth** with **`member`** (default) vs **`owner`**. **Topics** and **Feed management** are **`owner`**-only (UI + APIs). Guests and **members** still use the homepage, stats, crons, changelog, and settings. No per-user data partitioning in the database; **`owner`** is an **admin role** for those screens.
-- **Serverless timeout** — Netlify background functions have a **15-minute** wall-time. Cron jobs run as background functions invoked every 10 minutes by **cron-job.org**, with internal budgets (~13 min) and safety reserves. `POST .../feeds/[feedId]/score` is capped at **`maxDuration` 13** with a shorter internal elapsed budget and may return `partial` when time is exhausted.
-- **RSS availability** — Some feeds may go offline; AI feed discovery validates upfront but feeds can break later
-- **AI cost** — Each request consumes OpenAI tokens (gpt-4.1-nano), each TTS request consumes ElevenLabs credits, each video transcription costs 1 TranscriptAPI credit (cross-language translation reuses existing summaries to save credits)
-- **TranscriptAPI reliability** — The `/channel/latest` RSS endpoint can timeout (408) for some channels; retry logic with @handle fallback mitigates most failures
-- **Hybrid rendering** — The main app (`page.tsx`) is a client-only SPA; SEO daily summary pages and topic hubs are server-rendered
-- **Cookie-only persistence** — User preferences persisted in cookies; topic and period reset on reload
-- **AI feed discovery accuracy** — GPT may suggest invalid URLs; validation catches most but not all edge cases
+- **Partial authentication / role-based admin** — Supabase Auth with `member` (default) vs `owner`. Topics, Feed management, Categories, Daily Summaries (admin), YouTube Channels and Users are owner-only. Guests and members still use the Briefing, Top 50, Daily Summaries, Videos, Favorites (signed-in only), stats, crons, changelog, settings, plus every public SSR page. No per-user data partitioning in the database; `owner` is an admin role for those screens.
+- **Synchronous video transcription budget** — `/api/youtube-channels/transcribe` runs on a regular Netlify route (30 s cap) and uses `gpt-4.1-mini` with a 25 s OpenAI timeout. For very long videos (> 1 h 30 min) it relies on a 3-tier transcript-sampling strategy in `lib/transcribe-video.ts`. Higher-quality summaries come from the cron pre-warm path (`gpt-5.3-chat-latest`, 180 s budget) — by the time most visitors arrive, the cache row is already populated.
+- **Cron pre-warm coverage** — `cron-video-transcribe-background` only picks up videos with `topic_id` set on the parent channel and `duration_sec ≥ 120`. Shorts and channels not yet linked to a topic stay on the on-demand sync path.
+- **Migrations are not auto-applied** — Migrations under `migrations/` must be run manually in the Supabase SQL Editor. Code is defensive when a migration is missing (e.g. `summary_bullets.video_roundup_id` from migration 018 — the mirror logs a single WARN and skips). Always run pending migrations before promoting a release that depends on them.
+- **Serverless wall-time** — Netlify background functions cap at 15 min wall-time. Internal budgets (~13.5 min) + safety reserves (10-200 s depending on the cron) keep us inside that envelope. `POST /api/topics/[id]/feeds/[feedId]/score` is capped at `maxDuration 13` (synchronous route) and may return `partial: true` when its budget is exhausted.
+- **RSS availability** — Some feeds go offline; AI feed discovery validates upfront but feeds can break later.
+- **YouTube embed on localhost** — Strict-origin policies cause some channels to render a black `<iframe>` on `http://localhost`. Worked around by swapping the embed host to `youtube-nocookie.com` when the page is on localhost (production keeps `youtube.com` and a strict `referrerPolicy`).
+- **AI cost** — Each request consumes OpenAI tokens; each TTS request consumes ElevenLabs credits; each video transcription costs 1 TranscriptAPI credit (cross-language translation reuses the existing summary to save credits — only one `/transcript` call per `(video_id, lang0)`, the second lang only pays the LLM bill).
+- **TranscriptAPI reliability** — The `/channel/latest` RSS endpoint can time out (408) for some channels; retry logic with @handle fallback mitigates most failures.
+- **Hybrid rendering** — The SPA (`/app`) is client-only; landing, briefings hub, summaries hub, per-topic hubs, daily summaries, per-video pages and per-roundup pages are server-rendered (SEO-first).
+- **Cookie-based UI prefs** — Most UI prefs (`maxArticles`, TTS speed/voice, etc.) are persisted in cookies; topic and period selection reset on reload. `lang` is the exception — also written to `preferred_lang` in `user_metadata` for authenticated users (v2.5.3+).
+- **AI feed discovery accuracy** — GPT may suggest invalid URLs; validation catches most but not all edge cases.

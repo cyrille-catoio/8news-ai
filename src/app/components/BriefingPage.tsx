@@ -114,45 +114,43 @@ export function BriefingPage({
   });
 
   // ─── Top story (Hero) ────────────────────────────────────────────────
-  // Dedicated /api/news/top-story query so the hero shows the freshest
-  // 10/10 article from the last 24h. Endpoint returns null when nothing
-  // matches, in which case we fall back to topFeed[0] so the hero
-  // never goes empty.
+  // Dedicated /api/news/top-story query. The hero is **synchronized
+  // across all visitors** of the same language: every user hitting the
+  // page within the same 10-minute wall-clock bucket sees the exact
+  // same article in their language (FR → FR top story, EN → EN top
+  // story). Endpoint returns null when nothing matches, in which case
+  // we fall back to topFeed[0] so the hero never goes empty.
   //
-  // The endpoint rotates through up to 15 candidates on a 10-minute
-  // wall-clock bucket, and accepts `?exclude=<link>` so a refresh is
-  // guaranteed to land on a different article from what the user is
-  // currently looking at (we feed the current `link` back as exclude).
+  // The endpoint serves CDN-cacheable responses keyed by `?lang=` and
+  // bucketed on 10-minute boundaries (`s-maxage=<remaining>`), so by
+  // default the browser hits the Netlify edge cache and gets the same
+  // payload as everyone else.
   //
   // Refresh triggers (only this card refreshes, the rest of the
   // briefing is left untouched):
   //   - On mount + on `lang` change.
-  //   - Every 10 minutes via setInterval (silent, no spinner flash).
-  //   - When the tab becomes visible again after being hidden — fixes
-  //     the case where the user comes back after lunch and sees a
-  //     stale hero (background tabs throttle setInterval to once per
-  //     minute, but visibilitychange fires immediately on focus).
+  //   - Aligned to the next wall-clock 10-min boundary, then every
+  //     10 minutes — so all clients flip together.
+  //   - When the tab becomes visible after being hidden — fixes the
+  //     case where the user comes back after lunch and sees a stale
+  //     hero (background tabs throttle setInterval to once per minute,
+  //     but visibilitychange fires immediately on focus).
   const [heroStory, setHeroStory] = useState<TopFeedArticle | null>(null);
   const [heroLoading, setHeroLoading] = useState(true);
   useEffect(() => {
     let cancelled = false;
-    // Closure-local snapshot of the link currently on screen — fed
-    // back to the server as `?exclude=` so we never get the same row
-    // twice in a row. Reset to null on each effect run (lang change).
-    let currentLink: string | null = null;
 
     async function fetchTopStory(showLoading: boolean) {
       if (showLoading) setHeroLoading(true);
       try {
-        const qs = new URLSearchParams({ lang });
-        if (currentLink) qs.set("exclude", currentLink);
-        const r = await fetch(`/api/news/top-story?${qs.toString()}`, { cache: "no-store" });
+        // No `cache: "no-store"` — we want the browser to honor
+        // `Cache-Control: max-age=0, s-maxage=<remaining>, must-revalidate`
+        // from the server: revalidate every time, but let the CDN serve
+        // the same shared payload to every visitor of this lang in
+        // this bucket. That's what guarantees synchronization.
+        const r = await fetch(`/api/news/top-story?lang=${lang}`);
         const json: { article: TopFeedArticle | null } = r.ok ? await r.json() : { article: null };
-        if (!cancelled) {
-          const next = json.article ?? null;
-          setHeroStory(next);
-          currentLink = next?.link ?? currentLink;
-        }
+        if (!cancelled) setHeroStory(json.article ?? null);
       } catch {
         // Silent fail — keep the previous hero on screen rather than
         // wiping it on a transient network blip.
@@ -164,7 +162,17 @@ export function BriefingPage({
     fetchTopStory(true);
 
     const HERO_REFRESH_MS = 10 * 60 * 1000;
-    const intervalId = setInterval(() => fetchTopStory(false), HERO_REFRESH_MS);
+    // Align the first interval refresh to the next wall-clock 10-min
+    // boundary (+200ms safety) so every browser flips into the new
+    // bucket at roughly the same moment. After the first aligned
+    // refresh we settle into a plain `setInterval(10 min)`.
+    const msToBoundary = HERO_REFRESH_MS - (Date.now() % HERO_REFRESH_MS) + 200;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const timeoutId = setTimeout(() => {
+      if (cancelled) return;
+      fetchTopStory(false);
+      intervalId = setInterval(() => fetchTopStory(false), HERO_REFRESH_MS);
+    }, msToBoundary);
 
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
@@ -179,7 +187,8 @@ export function BriefingPage({
 
     return () => {
       cancelled = true;
-      clearInterval(intervalId);
+      clearTimeout(timeoutId);
+      if (intervalId) clearInterval(intervalId);
       if (typeof document !== "undefined") {
         document.removeEventListener("visibilitychange", onVisibility);
       }

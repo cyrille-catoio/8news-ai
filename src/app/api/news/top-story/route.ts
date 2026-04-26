@@ -16,6 +16,13 @@ import { SNIPPET_MAX } from "@/lib/constants";
  *   3. score = 10  in the last 24 hours
  *   4. score ≥ 9   in the last 24 hours
  *
+ * Within the first non-empty ladder step we keep up to {@link CANDIDATE_POOL}
+ * articles and pick one **deterministically by 10-minute bucket** —
+ * `Math.floor(now / 600_000) % candidates.length`. This means every user
+ * lands on the same hero at any given minute, but the hero rotates to a
+ * different article every 10 minutes (the BriefingPage refreshes itself
+ * on the same cadence client-side).
+ *
  * Excludes hidden topics so the hero matches the rest of the briefing.
  * If everything misses, returns `{ article: null }` and the client can
  * fall back to `topFeed[0]` from the existing useTopFeed hook.
@@ -23,6 +30,9 @@ import { SNIPPET_MAX } from "@/lib/constants";
  * Response shape mirrors `TopFeedArticle` from src/hooks/useTopFeed.ts so
  * the BriefingPage can drop it straight into the existing HeroStory.
  */
+
+const CANDIDATE_POOL = 10;
+const ROTATION_BUCKET_MS = 10 * 60 * 1000;
 
 interface TopStoryRow {
   title: string;
@@ -82,10 +92,11 @@ export async function GET(request: NextRequest) {
 
   /**
    * Run the configured query (a Postgres select, with the right score
-   * filter and time window) and return the freshest matching row, or
-   * null if nothing came back.
+   * filter and time window) and return up to {@link CANDIDATE_POOL}
+   * matching rows ordered most-recent-first. Caller will pick one of
+   * them via the 10-minute rotation bucket.
    */
-  async function tryFetch(score: { eq?: number; gte?: number }, since: string): Promise<TopStoryRow | null> {
+  async function tryFetch(score: { eq?: number; gte?: number }, since: string): Promise<TopStoryRow[]> {
     let q = db
       .from("articles")
       .select(
@@ -93,7 +104,7 @@ export async function GET(request: NextRequest) {
       )
       .gte("fetched_at", since)
       .order("fetched_at", { ascending: false })
-      .limit(1);
+      .limit(CANDIDATE_POOL);
 
     if (score.eq != null) q = q.eq("relevance_score", score.eq);
     if (score.gte != null) q = q.gte("relevance_score", score.gte);
@@ -101,11 +112,13 @@ export async function GET(request: NextRequest) {
     if (hiddenIds.length > 0) q = q.not("topic", "in", `(${hiddenIds.map((id) => `"${id}"`).join(",")})`);
 
     const { data, error } = await q;
-    if (error || !data || data.length === 0) return null;
-    return data[0] as TopStoryRow;
+    if (error || !data || data.length === 0) return [];
+    return data as TopStoryRow[];
   }
 
-  // Search ladder. Order matters — first match wins.
+  // Search ladder. Order matters — first non-empty step wins, and we
+  // stay inside that step's pool for the rotation (mixing candidates
+  // across windows would dilute the freshness guarantee of step 1).
   const ladder: Array<{ score: { eq?: number; gte?: number }; since: string }> = [
     { score: { eq: 10 }, since: oneHourAgo },
     { score: { gte: 9 }, since: oneHourAgo },
@@ -113,15 +126,21 @@ export async function GET(request: NextRequest) {
     { score: { gte: 9 }, since: oneDayAgo },
   ];
 
-  let row: TopStoryRow | null = null;
+  let candidates: TopStoryRow[] = [];
   for (const step of ladder) {
-    row = await tryFetch(step.score, step.since);
-    if (row) break;
+    candidates = await tryFetch(step.score, step.since);
+    if (candidates.length > 0) break;
   }
 
-  if (!row) {
+  if (candidates.length === 0) {
     return NextResponse.json({ article: null }, { headers: { "Cache-Control": "no-store" } });
   }
+
+  // Deterministic 10-minute rotation. Same bucket = same article for
+  // every user; bucket flips on the wall-clock 10-minute boundary so
+  // the BriefingPage's setInterval refresh lands on a new hero.
+  const bucket = Math.floor(Date.now() / ROTATION_BUCKET_MS);
+  const row = candidates[bucket % candidates.length];
 
   const article = {
     title: pickTitle(row, lang),

@@ -119,22 +119,38 @@ export function BriefingPage({
   // score=10/1h → ≥9/1h → 10/24h → ≥9/24h). The endpoint returns null
   // when nothing matches, in which case we fall back to topFeed[0] so
   // the hero never goes empty.
+  //
+  // The endpoint rotates through up to 10 candidates on a 10-minute
+  // wall-clock bucket, so we refetch on the same cadence client-side
+  // — only this card refreshes, the rest of the briefing stays put.
+  // The interval refresh is deliberately silent (no spinner flash) so
+  // the user only sees the headline cross-fade if a new bucket landed.
   const [heroStory, setHeroStory] = useState<TopFeedArticle | null>(null);
   const [heroLoading, setHeroLoading] = useState(true);
   useEffect(() => {
     let cancelled = false;
-    setHeroLoading(true);
-    fetch(`/api/news/top-story?lang=${lang}`, { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : { article: null }))
-      .then((json: { article: TopFeedArticle | null }) => {
+
+    async function fetchTopStory(showLoading: boolean) {
+      if (showLoading) setHeroLoading(true);
+      try {
+        const r = await fetch(`/api/news/top-story?lang=${lang}`, { cache: "no-store" });
+        const json: { article: TopFeedArticle | null } = r.ok ? await r.json() : { article: null };
         if (!cancelled) setHeroStory(json.article ?? null);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setHeroLoading(false);
-      });
+      } catch {
+        // Silent fail — keep the previous hero on screen rather than
+        // wiping it on a transient network blip.
+      } finally {
+        if (!cancelled && showLoading) setHeroLoading(false);
+      }
+    }
+
+    fetchTopStory(true);
+    const HERO_REFRESH_MS = 10 * 60 * 1000;
+    const id = setInterval(() => fetchTopStory(false), HERO_REFRESH_MS);
+
     return () => {
       cancelled = true;
+      clearInterval(id);
     };
   }, [lang]);
 
@@ -296,7 +312,16 @@ export function BriefingPage({
         </div>
       ) : (
         <>
-          {heroArticle && <HeroStory article={heroArticle} lang={lang} />}
+          {heroArticle && (
+            <HeroStory
+              article={heroArticle}
+              lang={lang}
+              isFavorite={favoriteUrls.has(heroArticle.link)}
+              isAuthenticated={isAuthenticated}
+              onToggleFavorite={onToggleFavorite}
+              onRequestAuth={onRequestAuth}
+            />
+          )}
 
           {trending.length > 0 && (
             <TrendingStrip
@@ -399,26 +424,46 @@ export function BriefingPage({
 
 /* ────────────────── Hero Story ─────────────────────── */
 
-function HeroStory({ article, lang }: { article: TopFeedArticle; lang: Lang }) {
+/**
+ * Hero card on the briefing — wraps the headline link with a separate
+ * favorite icon pinned to the bottom-right. The icon sits *outside*
+ * the `<a>` (so a click on the star never triggers article navigation)
+ * but inside the bordered card so it visually belongs to the story.
+ */
+function HeroStory({
+  article,
+  lang,
+  isFavorite,
+  isAuthenticated,
+  onToggleFavorite,
+  onRequestAuth,
+}: {
+  article: TopFeedArticle;
+  lang: Lang;
+  isFavorite: boolean;
+  isAuthenticated: boolean;
+  onToggleFavorite: (a: { url: string; title: string; source: string; pubDate?: string; sourceType?: "article" | "video" }) => void;
+  onRequestAuth: () => void;
+}) {
   return (
     <section style={{ marginBottom: 36 }}>
       <div style={{ ...kicker(color.gold) }}>
         {lang === "fr" ? "Top story · maintenant" : "Top story · now"}
       </div>
-      <a
-        href={article.link}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{ textDecoration: "none", color: "inherit", display: "block" }}
+      <div
+        style={{
+          ...card,
+          display: "block",
+          padding: "24px 24px 22px",
+          borderColor: color.gold,
+          background: "linear-gradient(180deg, rgba(201,162,39,0.04), transparent 60%), " + color.surface,
+        }}
       >
-        <div
-          style={{
-            ...card,
-            display: "block",
-            padding: "24px 24px 22px",
-            borderColor: color.gold,
-            background: "linear-gradient(180deg, rgba(201,162,39,0.04), transparent 60%), " + color.surface,
-          }}
+        <a
+          href={article.link}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ textDecoration: "none", color: "inherit", display: "block" }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
             <h2
@@ -445,12 +490,50 @@ function HeroStory({ article, lang }: { article: TopFeedArticle; lang: Lang }) {
               {article.snippet}
             </p>
           )}
-          <div style={{ color: color.gold, fontSize: 13, fontFamily: "ui-monospace, Menlo, monospace", letterSpacing: "0.04em" }}>
+        </a>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+            marginTop: article.snippet ? 0 : 14,
+          }}
+        >
+          <a
+            href={article.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: color.gold,
+              fontSize: 13,
+              fontFamily: "ui-monospace, Menlo, monospace",
+              letterSpacing: "0.04em",
+              textDecoration: "none",
+              flex: 1,
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
             {article.source.toUpperCase()}
             <span style={{ color: color.textMuted, marginLeft: 8 }}>· {relativeTime(article.pubDate, lang)}</span>
-          </div>
+          </a>
+          <FavoriteButton
+            url={article.link}
+            title={article.title}
+            source={article.source}
+            pubDate={article.pubDate}
+            sourceType="article"
+            isFavorite={isFavorite}
+            lang={lang}
+            onToggle={onToggleFavorite}
+            onRequestAuth={onRequestAuth}
+            isAuthenticated={isAuthenticated}
+          />
         </div>
-      </a>
+      </div>
     </section>
   );
 }

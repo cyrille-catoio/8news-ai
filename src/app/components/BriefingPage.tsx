@@ -115,27 +115,44 @@ export function BriefingPage({
 
   // ─── Top story (Hero) ────────────────────────────────────────────────
   // Dedicated /api/news/top-story query so the hero shows the freshest
-  // 10/10 article from the last hour (with a built-in fallback ladder:
-  // score=10/1h → ≥9/1h → 10/24h → ≥9/24h). The endpoint returns null
-  // when nothing matches, in which case we fall back to topFeed[0] so
-  // the hero never goes empty.
+  // 10/10 article from the last 24h. Endpoint returns null when nothing
+  // matches, in which case we fall back to topFeed[0] so the hero
+  // never goes empty.
   //
-  // The endpoint rotates through up to 10 candidates on a 10-minute
-  // wall-clock bucket, so we refetch on the same cadence client-side
-  // — only this card refreshes, the rest of the briefing stays put.
-  // The interval refresh is deliberately silent (no spinner flash) so
-  // the user only sees the headline cross-fade if a new bucket landed.
+  // The endpoint rotates through up to 15 candidates on a 10-minute
+  // wall-clock bucket, and accepts `?exclude=<link>` so a refresh is
+  // guaranteed to land on a different article from what the user is
+  // currently looking at (we feed the current `link` back as exclude).
+  //
+  // Refresh triggers (only this card refreshes, the rest of the
+  // briefing is left untouched):
+  //   - On mount + on `lang` change.
+  //   - Every 10 minutes via setInterval (silent, no spinner flash).
+  //   - When the tab becomes visible again after being hidden — fixes
+  //     the case where the user comes back after lunch and sees a
+  //     stale hero (background tabs throttle setInterval to once per
+  //     minute, but visibilitychange fires immediately on focus).
   const [heroStory, setHeroStory] = useState<TopFeedArticle | null>(null);
   const [heroLoading, setHeroLoading] = useState(true);
   useEffect(() => {
     let cancelled = false;
+    // Closure-local snapshot of the link currently on screen — fed
+    // back to the server as `?exclude=` so we never get the same row
+    // twice in a row. Reset to null on each effect run (lang change).
+    let currentLink: string | null = null;
 
     async function fetchTopStory(showLoading: boolean) {
       if (showLoading) setHeroLoading(true);
       try {
-        const r = await fetch(`/api/news/top-story?lang=${lang}`, { cache: "no-store" });
+        const qs = new URLSearchParams({ lang });
+        if (currentLink) qs.set("exclude", currentLink);
+        const r = await fetch(`/api/news/top-story?${qs.toString()}`, { cache: "no-store" });
         const json: { article: TopFeedArticle | null } = r.ok ? await r.json() : { article: null };
-        if (!cancelled) setHeroStory(json.article ?? null);
+        if (!cancelled) {
+          const next = json.article ?? null;
+          setHeroStory(next);
+          currentLink = next?.link ?? currentLink;
+        }
       } catch {
         // Silent fail — keep the previous hero on screen rather than
         // wiping it on a transient network blip.
@@ -145,12 +162,27 @@ export function BriefingPage({
     }
 
     fetchTopStory(true);
+
     const HERO_REFRESH_MS = 10 * 60 * 1000;
-    const id = setInterval(() => fetchTopStory(false), HERO_REFRESH_MS);
+    const intervalId = setInterval(() => fetchTopStory(false), HERO_REFRESH_MS);
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        // Tab just got refocused — refresh immediately so the user
+        // doesn't stare at a stale hero from before they switched away.
+        fetchTopStory(false);
+      }
+    };
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", onVisibility);
+    }
 
     return () => {
       cancelled = true;
-      clearInterval(id);
+      clearInterval(intervalId);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVisibility);
+      }
     };
   }, [lang]);
 

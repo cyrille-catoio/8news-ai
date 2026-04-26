@@ -303,14 +303,15 @@ export default async function VideoSeoPage({ params }: PageProps) {
           lang={lang}
         />
 
-        {/* AI Summary (Markdown) */}
+        {/* AI Summary (Markdown). No "Résumé / Summary" wrapper heading: the
+            page is already framed by the H1 + topic chip above, and the
+            markdown opens with its own `## INTRO` / `## TL;DR` heading.
+            Repeating "Résumé / Summary" added zero SEO value and pushed the
+            keyword-rich INTRO copy further down the page. */}
         <section style={{
           background: color.surface, border: `1px solid ${color.border}`,
-          borderRadius: 10, padding: "20px 24px", marginBottom: 24,
+          borderRadius: 10, padding: "4px 24px 20px", marginBottom: 24,
         }}>
-          <h2 style={{ color: color.gold, fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 0, marginBottom: 8 }}>
-            {lang === "fr" ? "Résumé" : "Summary"}
-          </h2>
           <ReactMarkdown components={mdComponents}>{summaryMd}</ReactMarkdown>
         </section>
 

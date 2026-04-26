@@ -14,7 +14,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  */
 
 /** Parse ISO 8601 duration (PT1H2M33S) to seconds. */
-export function parseIsoDuration(iso: string): number {
+function parseIsoDuration(iso: string): number {
   const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
   if (!m) return 0;
   return (parseInt(m[1] ?? "0") * 3600) + (parseInt(m[2] ?? "0") * 60) + parseInt(m[3] ?? "0");

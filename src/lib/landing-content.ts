@@ -248,11 +248,11 @@ export const LANDING_CONTENT: LandingContent = {
     },
     plans: {
       en: [
-        { tag: "CURRENT", name: "Free", price: "$0", per: "/forever", desc: "Everything we shipped in v2.5.9. No credit card, no waitlist.", features: ["Choose 8 topics out of the 36 available.", "Top daily articles and videos with AI summary + sources.", "YouTube transcription and video summaries.", "Bilingual EN / FR"], cta: "Try it now", featured: false },
+        { tag: "CURRENT", name: "Free", price: "$0", per: "/forever", desc: "Everything we shipped in v2.5.10. No credit card, no waitlist.", features: ["Choose 8 topics out of the 36 available.", "Top daily articles and videos with AI summary + sources.", "YouTube transcription and video summaries.", "Bilingual EN / FR"], cta: "Try it now", featured: false },
         { tag: "COMING SOON", name: "Pro", price: "$8", per: "/month", priceYear: "$88", perYear: "/year", saveLabel: "−8% per year", desc: "For founders, analysts and builders who need custom topics and higher limits.", features: ["Unlimited custom topics with AI feed discovery", "Unlimited YouTube transcriptions, add your favorite YouTube channels", "Morning email digest covering all your topics.", "Email alert when an article scores 10 in one of your selected topics"], cta: "Join the waitlist", featured: true },
       ],
       fr: [
-        { tag: "ACTUEL", name: "Gratuit", price: "0 €", per: "/à vie", desc: "Tout ce qu'on a livré en v2.5.9. Sans carte bancaire, sans liste d'attente.", features: ["Choisissez 8 topics parmi les 36 disponibles.", "Top des articles et videos quotidiens avec résumé IA + sources.", "Transcription YouTube et résumé des vidéos.", "Bilingue EN / FR"], cta: "Essayer", featured: false },
+        { tag: "ACTUEL", name: "Gratuit", price: "0 €", per: "/à vie", desc: "Tout ce qu'on a livré en v2.5.10. Sans carte bancaire, sans liste d'attente.", features: ["Choisissez 8 topics parmi les 36 disponibles.", "Top des articles et videos quotidiens avec résumé IA + sources.", "Transcription YouTube et résumé des vidéos.", "Bilingue EN / FR"], cta: "Essayer", featured: false },
         { tag: "BIENTÔT", name: "Pro", price: "8 €", per: "/mois", priceYear: "88 €", perYear: "/an", saveLabel: "−8 % à l'année", desc: "Pour fondateurs, analystes et builders qui veulent des topics sur mesure et plus de volume.", features: ["Topics personnalisés illimités avec découverte IA des flux", "Transcriptions YouTube illimitées, ajout de vos chaînes YouTube favorites", "Digest email matinal reprenant tous vos topics.", "Alerte email quand un article a un score de 10 pour un de vos topics."], cta: "Rejoindre la liste", featured: true },
       ],
     },

@@ -233,7 +233,6 @@ async function runScoreTopic(
   const rows = (unscored ?? []) as DbRow[];
   if (rows.length === 0) {
     const message = `[${topicId}] No unscored articles`;
-    console.log(message);
     return {
       message,
       scored: 0,
@@ -328,7 +327,6 @@ async function runScoreTopic(
   }
 
   const message = `[${topicId}] Scored ${scored}/${rows.length} articles`;
-  console.log(message);
   return {
     message,
     scored,

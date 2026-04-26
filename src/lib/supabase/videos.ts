@@ -1,0 +1,594 @@
+import { getServerClient, SITEMAP_RECENT_DAYS } from "./client";
+
+/**
+ * YouTube videos surface — transcriptions, per-video SSR pages,
+ * per-(topic, date) roundups, and the `summary_bullets` mirrors for
+ * both source_types (`video` for the per-video bullets, `roundup`
+ * for the roundup briefing bullets).
+ *
+ * Three table families touched here:
+ *  - `youtube_videos` (RSS/API mirror) — read-only via the joins below
+ *  - `video_transcriptions` (AI-summarized per (video_id, lang)) —
+ *    full RW
+ *  - `video_roundups` (per-(topic, date, lang) editorial briefing) —
+ *    full RW
+ *
+ * The roundup → transcription join lives here too because the SSR
+ * `/r/` page calls both helpers in the same render.
+ */
+
+/* ── Per-video transcription helpers ─────────────────────────────── */
+
+export async function getVideoTranscription(
+  videoId: string,
+  lang: string,
+): Promise<{ id: number; summary_md: string; transcript: string; word_count: number | null } | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("video_transcriptions")
+      .select("id, summary_md, transcript, word_count")
+      .eq("video_id", videoId)
+      .eq("lang", lang)
+      .single();
+    if (error || !data) return null;
+    return data as { id: number; summary_md: string; transcript: string; word_count: number | null };
+  } catch {
+    return null;
+  }
+}
+
+export async function insertVideoTranscription(row: {
+  video_id: string;
+  channel_id: string;
+  title: string;
+  lang: string;
+  transcript: string;
+  summary_md: string;
+  word_count: number;
+  topic_id?: string | null;
+  /** Pre-computed slug (4-5 keywords). NULL until we know `topic_id` and
+   * `published_date`, since the route /{topic}/v/{date}/{slug} needs all
+   * three to resolve. Computed by `slugifyVideoTitle()` then made unique
+   * by `uniquifyVideoSlug()` against the existing rows in the same bucket. */
+  slug_keywords?: string | null;
+  /** Date the video was published on YouTube (UTC date). Sourced from
+   * `youtube_videos.published_date`. Joins the slug to form the URL
+   * /{topic}/v/{date}/{slug}. */
+  published_date?: string | null;
+}): Promise<number | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("video_transcriptions")
+      .insert(row)
+      .select("id")
+      .single();
+    if (error || !data) return null;
+    return (data as { id: number }).id;
+  } catch {
+    return null;
+  }
+}
+
+export async function insertVideoBullets(
+  bullets: Array<{
+    video_transcription_id: number;
+    topic_id: string | null;
+    lang: string;
+    summary_date: string;
+    bullet_index: number;
+    text: string;
+    refs: unknown[];
+    source_type: string;
+    entities: string[];
+  }>,
+): Promise<boolean> {
+  if (bullets.length === 0) return true;
+  const clientP = getServerClient();
+  if (!clientP) return false;
+  try {
+    const supabase = await clientP;
+    await supabase
+      .from("summary_bullets")
+      .delete()
+      .eq("video_transcription_id", bullets[0].video_transcription_id);
+    const { error } = await supabase.from("summary_bullets").insert(bullets);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+/* ── Video roundups (per-topic-per-day SSR pages) ───────────────── */
+
+export interface VideoRoundupRow {
+  id: number;
+  topic_id: string;
+  roundup_date: string;
+  lang: string;
+  slug_keywords: string;
+  seo_title: string;
+  seo_description: string | null;
+  intro_md: string;
+  video_ids: string[];
+  created_at: string;
+}
+
+/**
+ * Insert or update a video_roundups row. Idempotent: re-running the
+ * generator on the same (topic, date, lang) replaces the previous row
+ * in place — useful when the cron retries or when an admin manually
+ * regenerates after a fix.
+ */
+export async function upsertVideoRoundup(row: {
+  topic_id: string;
+  roundup_date: string;
+  lang: string;
+  slug_keywords: string;
+  seo_title: string;
+  seo_description: string | null;
+  intro_md: string;
+  video_ids: string[];
+}): Promise<VideoRoundupRow | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("video_roundups")
+      .upsert(row, { onConflict: "topic_id,roundup_date,lang" })
+      .select("*")
+      .single();
+    if (error || !data) return null;
+    return data as VideoRoundupRow;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Lookup a roundup by its public route (topic + date + slug). Lang is
+ * not in the filter for the same reason as `getVideoPageBySlug`: the
+ * slug is per-lang and uniquely identifies the row.
+ */
+export async function getVideoRoundupBySlug(
+  topicId: string,
+  date: string,
+  slug: string,
+): Promise<VideoRoundupRow | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("video_roundups")
+      .select("*")
+      .eq("topic_id", topicId)
+      .eq("roundup_date", date)
+      .eq("slug_keywords", slug)
+      .limit(1)
+      .maybeSingle();
+    if (error || !data) return null;
+    return data as VideoRoundupRow;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Pull the alternate-language roundup for a given (topic, date). Used by
+ * the SSR `/r/` page to render hreflang.
+ */
+export async function getVideoRoundupAltLang(
+  topicId: string,
+  date: string,
+  currentLang: string,
+): Promise<{ slug_keywords: string; lang: string } | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+  const otherLang = currentLang === "fr" ? "en" : "fr";
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("video_roundups")
+      .select("slug_keywords, lang")
+      .eq("topic_id", topicId)
+      .eq("roundup_date", date)
+      .eq("lang", otherLang)
+      .limit(1)
+      .maybeSingle();
+    if (error || !data) return null;
+    return data as { slug_keywords: string; lang: string };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * All transcribed videos with a slug for a (topic, date-range, lang)
+ * bucket, ordered by created_at ascending. Drives the roundup generator
+ * (collects the source material — the cron passes a 48 h window).
+ *
+ * The window is inclusive on both bounds and matches on `published_date`
+ * (a DATE column), so passing the same value for both bounds yields the
+ * legacy single-day behaviour. The SSR `/r/` page does NOT call this —
+ * it fetches by the persisted `video_ids` array via
+ * {@link getVideoTranscriptionsByIds} so it stays correct regardless of
+ * how wide the generator's window was at write-time.
+ */
+export async function getVideoTranscriptionsForRoundup(
+  topicId: string,
+  fromDate: string,
+  toDate: string,
+  lang: string,
+): Promise<Array<{
+  id: number;
+  video_id: string;
+  title: string;
+  summary_md: string;
+  slug_keywords: string;
+  channel_id: string;
+}>> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("video_transcriptions")
+      .select("id, video_id, title, summary_md, slug_keywords, channel_id")
+      .eq("topic_id", topicId)
+      .gte("published_date", fromDate)
+      .lte("published_date", toDate)
+      .eq("lang", lang)
+      .not("slug_keywords", "is", null)
+      .order("created_at", { ascending: true });
+    if (error || !data) return [];
+    return data as Array<{
+      id: number;
+      video_id: string;
+      title: string;
+      summary_md: string;
+      slug_keywords: string;
+      channel_id: string;
+    }>;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Hydrate the exact list of `video_transcriptions` referenced by a
+ * persisted roundup's `video_ids` array. Used by the SSR `/r/` page
+ * which needs to render every video that was bundled into the briefing,
+ * regardless of its `published_date` (the cron pulls a 48 h window so
+ * a roundup keyed to date X may include videos from X-1).
+ *
+ * No `topic_id` / `published_date` filter on purpose — the IDs ARE the
+ * source of truth. Lang is still filtered because `(video_id, lang)` is
+ * the row's natural key in `video_transcriptions`.
+ */
+export async function getVideoTranscriptionsByIds(
+  videoIds: string[],
+  lang: string,
+): Promise<Array<{
+  id: number;
+  video_id: string;
+  title: string;
+  summary_md: string;
+  slug_keywords: string;
+  channel_id: string;
+  published_date: string | null;
+}>> {
+  if (videoIds.length === 0) return [];
+  const clientP = getServerClient();
+  if (!clientP) return [];
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("video_transcriptions")
+      .select("id, video_id, title, summary_md, slug_keywords, channel_id, published_date")
+      .in("video_id", videoIds)
+      .eq("lang", lang);
+    if (error || !data) return [];
+    return data as Array<{
+      id: number;
+      video_id: string;
+      title: string;
+      summary_md: string;
+      slug_keywords: string;
+      channel_id: string;
+      published_date: string | null;
+    }>;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Last N video roundups for a topic + lang. Used by the SSR `/r/` page
+ * for the "previous roundups" sidebar block, and by the topic hub
+ * (Phase 4) for the "video coverage" section.
+ */
+export async function getRecentVideoRoundups(
+  topicId: string,
+  lang: string,
+  limit: number,
+  excludeDate?: string,
+): Promise<Array<{ roundup_date: string; slug_keywords: string; seo_title: string }>> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
+  try {
+    const supabase = await clientP;
+    let q = supabase
+      .from("video_roundups")
+      .select("roundup_date, slug_keywords, seo_title")
+      .eq("topic_id", topicId)
+      .eq("lang", lang)
+      .order("roundup_date", { ascending: false })
+      .limit(limit);
+    if (excludeDate) q = q.neq("roundup_date", excludeDate);
+    const { data, error } = await q;
+    if (error || !data) return [];
+    return data as Array<{ roundup_date: string; slug_keywords: string; seo_title: string }>;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * All video roundup routes from the last {@link SITEMAP_RECENT_DAYS}
+ * days. Same shape as `getAllVideoPageRoutes`. Drives the sitemap.
+ */
+export async function getAllVideoRoundupRoutes(): Promise<
+  Array<{ topic_id: string; roundup_date: string; slug_keywords: string; lang: string }>
+> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
+  try {
+    const supabase = await clientP;
+    const sinceISO = new Date(Date.now() - SITEMAP_RECENT_DAYS * 86_400_000).toISOString().slice(0, 10);
+    const { data, error } = await supabase
+      .from("video_roundups")
+      .select("topic_id, roundup_date, slug_keywords, lang")
+      .gte("roundup_date", sinceISO)
+      .order("roundup_date", { ascending: false });
+    if (error || !data) return [];
+    return data as Array<{ topic_id: string; roundup_date: string; slug_keywords: string; lang: string }>;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Last-{@link SITEMAP_RECENT_DAYS} days of per-video SSR pages. Same
+ * shape as `getAllSummaryRoutes` so the sitemap.ts can map both with
+ * the same code path. Excludes rows missing topic_id or slug — those
+ * have no SSR page (see backfill in scripts/backfill-video-slugs.mjs).
+ */
+export async function getAllVideoPageRoutes(): Promise<
+  Array<{ topic_id: string; published_date: string; slug_keywords: string; lang: string }>
+> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
+  try {
+    const supabase = await clientP;
+    const sinceISO = new Date(Date.now() - SITEMAP_RECENT_DAYS * 86_400_000).toISOString().slice(0, 10);
+    const { data, error } = await supabase
+      .from("video_transcriptions")
+      .select("topic_id, published_date, slug_keywords, lang")
+      .gte("published_date", sinceISO)
+      .not("topic_id", "is", null)
+      .not("slug_keywords", "is", null)
+      .order("published_date", { ascending: false });
+    if (error || !data) return [];
+    return data as Array<{ topic_id: string; published_date: string; slug_keywords: string; lang: string }>;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Look up the per-video SSR page row by its (topic, date, slug) tuple.
+ *
+ * Joins `video_transcriptions` with `youtube_videos` so the route gets
+ * everything it needs in a single roundtrip: the AI summary + raw
+ * transcript on one side, the YouTube metadata (thumbnail, duration,
+ * channel title, link, view count) on the other.
+ *
+ * Lang is intentionally NOT a query filter: the slug is per-lang, so
+ * a `(topic_id, published_date, slug_keywords)` triple matches at most
+ * one row, and the lang is read from the returned row. See default #3
+ * in the plan.
+ *
+ * Returns `null` when the route doesn't exist (slug typo, deleted row).
+ */
+export async function getVideoPageBySlug(
+  topicId: string,
+  date: string,
+  slug: string,
+): Promise<{
+  id: number;
+  video_id: string;
+  channel_id: string;
+  title: string;
+  lang: string;
+  summary_md: string;
+  transcript: string;
+  word_count: number | null;
+  topic_id: string;
+  published_date: string;
+  slug_keywords: string;
+  created_at: string;
+  video: {
+    title: string;
+    description: string | null;
+    channel_title: string;
+    published: string;
+    thumbnail: string | null;
+    view_count: string | null;
+    duration_sec: number | null;
+    link: string;
+  } | null;
+} | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("video_transcriptions")
+      .select(
+        "id, video_id, channel_id, title, lang, summary_md, transcript, word_count, topic_id, published_date, slug_keywords, created_at",
+      )
+      .eq("topic_id", topicId)
+      .eq("published_date", date)
+      .eq("slug_keywords", slug)
+      .limit(1)
+      .maybeSingle();
+    if (error || !data) return null;
+
+    const row = data as {
+      id: number; video_id: string; channel_id: string; title: string;
+      lang: string; summary_md: string; transcript: string;
+      word_count: number | null; topic_id: string; published_date: string;
+      slug_keywords: string; created_at: string;
+    };
+
+    // Pull the YouTube cache row in a separate query — keeps the typing
+    // straightforward and the join is anyway 1-1 by `video_id`.
+    const { data: vidRow } = await supabase
+      .from("youtube_videos")
+      .select("title, description, channel_title, published, thumbnail, view_count, duration_sec, link")
+      .eq("video_id", row.video_id)
+      .limit(1)
+      .maybeSingle();
+
+    return {
+      ...row,
+      video: (vidRow as {
+        title: string; description: string | null; channel_title: string;
+        published: string; thumbnail: string | null; view_count: string | null;
+        duration_sec: number | null; link: string;
+      } | null) ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Latest N video pages for a given topic + lang. Used by the SSR
+ * `/{topic}/v/{date}/{slug}` page for the "Sur le même sujet" sidebar.
+ *
+ * Filters by lang here (unlike the slug lookup) because we want all
+ * featured items in the visitor's current language.
+ *
+ * Excludes the current video by `excludeVideoId` so we don't recommend
+ * the page that's already being viewed.
+ */
+export async function getRecentVideoPagesForTopic(
+  topicId: string,
+  lang: string,
+  limit: number,
+  excludeVideoId?: string,
+): Promise<Array<{ video_id: string; title: string; published_date: string; slug_keywords: string }>> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
+  try {
+    const supabase = await clientP;
+    let q = supabase
+      .from("video_transcriptions")
+      .select("video_id, title, published_date, slug_keywords")
+      .eq("topic_id", topicId)
+      .eq("lang", lang)
+      .not("slug_keywords", "is", null)
+      .not("published_date", "is", null)
+      .order("published_date", { ascending: false })
+      .limit(limit);
+    if (excludeVideoId) q = q.neq("video_id", excludeVideoId);
+    const { data, error } = await q;
+    if (error || !data) return [];
+    return data as Array<{ video_id: string; title: string; published_date: string; slug_keywords: string }>;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Fetch the alternate-language version of a video page (same `video_id`,
+ * other `lang`). Returns its slug + published_date so the route can
+ * build the hreflang URL `/{topic}/v/{date}/{slug-other-lang}`.
+ *
+ * Returns null when the translation doesn't exist (the video was only
+ * transcribed in one language so far).
+ */
+export async function getVideoPageAltLang(
+  videoId: string,
+  currentLang: string,
+): Promise<{ topic_id: string; published_date: string; slug_keywords: string; lang: string } | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+  const otherLang = currentLang === "fr" ? "en" : "fr";
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("video_transcriptions")
+      .select("topic_id, published_date, slug_keywords, lang")
+      .eq("video_id", videoId)
+      .eq("lang", otherLang)
+      .not("slug_keywords", "is", null)
+      .not("published_date", "is", null)
+      .limit(1)
+      .maybeSingle();
+    if (error || !data) return null;
+    return data as { topic_id: string; published_date: string; slug_keywords: string; lang: string };
+  } catch {
+    return null;
+  }
+}
+
+export async function getVideoTranscriptionText(
+  videoId: string,
+  lang: string,
+): Promise<string | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("video_transcriptions")
+      .select("summary_md")
+      .eq("video_id", videoId)
+      .eq("lang", lang)
+      .single();
+    if (error || !data) return null;
+    return (data as { summary_md: string }).summary_md;
+  } catch {
+    return null;
+  }
+}
+
+export async function getVideoIdsWithTranscription(
+  videoIds: string[],
+  lang: string,
+): Promise<Set<string>> {
+  if (videoIds.length === 0) return new Set();
+  const clientP = getServerClient();
+  if (!clientP) return new Set();
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("video_transcriptions")
+      .select("video_id")
+      .in("video_id", videoIds)
+      .eq("lang", lang);
+    if (error || !data) return new Set();
+    return new Set((data as { video_id: string }[]).map((r) => r.video_id));
+  } catch {
+    return new Set();
+  }
+}

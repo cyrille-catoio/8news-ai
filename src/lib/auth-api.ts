@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import type { User } from "@supabase/supabase-js";
 import { isOwnerUser } from "@/lib/user-type";
 
-export async function getSessionUser(): Promise<User | null> {
+async function getSessionUser(): Promise<User | null> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anon) return null;
@@ -33,11 +33,11 @@ export async function getSessionUser(): Promise<User | null> {
   return user;
 }
 
-export function unauthorizedResponse() {
+function unauthorizedResponse() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 }
 
-export function forbiddenResponse() {
+function forbiddenResponse() {
   return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 }
 

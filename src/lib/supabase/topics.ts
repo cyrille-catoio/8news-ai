@@ -1,0 +1,436 @@
+import { getServerClient } from "./client";
+
+/**
+ * Topics + feeds + categories CRUD. Used by:
+ *   - The /app/topics admin page (TopicsPage component) for full RW.
+ *   - The cron functions (`cron-fetch-feeds`, `cron-scoring`,
+ *     `cron-daily-summary-background`, `cron-video-roundup-background`)
+ *     for read-only enumeration of `is_active` topics.
+ *   - The SSR pages (`/{topic}`, `/{topic}/r/...`, `/{topic}/v/...`)
+ *     for label resolution and existence checks.
+ *
+ * Active vs displayed: `is_active=false` means "still in the DB but
+ * temporarily paused" (no fetch, no scoring, no UI). `is_displayed=false`
+ * means "active but hidden from the main UI" (e.g. a niche topic kept
+ * around for a specific user but not shown to the general public).
+ */
+
+export interface TopicRow {
+  id: string;
+  label_en: string;
+  label_fr: string;
+  scoring_domain: string;
+  scoring_tier1: string;
+  scoring_tier2: string;
+  scoring_tier3: string;
+  scoring_tier4: string;
+  scoring_tier5: string;
+  prompt_en: string;
+  prompt_fr: string;
+  is_active: boolean;
+  is_displayed: boolean;
+  sort_order: number;
+  category_id: number | null;
+  last_fetched_at: string | null;
+  last_scored_at: string | null;
+  created_at: string;
+}
+
+export interface CategoryRow {
+  id: number;
+  slug: string;
+  label_en: string;
+  label_fr: string;
+  sort_order: number;
+}
+
+export interface FeedRow {
+  id: number;
+  topic_id: string;
+  name: string;
+  url: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export async function getCategories(): Promise<CategoryRow[]> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("categories")
+      .select("id, slug, label_en, label_fr, sort_order")
+      .order("sort_order", { ascending: true });
+    if (error || !data) return [];
+    return data as CategoryRow[];
+  } catch {
+    return [];
+  }
+}
+
+export async function createCategory(
+  data: { slug: string; label_en: string; label_fr: string; sort_order: number },
+): Promise<CategoryRow | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+  try {
+    const supabase = await clientP;
+    const { data: row, error } = await supabase
+      .from("categories")
+      .insert(data)
+      .select()
+      .single();
+    if (error || !row) return null;
+    return row as CategoryRow;
+  } catch {
+    return null;
+  }
+}
+
+export async function updateCategory(
+  id: number,
+  data: Partial<Omit<CategoryRow, "id">>,
+): Promise<CategoryRow | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+  try {
+    const supabase = await clientP;
+    const { data: row, error } = await supabase
+      .from("categories")
+      .update(data)
+      .eq("id", id)
+      .select()
+      .single();
+    if (error || !row) return null;
+    return row as CategoryRow;
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteCategory(id: number): Promise<boolean> {
+  const clientP = getServerClient();
+  if (!clientP) return false;
+  try {
+    const supabase = await clientP;
+    const { error } = await supabase.from("categories").delete().eq("id", id);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+export async function getActiveTopics(includeInactive = false): Promise<
+  (TopicRow & { feed_count: number; category_label_en?: string; category_label_fr?: string })[]
+> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
+
+  try {
+    const supabase = await clientP;
+
+    let query = supabase
+      .from("topics")
+      .select("*, categories(label_en, label_fr)")
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true });
+
+    if (!includeInactive) {
+      query = query.eq("is_active", true).eq("is_displayed", true);
+    }
+
+    const { data: topics, error } = await query;
+
+    if (error || !topics) return [];
+
+    const { data: counts } = await supabase
+      .from("feeds")
+      .select("topic_id")
+      .eq("is_active", true);
+
+    const countMap = new Map<string, number>();
+    if (counts) {
+      for (const row of counts) {
+        countMap.set(row.topic_id, (countMap.get(row.topic_id) ?? 0) + 1);
+      }
+    }
+
+    type TopicWithCat = TopicRow & { categories: { label_en: string; label_fr: string } | null };
+    return (topics as TopicWithCat[]).map(({ categories: cat, ...row }) => ({
+      ...row,
+      feed_count: countMap.get(row.id) ?? 0,
+      category_label_en: cat?.label_en,
+      category_label_fr: cat?.label_fr,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function getTopicWithFeeds(
+  id: string,
+): Promise<(TopicRow & { feeds: FeedRow[] }) | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+
+  try {
+    const supabase = await clientP;
+
+    const { data: topic, error } = await supabase
+      .from("topics")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (error || !topic) return null;
+
+    const { data: feeds } = await supabase
+      .from("feeds")
+      .select("*")
+      .eq("topic_id", id)
+      .order("created_at", { ascending: true });
+
+    return { ...(topic as TopicRow), feeds: (feeds ?? []) as FeedRow[] };
+  } catch {
+    return null;
+  }
+}
+
+export async function createTopic(
+  data: Omit<TopicRow, "is_active" | "is_displayed" | "last_fetched_at" | "last_scored_at" | "created_at">,
+): Promise<TopicRow | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+
+  try {
+    const supabase = await clientP;
+    const { data: row, error } = await supabase
+      .from("topics")
+      .insert(data)
+      .select()
+      .single();
+
+    if (error || !row) return null;
+    return row as TopicRow;
+  } catch {
+    return null;
+  }
+}
+
+export async function updateTopic(
+  id: string,
+  data: Partial<Omit<TopicRow, "id" | "created_at">>,
+): Promise<TopicRow | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+
+  try {
+    const supabase = await clientP;
+    const { data: row, error } = await supabase
+      .from("topics")
+      .update(data)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error || !row) return null;
+    return row as TopicRow;
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteTopic(id: string): Promise<boolean> {
+  const clientP = getServerClient();
+  if (!clientP) return false;
+
+  try {
+    const supabase = await clientP;
+    const { error } = await supabase
+      .from("topics")
+      .update({ is_active: false })
+      .eq("id", id);
+
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+export async function createFeed(
+  topicId: string,
+  name: string,
+  url: string,
+): Promise<FeedRow | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+
+  try {
+    const supabase = await clientP;
+    const { data: row, error } = await supabase
+      .from("feeds")
+      .insert({ topic_id: topicId, name, url })
+      .select()
+      .single();
+
+    if (error || !row) return null;
+    return row as FeedRow;
+  } catch {
+    return null;
+  }
+}
+
+export async function updateFeed(
+  feedId: number,
+  data: Partial<Pick<FeedRow, "name" | "url" | "is_active">>,
+): Promise<FeedRow | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+
+  try {
+    const supabase = await clientP;
+    const { data: row, error } = await supabase
+      .from("feeds")
+      .update(data)
+      .eq("id", feedId)
+      .select()
+      .single();
+
+    if (error || !row) return null;
+    return row as FeedRow;
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteFeed(feedId: number): Promise<boolean> {
+  const clientP = getServerClient();
+  if (!clientP) return false;
+
+  try {
+    const supabase = await clientP;
+    const { error } = await supabase.from("feeds").delete().eq("id", feedId);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+export async function getFeedById(feedId: number): Promise<FeedRow | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("feeds")
+      .select("*")
+      .eq("id", feedId)
+      .single();
+
+    if (error || !data) return null;
+    return data as FeedRow;
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteArticlesByTopicAndSource(
+  topicId: string,
+  source: string,
+): Promise<{ ok: boolean; deleted: number }> {
+  const clientP = getServerClient();
+  if (!clientP) return { ok: false, deleted: 0 };
+
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("articles")
+      .delete()
+      .eq("topic", topicId)
+      .eq("source", source)
+      .select("id");
+
+    if (error) return { ok: false, deleted: 0 };
+    return { ok: true, deleted: data?.length ?? 0 };
+  } catch {
+    return { ok: false, deleted: 0 };
+  }
+}
+
+export async function getAllFeedsRows(): Promise<FeedRow[]> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
+
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("feeds")
+      .select("*")
+      .order("topic_id", { ascending: true })
+      .order("name", { ascending: true });
+
+    if (error || !data) return [];
+    return data as FeedRow[];
+  } catch {
+    return [];
+  }
+}
+
+export async function getTopicPrompt(
+  id: string,
+): Promise<{ prompt_en: string; prompt_fr: string } | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("topics")
+      .select("prompt_en, prompt_fr")
+      .eq("id", id)
+      .eq("is_active", true)
+      .single();
+
+    if (error || !data) return null;
+    return data as { prompt_en: string; prompt_fr: string };
+  } catch {
+    return null;
+  }
+}
+
+export async function getTopicById(
+  id: string,
+): Promise<{ id: string; label_en: string; label_fr: string; is_active: boolean } | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("topics")
+      .select("id, label_en, label_fr, is_active")
+      .eq("id", id)
+      .single();
+    if (error || !data) return null;
+    return data as { id: string; label_en: string; label_fr: string; is_active: boolean };
+  } catch {
+    return null;
+  }
+}
+
+export async function getActiveTopicIds(): Promise<string[]> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("topics")
+      .select("id")
+      .eq("is_active", true);
+    if (error || !data) return [];
+    return data.map((r) => r.id);
+  } catch {
+    return [];
+  }
+}

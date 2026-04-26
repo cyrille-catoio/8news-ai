@@ -115,7 +115,6 @@ async function fetchFeedsAndStore(
   const duplicatesSkipped = articles.length - inserted;
 
   const summary = `[${topicId}] Done. Feeds OK: ${feedsOk}, failed: ${feedsFailed}. Articles: ${articles.length} parsed, ${inserted} inserted, ${duplicatesSkipped} duplicates skipped.`;
-  console.log(summary);
   return {
     summary,
     inserted,

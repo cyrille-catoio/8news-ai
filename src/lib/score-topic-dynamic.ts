@@ -7,26 +7,6 @@ const MAX_ARTICLES_PER_RUN = 50;
 const OPENAI_TIMEOUT_MS = 6_000;
 export const SCORE_WINDOW_HOURS = 168;
 
-/**
- * Module-level latch: flips to `false` the first time a Supabase UPDATE
- * surfaces a "column does not exist" error mentioning `title_ai_*` (raised
- * either as PGRST204 by PostgREST's schema cache or as 42703 by Postgres
- * itself). Once tripped, subsequent batches skip the translated-title
- * fields entirely so the scoring pipeline keeps writing scores + snippets
- * in production environments where migration 019-articles-title-ai.sql
- * hasn't been applied yet. Resets naturally on next process restart, so
- * applying the migration + redeploying re-enables the path automatically.
- */
-let titleAiColumnsAvailable = true;
-
-function isTitleAiMissingColumnError(err: { code?: string; message?: string } | null | undefined): boolean {
-  if (!err) return false;
-  const code = err.code ?? "";
-  const msg = err.message ?? "";
-  if (code !== "PGRST204" && code !== "42703") return false;
-  return msg.includes("title_ai_en") || msg.includes("title_ai_fr") || msg.includes("title_ai");
-}
-
 interface DbRow {
   id: number;
   title: string;
@@ -263,7 +243,13 @@ async function runScoreTopic(
       const { results, debug } = await scoreArticleBatch(batch, prompt, openai, collectAiDebug);
       if (debug) aiDebug.push(debug);
 
-      const buildFields = (r: ScoreResult, includeTitleAi: boolean): Record<string, unknown> => {
+      // Build the UPDATE payload for one scored article. snippet_ai_* +
+      // title_ai_* are bilingual fields produced by the prompt for any
+      // article scoring ≥ 5 (sub-5 articles omit them). title_ai_* is
+      // capped at 300 chars (sensible headline budget while leaving
+      // room for long brand chains like "Anthropic / Claude 5 Opus /
+      // Operator preview release"); the snippets at 500.
+      const buildFields = (r: ScoreResult): Record<string, unknown> => {
         const fields: Record<string, unknown> = {
           relevance_score: Math.min(10, Math.max(1, Math.round(r.score))),
           score_reason: (r.reason || "").slice(0, 200),
@@ -271,15 +257,8 @@ async function runScoreTopic(
         };
         if (r.summary_en) fields.snippet_ai_en = r.summary_en.slice(0, 500);
         if (r.summary_fr) fields.snippet_ai_fr = r.summary_fr.slice(0, 500);
-        // Translated headlines persisted alongside the bilingual snippets so
-        // the home « Top story » hero (and any future SEO surface) can render
-        // the title in the user's selected language. Capped at 300 chars to
-        // match a sensible headline budget while leaving room for long brand
-        // chains (e.g. "Anthropic / Claude 5 Opus / Operator preview release").
-        if (includeTitleAi) {
-          if (r.title_en) fields.title_ai_en = r.title_en.slice(0, 300);
-          if (r.title_fr) fields.title_ai_fr = r.title_fr.slice(0, 300);
-        }
+        if (r.title_en) fields.title_ai_en = r.title_en.slice(0, 300);
+        if (r.title_fr) fields.title_ai_fr = r.title_fr.slice(0, 300);
         return fields;
       };
 
@@ -287,38 +266,12 @@ async function runScoreTopic(
         results.map((r) =>
           supabase
             .from("articles")
-            .update(buildFields(r, titleAiColumnsAvailable))
+            .update(buildFields(r))
             .eq("id", batch[r.index].id),
         ),
       );
 
-      // If migration 019-articles-title-ai.sql hasn't been applied in this
-      // environment, every UPDATE just failed with PGRST204/42703 because of
-      // the new title_ai_* fields. Flip the latch so subsequent batches skip
-      // those fields entirely, log a single actionable warning (not per-row),
-      // and retry just the failed updates without the translated titles so
-      // the score + snippet still land. Happy-path cost: one extra `.some()`
-      // scan over the responses array per batch.
-      const titleAiMissing = titleAiColumnsAvailable && responses.some((r) => isTitleAiMissingColumnError(r.error));
-      if (titleAiMissing) {
-        titleAiColumnsAvailable = false;
-        console.warn(
-          `[${topicId}] articles.title_ai_* missing — run migration 019-articles-title-ai.sql in Supabase to enable translated headlines on the home « Top story » hero. Falling back to score+snippet only for this batch (and all subsequent batches in this process).`,
-        );
-        const failed = results.filter((_, i) => isTitleAiMissingColumnError(responses[i].error));
-        const retryResponses = await Promise.all(
-          failed.map((r) =>
-            supabase
-              .from("articles")
-              .update(buildFields(r, false))
-              .eq("id", batch[r.index].id),
-          ),
-        );
-        const retrySucceeded = retryResponses.filter((r) => !r.error).length;
-        scored += responses.filter((r) => !r.error).length + retrySucceeded;
-      } else {
-        scored += responses.filter((r) => !r.error).length;
-      }
+      scored += responses.filter((r) => !r.error).length;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[${topicId}] Scoring batch error:`, msg);

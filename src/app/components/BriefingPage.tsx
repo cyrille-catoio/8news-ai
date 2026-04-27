@@ -532,6 +532,19 @@ function HeroStory({
             </p>
           )}
         </a>
+        {/* Action row. Source pill on the left, then a primary
+            « Lire l'article / Read article » CTA grouped with the
+            favorite star on the right. The CTA exists even though the
+            whole title block above is already a clickable `<a>` —
+            many users don't realize a borderless serif headline is
+            tappable, and a borderless gold rectangle is a much louder
+            « click here » affordance for the page's anchor card.
+            `target="_blank"` matches the title link so both routes
+            land in a new tab and never blow away the briefing. The
+            CTA + favorite are wrapped in their own flex group with
+            `flexShrink: 0` so the source pill (left, `flex: 1`)
+            absorbs all the available width and ellipses gracefully on
+            narrow viewports without ever pushing the CTA off-screen. */}
         <div
           style={{
             display: "flex",
@@ -539,6 +552,7 @@ function HeroStory({
             alignItems: "center",
             gap: 12,
             marginTop: article.snippet ? 0 : 14,
+            flexWrap: "wrap",
           }}
         >
           <a
@@ -561,18 +575,44 @@ function HeroStory({
             {article.source.toUpperCase()}
             <span style={{ color: color.textMuted, marginLeft: 8 }}>· {relativeTime(article.pubDate, lang)}</span>
           </a>
-          <FavoriteButton
-            url={article.link}
-            title={article.title}
-            source={article.source}
-            pubDate={article.pubDate}
-            sourceType="article"
-            isFavorite={isFavorite}
-            lang={lang}
-            onToggle={onToggleFavorite}
-            onRequestAuth={onRequestAuth}
-            isAuthenticated={isAuthenticated}
-          />
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            <a
+              href={article.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={lang === "fr" ? "Lire l'article (nouvel onglet)" : "Read the article (new tab)"}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "8px 14px",
+                border: `1px solid ${color.gold}`,
+                borderRadius: 6,
+                background: "transparent",
+                color: color.gold,
+                fontSize: 13,
+                fontWeight: 600,
+                fontFamily: "inherit",
+                textDecoration: "none",
+                whiteSpace: "nowrap",
+                cursor: "pointer",
+              }}
+            >
+              {lang === "fr" ? "Lire l'article →" : "Read article →"}
+            </a>
+            <FavoriteButton
+              url={article.link}
+              title={article.title}
+              source={article.source}
+              pubDate={article.pubDate}
+              sourceType="article"
+              isFavorite={isFavorite}
+              lang={lang}
+              onToggle={onToggleFavorite}
+              onRequestAuth={onRequestAuth}
+              isAuthenticated={isAuthenticated}
+            />
+          </div>
         </div>
       </div>
     </section>

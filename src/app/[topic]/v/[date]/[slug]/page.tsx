@@ -277,7 +277,16 @@ export default async function VideoSeoPage({ params }: PageProps) {
           </div>
         </header>
 
-        {/* YouTube embed (16:9) */}
+        {/* YouTube embed (16:9). In `next dev` we swap to youtube-nocookie.com:
+            youtube.com/embed/ sets third-party cookies (__Secure-BUCKET, __Secure-YNID,
+            YSC, …) that are commonly blocked on 127.0.0.1 / localhost origins by
+            modern browsers (Brave by default, Safari ITP, Chrome with strict
+            third-party cookie blocking), which makes the embed render as a black
+            rectangle in local dev. youtube-nocookie.com sets no cookies and works
+            identically for playback. The JSON-LD `embedUrl` above keeps the
+            canonical youtube.com URL — Google reads that for the VideoObject
+            rich result regardless of which iframe origin we actually serve. Same
+            swap pattern as `VideoCard.tsx` for the SPA's video cards. */}
         <div style={{
           aspectRatio: "16 / 9",
           background: "#0a0a0a",
@@ -287,10 +296,10 @@ export default async function VideoSeoPage({ params }: PageProps) {
           marginBottom: 24,
         }}>
           <iframe
-            src={`https://www.youtube.com/embed/${page.video_id}?rel=0&modestbranding=1`}
+            src={`https://www.${process.env.NODE_ENV === "development" ? "youtube-nocookie" : "youtube"}.com/embed/${page.video_id}?rel=0&modestbranding=1&playsinline=1`}
             title={page.video?.title ?? page.title}
             style={{ width: "100%", height: "100%", border: "none", display: "block" }}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
             referrerPolicy="strict-origin-when-cross-origin"
             allowFullScreen
           />

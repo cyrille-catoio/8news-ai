@@ -49,7 +49,7 @@ import { BriefingPage } from "@/app/components/BriefingPage";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.5.15";
+const APP_VERSION = "2.5.16";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 

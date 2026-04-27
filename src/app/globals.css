@@ -40,6 +40,19 @@ body {
   }
 }
 
+/* CryptoTicker: a brief flash on the price cell whenever the value
+   updates. The component sets `key={price}` on the wrapper so React
+   replays the animation each tick — same trick `topSummaryFadeIn`
+   uses for the AI summary card. */
+@keyframes cryptoFlash {
+  0% {
+    background: rgba(201, 162, 39, 0.18);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
 /* Used by the Top-du-jour AI summary card to crossfade between
    idle / loading / ready without a visual jump. */
 @keyframes topSummaryFadeIn {
@@ -364,4 +377,40 @@ body {
   .app-title-sm { font-size: 17px; }
   .app-title    { font-size: 18px; }
   .app-title-lg { font-size: 19px; }
+}
+
+/* CryptoTicker — header ticker for BTC/ETH/SOL/XRP.
+   - `.crypto-ticker-change` carries the 24h % cell. Hidden on ≤640px
+     so the ticker stays compact next to the icon row without pushing
+     it off-screen.
+   - `.crypto-ticker-coin-extra` covers SOL + XRP. Hidden on ≤480px
+     so very narrow phones only show BTC + ETH (the two coins users
+     glance at by default). */
+.crypto-ticker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .crypto-ticker {
+    gap: 8px;
+    font-size: 11px;
+  }
+  .crypto-ticker-change {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .crypto-ticker-coin-extra {
+    display: none;
+  }
+  .crypto-ticker {
+    gap: 7px;
+  }
 }

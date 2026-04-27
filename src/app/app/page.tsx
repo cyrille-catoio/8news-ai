@@ -49,7 +49,7 @@ import { BriefingPage } from "@/app/components/BriefingPage";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.5.16";
+const APP_VERSION = "2.5.17";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 
@@ -502,6 +502,11 @@ export default function Home() {
     youtubeChannels: "/app/youtube-channels",
     topArticles: "/app/top-articles",
     summaries: "/app/summaries-browse",
+    // v2.5.17+ — placeholder route for the future SPA-internal landing
+    // page; the public marketing landing lives at `/` and is rendered
+    // by a separate Next route. Wired here so the AppNavPage discriminator
+    // (used by AppHeader to hide the CryptoTicker on landing) is exhaustive.
+    landing: "/app/landing",
   };
 
   const pathToPage = (path: string): AppNavPage => {

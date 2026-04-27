@@ -5,6 +5,7 @@ import { color } from "@/lib/theme";
 import { t, type Lang } from "@/lib/i18n";
 import { useAuth } from "@/app/providers";
 import { AuthModal } from "@/app/components/AuthModal";
+import { CryptoTicker } from "@/app/components/CryptoTicker";
 import { isOwnerUser } from "@/lib/user-type";
 
 export type AppNavPage =
@@ -22,7 +23,15 @@ export type AppNavPage =
   | "videos"
   | "youtubeChannels"
   | "topArticles"
-  | "summaries";
+  | "summaries"
+  /** v2.5.17+ — anticipated route for a future SPA-internal landing page
+   *  (the public marketing landing already lives at `/` and is rendered
+   *  by a separate Next route, not by this component). The CryptoTicker
+   *  uses this discriminator to fully unmount itself on landing — both
+   *  to keep the marketing surface minimal and to stop the 60 s polling
+   *  cycle when no logged-in workflow is in progress. Keep this entry
+   *  even if the route doesn't exist yet so the contract is stable. */
+  | "landing";
 
 function NavIconButton({
   active,
@@ -242,8 +251,54 @@ export function AppHeader({
     fontFamily: "inherit",
   };
 
+  // The CryptoTicker is fully unmounted on the future `/landing` route
+  // (no DOM, no hook, no polling) — same exclusion the spec asks for.
+  // Everywhere else in the SPA we mount it AND let it poll; if we ever
+  // want to keep prices visible without live updates on a specific
+  // page, we can switch the prop to `false` for that one surface.
+  const showCryptoTicker = currentPage !== "landing";
+
   return (
-    <header style={{ paddingBottom: 12, marginBottom: 20, position: "relative" }}>
+    <header style={{ paddingBottom: 12, marginBottom: 20 }}>
+      {/* ── Crypto ticker bandeau (v2.5.17) ─────────────────────────
+          The ticker lives in a dedicated full-width strip *above* the
+          brand zone, NOT inline with the six nav icons + user menu.
+          Tried that placement first — at desktop widths the ticker
+          (4 coins × ~85 px) plus the icons cluster pushed left far
+          enough to overlap the « 8NEWS » logo. Lifting the ticker
+          into its own strip:
+            - gives the brand zone below its full horizontal real
+              estate back (no overlap),
+            - matches the conventional « news ticker » UX (Bloomberg,
+              CNBC, financial sites) which users parse at a glance,
+            - works on mobile too — at ≤ 480 px the ticker collapses
+              to just BTC + ETH and still looks intentional in the
+              strip rather than crammed into a now-cluttered icon row.
+          A thin border-bottom anchors the strip without competing
+          with the brand below. */}
+      {showCryptoTicker && (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            alignItems: "center",
+            paddingBottom: 8,
+            marginBottom: 14,
+            borderBottom: `1px solid ${color.border}`,
+            minHeight: 22,
+          }}
+        >
+          <CryptoTicker lang={lang} poll={showCryptoTicker} />
+        </div>
+      )}
+
+      {/* ── Brand zone ──────────────────────────────────────────────
+          Logo + subtitle on the left, icon cluster floating top-right
+          *within this zone* (so it aligns with the top of the logo,
+          not with the top of the ticker strip above). The wrapper's
+          `position: relative` is what scopes the absolute child to
+          this zone. */}
+      <div style={{ position: "relative" }}>
       <div
         style={{
           position: "absolute",
@@ -348,6 +403,7 @@ export function AppHeader({
         style={{ height: "clamp(32px, 5vw, 48px)", width: "auto", display: "block", cursor: "pointer", userSelect: "none" }}
       />
       <p style={{ color: color.textMuted, fontSize: 15, marginTop: 8, marginLeft: 0 }}>{t("subtitle", lang)}</p>
+      </div>
     </header>
   );
 }

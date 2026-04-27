@@ -669,10 +669,16 @@ const strings = {
     en: "Home",
     fr: "Accueil",
   },
-  /** General menu first item: goes to homepage (article flow). */
+  /** General menu: goes to the topic-grouped article flow (`/app/articles`).
+   *  Renamed from "Topics" to "Articles" in v2.5.17 to remove the
+   *  topics/topics cognitive collision (the word "topics" is heavily reused
+   *  in the app — "your topics", "8 topics out of 36", "customize my topics"
+   *  — and using it as a nav button confused users into expecting a topic
+   *  management screen instead of a content feed). The pill now signals
+   *  format (articles, by opposition to videos) instead of the grouping. */
   generalMenuArticlesBtn: {
-    en: "Topics",
-    fr: "Topics",
+    en: "Articles",
+    fr: "Articles",
   },
   navTopicsAria: {
     en: "Topics",
@@ -826,9 +832,16 @@ const strings = {
     en: "Customize my topics",
     fr: "Personnaliser mes topics",
   },
+  /** General menu: goes to the cross-topic ranked feed (`/app?view=top`).
+   *  Renamed in v2.5.17 from "Top 50 du jour / Today's Top 50" to a shorter,
+   *  number-free wording. The hard-coded "50" was both arbitrary (the actual
+   *  count varies with topic mix) and aged badly when the limit changed; the
+   *  shorter pill also fits better on mobile (the previous label clipped at
+   *  ~360px). The intent is unchanged: "the day's top stories across all
+   *  your topics". */
   analyzeTopArticlesBtn: {
-    en: "Today's Top 50",
-    fr: "Top 50 du jour",
+    en: "Top stories",
+    fr: "Top du jour",
   },
   topSummaryCtaTitle: {
     en: "AI summary of today's top",
@@ -902,9 +915,30 @@ const strings = {
     en: "Favorites",
     fr: "Favoris",
   },
+  /** General menu pill — kept short. The full "My Favorites / Mes Favoris"
+   *  wording is preserved for the page heading via the separate
+   *  `favoritesTitle` key (also used in `<title>`); this key only feeds the
+   *  nav pill so it stays compact on mobile alongside the other 6 pills. */
   myFavoritesBtn: {
-    en: "My Favorites",
-    fr: "Mes Favoris",
+    en: "Favorites",
+    fr: "Favoris",
+  },
+  /** AppHeader live crypto ticker (BTC/ETH/SOL/XRP).
+   *  `cryptoTickerStale` is shown as the tooltip / aria-label on a small
+   *  grey dot when /api/crypto returned `stale: true` — i.e. CoinGecko
+   *  was unreachable this tick and we're surfacing the last cached
+   *  prices instead. `cryptoTickerError` is the tooltip for the «—»
+   *  fallback when even the DB cache is empty (very rare; first-ever
+   *  cold start with upstream down). Both copy strings are
+   *  intentionally short — the ticker is ambient, the indicator is
+   *  meant to register at a glance, not interrupt reading flow. */
+  cryptoTickerStale: {
+    en: "Stale data",
+    fr: "Données obsolètes",
+  },
+  cryptoTickerError: {
+    en: "Prices unavailable",
+    fr: "Cours indisponibles",
   },
   favoritesTitle: {
     en: "My Favorites",
@@ -1014,21 +1048,45 @@ const strings = {
     en: "View page",
     fr: "Voir la page",
   },
+  /** General menu pill for `/app/daily-summaries` — the historical archive of
+   *  per-topic daily roundups. Renamed in v2.5.17 from "Daily Summaries /
+   *  Résumés quotidiens" to "Archives" because the page IS the archive
+   *  (today's roundup lives elsewhere — on the Briefing/Today screen) and
+   *  "Daily Summaries" overlapped semantically with the cross-topic Top
+   *  story summary. The page heading still uses richer copy via its own
+   *  i18n key; this is just the nav pill. */
   dailySummaryBtn: {
-    en: "Daily Summaries",
-    fr: "Résumés quotidiens",
+    en: "Archives",
+    fr: "Archives",
   },
+  /** General menu first item — homepage / today's briefing.
+   *  Renamed in v2.5.17 from "Briefing" to "Today / Aujourd'hui": the new
+   *  wording answers the user's question ("what's new today?") instead of
+   *  describing the format (a briefing). It also pairs naturally with the
+   *  date-stamped content shown on that screen and avoids stacking three
+   *  format-named buttons in a row (Briefing / Vidéos / Briefings vidéo). */
   briefingBtn: {
-    en: "Briefing",
-    fr: "Briefing",
+    en: "Today",
+    fr: "Aujourd'hui",
   },
+  /** General menu pill for `/app/video-briefings` — AI-narrated daily video
+   *  recaps grouped by topic. Renamed in v2.5.17 from "Video briefings /
+   *  Briefings vidéo" to "Video recaps / Recaps vidéo" to (a) drop the
+   *  duplicate "briefing" word now that the homepage pill is "Today" and
+   *  (b) better describe what users actually get — an after-the-fact recap,
+   *  not a forward-looking briefing. */
   videoBriefingsBtn: {
-    en: "Video briefings",
-    fr: "Briefings vidéo",
+    en: "Video recaps",
+    fr: "Recaps vidéo",
   },
+  /** General menu pill for `/app/videos` — today's videos feed.
+   *  Renamed in v2.5.17 from "Today's Videos / Vidéos du jour" to just
+   *  "Videos / Vidéos": "today" is already redundant once the homepage pill
+   *  is "Today", and the shorter label balances visually with the parallel
+   *  "Articles" pill (both pure-format nav items, side by side). */
   videosBtn: {
-    en: "Today's Videos",
-    fr: "Vidéos du jour",
+    en: "Videos",
+    fr: "Vidéos",
   },
   videoKindLong: {
     en: "Long",

@@ -110,7 +110,8 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 │   ├── hooks/
 │   │   ├── useTopFeed.ts               # Top 50 hook (`/api/news/top?limit=50&days=1&lang=`), poll on Briefing-with-no-topic, lastUpdatedAt
 │   │   ├── useUserTopics.ts            # Per-user topic personalization (8/36 topics)
-│   │   └── useFavorites.ts             # Article favorites (Set of URLs, optimistic toggle, auth-gated)
+│   │   ├── useFavorites.ts             # Article favorites (Set of URLs, optimistic toggle, auth-gated)
+│   │   └── useCryptoPrices.ts          # **v2.5.17+**: Live BTC/ETH/SOL/XRP prices for the AppHeader CryptoTicker (60 s poll, visibility-aware, single CoinGecko call/min shared across all users)
 │   └── lib/
 │       ├── types.ts                    # TypeScript interfaces (TopicItem, TopicDetail, SummaryResponse, ArticleSummary, …)
 │       ├── theme.ts                    # Design tokens (colors, fonts, shared styles)
@@ -165,7 +166,9 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 │   ├── 015-daily-summaries-slug-guard.sql  # CHECK on daily_summaries.slug_keywords (kebab-case, NOT VALID)
 │   ├── 016-video-pages.sql                 # **v2.x+**: video_transcriptions.slug_keywords + published_date + idx_vt_route + idx_vt_topic_recent
 │   ├── 017-video-roundups.sql              # **v2.4+**: video_roundups table (per-topic-per-day briefings)
-│   └── 018-roundup-bullets.sql             # **v2.4+**: summary_bullets.video_roundup_id + idx_bullets_video_roundup
+│   ├── 018-roundup-bullets.sql             # **v2.4+**: summary_bullets.video_roundup_id + idx_bullets_video_roundup
+│   ├── 019-articles-title-ai.sql           # **v2.5.x**: articles.title_ai_en / title_ai_fr (AI-translated titles for the Top story hero)
+│   └── 020-crypto-cache.sql                # **v2.5.17+**: crypto_prices cache (BTC/ETH/SOL/XRP) for the AppHeader live ticker
 ├── .gitignore
 ├── .env                                    # API keys (not committed)
 ├── netlify.toml                            # Netlify build + redirect config
@@ -176,7 +179,7 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 
 ### 3.1 `src/app/components/` — feature UI
 
-**SPA + shared**: `AppHeader`, `GeneralMenu` (+ `SeoGeneralMenu`), `SeoNavBar` (**v2.5.3+** intercepts language toggle to persist `preferred_lang`), `AuthModal`, `BriefingPage` (the SPA's default landing — composed of Top 50 + recent transcribed videos pagination), `TopFeedSection`, `SummaryBox`, `AllArticlesTab`, `StatsPage`, `CronMonitorPage`, `TopicsPage/`, `FeedsAdminPage`, `CategoriesPage`, `FavoritesPage`, `FavoriteButton`, `CopyLinkButton`, `ScoreMeter`, `ChangelogPage`, `SettingsPage` (`MyAccountSection`, `UsersSection`, `VoiceAccordion`), `AudioPlayer`, `TopicPersonalizationBar`, `TopicOnboardingModal`, `SummariesBrowsePage`.
+**SPA + shared**: `AppHeader` (**v2.5.17+** mounts the `CryptoTicker` on every page except `currentPage === "landing"`), `CryptoTicker` (**v2.5.17+** live BTC/ETH/SOL/XRP — see §19), `GeneralMenu` (+ `SeoGeneralMenu`), `SeoNavBar` (**v2.5.3+** intercepts language toggle to persist `preferred_lang`), `AuthModal`, `BriefingPage` (the SPA's default landing — composed of Top 50 + recent transcribed videos pagination), `TopFeedSection`, `SummaryBox`, `AllArticlesTab`, `StatsPage`, `CronMonitorPage`, `TopicsPage/`, `FeedsAdminPage`, `CategoriesPage`, `FavoritesPage`, `FavoriteButton`, `CopyLinkButton`, `ScoreMeter`, `ChangelogPage`, `SettingsPage` (`MyAccountSection`, `UsersSection`, `VoiceAccordion`), `AudioPlayer`, `TopicPersonalizationBar`, `TopicOnboardingModal`, `SummariesBrowsePage`.
 
 **Video surface**: `VideosPage` (today / day-by-day video list with Shorts toggle), `VideoCard` (iframe embed with **v2.x+** localhost-aware `youtube-nocookie` swap to fix black-screen), `VideoPageAudio`, `DownloadTranscriptButton`.
 
@@ -221,6 +224,7 @@ api/
 ├── stats/route.ts                # GET — dashboard statistics
 ├── cron-stats/route.ts           # GET — cron monitoring KPIs + timeline
 ├── tts/route.ts                  # POST — ElevenLabs Text-to-Speech
+├── crypto/route.ts               # **v2.5.17+**: GET — BTC/ETH/SOL/XRP prices for the AppHeader ticker (60 s Supabase + edge cache, ≤ 1 CoinGecko call/min shared across all users) — see §19
 └── changelog/route.ts            # GET — release notes (auto-syncs `changelog-entries.ts` to DB on first call)
 ```
 
@@ -1237,3 +1241,95 @@ Release history is maintained in **`src/lib/changelog-entries.ts`** and auto-syn
 - **Hybrid rendering** — The SPA (`/app`) is client-only; landing, briefings hub, summaries hub, per-topic hubs, daily summaries, per-video pages and per-roundup pages are server-rendered (SEO-first).
 - **Cookie-based UI prefs** — Most UI prefs (`maxArticles`, TTS speed/voice, etc.) are persisted in cookies; topic and period selection reset on reload. `lang` is the exception — also written to `preferred_lang` in `user_metadata` for authenticated users (v2.5.3+).
 - **AI feed discovery accuracy** — GPT may suggest invalid URLs; validation catches most but not all edge cases.
+- **Crypto ticker upstream** — `/api/crypto` depends on the public CoinGecko free tier (no API key, ≤ 30 calls/min). Our cache strategy keeps us at exactly 1 call/min so we sit 30× under the limit, but a CoinGecko-side outage surfaces as a `stale: true` flag in the response and a small grey dot next to the ticker — prices keep showing the last cached values from `crypto_prices` until upstream recovers. See §19.
+
+---
+
+## 19. Crypto Ticker (v2.5.17+)
+
+A persistent **BTC / ETH / SOL / XRP** live ticker rendered as a full-width strip at the top of the AppHeader (above the « 8NEWS » brand zone and the icon cluster), right-aligned within the strip. Visible on every SPA page except `currentPage === "landing"`. Updates every 60 seconds, single source of truth across all visitors (no per-user fetch).
+
+### 19.1 Data flow
+
+```
+CoinGecko /simple/price ──► /api/crypto (server) ──► Supabase crypto_prices
+                                  │                          │
+                                  └────► module memo ◄───────┘
+                                                │
+                                                ▼
+                                       Cache-Control: s-maxage=60
+                                                │
+                                                ▼
+                                          Netlify edge
+                                                │
+                                                ▼
+                                  useCryptoPrices (client)
+                                                │
+                                                ▼
+                                          CryptoTicker
+```
+
+### 19.2 Components
+
+| File | Role |
+|---|---|
+| `migrations/020-crypto-cache.sql` | `crypto_prices(symbol PK, price_usd, change_24h, updated_at)` + service-role RLS |
+| `src/app/api/crypto/route.ts` | Public GET endpoint. Reads DB, refreshes from CoinGecko when any row is older than 60 s, returns `{ prices: [{ symbol, price, change24h, updatedAt }], stale: boolean }` |
+| `src/hooks/useCryptoPrices.ts` | Client hook. `{ poll }` flag, 60 s `setInterval`, paused on `document.visibilityState === "hidden"`, immediate refresh on `visibilitychange → visible` |
+| `src/app/components/CryptoTicker.tsx` | Compact horizontal row in the AppHeader. Symbol in gold, price in text, 24h % green/red. Click → CoinGecko coin page. Mounted by AppHeader only when `currentPage !== "landing"` |
+| `src/app/globals.css` | Adds `@keyframes cryptoFlash` (price update glow) + `.crypto-ticker`, `.crypto-ticker-change`, `.crypto-ticker-coin-extra` responsive classes |
+| `src/lib/i18n.ts` | `cryptoTickerStale` (« Stale data / Données obsolètes »), `cryptoTickerError` (« Prices unavailable / Cours indisponibles ») |
+
+### 19.3 Cache strategy & rate limit math
+
+- **Tier 1 — module memo.** Inside the warm Function instance, the latest payload is kept in `let memo: { payload, cachedAt }`. Same-instance requests within 60 s return immediately, no DB round-trip.
+- **Tier 2 — Supabase row cache.** When the memo is cold or expired, the route reads `crypto_prices`. If every tracked symbol has `updated_at >= now - 60s`, those rows ARE the response — no upstream call.
+- **Tier 3 — CoinGecko refresh.** Only when at least one row is older than 60 s do we hit `https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,ripple&vs_currencies=usd&include_24hr_change=true` with a 5 s `AbortController` timeout. The response is upserted back into `crypto_prices` (fire-and-forget — the response payload uses the freshly-fetched values directly so users don't wait on the DB write).
+- **Tier 4 — CDN cache.** The route returns `Cache-Control: public, max-age=0, s-maxage=60, must-revalidate`. Netlify's edge serves the same payload to every visitor for up to 60 s; browsers always revalidate so a manual refresh picks up a freshly-flipped tick.
+
+**Net rate**: with N concurrent users, at most 1 CoinGecko call per minute = **1,440 calls/day**, well within CoinGecko's free tier (30 calls/min, no API key required).
+
+### 19.4 Failure modes
+
+| Failure | Behavior |
+|---|---|
+| CoinGecko returns 5xx / timeout (> 5 s) | Endpoint returns last DB rows + `stale: true`. UI shows a grey dot tooltip « Stale data ». |
+| CoinGecko returns 200 with no usable entries | Same as above (falls back to DB). |
+| DB read error AND CoinGecko down | Endpoint returns `{ prices: [], stale: true }`. Component renders `—` with tooltip « Prices unavailable ». |
+| Supabase env vars missing (preview build, local without `.env`) | Endpoint returns `{ prices: [], stale: true }`. Ticker hides itself gracefully. |
+| Tab hidden (background) | Hook pauses the `setInterval` (saves CoinGecko credits beyond what the cache already does). On `visibilitychange → visible` the hook fires one immediate refresh and resumes the cadence. |
+| Landing route (`currentPage === "landing"`) | AppHeader fully unmounts the component — no DOM, no hook, no polling. |
+
+### 19.5 Mobile responsiveness
+
+| Viewport | Behavior |
+|---|---|
+| Default | All four coins (BTC ETH SOL XRP), each shows symbol + price + 24h % |
+| ≤ 640 px | All four coins, but the 24h % column hides (`.crypto-ticker-change { display: none }`) |
+| ≤ 480 px | Only BTC + ETH visible (SOL/XRP coins carry `.crypto-ticker-coin-extra` which hides at this breakpoint), still no 24h % |
+
+### 19.6 Validation
+
+Manual smoke-test (`next dev`):
+
+```bash
+# Cold instance: first hit triggers CoinGecko fetch + DB upsert
+curl -s "http://127.0.0.1:3000/api/crypto" | jq
+
+# Warm instance: subsequent hit served from module memo, sub-ms latency
+curl -s "http://127.0.0.1:3000/api/crypto" -o /dev/null -w "%{time_total}\n"
+
+# Inspect cache headers — should report `s-maxage=60`
+curl -sI "http://127.0.0.1:3000/api/crypto" | grep -i cache
+
+# Force stale path — block CoinGecko from your hosts file or unplug
+# network: response keeps coming with stale: true and the last cached
+# values from the DB.
+```
+
+In the browser:
+- Open `/app`, the ticker shows in the top-right; observe a brief gold flash (`cryptoFlash` keyframe) when a price changes.
+- DevTools → Application → Throttling → Offline → tab still serves the last payload (browser cache).
+- Switch tabs for > 1 minute then return: hook fires an immediate refresh on `visibilitychange`.
+- Open multiple tabs: all share the same edge entry; only one origin call per minute (verify in Netlify logs / dev console: « `[crypto] coingecko fetch` » should fire ≤ 1×/min).
+- Resize to 480 px: SOL/XRP collapse, only BTC + ETH visible.

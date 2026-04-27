@@ -460,7 +460,7 @@ export function StatsPage({
                 fontSize: 13, fontWeight: 700, color: "#000", flexShrink: 0,
                 background: a.score >= 9 ? "#22c55e" : a.score >= 7 ? color.gold : a.score >= 5 ? "#eab308" : "#f97316",
               }}>
-                {a.score}
+                {a.score}/10
               </span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <a href={a.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none", color: "inherit" }}>

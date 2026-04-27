@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import { color } from "@/lib/theme";
 
 /**
- * Score indicator: small mono number stacked just above a thin progress
+ * Score indicator: small mono score stacked just above a thin progress
  * bar, the two read as one unit. Tier coloring (green / gold / orange /
  * red) is shared between the number and the bar so the score's intensity
  * is legible at a glance.
@@ -24,6 +24,7 @@ export function ScoreMeter({
 }) {
   const clamped = Math.max(0, Math.min(10, score));
   const ratio = clamped / 10;
+  const scoreLabel = `${clamped}/10`;
   const tierColor =
     clamped >= 9 ? "#22c55e"        // green
       : clamped >= 5 ? color.gold     // gold
@@ -63,8 +64,8 @@ export function ScoreMeter({
   };
 
   return (
-    <span style={wrap} aria-label={`Score ${clamped}/10`}>
-      <span style={num}>{clamped}</span>
+    <span style={wrap} aria-label={`Score ${scoreLabel}`}>
+      <span style={num}>{scoreLabel}</span>
       <span style={bar} aria-hidden>
         <span style={fill} />
       </span>

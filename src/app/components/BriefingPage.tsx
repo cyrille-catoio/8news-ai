@@ -11,6 +11,7 @@ import { FavoriteButton } from "@/app/components/FavoriteButton";
 import { VideoCard, type VideoItem } from "@/app/components/VideoCard";
 import type { TopicLabel } from "@/lib/types";
 import type { AppNavPage } from "@/app/components/AppHeader";
+import { summaryPath } from "@/lib/summary-routes";
 
 interface SummaryRoute {
   topic_id: string;
@@ -500,16 +501,6 @@ function HeroStory({
           background: "linear-gradient(180deg, rgba(201,162,39,0.04), transparent 60%), " + color.surface,
         }}
       >
-        {/* Title block. Plain `<div>` + `<h2>` (NOT wrapped in `<a>`
-            anymore). The previous version had the whole headline +
-            snippet in an `<a target="_blank">`, which combined with
-            the explicit « Lire l'article » CTA in the action row
-            produced two `<a target="_blank">` to the same href in the
-            same card. Some browser extensions (Brave shields,
-            password managers, prefetchers) intercept those and cause
-            a double-tab-open on a single click. With the explicit CTA
-            below, the headline doesn't need to be clickable too —
-            single, unambiguous click target = no double-fire. */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
           <h2
             style={{
@@ -531,26 +522,48 @@ function HeroStory({
           </span>
         </div>
         {article.snippet && (
-          <p style={{ color: color.articleSnippet, fontSize: 15, marginTop: 12, marginBottom: 14, lineHeight: 1.55 }}>
+          <p style={{ color: color.articleSnippet, fontSize: 15, marginTop: 12, marginBottom: 0, lineHeight: 1.55 }}>
             {article.snippet}
           </p>
         )}
-        {/* Action row. Source name + relative time as plain `<span>`
-            text on the left (also un-linked — same redundancy
-            argument). On the right, a tight `[CTA] [favorite]` pair
-            sized to be visually balanced: the CTA matches the
-            favorite's compact icon-button silhouette (`padding: 5px
-            10px`, `fontSize: 12`) so the two elements read as a
-            single action cluster rather than a big-button + small-
-            icon mismatch. `gap: 6` glues them together; `gap: 4` on
-            narrow viewports would feel cramped. */}
+        {/* Keep one article link in the hero. Multiple same-href
+            target=_blank links in the same card can double-fire with
+            browser extensions or touch event replay; the explicit CTA
+            is the only navigation target now. */}
+        <div style={{ display: "flex", marginTop: article.snippet ? 16 : 18, marginBottom: 14 }}>
+          <a
+            href={article.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={lang === "fr" ? "Lire l'article (nouvel onglet)" : "Read the article (new tab)"}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              padding: "9px 16px",
+              border: `1px solid ${color.gold}`,
+              borderRadius: 6,
+              background: "rgba(201,162,39,0.08)",
+              color: color.gold,
+              fontSize: 13,
+              fontWeight: 700,
+              fontFamily: "inherit",
+              textDecoration: "none",
+              whiteSpace: "nowrap",
+              cursor: "pointer",
+            }}
+          >
+            {lang === "fr" ? "Lire l'article →" : "Read article →"}
+          </a>
+        </div>
+        {/* Metadata row stays separate from the primary CTA so the
+            favorite star doesn't compete visually with the article
+            button. */}
         <div
           style={{
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
             gap: 12,
-            marginTop: article.snippet ? 0 : 14,
             flexWrap: "wrap",
           }}
         >
@@ -570,31 +583,7 @@ function HeroStory({
             {article.source.toUpperCase()}
             <span style={{ color: color.textMuted, marginLeft: 8 }}>· {relativeTime(article.pubDate, lang)}</span>
           </span>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-            <a
-              href={article.link}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={lang === "fr" ? "Lire l'article (nouvel onglet)" : "Read the article (new tab)"}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                padding: "5px 10px",
-                border: `1px solid ${color.gold}`,
-                borderRadius: 5,
-                background: "transparent",
-                color: color.gold,
-                fontSize: 12,
-                fontWeight: 600,
-                fontFamily: "inherit",
-                textDecoration: "none",
-                whiteSpace: "nowrap",
-                cursor: "pointer",
-                lineHeight: 1.4,
-              }}
-            >
-              {lang === "fr" ? "Lire l'article →" : "Read article →"}
-            </a>
+          <div style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
             <FavoriteButton
               url={article.link}
               title={article.title}
@@ -707,7 +696,7 @@ function DailySummaryTeaser({
   const dateLabel = new Date(route.summary_date + "T00:00:00").toLocaleDateString(locale, {
     day: "numeric", month: "short", year: "numeric",
   });
-  const href = `/${route.topic_id}/${route.summary_date}/${route.slug_keywords}`;
+  const href = summaryPath(route);
 
   return (
     <section style={{ marginBottom: 36 }}>

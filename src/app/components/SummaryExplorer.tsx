@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { t, type Lang } from "@/lib/i18n";
 import { color, sectionCard, formInputStyle, spinnerStyle } from "@/lib/theme";
 import type { TopicItem } from "@/lib/types";
+import { summaryPath } from "@/lib/summary-routes";
 
 interface SlugResult {
   slug: string;
@@ -97,7 +98,7 @@ export function SummaryExplorer({ lang }: { lang: Lang }) {
         {loading && <span style={spinnerStyle(16, { borderWidth: 2 })} />}
         {!loading && result && (
           <a
-            href={`/${result.topicId}/${result.date}/${result.slug}`}
+            href={summaryPath({ lang, topicId: result.topicId, date: result.date, slug: result.slug })}
             style={{
               color: color.gold,
               fontSize: 13,

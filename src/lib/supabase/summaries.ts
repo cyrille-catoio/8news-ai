@@ -58,9 +58,37 @@ export async function getDailySummaryBySlug(
   topicId: string,
   date: string,
   slug: string,
+  lang?: string,
 ): Promise<DailySummaryRow | null> {
   const clientP = getServerClient();
   if (!clientP) return null;
+  try {
+    const supabase = await clientP;
+    let query = supabase
+      .from("daily_summaries")
+      .select("*")
+      .eq("topic_id", topicId)
+      .eq("summary_date", date)
+      .eq("slug_keywords", slug);
+    if (lang) query = query.eq("lang", lang);
+    const { data, error } = await query
+      .order("lang", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (error || !data) return null;
+    return data as DailySummaryRow;
+  } catch {
+    return null;
+  }
+}
+
+export async function getDailySummariesBySlug(
+  topicId: string,
+  date: string,
+  slug: string,
+): Promise<DailySummaryRow[]> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
   try {
     const supabase = await clientP;
     const { data, error } = await supabase
@@ -69,11 +97,11 @@ export async function getDailySummaryBySlug(
       .eq("topic_id", topicId)
       .eq("summary_date", date)
       .eq("slug_keywords", slug)
-      .single();
-    if (error || !data) return null;
-    return data as DailySummaryRow;
+      .order("lang", { ascending: true });
+    if (error || !data) return [];
+    return data as DailySummaryRow[];
   } catch {
-    return null;
+    return [];
   }
 }
 

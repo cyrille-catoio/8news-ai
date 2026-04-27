@@ -5,6 +5,7 @@ import { color, spinnerStyle } from "@/lib/theme";
 import { t, type Lang } from "@/lib/i18n";
 import type { TopicItem } from "@/lib/types";
 import { SummaryExplorer } from "@/app/components/SummaryExplorer";
+import { summaryPath } from "@/lib/summary-routes";
 
 interface SummaryRoute {
   topic_id: string;
@@ -92,7 +93,7 @@ export function SummariesBrowsePage({ lang }: { lang: Lang }) {
                     {recent.map((r) => (
                       <li key={`${r.summary_date}-${r.lang}`} style={{ marginBottom: 4 }}>
                         <a
-                          href={`/${r.topic_id}/${r.summary_date}/${r.slug_keywords}`}
+                          href={summaryPath(r)}
                           style={{ color: color.textSecondary, textDecoration: "none", fontSize: 13 }}
                         >
                           {r.summary_date}

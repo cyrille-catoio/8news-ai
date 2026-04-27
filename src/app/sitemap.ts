@@ -5,6 +5,7 @@ import {
   getAllVideoRoundupRoutes,
   getActiveTopicIds,
 } from "@/lib/supabase";
+import { summaryAbsoluteUrl } from "@/lib/summary-routes";
 
 const BASE = "https://8news.ai";
 
@@ -50,7 +51,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   for (const r of summaryRoutes) {
     entries.push({
-      url: `${BASE}/${r.topic_id}/${r.summary_date}/${r.slug_keywords}`,
+      url: summaryAbsoluteUrl(r),
       lastModified: new Date(r.summary_date),
       changeFrequency: "weekly",
       priority: 0.7,

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { t, type Lang } from "@/lib/i18n";
 import { color, sectionCard, formInputStyle, primaryButtonStyle, spinnerStyle } from "@/lib/theme";
 import type { TopicLabel } from "@/lib/types";
+import { summaryPath } from "@/lib/summary-routes";
 
 interface GenerateResult {
   lang: string;
@@ -334,7 +335,7 @@ export function DailySummariesPage({ lang, topics }: { lang: Lang; topics: Topic
                       </span>
                       {res.slug && (
                         <a
-                          href={`/${r.topic}/${r.date}/${res.slug}`}
+                          href={summaryPath({ lang: res.lang, topicId: r.topic, date: r.date, slug: res.slug })}
                           target="_blank"
                           rel="noopener noreferrer"
                           style={{ color: color.textMuted, fontSize: 12, marginLeft: 8, textDecoration: "none" }}
@@ -353,7 +354,7 @@ export function DailySummariesPage({ lang, topics }: { lang: Lang; topics: Topic
                         {t("dailySummariesSuccess", lang)}
                       </span>
                       <a
-                        href={`/${r.topic}/${r.date}/${res.slug}`}
+                        href={summaryPath({ lang: res.lang, topicId: r.topic, date: r.date, slug: res.slug })}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{ color: color.gold, fontSize: 12, marginLeft: 8, textDecoration: "none" }}

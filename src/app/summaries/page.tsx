@@ -6,6 +6,7 @@ import { SummaryExplorer } from "@/app/components/SummaryExplorer";
 import { SeoNavBar } from "@/app/components/SeoNavBar";
 import { SeoGeneralMenu } from "@/app/components/GeneralMenu";
 import { resolveServerLang } from "@/lib/server-lang";
+import { summaryPath } from "@/lib/summary-routes";
 
 export const metadata: Metadata = {
   title: "Daily AI News Summaries — 8news.ai",
@@ -95,7 +96,7 @@ export default async function SummariesPage({
                       {recent.map((r) => (
                         <li key={`${r.summary_date}-${r.lang}`} style={{ marginBottom: 4 }}>
                           <Link
-                            href={`/${r.topic_id}/${r.summary_date}/${r.slug_keywords}`}
+                            href={summaryPath(r)}
                             style={{ color: color.textSecondary, textDecoration: "none", fontSize: 13 }}
                           >
                             {r.summary_date}

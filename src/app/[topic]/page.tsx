@@ -12,6 +12,7 @@ import { color, font } from "@/lib/theme";
 import { SeoNavBar } from "@/app/components/SeoNavBar";
 import { SeoGeneralMenu } from "@/app/components/GeneralMenu";
 import { resolveServerLang } from "@/lib/server-lang";
+import { summaryPath } from "@/lib/summary-routes";
 
 const PAGE_SIZE = 30;
 
@@ -183,7 +184,7 @@ export default async function TopicHubPage({ params, searchParams }: PageProps) 
               return (
                 <a
                   key={row.id}
-                  href={`/${topicId}/${row.summary_date}/${row.slug_keywords}`}
+                  href={summaryPath(row)}
                   style={{
                     display: "block",
                     background: color.surface,

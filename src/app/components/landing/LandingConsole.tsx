@@ -205,7 +205,7 @@ export async function LandingConsole({ lang }: { lang: LandingLang }) {
               </div>
               <div className="score-meter">
                 <span className="score-num" style={{ color: meterColor }}>
-                  {r.score}
+                  {r.score}/10
                 </span>
                 <div className={`score-bar ${barClass}`}>
                   <i style={{ width: `${w * 100}%` }} />

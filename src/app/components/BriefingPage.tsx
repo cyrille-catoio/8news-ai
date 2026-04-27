@@ -500,51 +500,50 @@ function HeroStory({
           background: "linear-gradient(180deg, rgba(201,162,39,0.04), transparent 60%), " + color.surface,
         }}
       >
-        <a
-          href={article.link}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ textDecoration: "none", color: "inherit", display: "block" }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
-            <h2
-              style={{
-                fontFamily: "ui-serif, Georgia, serif",
-                fontSize: "clamp(22px, 3.2vw, 32px)",
-                lineHeight: 1.18,
-                color: color.text,
-                margin: 0,
-                flex: 1,
-                minWidth: 0,
-                fontWeight: 400,
-                letterSpacing: "-0.01em",
-              }}
-            >
-              {article.title}
-            </h2>
-            <span style={{ flexShrink: 0 }}>
-              <ScoreMeter score={article.score} width={72} />
-            </span>
-          </div>
-          {article.snippet && (
-            <p style={{ color: color.articleSnippet, fontSize: 15, marginTop: 12, marginBottom: 14, lineHeight: 1.55 }}>
-              {article.snippet}
-            </p>
-          )}
-        </a>
-        {/* Action row. Source pill on the left, then a primary
-            « Lire l'article / Read article » CTA grouped with the
-            favorite star on the right. The CTA exists even though the
-            whole title block above is already a clickable `<a>` —
-            many users don't realize a borderless serif headline is
-            tappable, and a borderless gold rectangle is a much louder
-            « click here » affordance for the page's anchor card.
-            `target="_blank"` matches the title link so both routes
-            land in a new tab and never blow away the briefing. The
-            CTA + favorite are wrapped in their own flex group with
-            `flexShrink: 0` so the source pill (left, `flex: 1`)
-            absorbs all the available width and ellipses gracefully on
-            narrow viewports without ever pushing the CTA off-screen. */}
+        {/* Title block. Plain `<div>` + `<h2>` (NOT wrapped in `<a>`
+            anymore). The previous version had the whole headline +
+            snippet in an `<a target="_blank">`, which combined with
+            the explicit « Lire l'article » CTA in the action row
+            produced two `<a target="_blank">` to the same href in the
+            same card. Some browser extensions (Brave shields,
+            password managers, prefetchers) intercept those and cause
+            a double-tab-open on a single click. With the explicit CTA
+            below, the headline doesn't need to be clickable too —
+            single, unambiguous click target = no double-fire. */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+          <h2
+            style={{
+              fontFamily: "ui-serif, Georgia, serif",
+              fontSize: "clamp(22px, 3.2vw, 32px)",
+              lineHeight: 1.18,
+              color: color.text,
+              margin: 0,
+              flex: 1,
+              minWidth: 0,
+              fontWeight: 400,
+              letterSpacing: "-0.01em",
+            }}
+          >
+            {article.title}
+          </h2>
+          <span style={{ flexShrink: 0 }}>
+            <ScoreMeter score={article.score} width={72} />
+          </span>
+        </div>
+        {article.snippet && (
+          <p style={{ color: color.articleSnippet, fontSize: 15, marginTop: 12, marginBottom: 14, lineHeight: 1.55 }}>
+            {article.snippet}
+          </p>
+        )}
+        {/* Action row. Source name + relative time as plain `<span>`
+            text on the left (also un-linked — same redundancy
+            argument). On the right, a tight `[CTA] [favorite]` pair
+            sized to be visually balanced: the CTA matches the
+            favorite's compact icon-button silhouette (`padding: 5px
+            10px`, `fontSize: 12`) so the two elements read as a
+            single action cluster rather than a big-button + small-
+            icon mismatch. `gap: 6` glues them together; `gap: 4` on
+            narrow viewports would feel cramped. */}
         <div
           style={{
             display: "flex",
@@ -555,16 +554,12 @@ function HeroStory({
             flexWrap: "wrap",
           }}
         >
-          <a
-            href={article.link}
-            target="_blank"
-            rel="noopener noreferrer"
+          <span
             style={{
               color: color.gold,
               fontSize: 13,
               fontFamily: "ui-monospace, Menlo, monospace",
               letterSpacing: "0.04em",
-              textDecoration: "none",
               flex: 1,
               minWidth: 0,
               overflow: "hidden",
@@ -574,8 +569,8 @@ function HeroStory({
           >
             {article.source.toUpperCase()}
             <span style={{ color: color.textMuted, marginLeft: 8 }}>· {relativeTime(article.pubDate, lang)}</span>
-          </a>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
             <a
               href={article.link}
               target="_blank"
@@ -584,18 +579,18 @@ function HeroStory({
               style={{
                 display: "inline-flex",
                 alignItems: "center",
-                gap: 6,
-                padding: "8px 14px",
+                padding: "5px 10px",
                 border: `1px solid ${color.gold}`,
-                borderRadius: 6,
+                borderRadius: 5,
                 background: "transparent",
                 color: color.gold,
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: 600,
                 fontFamily: "inherit",
                 textDecoration: "none",
                 whiteSpace: "nowrap",
                 cursor: "pointer",
+                lineHeight: 1.4,
               }}
             >
               {lang === "fr" ? "Lire l'article →" : "Read article →"}

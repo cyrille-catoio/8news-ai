@@ -1,3 +1,5 @@
+import { stripSubtitleCreditArtifacts } from "./text-artifacts";
+
 const BASE = "https://transcriptapi.com/api/v2/youtube";
 
 function getApiKey(): string {
@@ -89,12 +91,12 @@ export async function getVideoTranscript(videoId: string): Promise<TranscriptRes
   }
   const data: TranscriptResponse = await res.json();
 
-  const cleanText = data.transcript
+  const cleanText = stripSubtitleCreditArtifacts(data.transcript
     .map((seg) => seg.text.trim())
     .filter(Boolean)
     .join(" ")
     .replace(/\s+/g, " ")
-    .trim();
+    .trim());
 
   const lastSeg = data.transcript[data.transcript.length - 1];
   const durationSec = lastSeg ? Math.round((lastSeg.start ?? 0) + (lastSeg.duration ?? 0)) : 0;

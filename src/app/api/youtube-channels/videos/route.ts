@@ -3,6 +3,7 @@ import { getChannelLatest, type RssVideoResult } from "@/lib/transcript-api";
 import { createClient } from "@supabase/supabase-js";
 import { normalizeSummaryHeadings } from "@/lib/summary-headings";
 import { enrichDurations } from "@/lib/youtube-duration";
+import { transcribeVideo } from "@/lib/transcribe-video";
 
 function getDb() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -36,6 +37,11 @@ export type VideoListResponseItem = VideoItem & {
   slugKeywords: string | null;
   publishedDate: string | null;
 };
+
+const BRIEFING_PREWARM_BUCKET_MS = 10 * 60 * 1000;
+const MIN_BRIEFING_VIDEO_DURATION_SEC = 120;
+const briefingPrewarmDone = new Set<string>();
+const briefingPrewarmInFlight = new Map<string, Promise<boolean>>();
 
 function toDateStr(d: Date): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
@@ -131,6 +137,66 @@ async function refreshFromRss(db: ReturnType<typeof getDb>) {
   );
 }
 
+async function prewarmLatestMissingTranscription({
+  rows,
+  uiLang,
+  summaryByVideoId,
+  targetDate,
+}: {
+  rows: Array<Record<string, unknown>>;
+  uiLang: "en" | "fr";
+  summaryByVideoId: Map<string, string>;
+  targetDate: string;
+}): Promise<boolean> {
+  const bucket = Math.floor(Date.now() / BRIEFING_PREWARM_BUCKET_MS);
+  const cacheKey = `${targetDate}:${uiLang}:${bucket}`;
+  if (briefingPrewarmDone.has(cacheKey)) return false;
+
+  const existing = briefingPrewarmInFlight.get(cacheKey);
+  if (existing) return existing;
+
+  const run = (async () => {
+    briefingPrewarmDone.add(cacheKey);
+
+    const candidate = rows.find((r) => {
+      const videoId = r.video_id as string | undefined;
+      const durationSec = r.duration_sec as number | null | undefined;
+      return Boolean(
+        videoId &&
+        !summaryByVideoId.has(videoId) &&
+        r.topic_id &&
+        r.channel_id &&
+        durationSec != null &&
+        durationSec >= MIN_BRIEFING_VIDEO_DURATION_SEC,
+      );
+    });
+
+    if (!candidate) return false;
+
+    const videoId = candidate.video_id as string;
+    const result = await transcribeVideo(
+      videoId,
+      uiLang,
+      {
+        title: (candidate.title as string | null) ?? undefined,
+        channelId: candidate.channel_id as string,
+      },
+    );
+
+    return result.status === "ok" || result.status === "cached";
+  })();
+
+  briefingPrewarmInFlight.set(cacheKey, run);
+  try {
+    return await run;
+  } catch (err) {
+    console.warn("[youtube-videos] briefing prewarm failed", err);
+    return false;
+  } finally {
+    briefingPrewarmInFlight.delete(cacheKey);
+  }
+}
+
 export async function GET(req: NextRequest) {
   const db = getDb();
 
@@ -139,9 +205,13 @@ export async function GET(req: NextRequest) {
   const langParam = req.nextUrl.searchParams.get("lang");
   const uiLang = langParam === "fr" ? "fr" : "en";
   const tz = safeTimeZone(req.nextUrl.searchParams.get("tz"));
+  const prewarm = req.nextUrl.searchParams.get("prewarm") === "1";
+  const refreshRss = req.nextUrl.searchParams.get("refresh") !== "0";
 
-  // Always refresh from RSS to capture new videos
-  await refreshFromRss(db);
+  // Refresh from RSS to capture new videos. Home's paired yesterday query
+  // passes `refresh=0` so one 10-minute refresh does not hit every channel
+  // twice.
+  if (refreshRss) await refreshFromRss(db);
 
   // Query persisted videos by date.
   //
@@ -193,12 +263,16 @@ export async function GET(req: NextRequest) {
   }
 
   const videoIds = rows.map((r) => (r as Record<string, unknown>).video_id as string);
-  const summaryByVideoId = new Map<string, string>();
+  let summaryByVideoId = new Map<string, string>();
   // Per-video SSR slug for the current UI lang. Only set when the video
   // has been transcribed AND a topic+slug are present (the route
   // /{topic}/v/{date}/{slug} can't exist without all three).
-  const slugByVideoId = new Map<string, { topicId: string; slug: string; publishedDate: string }>();
-  if (videoIds.length > 0) {
+  let slugByVideoId = new Map<string, { topicId: string; slug: string; publishedDate: string }>();
+  async function loadTranscriptionMaps() {
+    const nextSummaryByVideoId = new Map<string, string>();
+    const nextSlugByVideoId = new Map<string, { topicId: string; slug: string; publishedDate: string }>();
+    if (videoIds.length === 0) return { nextSummaryByVideoId, nextSlugByVideoId };
+
     const { data: trows } = await db
       .from("video_transcriptions")
       .select("video_id, summary_md, topic_id, slug_keywords, published_date")
@@ -213,15 +287,30 @@ export async function GET(req: NextRequest) {
         published_date: string | null;
       };
       if (tr.summary_md && tr.summary_md.length > 0) {
-        summaryByVideoId.set(tr.video_id, normalizeSummaryHeadings(tr.summary_md, uiLang));
+        nextSummaryByVideoId.set(tr.video_id, normalizeSummaryHeadings(tr.summary_md, uiLang));
       }
       if (tr.topic_id && tr.slug_keywords && tr.published_date) {
-        slugByVideoId.set(tr.video_id, {
+        nextSlugByVideoId.set(tr.video_id, {
           topicId: tr.topic_id,
           slug: tr.slug_keywords,
           publishedDate: tr.published_date,
         });
       }
+    }
+    return { nextSummaryByVideoId, nextSlugByVideoId };
+  }
+
+  ({ nextSummaryByVideoId: summaryByVideoId, nextSlugByVideoId: slugByVideoId } = await loadTranscriptionMaps());
+
+  if (prewarm) {
+    const didPrewarm = await prewarmLatestMissingTranscription({
+      rows: rows as Array<Record<string, unknown>>,
+      uiLang,
+      summaryByVideoId,
+      targetDate,
+    });
+    if (didPrewarm) {
+      ({ nextSummaryByVideoId: summaryByVideoId, nextSlugByVideoId: slugByVideoId } = await loadTranscriptionMaps());
     }
   }
 

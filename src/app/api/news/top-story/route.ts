@@ -16,7 +16,8 @@ import { SNIPPET_MAX } from "@/lib/constants";
  * Strategy
  * --------
  * 1. Pull a pool of up to {@link CANDIDATE_POOL} articles scoring ≥ 9
- *    over the last 24 h, ordered `relevance_score DESC, fetched_at DESC`.
+ *    whose publication date is in the last 24 h, ordered
+ *    `relevance_score DESC, pub_date DESC`.
  *    Position 0 is therefore always the freshest score=10 if any exists,
  *    so the « freshly-fetched 10/10 wins » freshness guarantee is
  *    preserved automatically while giving the rotation real variety.
@@ -160,23 +161,26 @@ export async function GET(request: NextRequest) {
   }
 
   const db = createClient(url, key, { auth: { persistSession: false } });
+  const nowISO = new Date(now).toISOString();
   const oneDayAgo = new Date(now - 24 * 3600 * 1000).toISOString();
   const hiddenIds = await getHiddenTopicIds();
 
   /**
-   * Pull the top N articles scoring ≥ minScore in the last 24h, ordered
-   * for our rotation: highest score first, freshest within tie. Position
-   * 0 is therefore always the best-and-freshest article — preserving the
-   * "freshly-fetched 10/10 wins" guarantee of the original ladder.
+   * Pull the top N articles scoring ≥ minScore whose publication date is
+   * in the last 24h, ordered for our rotation: highest score first,
+   * freshest published article within tie. We intentionally do NOT filter
+   * by fetched_at here — a week-old article fetched five minutes ago is
+   * not suitable for "Top story · now".
    */
   async function fetchPool(minScore: number): Promise<TopStoryRow[]> {
     let q = db
       .from("articles")
       .select(SELECT_COLS)
-      .gte("fetched_at", oneDayAgo)
+      .gte("pub_date", oneDayAgo)
+      .lte("pub_date", nowISO)
       .gte("relevance_score", minScore)
       .order("relevance_score", { ascending: false })
-      .order("fetched_at", { ascending: false })
+      .order("pub_date", { ascending: false })
       .limit(CANDIDATE_POOL);
 
     if (hiddenIds.length > 0) {

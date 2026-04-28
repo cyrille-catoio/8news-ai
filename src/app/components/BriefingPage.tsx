@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Lang } from "@/lib/i18n";
 import { dateLocale } from "@/lib/i18n";
 import { color, card, spinnerStyle } from "@/lib/theme";
@@ -85,6 +85,7 @@ export function BriefingPage({
   onToggleFavorite,
   onRequestAuth,
   onNavigate,
+  onOpenTopicArticles,
   topicLabels,
   preferredTopicIds,
   ttsSpeed,
@@ -96,6 +97,7 @@ export function BriefingPage({
   onToggleFavorite: (a: { url: string; title: string; source: string; pubDate?: string; sourceType?: "article" | "video" }) => void;
   onRequestAuth: () => void;
   onNavigate: (page: AppNavPage) => void;
+  onOpenTopicArticles: (topicId: string) => void;
   topicLabels: TopicLabel[];
   /** User's preferred topic IDs. null when not configured / anonymous. */
   preferredTopicIds: string[] | null;
@@ -273,41 +275,79 @@ export function BriefingPage({
   const [videoSummaries, setVideoSummaries] = useState<Record<string, string>>({});
   const [transcribing, setTranscribing] = useState<Record<string, boolean>>({});
   const [videosLoading, setVideosLoading] = useState(true);
-  useEffect(() => {
-    let cancelled = false;
-    setVideosLoading(true);
+  const videosRefreshSeq = useRef(0);
+  const refreshBriefingVideos = useCallback(async (showLoading: boolean, prewarm: boolean) => {
+    const seq = ++videosRefreshSeq.current;
+    if (showLoading) setVideosLoading(true);
+
     const today = new Date();
     const yesterday = new Date(Date.now() - 86_400_000);
     const tz = browserTimeZone();
     const tzQs = tz ? `&tz=${encodeURIComponent(tz)}` : "";
-    Promise.all([
-      fetch(`/api/youtube-channels/videos?date=${toISODate(today)}&lang=${lang}${tzQs}`, { cache: "no-store" }).then((r) => (r.ok ? r.json() : [])),
-      fetch(`/api/youtube-channels/videos?date=${toISODate(yesterday)}&lang=${lang}${tzQs}`, { cache: "no-store" }).then((r) => (r.ok ? r.json() : [])),
-    ])
-      .then(([a, b]) => {
-        if (cancelled) return;
-        type ApiVideo = VideoItem & { summaryMd?: string | null; published: string };
-        const merged = [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])]
-          .filter((v: ApiVideo) => v.summaryMd && v.summaryMd.length > 0)
-          .sort((x: ApiVideo, y: ApiVideo) => new Date(y.published).getTime() - new Date(x.published).getTime())
-          .slice(0, 3);
-        const items: VideoItem[] = merged.map((m: ApiVideo) => {
-          const { summaryMd: _summary, ...rest } = m;
-          return rest;
-        });
-        const summaries: Record<string, string> = {};
-        for (const m of merged as ApiVideo[]) {
-          if (m.summaryMd) summaries[m.videoId] = m.summaryMd;
-        }
-        setVideos(items);
-        setVideoSummaries(summaries);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setVideosLoading(false);
+    const prewarmQs = prewarm ? "&prewarm=1" : "";
+
+    try {
+      const [a, b] = await Promise.all([
+        fetch(`/api/youtube-channels/videos?date=${toISODate(today)}&lang=${lang}${tzQs}${prewarmQs}`, { cache: "no-store" }).then((r) => (r.ok ? r.json() : [])),
+        fetch(`/api/youtube-channels/videos?date=${toISODate(yesterday)}&lang=${lang}${tzQs}&refresh=0`, { cache: "no-store" }).then((r) => (r.ok ? r.json() : [])),
+      ]);
+
+      if (seq !== videosRefreshSeq.current) return;
+
+      type ApiVideo = VideoItem & { summaryMd?: string | null; published: string };
+      const merged = [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])]
+        .filter((v: ApiVideo) => v.summaryMd && v.summaryMd.length > 0)
+        .sort((x: ApiVideo, y: ApiVideo) => new Date(y.published).getTime() - new Date(x.published).getTime())
+        .slice(0, 3);
+      const items: VideoItem[] = merged.map((m: ApiVideo) => {
+        const { summaryMd: _summary, ...rest } = m;
+        return rest;
       });
-    return () => { cancelled = true; };
+      const summaries: Record<string, string> = {};
+      for (const m of merged as ApiVideo[]) {
+        if (m.summaryMd) summaries[m.videoId] = m.summaryMd;
+      }
+      setVideos(items);
+      setVideoSummaries(summaries);
+    } catch {
+      // Silent refresh: keep the current video block on transient failures.
+    } finally {
+      if (seq === videosRefreshSeq.current && showLoading) setVideosLoading(false);
+    }
   }, [lang]);
+
+  useEffect(() => {
+    const VIDEO_REFRESH_MS = 10 * 60 * 1000;
+
+    // Initial load may prewarm one missing transcription. Later refreshes
+    // update only this block, mirroring the top-story synchronized refresh
+    // pattern without reloading the rest of the briefing page.
+    refreshBriefingVideos(true, true);
+
+    const msToBoundary = VIDEO_REFRESH_MS - (Date.now() % VIDEO_REFRESH_MS) + 500;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const timeoutId = setTimeout(() => {
+      refreshBriefingVideos(false, true);
+      intervalId = setInterval(() => refreshBriefingVideos(false, true), VIDEO_REFRESH_MS);
+    }, msToBoundary);
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        refreshBriefingVideos(false, true);
+      }
+    };
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", onVisibility);
+    }
+
+    return () => {
+      clearTimeout(timeoutId);
+      if (intervalId) clearInterval(intervalId);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVisibility);
+      }
+    };
+  }, [refreshBriefingVideos]);
 
   // Same logic as VideosPage.handleTranscribe — POSTs the video to the
   // transcribe endpoint and writes the resulting summaryMd into local
@@ -369,7 +409,7 @@ export function BriefingPage({
             <TrendingStrip
               topics={trending}
               lang={lang}
-              onTopicClick={() => onNavigate("home")}
+              onTopicClick={onOpenTopicArticles}
             />
           )}
 

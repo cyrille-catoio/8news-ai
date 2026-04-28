@@ -30,7 +30,18 @@ interface PageProps {
  */
 const mdComponents = {
   h2: ({ children, ...props }: React.ComponentProps<"h2">) => (
-    <h2 style={{ color: color.gold, fontSize: 18, fontWeight: 700, margin: "24px 0 10px" }} {...props}>{children}</h2>
+    <h2
+      style={{
+        color: color.gold,
+        fontSize: 18,
+        fontWeight: 700,
+        margin: "24px 0 10px",
+        textTransform: "uppercase",
+      }}
+      {...props}
+    >
+      {children}
+    </h2>
   ),
   // h3 is the per-key-point title promoted from `- **Title**` bullets by
   // `promoteBulletTitlesToHeadings`. Styled in gold to match the roundup

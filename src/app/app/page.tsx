@@ -439,6 +439,7 @@ export default function Home() {
   const [topicsLoading, setTopicsLoading] = useState(true);
   const topicLabels: TopicLabel[] = topics.map((tp) => ({ id: tp.id, label: lang === "fr" ? tp.labelFr : tp.labelEn }));
   const [topic, setTopic] = useState<string | null>(null);
+  const [externalArticleTopicId, setExternalArticleTopicId] = useState<string | null>(null);
   const [maxArticles, setMaxArticles] = useState(() => {
     if (typeof document === "undefined") return 20;
     const raw = getCookie("maxArticles");
@@ -585,12 +586,13 @@ export default function Home() {
       !isPersonalizationMode &&
       preferredTopicIds !== null &&
       preferredTopicIds.length > 0 &&
-      !preferredTopicIds.includes(topic)
+      !preferredTopicIds.includes(topic) &&
+      topic !== externalArticleTopicId
     ) {
       handleReset();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preferredTopicIds, isPersonalizationMode]);
+  }, [preferredTopicIds, isPersonalizationMode, externalArticleTopicId]);
 
   const [resultTab, setResultTab] = useState<"relevant" | "all">("relevant");
   const [allArticles, setAllArticles] = useState<AllArticleEntry[]>([]);
@@ -615,7 +617,7 @@ export default function Home() {
   const displayedTopicLabels: TopicLabel[] = isPersonalizationMode
     ? topicLabels
     : (preferredTopicIds?.length ?? 0) > 0
-    ? topicLabels.filter((tp) => preferredTopicIds!.includes(tp.id))
+    ? topicLabels.filter((tp) => preferredTopicIds!.includes(tp.id) || tp.id === externalArticleTopicId)
     : topicLabels;
 
   const isTopArticlesPage = currentPage === "topArticles";
@@ -724,8 +726,9 @@ export default function Home() {
     setProgress(100);
   }
 
-  async function fetchNews(hours: number) {
-    if (!topic) return;
+  async function fetchNews(hours: number, topicOverride?: string) {
+    const targetTopic = topicOverride ?? topic;
+    if (!targetTopic) return;
     unlockAudioContext();
     setSelected(hours);
     setLoading(true);
@@ -739,12 +742,12 @@ export default function Home() {
     const sinceISO = new Date(Date.now() - hours * 3_600_000).toISOString();
 
     try {
-      const res = await fetch(`/api/news?hours=${hours}&lang=${lang}&topic=${topic}&count=${maxArticles}`);
+      const res = await fetch(`/api/news?hours=${hours}&lang=${lang}&topic=${encodeURIComponent(targetTopic)}&count=${maxArticles}`);
       if (!res.ok) throw new Error(await res.text().catch(() => "") || `HTTP ${res.status}`);
       setData(await res.json());
       playNotificationBeep();
 
-      fetch(`/api/news/all?topic=${encodeURIComponent(topic)}&since=${encodeURIComponent(sinceISO)}&lang=${lang}`, { cache: "no-store" })
+      fetch(`/api/news/all?topic=${encodeURIComponent(targetTopic)}&since=${encodeURIComponent(sinceISO)}&lang=${lang}`, { cache: "no-store" })
         .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
         .then((json) => setAllArticles(json.articles ?? []))
         .catch(() => {})
@@ -763,6 +766,7 @@ export default function Home() {
 
   function handleTopicChange(newTopic: string) {
     if (newTopic === topic) return;
+    setExternalArticleTopicId(null);
     setTopic(newTopic);
     setPeriodToast(t("homeSelectPeriodAfterTopicToast", lang));
     if (periodToastTimerRef.current) clearTimeout(periodToastTimerRef.current);
@@ -783,6 +787,7 @@ export default function Home() {
   }
 
   function handleReset() {
+    setExternalArticleTopicId(null);
     setTopic(null);
     setSelected(null);
     setData(null);
@@ -814,6 +819,14 @@ export default function Home() {
       setPeriodToast(null);
       periodToastTimerRef.current = null;
     }, durationMs);
+  }
+
+  function openArticlesForTopic(topicId: string) {
+    setExternalArticleTopicId(topicId);
+    setTopic(topicId);
+    setCurrentPage("home");
+    setPeriodToast(null);
+    fetchNews(24, topicId);
   }
 
   return (
@@ -859,6 +872,7 @@ export default function Home() {
             onToggleFavorite={toggleFavorite}
             onRequestAuth={() => setAuthModalOpen(true)}
             onNavigate={(page) => setCurrentPage(page)}
+            onOpenTopicArticles={openArticlesForTopic}
             topicLabels={topicLabels}
             preferredTopicIds={preferredTopicIds}
             ttsSpeed={ttsSpeed}

@@ -12,7 +12,7 @@ import { useCryptoPrices, type CryptoPrice } from "@/hooks/useCryptoPrices";
  * upstream guarantee a single CoinGecko call per minute SHARED across
  * every concurrent visitor — see the route's docblock.
  *
- * Mobile responsiveness lives in `globals.css` via two helper classes:
+ * Mobile responsiveness lives in `globals.css` via helper classes:
  * - `.crypto-ticker-change` (24h %) hides at ≤640 px
  * - `.crypto-ticker-coin-extra` (SOL, XRP) hides at ≤480 px
  *
@@ -70,13 +70,15 @@ function CoinCell({ price, isExtra }: { price: CryptoPrice; isExtra: boolean }) 
 
   const linkStyle: CSSProperties = {
     display: "inline-flex",
-    alignItems: "baseline",
-    gap: 4,
+    alignItems: "center",
+    gap: 6,
     color: "inherit",
     textDecoration: "none",
     cursor: "pointer",
-    padding: "2px 4px",
-    borderRadius: 4,
+    padding: "7px 12px",
+    border: `1px solid ${color.border}`,
+    borderRadius: 999,
+    background: "rgba(255,255,255,0.035)",
   };
 
   return (
@@ -85,7 +87,7 @@ function CoinCell({ price, isExtra }: { price: CryptoPrice; isExtra: boolean }) 
       target="_blank"
       rel="noopener noreferrer"
       title={`${price.symbol.toUpperCase()} · CoinGecko`}
-      className={isExtra ? "crypto-ticker-coin-extra" : undefined}
+      className={isExtra ? "crypto-ticker-coin crypto-ticker-coin-extra" : "crypto-ticker-coin"}
       style={linkStyle}
       key={flashKey}
     >

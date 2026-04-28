@@ -1,3 +1,5 @@
+import { stripSubtitleCreditArtifacts } from "./text-artifacts";
+
 /**
  * Read-time normalization of video transcription summaries.
  *
@@ -45,6 +47,10 @@ function normalizeIntroHeading(summaryMd: string, lang: string): string {
   // For other languages keep the canonical `## TL;DR` heading even if the
   // stored summary happens to use the French label.
   return summaryMd.replace(/^##\s+INTRO\s*$/m, "## TL;DR");
+}
+
+function normalizeConclusionHeading(summaryMd: string): string {
+  return summaryMd.replace(/^##\s+Conclusion\s*$/gim, "## CONCLUSION");
 }
 
 /**
@@ -158,9 +164,9 @@ export function normalizeSummaryHeadings(summaryMd: string, lang: string): strin
   // intro-heading replace and the bullet-line-break reflow see plain
   // Markdown. Then reflow legacy single-line bullets into the loose
   // form so `promoteBulletTitlesToHeadings` finds a uniform input.
-  return promoteBulletTitlesToHeadings(
+  return stripSubtitleCreditArtifacts(normalizeConclusionHeading(promoteBulletTitlesToHeadings(
     normalizeBulletLineBreaks(
       normalizeIntroHeading(stripCodeFences(summaryMd), lang),
     ),
-  );
+  )));
 }

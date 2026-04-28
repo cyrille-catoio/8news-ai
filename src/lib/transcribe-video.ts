@@ -34,6 +34,7 @@ import {
   insertVideoBullets,
 } from "./supabase";
 import { normalizeSummaryHeadings } from "./summary-headings";
+import { stripSubtitleCreditArtifacts } from "./text-artifacts";
 import { slugifyVideoTitle, uniquifyVideoSlug } from "./slug";
 
 /**
@@ -107,6 +108,7 @@ Règles :
 - Écris à la troisième personne, ton journalistique, factuel et concret.
 - Ne mentionne JAMAIS la vidéo, la transcription, le contenu source, l'auteur, l'animateur, le présentateur, l'invité, l'épisode, le podcast, la chaîne, les spectateurs ou les abonnés.
 - N'utilise pas de formules méta du type « la vidéo aborde », « le speaker explique », « il est dit que », « selon l'auteur ». Présente directement les faits et les analyses.
+- Ignore et supprime tout artefact technique de sous-titrage ou crédit de captions (ex. « Sous-titrage ST' 501 »), qui n'est jamais du contenu éditorial.
 - Aucune référence entre parenthèses.
 - Mets en **gras** les chiffres clés, noms propres et termes importants.
 - Structure obligatoire :
@@ -125,8 +127,12 @@ Une phrase de synthèse, factuelle, sans mention de la source.
 
 (entre 5 et 15 bullet points selon la longueur ; pour chaque point : titre en **gras** seul sur sa ligne, ligne vide, puis le paragraphe indenté de deux espaces)
 
+## CONCLUSION
+Une courte conclusion factuelle de 1-2 phrases, qui synthétise l'enjeu principal sans mentionner la source. Le titre doit être exactement "## CONCLUSION" en majuscules.
+
 - Longueur cible indicative : ${targetRange} mots, MAIS sans jamais dépasser ${SUMMARY_MAX_CHARS} caractères au total.
 - Sois factuel et informatif, avec anecdotes ou détails surprenants quand ils sont présents.
+- Termine toujours par la section "## CONCLUSION" et sa phrase finale complète.
 
 RAPPEL FINAL : la sortie Markdown complète DOIT faire au plus ${SUMMARY_MAX_CHARS} caractères et se terminer par une phrase complète, jamais par « … » ou « ... ». Si tu risques de dépasser, écris moins de bullets ou des paragraphes plus courts dès le début, ne tronque pas la fin.`;
   }
@@ -146,6 +152,7 @@ Rules:
 - Use third person, neutral journalistic tone, factual and concrete.
 - NEVER mention the video, the transcript, the source, the author, the host, the speaker, the guest, the episode, the podcast, the channel, viewers or subscribers.
 - Avoid meta phrasing like "the video introduces", "the speaker explains", "it is said that", "according to the author". Present the facts and analysis directly.
+- Ignore and remove any technical caption/subtitle artifact or credit (for example "Sous-titrage ST' 501"); it is never editorial content.
 - No parenthetical references.
 - Use **bold** for key figures, proper nouns, and important terms.
 - Mandatory structure:
@@ -164,8 +171,12 @@ One factual summary sentence, with no mention of the source.
 
 (between 5 and 15 bullet points depending on length; for each point: bold title alone on its line, blank line, then the paragraph indented by two spaces)
 
+## CONCLUSION
+A short factual conclusion of 1-2 sentences that synthesizes the main stake without mentioning the source. The heading must be exactly "## CONCLUSION" in uppercase.
+
 - Indicative target length: ${targetRange} words, but NEVER exceed ${SUMMARY_MAX_CHARS} characters total.
 - Be factual and informative; include surprising anecdotes or details when they appear in the material.
+- Always end with the "## CONCLUSION" section and its complete final sentence.
 
 FINAL REMINDER: the full Markdown output MUST be at most ${SUMMARY_MAX_CHARS} characters and end with a complete sentence, never with "…" or "...". If you risk going over, write fewer bullets or shorter paragraphs from the start instead of truncating the ending.`;
 }
@@ -175,10 +186,12 @@ function buildTranslatePrompt(targetLang: string): string {
     return `Tu es un traducteur expert. Traduis le résumé Markdown suivant en français.
 
 Règles :
-- Conserve exactement la même structure Markdown (## INTRO, ## Points clés, bullet points).
+- Conserve exactement la même structure Markdown (## INTRO, ## Points clés, bullet points, ## CONCLUSION).
 - Conserve le **gras** sur les mêmes termes.
-- Traduis "## Key Points" en "## Points clés" et remplace "## TL;DR" par "## INTRO".
+- Traduis "## Key Points" en "## Points clés", remplace "## TL;DR" par "## INTRO", et conserve/ajoute le titre final "## CONCLUSION" en majuscules.
 - Pour chaque point : titre en **gras** seul sur sa ligne, ligne vide, puis le paragraphe indenté de deux espaces (préserve ce format si l'original l'utilise, et applique-le si l'original a le titre et le paragraphe sur la même ligne).
+- Si le résumé source n'a pas de conclusion, ajoute une courte section finale "## CONCLUSION" de 1-2 phrases.
+- Supprime tout artefact technique de sous-titrage ou crédit de captions (ex. « Sous-titrage ST' 501 »).
 - Ne résume pas davantage, traduis fidèlement.
 - LIMITE STRICTE : la traduction Markdown doit faire au maximum ${SUMMARY_MAX_CHARS} caractères. La traduction française est en général plus longue que l'anglais ; si la traduction fidèle dépasse cette limite, raccourcis légèrement les paragraphes pour rester sous ${SUMMARY_MAX_CHARS} caractères tout en gardant les chiffres, noms propres et faits clés.`;
   }
@@ -186,10 +199,12 @@ Règles :
   return `You are an expert translator. Translate the following Markdown summary into English.
 
 Rules:
-- Keep the exact same Markdown structure (## TL;DR, ## Key Points, bullet points).
+- Keep the exact same Markdown structure (## TL;DR, ## Key Points, bullet points, ## CONCLUSION).
 - Keep **bold** on the same terms.
-- Translate "## Points clés" to "## Key Points" and replace "## INTRO" with "## TL;DR".
+- Translate "## Points clés" to "## Key Points", replace "## INTRO" with "## TL;DR", and keep/add the final heading "## CONCLUSION" in uppercase.
 - For each point: bold title alone on its line, blank line, then the paragraph indented by two spaces (preserve this format if the source uses it, and apply it if the source has the title and paragraph on the same line).
+- If the source summary has no conclusion, add a short final "## CONCLUSION" section of 1-2 sentences.
+- Remove any technical caption/subtitle artifact or credit (for example "Sous-titrage ST' 501").
 - Do not further summarize, translate faithfully.
 - STRICT LIMIT: the translated Markdown must be at most ${SUMMARY_MAX_CHARS} characters. If a faithful translation goes over, slightly shorten the paragraphs to stay below ${SUMMARY_MAX_CHARS} characters while keeping all key figures, proper nouns and facts.`;
 }
@@ -339,9 +354,9 @@ export async function transcribeVideo(
       // another 10-20s OpenAI call and would push us past the 30s budget
       // on the synchronous route. The prompt already enforces the cap;
       // an oversized output is acceptable, a 502 is not.
-      summaryMd = stripCodeFences(
+      summaryMd = stripSubtitleCreditArtifacts(stripCodeFences(
         stripTrailingEllipsis(completion.choices[0]?.message?.content ?? ""),
-      );
+      ));
       transcriptText = otherCached.transcript;
       wordCount = otherCached.word_count ?? 0;
     } else {
@@ -369,9 +384,9 @@ export async function transcribeVideo(
         },
         { timeout: openaiTimeoutMs },
       );
-      summaryMd = stripCodeFences(
+      summaryMd = stripSubtitleCreditArtifacts(stripCodeFences(
         stripTrailingEllipsis(completion.choices[0]?.message?.content ?? ""),
-      );
+      ));
       transcriptText = transcript.text;
       wordCount = transcript.wordCount;
 

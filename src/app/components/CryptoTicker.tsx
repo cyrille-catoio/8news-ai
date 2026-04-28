@@ -71,11 +71,11 @@ function CoinCell({ price, isExtra }: { price: CryptoPrice; isExtra: boolean }) 
   const linkStyle: CSSProperties = {
     display: "inline-flex",
     alignItems: "center",
-    gap: 6,
+    gap: 5,
     color: "inherit",
     textDecoration: "none",
     cursor: "pointer",
-    padding: "7px 12px",
+    padding: "6px 10px",
     border: `1px solid ${color.border}`,
     borderRadius: 999,
     background: "rgba(255,255,255,0.035)",

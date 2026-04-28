@@ -389,8 +389,8 @@ body {
 .crypto-ticker {
   display: flex;
   align-items: center;
-  gap: 12px;
-  font-size: 17.25px;
+  gap: 10px;
+  font-size: 13.8px;
   font-weight: 600;
   letter-spacing: 0.01em;
   white-space: nowrap;
@@ -402,11 +402,11 @@ body {
 
 @media (max-width: 640px) {
   .crypto-ticker {
-    gap: 10px;
-    font-size: 16.5px;
+    gap: 8px;
+    font-size: 13.2px;
   }
   .crypto-ticker-coin {
-    padding: 7px 10px !important;
+    padding: 6px 8px !important;
   }
   .crypto-ticker-change {
     display: none;
@@ -418,6 +418,6 @@ body {
     display: none;
   }
   .crypto-ticker {
-    gap: 8px;
+    gap: 6px;
   }
 }

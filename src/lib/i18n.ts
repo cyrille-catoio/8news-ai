@@ -840,8 +840,8 @@ const strings = {
    *  ~360px). The intent is unchanged: "the day's top stories across all
    *  your topics". */
   analyzeTopArticlesBtn: {
-    en: "Top stories",
-    fr: "Top du jour",
+    en: "Top articles",
+    fr: "Top articles",
   },
   topSummaryCtaTitle: {
     en: "AI summary of today's top",
@@ -1077,7 +1077,7 @@ const strings = {
    *  not a forward-looking briefing. */
   videoBriefingsBtn: {
     en: "Video recaps",
-    fr: "Recaps vidéo",
+    fr: "Récaps vidéo",
   },
   /** General menu pill for `/app/videos` — today's videos feed.
    *  Renamed in v2.5.17 from "Today's Videos / Vidéos du jour" to just

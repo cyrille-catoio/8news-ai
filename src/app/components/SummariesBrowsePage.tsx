@@ -41,7 +41,7 @@ export function SummariesBrowsePage({ lang }: { lang: Lang }) {
   const recentByTopic = new Map<string, SummaryRoute[]>();
   for (const r of filtered) {
     const arr = recentByTopic.get(r.topic_id) ?? [];
-    if (arr.length < 5) arr.push(r);
+    if (arr.length < 8) arr.push(r);
     recentByTopic.set(r.topic_id, arr);
   }
 
@@ -65,6 +65,13 @@ export function SummariesBrowsePage({ lang }: { lang: Lang }) {
       </p>
 
       <section style={{ marginBottom: 36 }}>
+        <h2 style={{ color: color.gold, fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14 }}>
+          {lang === "fr" ? "Explorer un résumé" : "Browse a summary"}
+        </h2>
+        <SummaryExplorer lang={lang} />
+      </section>
+
+      <section>
         <h2 style={{ color: color.gold, fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14 }}>
           Topics
         </h2>
@@ -111,13 +118,6 @@ export function SummariesBrowsePage({ lang }: { lang: Lang }) {
             );
           })}
         </div>
-      </section>
-
-      <section>
-        <h2 style={{ color: color.gold, fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14 }}>
-          {lang === "fr" ? "Explorer un résumé" : "Browse a summary"}
-        </h2>
-        <SummaryExplorer lang={lang} />
       </section>
     </div>
   );

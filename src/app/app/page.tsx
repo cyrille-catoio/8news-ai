@@ -69,11 +69,14 @@ const PERIODS = [
   { label: "3 mo",  hours: 2160 },
 ] as const;
 
+const MOBILE_TOPIC_PAGE_SIZE = 24;
+
 // ── Sub-components ────────────────────────────────────────────────────
 
 function TopicToggle({
   topics,
   topic,
+  lang,
   disabled,
   onChange,
   personalizationMode = false,
@@ -82,12 +85,40 @@ function TopicToggle({
 }: {
   topics: TopicLabel[];
   topic: string | null;
+  lang: Lang;
   disabled: boolean;
   onChange: (t: string) => void;
   personalizationMode?: boolean;
   preferredTopicIds: string[] | null;
   onTogglePreference: (id: string) => void;
 }) {
+  const [isMobile, setIsMobile] = useState(false);
+  const [page, setPage] = useState(0);
+  const pageCount = isMobile ? Math.max(1, Math.ceil(topics.length / MOBILE_TOPIC_PAGE_SIZE)) : 1;
+  const visibleTopics = isMobile
+    ? topics.slice(page * MOBILE_TOPIC_PAGE_SIZE, (page + 1) * MOBILE_TOPIC_PAGE_SIZE)
+    : topics;
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 640px)");
+    const sync = () => setIsMobile(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, pageCount - 1));
+  }, [pageCount]);
+
+  useEffect(() => {
+    if (!isMobile || !topic) return;
+    const selectedIndex = topics.findIndex((tp) => tp.id === topic);
+    if (selectedIndex >= 0) {
+      setPage(Math.floor(selectedIndex / MOBILE_TOPIC_PAGE_SIZE));
+    }
+  }, [isMobile, topic, topics]);
+
   const btnStyle = (value: string): CSSProperties => {
     if (personalizationMode) {
       const inPrefs = preferredTopicIds === null || preferredTopicIds.includes(value);
@@ -121,11 +152,12 @@ function TopicToggle({
   };
 
   return (
-    <div
-      className="topic-grid"
-      style={{ ["--topic-grid-cols" as string]: Math.min(topics.length || 8, 8) } as CSSProperties}
-    >
-      {topics.map(({ id, label }) => (
+    <>
+      <div
+        className={`topic-grid${isMobile && pageCount > 1 ? " topic-grid-paginated" : ""}`}
+        style={{ ["--topic-grid-cols" as string]: Math.min(visibleTopics.length || 8, 8) } as CSSProperties}
+      >
+        {visibleTopics.map(({ id, label }) => (
           <button
             key={id}
             onClick={() => personalizationMode ? onTogglePreference(id) : onChange(id)}
@@ -135,7 +167,31 @@ function TopicToggle({
             {label}
           </button>
         ))}
-    </div>
+      </div>
+      {isMobile && pageCount > 1 && (
+        <div className="topic-pagination" aria-label={lang === "fr" ? "Pagination des topics" : "Topic pagination"}>
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+            aria-label={lang === "fr" ? "Page précédente" : "Previous page"}
+          >
+            ←
+          </button>
+          <span>
+            {page + 1}/{pageCount}
+          </span>
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+            disabled={page >= pageCount - 1}
+            aria-label={lang === "fr" ? "Page suivante" : "Next page"}
+          >
+            →
+          </button>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -1132,6 +1188,7 @@ export default function Home() {
           <TopicToggle
             topics={displayedTopicLabels}
             topic={topic}
+            lang={lang}
             disabled={loading}
             onChange={handleTopicChange}
             personalizationMode={isPersonalizationMode}

@@ -33,7 +33,7 @@ export default async function SummariesPage({
   const recentByTopic = new Map<string, typeof enRoutes>();
   for (const r of enRoutes) {
     const arr = recentByTopic.get(r.topic_id) ?? [];
-    if (arr.length < 5) arr.push(r);
+    if (arr.length < 8) arr.push(r);
     recentByTopic.set(r.topic_id, arr);
   }
 
@@ -66,8 +66,16 @@ export default async function SummariesPage({
             : "Every day, AI analyzes the latest news by topic and generates a summary with key points and relevant articles."}
         </p>
 
-        {/* SSR topic grid with links — crawlable by Google */}
+        {/* Interactive explorer for users */}
         <section style={{ marginBottom: 40 }}>
+          <h2 style={{ color: color.gold, fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 16 }}>
+            {lang === "fr" ? "Explorer un résumé" : "Browse a summary"}
+          </h2>
+          <SummaryExplorer lang={lang} />
+        </section>
+
+        {/* SSR topic grid with links — crawlable by Google */}
+        <section>
           <h2 style={{ color: color.gold, fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 16 }}>
             {lang === "fr" ? "Topics" : "Topics"}
           </h2>
@@ -114,14 +122,6 @@ export default async function SummariesPage({
               );
             })}
           </div>
-        </section>
-
-        {/* Interactive explorer for users */}
-        <section>
-          <h2 style={{ color: color.gold, fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 16 }}>
-            {lang === "fr" ? "Explorer un résumé" : "Browse a summary"}
-          </h2>
-          <SummaryExplorer lang={lang} />
         </section>
 
         <footer style={{ marginTop: 40, paddingTop: 20, borderTop: `1px solid ${color.border}`, textAlign: "center" }}>

@@ -86,6 +86,10 @@ body {
   white-space: nowrap;
 }
 
+.topic-pagination {
+  display: none;
+}
+
 @media (max-width: 1200px) {
   .topic-grid {
     grid-template-columns: repeat(6, 1fr);
@@ -107,6 +111,49 @@ body {
   .topic-grid button {
     font-size: 13px !important;
     padding: 10px 2px !important;
+  }
+
+  .topic-grid-paginated {
+    min-height: 253px;
+    align-content: start;
+  }
+
+  .topic-pagination {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .topic-pagination button {
+    height: 46px;
+    padding: 0;
+    border: 1px solid var(--8n-gold);
+    border-radius: 10px;
+    background: rgba(201, 162, 39, 0.14);
+    color: var(--8n-gold);
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+  }
+
+  .topic-pagination button:disabled {
+    border-color: var(--8n-border);
+    background: var(--8n-surface);
+    color: var(--8n-text-muted);
+    opacity: 0.55;
+    cursor: default;
+  }
+
+  .topic-pagination span {
+    min-width: 52px;
+    color: var(--8n-text-muted);
+    font-size: 13px;
+    font-weight: 700;
+    text-align: center;
   }
 }
 

@@ -57,7 +57,7 @@ export default async function BriefingsPage({ searchParams }: PageProps) {
   const recentByTopic = new Map<string, typeof langRoutes>();
   for (const r of langRoutes) {
     const arr = recentByTopic.get(r.topic_id) ?? [];
-    if (arr.length < 5) arr.push(r);
+    if (arr.length < 8) arr.push(r);
     recentByTopic.set(r.topic_id, arr);
   }
 
@@ -146,9 +146,11 @@ export default async function BriefingsPage({ searchParams }: PageProps) {
               {lang === "fr" ? "Par sujet" : "By topic"}
             </h2>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
-              {topics.map((tp) => {
+              {topics
+                .filter((tp) => (recentByTopic.get(tp.id) ?? []).length > 0)
+                .map((tp) => {
                 const label = lang === "fr" ? tp.label_fr : tp.label_en;
-                const recent = recentByTopic.get(tp.id) ?? [];
+                const recent = recentByTopic.get(tp.id)!;
                 return (
                   <div
                     key={tp.id}
@@ -165,24 +167,18 @@ export default async function BriefingsPage({ searchParams }: PageProps) {
                     >
                       {label}
                     </Link>
-                    {recent.length > 0 ? (
-                      <ul style={{ listStyle: "none", padding: 0, margin: "8px 0 0 0" }}>
-                        {recent.map((r) => (
-                          <li key={`${r.roundup_date}-${r.lang}`} style={{ marginBottom: 4 }}>
-                            <Link
-                              href={`/${r.topic_id}/r/${r.roundup_date}/${r.slug_keywords}`}
-                              style={{ color: color.textSecondary, textDecoration: "none", fontSize: 13 }}
-                            >
-                              {r.roundup_date}
-                            </Link>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p style={{ color: color.textDim, fontSize: 12, margin: "6px 0 0 0" }}>
-                        {lang === "fr" ? "Aucun briefing" : "No briefings yet"}
-                      </p>
-                    )}
+                    <ul style={{ listStyle: "none", padding: 0, margin: "8px 0 0 0" }}>
+                      {recent.map((r) => (
+                        <li key={`${r.roundup_date}-${r.lang}`} style={{ marginBottom: 4 }}>
+                          <Link
+                            href={`/${r.topic_id}/r/${r.roundup_date}/${r.slug_keywords}`}
+                            style={{ color: color.textSecondary, textDecoration: "none", fontSize: 13 }}
+                          >
+                            {r.roundup_date}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 );
               })}

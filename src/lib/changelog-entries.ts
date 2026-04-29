@@ -9,6 +9,16 @@ export interface ChangelogEntryDef {
 
 export const CHANGELOG_ENTRIES: ChangelogEntryDef[] = [
   {
+    version: "2.5.21",
+    title_en: "v2.5.21: Unified GPT-5.5 across all AI pipelines + mobile topic pagination reduced to 16",
+    title_fr: "v2.5.21 : GPT-5.5 unifié sur tous les pipelines IA + pagination mobile des topics réduite à 16",
+    body_en:
+      "**All LLM calls now use GPT-5.5.** Previously the codebase used a mix of models — `gpt-4.1-nano` for article scoring and feed discovery, `gpt-4.1-mini` for daily summaries and synchronous video transcription, and `gpt-5.3-chat-latest` for the Top 50, video roundups, and background cron transcription. Everything is now standardized on **GPT-5.5** for consistent quality across all surfaces: article scoring, topic generation, feed discovery, daily summaries, video transcription (both synchronous and cron), video roundups, and the homepage Top 50 summary.\n\n**Mobile topic pagination reduced to 16 per page.** The Articles page on smartphone screens now shows 16 topics per page (4 rows × 4 columns) instead of 24, making the grid more compact and easier to scan on smaller screens. The CSS grid is adjusted to `repeat(4, 38px)` to maintain fixed-height pagination buttons.",
+    body_fr:
+      "**Tous les appels LLM utilisent désormais GPT-5.5.** Précédemment, le codebase utilisait un mix de modèles — `gpt-4.1-nano` pour le scoring d'articles et la découverte de feeds, `gpt-4.1-mini` pour les résumés quotidiens et la transcription vidéo synchrone, et `gpt-5.3-chat-latest` pour le Top 50, les roundups vidéo et le cron de transcription en arrière-plan. Tout est maintenant standardisé sur **GPT-5.5** pour une qualité constante sur toutes les surfaces : scoring d'articles, génération de topics, découverte de feeds, résumés quotidiens, transcription vidéo (synchrone et cron), roundups vidéo, et le résumé Top 50 de la page d'accueil.\n\n**Pagination mobile des topics réduite à 16 par page.** La page Articles sur écran smartphone affiche maintenant 16 topics par page (4 lignes × 4 colonnes) au lieu de 24, rendant la grille plus compacte et plus facile à parcourir sur petit écran. Le CSS grid est ajusté à `repeat(4, 38px)` pour maintenir la hauteur fixe des boutons de pagination.",
+    created_at: "2026-04-29T22:05:00Z",
+  },
+  {
     version: "2.5.20",
     title_en: "v2.5.20: Mobile topic pagination, crypto ticker refinements, summaries UX polish, robots.txt, trending-to-articles navigation, video refresh & transcript cleanup",
     title_fr: "v2.5.20 : Pagination mobile des topics, affinements du ticker crypto, polish UX résumés, robots.txt, navigation tendances→articles, rafraîchissement vidéo & nettoyage des transcriptions",

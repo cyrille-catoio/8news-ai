@@ -116,7 +116,7 @@ body {
   }
 
   .topic-grid-paginated {
-    grid-template-rows: repeat(6, 38px);
+    grid-template-rows: repeat(8, 38px);
     align-content: start;
   }
 

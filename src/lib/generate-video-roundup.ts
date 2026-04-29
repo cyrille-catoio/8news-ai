@@ -22,13 +22,8 @@ import {
   insertVideoRoundupBullets,
 } from "./supabase";
 
-/**
- * Roundups are the editorial flagship — use the strongest model. Same
- * choice as `/api/news/top-summary`. Slower than gpt-4.1-mini but the
- * caller is the nightly cron (background function, 15 min budget) so
- * latency is not a concern; quality is.
- */
-const AI_MODEL = "gpt-5.3-chat-latest";
+/** OpenAI model for video roundup generation. */
+const AI_MODEL = "gpt-5.5";
 const OPENAI_TIMEOUT_MS = 500_000;
 
 /** Min number of transcribed videos before a roundup makes sense. */

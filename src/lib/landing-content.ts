@@ -263,7 +263,7 @@ export const LANDING_CONTENT: LandingContent = {
     items: {
       en: [
         ["How is this different from Feedly or Google News?", "Feedly shows you everything. Google News ranks by popularity. 8news filters with AI: every article is scored 1–10 against a prompt you can edit, and only the top 20–50 reach the summary. You read eight bullets, not 400 headlines."],
-        ["Which AI models are you using?", "GPT-4.1-nano for per-article scoring (cheap, fast, ~$0.10 per 1K articles), GPT-4.1-mini for daily SEO summaries and YouTube transcription summaries, and GPT-5.3-chat-latest for the homepage Top 50 grouped summary."],
+        ["Which AI models are you using?", "GPT-5.5 across the board — per-article scoring, daily SEO summaries, YouTube transcription summaries, video roundups, and the homepage Top 50 grouped summary."],
         ["Can I add my own topic?", "Yes. Describe it in one sentence, 8news generates the scoring criteria and auto-discovers 10 RSS feeds via AI. You can edit any prompt. Owners get full CRUD; members can personalize which topics they see."],
         ["French or English?", "Both, toggle in the header. Article summaries and daily SEO pages are generated in both languages. YouTube summaries can be transcribed either in English or in French, regardless of the original video language."],
       ],

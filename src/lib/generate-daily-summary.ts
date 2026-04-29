@@ -14,7 +14,7 @@ import {
 const MIN_SCORE = 3;
 const MAX_ARTICLES_FEED = 50;
 const MAX_ARTICLES_DISPLAY = 10;
-const AI_MODEL = "gpt-4.1-mini";
+const AI_MODEL = "gpt-5.5";
 
 // eslint-disable-next-line no-control-regex
 const CONTROL_CHARS = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g;

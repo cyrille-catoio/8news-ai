@@ -48,7 +48,7 @@ export async function analyzeWithAI(
   systemPrompt: string,
   lang: Lang,
   apiKey: string,
-  model: string = "gpt-4.1-nano",
+  model: string = "gpt-5.5",
 ): Promise<{ summary: string; bullets: SummaryBullet[]; relevant: Map<number, RelevantEntry> }> {
   const msg = getServerMessages(lang);
   const openai = new OpenAI({ apiKey });

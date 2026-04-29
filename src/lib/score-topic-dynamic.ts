@@ -104,7 +104,7 @@ async function scoreArticleBatch(
 
   const completion = await openai.chat.completions.create(
     {
-      model: "gpt-4.1-nano",
+      model: "gpt-5.5",
       messages: [
         { role: "system", content: prompt },
         { role: "user", content: articleList },

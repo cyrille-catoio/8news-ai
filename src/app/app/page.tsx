@@ -69,7 +69,7 @@ const PERIODS = [
   { label: "3 mo",  hours: 2160 },
 ] as const;
 
-const MOBILE_TOPIC_PAGE_SIZE = 24;
+const MOBILE_TOPIC_PAGE_SIZE = 32;
 
 // ── Sub-components ────────────────────────────────────────────────────
 

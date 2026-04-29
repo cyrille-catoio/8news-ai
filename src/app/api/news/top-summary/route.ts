@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
     let bullets: SummaryResponse["bullets"];
 
     try {
-      const result = await analyzeWithAI(items, systemPrompt, lang, apiKey, "gpt-5.3-chat-latest");
+      const result = await analyzeWithAI(items, systemPrompt, lang, apiKey, "gpt-5.5");
       summary = result.summary;
       bullets = result.bullets;
     } catch (e) {

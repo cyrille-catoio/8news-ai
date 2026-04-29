@@ -37,17 +37,8 @@ import { normalizeSummaryHeadings } from "./summary-headings";
 import { stripSubtitleCreditArtifacts } from "./text-artifacts";
 import { slugifyVideoTitle, uniquifyVideoSlug } from "./slug";
 
-/**
- * Default model for the synchronous API route. The cron passes a more
- * capable model (`gpt-5.3-chat-latest`) via `opts.model` since it has
- * a 15 min budget — see `cron-video-transcribe-background.ts`.
- *
- * Why default to the smaller model here: the synchronous route is a
- * fallback for very-fresh videos that haven't been picked up yet by a
- * cron tick. A 504 on this path is much worse UX than a slightly less
- * polished summary, so we keep latency predictable (< 30 s budget).
- */
-const DEFAULT_AI_MODEL = "gpt-4.1-mini";
+/** OpenAI model used for all video transcription summaries. */
+const DEFAULT_AI_MODEL = "gpt-5.5";
 
 /** Hard cap on the produced Markdown summary length, in characters. */
 const SUMMARY_MAX_CHARS = 5000;
@@ -286,10 +277,7 @@ export interface TranscribeOptions {
   /** OpenAI per-call timeout. Default 25_000 (synchronous API route).
    *  Pass a larger value (e.g. 180_000) for the background cron. */
   openaiTimeoutMs?: number;
-  /** OpenAI chat model. Default `gpt-4.1-mini` (synchronous API route,
-   *  optimized for the 30 s Netlify budget). The cron passes
-   *  `gpt-5.3-chat-latest` for higher-quality summaries since it has a
-   *  15 min budget. */
+  /** OpenAI chat model override. Default `gpt-5.5`. */
   model?: string;
 }
 

@@ -44,17 +44,11 @@ const WINDOW_HOURS = 24;
 const MIN_DURATION_SEC = 120;
 
 /** Background functions have a 15 min budget; we can afford a much
- *  longer per-call OpenAI timeout than the synchronous route. Bumped
- *  to 180s to comfortably accommodate `gpt-5.3-chat-latest` latency
- *  on long podcasts (typically 40-90s, but spikes happen). */
+ *  longer per-call OpenAI timeout than the synchronous route. */
 const CRON_OPENAI_TIMEOUT_MS = 180_000;
 
-/** Higher-quality model for the pre-warm cache. The synchronous API
- *  route stays on `gpt-4.1-mini` (faster, predictable < 30 s) since
- *  it's only a fallback for very-fresh videos not yet picked up by a
- *  cron tick. Same model family already used by `/api/news/top-summary`
- *  and the per-topic video roundup. */
-const CRON_AI_MODEL = "gpt-5.3-chat-latest";
+/** OpenAI model for background video transcription. */
+const CRON_AI_MODEL = "gpt-5.5";
 
 const ALL_LANGS = ["en", "fr"] as const;
 

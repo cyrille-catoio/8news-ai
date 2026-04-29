@@ -41,7 +41,7 @@ Each tier should be 1-3 sentences in English, specific to the given domain. Be c
 
   try {
     const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-nano",
+      model: "gpt-5.5",
       temperature: 0.7,
       messages: [
         { role: "system", content: systemPrompt },

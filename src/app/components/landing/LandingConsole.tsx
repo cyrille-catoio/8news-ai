@@ -170,7 +170,7 @@ export async function LandingConsole({ lang }: { lang: LandingLang }) {
           {k.title[lang]}
         </div>
         <div className="console-title" style={{ color: "var(--text-4)" }}>
-          GPT-5.5
+          GPT-4.1-mini
         </div>
       </div>
       <div className="console-body">

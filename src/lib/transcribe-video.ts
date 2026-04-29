@@ -38,7 +38,7 @@ import { stripSubtitleCreditArtifacts } from "./text-artifacts";
 import { slugifyVideoTitle, uniquifyVideoSlug } from "./slug";
 
 /** OpenAI model used for all video transcription summaries. */
-const DEFAULT_AI_MODEL = "gpt-5.5";
+const DEFAULT_AI_MODEL = "gpt-4.1-mini";
 
 /** Hard cap on the produced Markdown summary length, in characters. */
 const SUMMARY_MAX_CHARS = 5000;

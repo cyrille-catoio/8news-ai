@@ -23,7 +23,7 @@ import {
 } from "./supabase";
 
 /** OpenAI model for video roundup generation. */
-const AI_MODEL = "gpt-5.5";
+const AI_MODEL = "gpt-5.3-chat-latest";
 const OPENAI_TIMEOUT_MS = 500_000;
 
 /** Min number of transcribed videos before a roundup makes sense. */

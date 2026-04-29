@@ -48,7 +48,7 @@ const MIN_DURATION_SEC = 120;
 const CRON_OPENAI_TIMEOUT_MS = 180_000;
 
 /** OpenAI model for background video transcription. */
-const CRON_AI_MODEL = "gpt-5.5";
+const CRON_AI_MODEL = "gpt-5.3-chat-latest";
 
 const ALL_LANGS = ["en", "fr"] as const;
 

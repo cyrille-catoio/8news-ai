@@ -111,10 +111,12 @@ body {
   .topic-grid button {
     font-size: 13px !important;
     padding: 10px 2px !important;
+    height: 38px;
+    line-height: 1;
   }
 
   .topic-grid-paginated {
-    min-height: 253px;
+    grid-template-rows: repeat(6, 38px);
     align-content: start;
   }
 

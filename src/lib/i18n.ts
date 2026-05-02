@@ -469,13 +469,13 @@ const strings = {
     en: "Delay p95",
     fr: "Délai p95",
   },
-  slaUnder5m: {
-    en: "SLA < 5m",
-    fr: "SLA < 5m",
+  slaUnder15m: {
+    en: "SLA < 15m",
+    fr: "SLA < 15m",
   },
-  freshBacklog5m: {
-    en: "Fresh backlog 5m",
-    fr: "Backlog frais 5m",
+  freshBacklog15m: {
+    en: "Fresh backlog 15m",
+    fr: "Backlog frais 15m",
   },
   alerts: {
     en: "Alerts",

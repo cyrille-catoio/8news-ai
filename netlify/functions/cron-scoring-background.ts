@@ -1,16 +1,29 @@
 import { createClient } from "@supabase/supabase-js";
 import { scoreTopicForCron } from "./shared/score-topic";
 
-// Background functions have a 15-minute hard wall on Netlify.
+// Background functions have a 15-minute hard timeout on Netlify and the
+// scoring cron is triggered every 15 minutes. Keep the default budget below
+// both limits so one tick has time to finish before the next one starts.
 // This cron is score-only: no RSS fetching. Fetching is handled exclusively
 // by cron-fetching-background.ts so each function stays specialized.
-const CRON_WALL_MS = 840_000;
-const CRON_BUDGET_MS = Number(process.env.CRON_BACKGROUND_SCORE_BUDGET_MS ?? 810_000);
-const CRON_SAFETY_RESERVE_MS = Number(process.env.CRON_BACKGROUND_SAFETY_RESERVE_MS ?? 15_000);
-// Higher defaults than the minute cron: background has the full 15 min to drain backlogs.
-const SCORE_MAX_ARTICLES_PER_RUN = Number(process.env.SCORE_MAX_ARTICLES_PER_RUN ?? 150);
-const SCORE_MIN_ARTICLES_PER_RUN = Number(process.env.SCORE_MIN_ARTICLES_PER_RUN ?? 15);
-const SCORE_HARD_ARTICLE_CAP = Number(process.env.SCORE_HARD_ARTICLE_CAP ?? 300);
+const CRON_INTERVAL_MS = Number(process.env.CRON_BACKGROUND_SCORE_INTERVAL_MS ?? 900_000);
+const CRON_TIMEOUT_MS = Number(process.env.CRON_BACKGROUND_SCORE_TIMEOUT_MS ?? 900_000);
+const CRON_OVERLAP_RESERVE_MS = Number(process.env.CRON_BACKGROUND_SCORE_OVERLAP_RESERVE_MS ?? 60_000);
+const DEFAULT_CRON_BUDGET_MS = Math.max(
+  60_000,
+  Math.min(CRON_INTERVAL_MS, CRON_TIMEOUT_MS) - CRON_OVERLAP_RESERVE_MS,
+);
+const CRON_BUDGET_MS = Number(process.env.CRON_BACKGROUND_SCORE_BUDGET_MS ?? DEFAULT_CRON_BUDGET_MS);
+const CRON_SAFETY_RESERVE_MS = Number(
+  process.env.CRON_BACKGROUND_SCORE_SAFETY_RESERVE_MS
+    ?? process.env.CRON_BACKGROUND_SAFETY_RESERVE_MS
+    ?? 30_000,
+);
+// 15-minute cadence: fewer ticks, so each run can score more per topic while
+// still bounded by the per-topic budget and the global timeout guard.
+const SCORE_MAX_ARTICLES_PER_RUN = Number(process.env.SCORE_MAX_ARTICLES_PER_RUN ?? 200);
+const SCORE_MIN_ARTICLES_PER_RUN = Number(process.env.SCORE_MIN_ARTICLES_PER_RUN ?? 25);
+const SCORE_HARD_ARTICLE_CAP = Number(process.env.SCORE_HARD_ARTICLE_CAP ?? 400);
 
 type TopicScoreRow = {
   id: string;
@@ -35,11 +48,11 @@ function clamp(n: number, min: number, max: number): number {
 // Picks how many articles to score for one topic in one pass.
 // Scales up aggressively when backlog is large or budget is plentiful.
 function pickAdaptiveMaxArticles(remainingMs: number, backlog: number): number {
-  const pressureBoost = backlog >= 300 ? 50 : backlog >= 150 ? 30 : backlog >= 50 ? 15 : 0;
+  const pressureBoost = backlog >= 400 ? 100 : backlog >= 200 ? 60 : backlog >= 75 ? 25 : 0;
   const timeCap =
-    remainingMs > 600_000 ? 300 :
-    remainingMs > 300_000 ? 200 :
-    remainingMs > 120_000 ? 150 :
+    remainingMs > 600_000 ? 400 :
+    remainingMs > 300_000 ? 300 :
+    remainingMs > 120_000 ? 200 :
     remainingMs > 60_000  ? 100 :
     50;
   return clamp(
@@ -70,7 +83,8 @@ async function getBacklogCounts(
 
 export default async () => {
   const startedAt = Date.now();
-  const deadline = startedAt + Math.min(CRON_WALL_MS, CRON_BUDGET_MS);
+  const effectiveBudgetMs = Math.min(CRON_INTERVAL_MS, CRON_TIMEOUT_MS, CRON_BUDGET_MS);
+  const deadline = startedAt + effectiveBudgetMs;
   const budgetRemaining = () => deadline - Date.now();
 
   const supabase = createClient(
@@ -194,7 +208,7 @@ export default async () => {
   }
 
   lines.push(
-    `[run] cron=score-background topics_total=${rows.length} passes=${totalPasses} scored=${totalScored} deadline_stops=${deadlineStops} elapsed_ms=${Date.now() - startedAt} budget_ms=${Math.min(CRON_WALL_MS, CRON_BUDGET_MS)}`,
+    `[run] cron=score-background topics_total=${rows.length} passes=${totalPasses} scored=${totalScored} deadline_stops=${deadlineStops} elapsed_ms=${Date.now() - startedAt} budget_ms=${effectiveBudgetMs} interval_ms=${CRON_INTERVAL_MS} timeout_ms=${CRON_TIMEOUT_MS}`,
   );
   console.log(lines.join("\n"));
 };

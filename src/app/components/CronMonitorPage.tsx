@@ -128,22 +128,22 @@ export function CronMonitorPage({ lang }: { lang: Lang }) {
           <div style={kpiLbl}>{t("avgDelay", lang)}</div>
         </div>
         <div style={kpiCard}>
-          <div style={{ ...kpiVal, color: kpiColor(data.global.delayP95Minutes ?? 0, [15, 30], true) }}>
+          <div style={{ ...kpiVal, color: kpiColor(data.global.delayP95Minutes ?? 0, [30, 45], true) }}>
             {(data.global.delayP95Minutes ?? 0).toLocaleString(lang === "fr" ? "fr-FR" : "en-US", { maximumFractionDigits: 1 })}m
           </div>
           <div style={kpiLbl}>{t("delayP95", lang)}</div>
         </div>
         <div style={kpiCard}>
-          <div style={{ ...kpiVal, color: kpiColor(data.global.slaUnder5mPct ?? 0, [80, 95]) }}>
-            {(data.global.slaUnder5mPct ?? 0).toLocaleString(lang === "fr" ? "fr-FR" : "en-US", { maximumFractionDigits: 1 })}%
+          <div style={{ ...kpiVal, color: kpiColor(data.global.slaUnder15mPct ?? 0, [80, 95]) }}>
+            {(data.global.slaUnder15mPct ?? 0).toLocaleString(lang === "fr" ? "fr-FR" : "en-US", { maximumFractionDigits: 1 })}%
           </div>
-          <div style={kpiLbl}>{t("slaUnder5m", lang)}</div>
+          <div style={kpiLbl}>{t("slaUnder15m", lang)}</div>
         </div>
         <div style={kpiCard}>
-          <div style={{ ...kpiVal, color: kpiColor(data.global.freshBacklog5m ?? 0, [40, 150], true) }}>
-            {fmt(data.global.freshBacklog5m ?? 0)}
+          <div style={{ ...kpiVal, color: kpiColor(data.global.freshBacklog15m ?? 0, [120, 300], true) }}>
+            {fmt(data.global.freshBacklog15m ?? 0)}
           </div>
-          <div style={kpiLbl}>{t("freshBacklog5m", lang)}</div>
+          <div style={kpiLbl}>{t("freshBacklog15m", lang)}</div>
         </div>
       </div>
 

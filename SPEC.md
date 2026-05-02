@@ -66,7 +66,7 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 | Database | Supabase (PostgreSQL) | via `@supabase/supabase-js` ^2.99.2 |
 | Auth (session cookies) | Supabase Auth + `@supabase/ssr` ^0.10.2 — browser anon client + `middleware.ts` refresh + `resolveServerLang()` SSR helper | — |
 | Hosting | Netlify | via `@netlify/plugin-nextjs` ^5.15.8 |
-| Cron Jobs | Netlify Background Functions (15 min budget) triggered every minute (fetching/scoring) or every 15 min (transcribe/summary/roundup) by **cron-job.org** | `@netlify/functions` ^5.1.4 |
+| Cron Jobs | Netlify Background Functions (15 min budget) triggered every minute for fetching or every 15 min for scoring/transcribe/summary/roundup by **cron-job.org** | `@netlify/functions` ^5.1.4 |
 | Domain | 8news.ai (redirect from 8news.netlify.app) | |
 
 ---
@@ -143,8 +143,8 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 │       │   ├── fetch-topic.ts                  # Re-exports `@/lib/fetch-topic-dynamic` for cron bundling
 │       │   ├── score-topic.ts                  # Re-exports `@/lib/score-topic-dynamic` for cron bundling
 │       │   └── transcribe-video.ts             # **v2.5+**: Re-exports `@/lib/transcribe-video` for cron bundling
-│       ├── cron-fetching-background.ts         # Multi-pass RSS fetch (15 min wall budget, every minute)
-│       ├── cron-scoring-background.ts          # Multi-pass AI scoring (15 min wall budget, every minute)
+│       ├── cron-fetching-background.ts         # Multi-pass RSS fetch (15 min wall budget, external cadence)
+│       ├── cron-scoring-background.ts          # Multi-pass AI scoring (15 min wall budget, every 15 min)
 │       ├── cron-daily-summary-background.ts    # Daily SEO summary generation (every 15 min, all topics × EN+FR, skip-if-exists)
 │       ├── cron-video-roundup-background.ts    # **v2.4+**: Per-topic-per-day roundups, **v2.4.1+** 48 h source window
 │       └── cron-video-transcribe-background.ts # **v2.5+**: Pre-warm transcribe of every "today's" video, EN+FR; **v2.5.4+** uses `gpt-5.3-chat-latest` with a 180 s OpenAI timeout
@@ -365,14 +365,15 @@ Canonical implementations live in `src/lib/`:
 
 #### `cron-scoring-background.ts` — AI scoring
 
-- Triggered every minute by cron-job.org
-- `CRON_WALL_MS = 840_000`, default internal `CRON_BUDGET_MS = 810_000`, `CRON_SAFETY_RESERVE_MS = 15_000`
-- Per-run: `SCORE_MIN_ARTICLES_PER_RUN = 15`, `SCORE_MAX_ARTICLES_PER_RUN = 150`, hard cap `SCORE_HARD_ARTICLE_CAP = 300`
-- Loads **all active topics**, counts unscored articles (`relevance_score IS NULL`, no `pub_date` cutoff), computes a fresh backlog (`fetched_at >= now - 5min`, configurable)
-- **Sort order (fresh-first)**: topics with fresh backlog first (largest first, then newest `last_fetched_at`), then remaining backlog, then idle topics
-- **Adaptive per-topic quota** + **fairness guard** (periodically forces one least-recently-scored topic)
+- Triggered every 15 min by cron-job.org
+- Default cadence/timeout model: `CRON_BACKGROUND_SCORE_INTERVAL_MS = 900_000`, `CRON_BACKGROUND_SCORE_TIMEOUT_MS = 900_000`, `CRON_BACKGROUND_SCORE_OVERLAP_RESERVE_MS = 60_000`; effective budget defaults to 840 s and is capped by interval + timeout
+- `CRON_BACKGROUND_SCORE_SAFETY_RESERVE_MS = 30_000` by default (falls back to shared `CRON_BACKGROUND_SAFETY_RESERVE_MS` when set)
+- Per-run: `SCORE_MIN_ARTICLES_PER_RUN = 25`, `SCORE_MAX_ARTICLES_PER_RUN = 200`, hard cap `SCORE_HARD_ARTICLE_CAP = 400`
+- Loads **all active topics**, counts unscored articles (`relevance_score IS NULL`, no `pub_date` cutoff)
+- **Sort order**: largest unscored backlog first, then never-scored / oldest `last_scored_at`
+- **Adaptive per-topic quota** with per-topic elapsed budget derived from the remaining run budget
 - Each scored article stores: relevance score (1-10), reason, AI EN/FR summaries (score ≥ 5)
-- Uses **`gpt-4.1-nano`**
+- Uses **`gpt-4.1-mini`**
 
 #### `cron-daily-summary-background.ts` — Daily SEO summaries
 
@@ -1117,9 +1118,9 @@ interface CronStatsResponse {
           │  - RSS → parse → upsert `articles`                         │
           │  - Adaptive post-fetch mini-score                          │
           │                                                            │
-          │  cron-scoring-background.ts         (every 1 min)          │
-          │  - Fresh-backlog first, fairness guard                     │
-          │  - gpt-4.1-nano → relevance + EN/FR snippets               │
+          │  cron-scoring-background.ts         (every 15 min)         │
+          │  - Backlog-first, oldest last_scored_at tie-break          │
+          │  - gpt-4.1-mini → relevance + EN/FR snippets               │
           │                                                            │
           │  cron-daily-summary-background.ts   (every 15 min)         │
           │  - For each (topic × {en,fr}) yesterday: generate summary  │
@@ -1158,7 +1159,7 @@ User opens /briefings, /summaries, /[topic], /[topic]/[date]/[slug],
 - **Build command**: `npm run build`
 - **Publish directory**: `.next`
 - **Plugin**: `@netlify/plugin-nextjs`
-- **Background functions**: 5 cron jobs — `cron-fetching-background`, `cron-scoring-background`, `cron-daily-summary-background`, `cron-video-roundup-background`, `cron-video-transcribe-background` (triggered by cron-job.org every 1 min or every 15 min depending on the function)
+- **Background functions**: 5 cron jobs — `cron-fetching-background`, `cron-scoring-background`, `cron-daily-summary-background`, `cron-video-roundup-background`, `cron-video-transcribe-background` (triggered by cron-job.org every 1 min for fetching or every 15 min for scoring/transcribe/summary/roundup)
 - **Rewrites**: every `/app/*` SPA pseudo-route is rewritten to `/app` via `next.config.ts.beforeFiles` (hard-refresh resilience for the SPA)
 - **Domain**: `8news.ai`
 - **Redirect**: `8news.netlify.app/*` → `8news.ai/:splat` (301)

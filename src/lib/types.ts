@@ -180,8 +180,8 @@ export interface CronStatsResponse {
     avgDelayMinutes: number;
     delayP50Minutes?: number;
     delayP95Minutes?: number;
-    slaUnder5mPct?: number;
-    freshBacklog5m?: number;
+    slaUnder15mPct?: number;
+    freshBacklog15m?: number;
   };
   topics: Array<{
     id: string;

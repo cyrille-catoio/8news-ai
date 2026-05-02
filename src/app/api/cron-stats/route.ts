@@ -22,6 +22,12 @@ function percentile(values: number[], p: number): number {
   return sorted[idx];
 }
 
+const SCORING_CRON_INTERVAL_MINUTES = 15;
+const FRESH_BACKLOG_WINDOW_MINUTES = SCORING_CRON_INTERVAL_MINUTES;
+const SCORE_SLOW_AFTER_MINUTES = SCORING_CRON_INTERVAL_MINUTES * 2;
+const SCORE_HIGH_AFTER_MINUTES = SCORING_CRON_INTERVAL_MINUTES * 3;
+const FETCH_TO_SCORE_SLA_MINUTES = SCORING_CRON_INTERVAL_MINUTES;
+
 export async function GET() {
   const supabase = getServerClient();
   if (!supabase) {
@@ -32,7 +38,7 @@ export async function GET() {
   const now = Date.now();
   const since24h = new Date(now - 24 * 3_600_000).toISOString();
   const since7d = new Date(now - 7 * 86_400_000).toISOString();
-  const since5m = new Date(now - 5 * 60_000).toISOString();
+  const sinceFreshBacklog = new Date(now - FRESH_BACKLOG_WINDOW_MINUTES * 60_000).toISOString();
 
   /** PostgREST max rows per response (Supabase default). Request wider ranges but only get 1000 → must page with this size. */
   const FETCH_BATCH = 1000;
@@ -98,11 +104,11 @@ export async function GET() {
     paginateDelayCohort(since24h),
   ]);
 
-  const { count: freshBacklog5m } = await supabase
+  const { count: freshBacklog15m } = await supabase
     .from("articles")
     .select("id", { count: "exact", head: true })
     .is("relevance_score", null)
-    .gte("fetched_at", since5m);
+    .gte("fetched_at", sinceFreshBacklog);
 
   // ── Global KPIs ──
   const totalBacklog = backlogRows.length;
@@ -113,7 +119,7 @@ export async function GET() {
   let avgDelayMinutes = 0;
   let delayP50Minutes = 0;
   let delayP95Minutes = 0;
-  let slaUnder5mPct = 0;
+  let slaUnder15mPct = 0;
   /** Count of valid fetch→score delays in the 24h cohort (for SLA / alerts only when sampled). */
   let fetchToScoreDelaySamples = 0;
   if (delayCohortRows.length > 0) {
@@ -131,8 +137,8 @@ export async function GET() {
     if (delays.length > 0) {
       delayP50Minutes = roundOne(percentile(delays, 50));
       delayP95Minutes = roundOne(percentile(delays, 95));
-      const under5 = delays.filter((d) => d < 5).length;
-      slaUnder5mPct = roundOne((under5 / delays.length) * 100);
+      const underSla = delays.filter((d) => d < FETCH_TO_SCORE_SLA_MINUTES).length;
+      slaUnder15mPct = roundOne((underSla / delays.length) * 100);
     }
   }
 
@@ -158,13 +164,13 @@ export async function GET() {
       status = "high"; statusReason = "backlog";
     } else if (fetchAge > 30) {
       status = "high"; statusReason = "fetch";
-    } else if (backlog > 0 && scoreAge > 30) {
+    } else if (backlog > 0 && scoreAge > SCORE_HIGH_AFTER_MINUTES) {
       status = "high"; statusReason = "score";
     } else if (backlog >= 50) {
       status = "slow"; statusReason = "backlog";
     } else if (fetchAge > 15) {
       status = "slow"; statusReason = "fetch";
-    } else if (backlog > 0 && scoreAge > 15) {
+    } else if (backlog > 0 && scoreAge > SCORE_SLOW_AFTER_MINUTES) {
       status = "slow"; statusReason = "score";
     }
 
@@ -203,11 +209,11 @@ export async function GET() {
     }));
 
   const alerts: string[] = [];
-  if (delayP95Minutes > 30) alerts.push("p95(fetch_to_score)>30m");
-  if (fetchToScoreDelaySamples > 0 && slaUnder5mPct < 80) {
-    alerts.push("sla(fetch_to_score_under_5m)<80pct");
+  if (delayP95Minutes > SCORE_HIGH_AFTER_MINUTES) alerts.push(`p95(fetch_to_score)>${SCORE_HIGH_AFTER_MINUTES}m`);
+  if (fetchToScoreDelaySamples > 0 && slaUnder15mPct < 80) {
+    alerts.push(`sla(fetch_to_score_under_${FETCH_TO_SCORE_SLA_MINUTES}m)<80pct`);
   }
-  if ((freshBacklog5m ?? 0) > 150) alerts.push("fresh_backlog_5m_high");
+  if ((freshBacklog15m ?? 0) > 300) alerts.push("fresh_backlog_15m_high");
   if (coverage24h < 70) alerts.push("coverage24h_low");
 
   const response: CronStatsResponse = {
@@ -219,8 +225,8 @@ export async function GET() {
       avgDelayMinutes,
       delayP50Minutes,
       delayP95Minutes,
-      slaUnder5mPct,
-      freshBacklog5m: freshBacklog5m ?? 0,
+      slaUnder15mPct,
+      freshBacklog15m: freshBacklog15m ?? 0,
     },
     topics: topicStatuses,
     timeline,

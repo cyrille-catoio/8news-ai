@@ -2,10 +2,30 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import type { ScoreResult } from "@/lib/types";
 
-const BATCH_SIZE = 50;
+const DEFAULT_BATCH_SIZE = 10;
 const MAX_ARTICLES_PER_RUN = 50;
-const OPENAI_TIMEOUT_MS = 6_000;
+const DEFAULT_OPENAI_TIMEOUT_MS = 8_000;
+const SCORE_OPENAI_MODEL = process.env.SCORE_OPENAI_MODEL ?? "gpt-4.1-nano";
 export const SCORE_WINDOW_HOURS = 168;
+
+function positiveIntFromEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw == null || raw.trim() === "") return fallback;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+}
+
+function nonNegativeIntFromEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw == null || raw.trim() === "") return fallback;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : fallback;
+}
+
+const BATCH_SIZE = positiveIntFromEnv("SCORE_BATCH_SIZE", DEFAULT_BATCH_SIZE);
+const OPENAI_TIMEOUT_MS = positiveIntFromEnv("SCORE_OPENAI_TIMEOUT_MS", DEFAULT_OPENAI_TIMEOUT_MS);
+const OPENAI_MAX_RETRIES = nonNegativeIntFromEnv("SCORE_OPENAI_MAX_RETRIES", 0);
+const OPENAI_BATCH_RESERVE_MS = OPENAI_TIMEOUT_MS + 1_500;
 
 interface DbRow {
   id: number;
@@ -104,7 +124,7 @@ async function scoreArticleBatch(
 
   const completion = await openai.chat.completions.create(
     {
-      model: "gpt-4.1-mini",
+      model: SCORE_OPENAI_MODEL,
       messages: [
         { role: "system", content: prompt },
         { role: "user", content: articleList },
@@ -178,7 +198,7 @@ async function runScoreTopic(
   const maxElapsedMs = opts?.maxElapsedMs ?? null;
 
   const apiKey = getOpenAIKey();
-  const openai = new OpenAI({ apiKey });
+  const openai = new OpenAI({ apiKey, maxRetries: OPENAI_MAX_RETRIES });
   const prompt = buildScoringPrompt(criteria);
 
   let articlesQuery = supabase
@@ -231,8 +251,10 @@ async function runScoreTopic(
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
     if (maxElapsedMs != null) {
       const elapsed = Date.now() - startedAt;
-      // Keep a safety reserve so this helper can return before caller timeout.
-      if (elapsed >= maxElapsedMs - 300) {
+      // Keep enough room for one full OpenAI timeout plus DB writes before
+      // starting another batch. Otherwise the caller's cron budget is consumed
+      // by a request that cannot finish in time.
+      if (elapsed >= maxElapsedMs - OPENAI_BATCH_RESERVE_MS) {
         partial = i < rows.length;
         break;
       }
@@ -276,6 +298,11 @@ async function runScoreTopic(
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[${topicId}] Scoring batch error:`, msg);
       errors.push(msg);
+      // A request-level OpenAI failure usually means the next batch for this
+      // topic will fail the same way. Yield to the cron queue instead of
+      // spending the topic budget on repeated timeouts.
+      partial = i + BATCH_SIZE < rows.length;
+      break;
     }
   }
 

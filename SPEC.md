@@ -368,12 +368,12 @@ Canonical implementations live in `src/lib/`:
 - Triggered every 15 min by cron-job.org
 - Default cadence/timeout model: `CRON_BACKGROUND_SCORE_INTERVAL_MS = 900_000`, `CRON_BACKGROUND_SCORE_TIMEOUT_MS = 900_000`, `CRON_BACKGROUND_SCORE_OVERLAP_RESERVE_MS = 60_000`; effective budget defaults to 840 s and is capped by interval + timeout
 - `CRON_BACKGROUND_SCORE_SAFETY_RESERVE_MS = 30_000` by default (falls back to shared `CRON_BACKGROUND_SAFETY_RESERVE_MS` when set)
-- Per-run: `SCORE_MIN_ARTICLES_PER_RUN = 25`, `SCORE_MAX_ARTICLES_PER_RUN = 200`, hard cap `SCORE_HARD_ARTICLE_CAP = 400`
+- Per-run: `SCORE_MIN_ARTICLES_PER_RUN = 10`, `SCORE_MAX_ARTICLES_PER_RUN = 80`, hard cap `SCORE_HARD_ARTICLE_CAP = 120`
 - Loads **all active topics**, counts unscored articles (`relevance_score IS NULL`, no `pub_date` cutoff)
 - **Sort order**: largest unscored backlog first, then never-scored / oldest `last_scored_at`
 - **Adaptive per-topic quota** with per-topic elapsed budget derived from the remaining run budget
-- Each scored article stores: relevance score (1-10), reason, AI EN/FR summaries (score ≥ 5)
-- Uses **`gpt-4.1-mini`**
+- Each scored article stores: relevance score (1-10), reason, AI EN/FR summaries and translated titles (score ≥ 5)
+- Uses **`gpt-4.1-nano`** by default (`SCORE_OPENAI_MODEL` override), `SCORE_OPENAI_TIMEOUT_MS = 8_000`, `SCORE_OPENAI_MAX_RETRIES = 0`, `SCORE_BATCH_SIZE = 10`
 
 #### `cron-daily-summary-background.ts` — Daily SEO summaries
 

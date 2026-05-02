@@ -19,11 +19,11 @@ const CRON_SAFETY_RESERVE_MS = Number(
     ?? process.env.CRON_BACKGROUND_SAFETY_RESERVE_MS
     ?? 30_000,
 );
-// 15-minute cadence: fewer ticks, so each run can score more per topic while
-// still bounded by the per-topic budget and the global timeout guard.
-const SCORE_MAX_ARTICLES_PER_RUN = Number(process.env.SCORE_MAX_ARTICLES_PER_RUN ?? 200);
-const SCORE_MIN_ARTICLES_PER_RUN = Number(process.env.SCORE_MIN_ARTICLES_PER_RUN ?? 25);
-const SCORE_HARD_ARTICLE_CAP = Number(process.env.SCORE_HARD_ARTICLE_CAP ?? 400);
+// 15-minute cadence: keep each topic pass bounded so a slow OpenAI period
+// degrades throughput instead of consuming the whole cron on timed-out batches.
+const SCORE_MAX_ARTICLES_PER_RUN = Number(process.env.SCORE_MAX_ARTICLES_PER_RUN ?? 80);
+const SCORE_MIN_ARTICLES_PER_RUN = Number(process.env.SCORE_MIN_ARTICLES_PER_RUN ?? 10);
+const SCORE_HARD_ARTICLE_CAP = Number(process.env.SCORE_HARD_ARTICLE_CAP ?? 120);
 
 type TopicScoreRow = {
   id: string;
@@ -46,15 +46,15 @@ function clamp(n: number, min: number, max: number): number {
 }
 
 // Picks how many articles to score for one topic in one pass.
-// Scales up aggressively when backlog is large or budget is plentiful.
+// Scales with backlog, but avoids huge batches that are prone to OpenAI timeouts.
 function pickAdaptiveMaxArticles(remainingMs: number, backlog: number): number {
-  const pressureBoost = backlog >= 400 ? 100 : backlog >= 200 ? 60 : backlog >= 75 ? 25 : 0;
+  const pressureBoost = backlog >= 400 ? 40 : backlog >= 200 ? 25 : backlog >= 75 ? 10 : 0;
   const timeCap =
-    remainingMs > 600_000 ? 400 :
-    remainingMs > 300_000 ? 300 :
-    remainingMs > 120_000 ? 200 :
-    remainingMs > 60_000  ? 100 :
-    50;
+    remainingMs > 600_000 ? 120 :
+    remainingMs > 300_000 ? 100 :
+    remainingMs > 120_000 ? 80 :
+    remainingMs > 60_000  ? 50 :
+    25;
   return clamp(
     SCORE_MAX_ARTICLES_PER_RUN + pressureBoost,
     SCORE_MIN_ARTICLES_PER_RUN,
@@ -157,8 +157,8 @@ export default async () => {
       const topicsLeft = queue.length - passTopics;
       const maxArticles = pickAdaptiveMaxArticles(remaining, work.backlog);
       const perTopicBudget = Math.max(
-        15_000,
-        Math.min(600_000, Math.floor((remaining - CRON_SAFETY_RESERVE_MS) / Math.max(1, topicsLeft))),
+        10_000,
+        Math.min(90_000, Math.floor((remaining - CRON_SAFETY_RESERVE_MS) / Math.max(1, topicsLeft))),
       );
 
       const criteria = {

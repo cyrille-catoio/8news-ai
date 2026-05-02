@@ -365,14 +365,14 @@ Canonical implementations live in `src/lib/`:
 
 #### `cron-scoring-background.ts` — AI scoring
 
-- Triggered every minute by cron-job.org
-- `CRON_WALL_MS = 840_000`, default internal `CRON_BUDGET_MS = 810_000`, `CRON_SAFETY_RESERVE_MS = 15_000`
-- Per-run: `SCORE_MIN_ARTICLES_PER_RUN = 15`, `SCORE_MAX_ARTICLES_PER_RUN = 150`, hard cap `SCORE_HARD_ARTICLE_CAP = 300`
-- Loads **all active topics**, counts unscored articles (`relevance_score IS NULL`, no `pub_date` cutoff), computes a fresh backlog (`fetched_at >= now - 5min`, configurable)
-- **Sort order (fresh-first)**: topics with fresh backlog first (largest first, then newest `last_fetched_at`), then remaining backlog, then idle topics
-- **Adaptive per-topic quota** + **fairness guard** (periodically forces one least-recently-scored topic)
-- Each scored article stores: relevance score (1-10), reason, AI EN/FR summaries (score ≥ 5)
-- Uses **`gpt-4.1-nano`**
+- Triggered every 5 min by cron-job.org
+- `CRON_WALL_MS = 840_000`, default internal `CRON_BUDGET_MS = 240_000`, `CRON_SAFETY_RESERVE_MS = 30_000`
+- Per-run: `SCORE_MIN_ARTICLES_PER_RUN = 10`, `SCORE_MAX_ARTICLES_PER_RUN = 50`, hard cap `SCORE_HARD_ARTICLE_CAP = 100`
+- Loads **all active topics** and counts unscored articles (`relevance_score IS NULL`, no `pub_date` cutoff)
+- **Sort order**: largest unscored backlog first, then never-scored / oldest-scored topics
+- **Adaptive per-topic quota** sized for the 5-minute scheduler cadence
+- Each scored article stores: relevance score (1-10), reason, AI EN/FR summaries and translated titles (score ≥ 5)
+- Uses **`gpt-4.1-nano`** by default (`SCORE_OPENAI_MODEL` override)
 
 #### `cron-daily-summary-background.ts` — Daily SEO summaries
 

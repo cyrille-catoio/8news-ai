@@ -2,10 +2,20 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import type { ScoreResult } from "@/lib/types";
 
-const BATCH_SIZE = 50;
+const DEFAULT_BATCH_SIZE = 25;
 const MAX_ARTICLES_PER_RUN = 50;
 const OPENAI_TIMEOUT_MS = 6_000;
+const SCORE_OPENAI_MODEL = process.env.SCORE_OPENAI_MODEL ?? "gpt-4.1-nano";
 export const SCORE_WINDOW_HOURS = 168;
+
+function positiveIntFromEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw == null || raw.trim() === "") return fallback;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+}
+
+const BATCH_SIZE = positiveIntFromEnv("SCORE_BATCH_SIZE", DEFAULT_BATCH_SIZE);
 
 interface DbRow {
   id: number;
@@ -104,7 +114,7 @@ async function scoreArticleBatch(
 
   const completion = await openai.chat.completions.create(
     {
-      model: "gpt-4.1-mini",
+      model: SCORE_OPENAI_MODEL,
       messages: [
         { role: "system", content: prompt },
         { role: "user", content: articleList },

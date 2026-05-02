@@ -5,12 +5,13 @@ import { scoreTopicForCron } from "./shared/score-topic";
 // This cron is score-only: no RSS fetching. Fetching is handled exclusively
 // by cron-fetching-background.ts so each function stays specialized.
 const CRON_WALL_MS = 840_000;
-const CRON_BUDGET_MS = Number(process.env.CRON_BACKGROUND_SCORE_BUDGET_MS ?? 810_000);
-const CRON_SAFETY_RESERVE_MS = Number(process.env.CRON_BACKGROUND_SAFETY_RESERVE_MS ?? 15_000);
-// Higher defaults than the minute cron: background has the full 15 min to drain backlogs.
-const SCORE_MAX_ARTICLES_PER_RUN = Number(process.env.SCORE_MAX_ARTICLES_PER_RUN ?? 150);
-const SCORE_MIN_ARTICLES_PER_RUN = Number(process.env.SCORE_MIN_ARTICLES_PER_RUN ?? 15);
-const SCORE_HARD_ARTICLE_CAP = Number(process.env.SCORE_HARD_ARTICLE_CAP ?? 300);
+// The external scheduler calls this every 5 minutes, so the default budget
+// must stay below that cadence to avoid overlapping background executions.
+const CRON_BUDGET_MS = Number(process.env.CRON_BACKGROUND_SCORE_BUDGET_MS ?? 240_000);
+const CRON_SAFETY_RESERVE_MS = Number(process.env.CRON_BACKGROUND_SAFETY_RESERVE_MS ?? 30_000);
+const SCORE_MAX_ARTICLES_PER_RUN = Number(process.env.SCORE_MAX_ARTICLES_PER_RUN ?? 50);
+const SCORE_MIN_ARTICLES_PER_RUN = Number(process.env.SCORE_MIN_ARTICLES_PER_RUN ?? 10);
+const SCORE_HARD_ARTICLE_CAP = Number(process.env.SCORE_HARD_ARTICLE_CAP ?? 100);
 
 type TopicScoreRow = {
   id: string;
@@ -33,15 +34,14 @@ function clamp(n: number, min: number, max: number): number {
 }
 
 // Picks how many articles to score for one topic in one pass.
-// Scales up aggressively when backlog is large or budget is plentiful.
+// Keeps each topic pass small enough for the 5-minute scheduler cadence.
 function pickAdaptiveMaxArticles(remainingMs: number, backlog: number): number {
-  const pressureBoost = backlog >= 300 ? 50 : backlog >= 150 ? 30 : backlog >= 50 ? 15 : 0;
+  const pressureBoost = backlog >= 300 ? 25 : backlog >= 150 ? 15 : backlog >= 50 ? 10 : 0;
   const timeCap =
-    remainingMs > 600_000 ? 300 :
-    remainingMs > 300_000 ? 200 :
-    remainingMs > 120_000 ? 150 :
-    remainingMs > 60_000  ? 100 :
-    50;
+    remainingMs > 180_000 ? 100 :
+    remainingMs > 120_000 ? 75 :
+    remainingMs > 60_000 ? 50 :
+    25;
   return clamp(
     SCORE_MAX_ARTICLES_PER_RUN + pressureBoost,
     SCORE_MIN_ARTICLES_PER_RUN,
@@ -143,8 +143,8 @@ export default async () => {
       const topicsLeft = queue.length - passTopics;
       const maxArticles = pickAdaptiveMaxArticles(remaining, work.backlog);
       const perTopicBudget = Math.max(
-        15_000,
-        Math.min(600_000, Math.floor((remaining - CRON_SAFETY_RESERVE_MS) / Math.max(1, topicsLeft))),
+        10_000,
+        Math.min(60_000, Math.floor((remaining - CRON_SAFETY_RESERVE_MS) / Math.max(1, topicsLeft))),
       );
 
       const criteria = {

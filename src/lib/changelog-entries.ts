@@ -9,6 +9,16 @@ export interface ChangelogEntryDef {
 
 export const CHANGELOG_ENTRIES: ChangelogEntryDef[] = [
   {
+    version: "2.5.24",
+    title_en: "v2.5.24: README & .env.example for contributors + clickable top-story title",
+    title_fr: "v2.5.24 : README & .env.example pour les contributeurs + titre du top story cliquable",
+    body_en:
+      "**Developer onboarding.** The root `README.md` is rewritten for **8news.ai** (stack, setup, `npm run dev`, scripts table, pointers to `SPEC.md` / `ROADMAP.md` / changelog source). A checked-in **`.env.example`** lists required and optional environment variables with short comments; **`.gitignore`** adds `!.env.example` so the template is tracked while real `.env*` files stay ignored.\n\n**Briefing top story.** On the `/app` briefing hero, the article **headline is again a link** to the source URL (new tab). The source/metadata line stays plain text so we avoid the historical triple-link double-tab edge cases. A small `hero-story-title-link` class keeps the headline readable with **no underline on hover**.\n\n**Release.** Bump 2.5.23 → 2.5.24.",
+    body_fr:
+      "**Onboarding développeurs.** Le `README.md` à la racine est réécrit pour **8news.ai** (stack, installation, `npm run dev`, tableau des scripts, renvois vers `SPEC.md` / `ROADMAP.md` / source du changelog). Un **`.env.example`** versionné liste les variables d'environnement obligatoires et optionnelles avec de courts commentaires ; le **`.gitignore`** ajoute `!.env.example` pour que le modèle soit suivi tout en ignorant les vrais fichiers `.env*`.\n\n**Top story du briefing.** Sur le hero briefing `/app`, le **titre de l'article redevient un lien** vers l'URL source (nouvel onglet). La ligne source / métadonnées reste du texte brut pour éviter les edge cases historiques de triple lien / double onglet. La classe `hero-story-title-link` garde une lecture propre du titre **sans soulignement au survol**.\n\n**Release.** Bump 2.5.23 → 2.5.24.",
+    created_at: "2026-05-04T12:00:00Z",
+  },
+  {
     version: "2.5.23",
     title_en: "v2.5.23: Audio player on public video recap pages",
     title_fr: "v2.5.23 : Lecteur audio sur les pages publiques de recaps video",

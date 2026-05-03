@@ -507,10 +507,9 @@ export function BriefingPage({
 /* ────────────────── Hero Story ─────────────────────── */
 
 /**
- * Hero card on the briefing — wraps the headline link with a separate
- * favorite icon pinned to the bottom-right. The icon sits *outside*
- * the `<a>` (so a click on the star never triggers article navigation)
- * but inside the bordered card so it visually belongs to the story.
+ * Hero card on the briefing — headline and CTA link to the article
+ * (new tab); source line stays plain text so we avoid the old
+ * triple-link double-tab issue with extensions / touch ghosting.
  */
 function HeroStory({
   article,
@@ -555,7 +554,14 @@ function HeroStory({
               letterSpacing: "-0.01em",
             }}
           >
-            {article.title}
+            <a
+              className="hero-story-title-link"
+              href={article.link}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {article.title}
+            </a>
           </h2>
           <span style={{ flexShrink: 0 }}>
             <ScoreMeter score={article.score} width={72} />
@@ -566,10 +572,7 @@ function HeroStory({
             {article.snippet}
           </p>
         )}
-        {/* Keep one article link in the hero. Multiple same-href
-            target=_blank links in the same card can double-fire with
-            browser extensions or touch event replay; the explicit CTA
-            is the only navigation target now. */}
+        {/* Title + CTA both open the article; source stays non-link. */}
         <div style={{ display: "flex", marginTop: article.snippet ? 16 : 18, marginBottom: 14 }}>
           <a
             href={article.link}

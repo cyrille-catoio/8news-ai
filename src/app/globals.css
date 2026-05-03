@@ -24,6 +24,13 @@ body {
   --8n-sticky-bg: #0d0d0d;
 }
 
+/* Briefing home — top story headline opens article (new tab) */
+a.hero-story-title-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);

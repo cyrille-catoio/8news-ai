@@ -9,6 +9,16 @@ export interface ChangelogEntryDef {
 
 export const CHANGELOG_ENTRIES: ChangelogEntryDef[] = [
   {
+    version: "2.5.23",
+    title_en: "v2.5.23: Audio player on public video recap pages",
+    title_fr: "v2.5.23 : Lecteur audio sur les pages publiques de recaps video",
+    body_en:
+      "**Audio for video recaps.** Public video recap pages (`/{topic}/r/{date}/{slug}`) now include the shared TTS audio player at the top of the briefing card, matching the audio affordance already available on daily article summary pages.\n\n**Same reader preferences.** The new `VideoRoundupAudio` client component reuses the existing `AudioPlayer`, reads the visitor's saved TTS speed and voice cookies, and falls back to the same default voices as daily summaries and per-video pages.\n\n**Roundup narration shape.** The player turns the persisted roundup Markdown into plain spoken text, keeps the editorial bullet headings inline, strips Markdown/link markup, and wraps the narration with a localized intro/outro containing the topic, date, and recap title. The generated text is capped below the single-shot TTS limit.\n\n**Release.** Bump 2.5.22 -> 2.5.23.",
+    body_fr:
+      "**Audio pour les recaps video.** Les pages publiques de recap video (`/{topic}/r/{date}/{slug}`) affichent maintenant le lecteur audio TTS partage en haut de la card Briefing, comme c'est deja le cas sur les pages de summaries d'articles.\n\n**Memes preferences lecteur.** Le nouveau composant client `VideoRoundupAudio` reutilise l'`AudioPlayer` existant, lit les cookies de vitesse et de voix TTS du visiteur, et retombe sur les memes voix par defaut que les summaries quotidiens et les pages per-video.\n\n**Narration du recap.** Le lecteur transforme le Markdown persiste du roundup en texte lisible a voix haute, conserve les titres editoriaux des bullets dans le flux, retire le markup Markdown/liens, et encadre la narration avec une intro/outro localisee contenant le topic, la date et le titre du recap. Le texte genere reste cappe sous la limite TTS single-shot.\n\n**Release.** Bump 2.5.22 -> 2.5.23.",
+    created_at: "2026-05-03T13:50:00Z",
+  },
+  {
     version: "2.5.22",
     title_en: "v2.5.22: Scoring cron stops burning time on repeated OpenAI timeouts",
     title_fr: "v2.5.22 : Le cron de scoring ne brûle plus son budget sur les timeouts OpenAI répétés",

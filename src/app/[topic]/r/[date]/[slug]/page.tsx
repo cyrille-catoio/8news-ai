@@ -13,6 +13,7 @@ import { color, font } from "@/lib/theme";
 import { normalizeSummaryHeadings } from "@/lib/summary-headings";
 import { SeoNavBar } from "@/app/components/SeoNavBar";
 import { SeoGeneralMenu } from "@/app/components/GeneralMenu";
+import { VideoRoundupAudio } from "@/app/components/VideoRoundupAudio";
 import type { Lang } from "@/lib/i18n";
 
 interface PageProps {
@@ -265,6 +266,13 @@ export default async function VideoRoundupPage({ params }: PageProps) {
           }}>
             {lang === "fr" ? "Briefing" : "Briefing"}
           </h2>
+          <VideoRoundupAudio
+            introMd={roundup.intro_md}
+            roundupTitle={roundup.seo_title}
+            topicName={topicLabel}
+            date={date}
+            lang={lang}
+          />
           <ReactMarkdown components={mdComponents}>{roundup.intro_md}</ReactMarkdown>
         </section>
 

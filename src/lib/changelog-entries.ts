@@ -9,6 +9,16 @@ export interface ChangelogEntryDef {
 
 export const CHANGELOG_ENTRIES: ChangelogEntryDef[] = [
   {
+    version: "2.5.29",
+    title_en: "v2.5.29: Homepage transcribed-videos pagination fixed cleanly",
+    title_fr: "v2.5.29 : Pagination des vidéos transcrites de la home corrigée proprement",
+    body_en:
+      "**Clean previous/next behavior for « All transcribed videos ».** The homepage archive now treats pagination as explicit **Older** / **Newer** day navigation. The displayed page number is derived from the selected UTC day, not from the last API payload, so the label stays aligned with the day the user is viewing.\n\n**No stale responses or stale `hasMore`.** Changing day aborts the previous `/api/video-pages/recent` request with `AbortController`, preventing an older response from overwriting the current view. While a day is loading, both controls are disabled so clicks cannot act on outdated `hasMore` metadata.\n\n**Bounded UTC navigation preserved.** The client still mirrors the API's 60-day archive window and clamps navigation between today and today minus 60 days.\n\n**Release.** Bump 2.5.28 → 2.5.29.",
+    body_fr:
+      "**Comportement previous/next propre pour « Toutes les vidéos transcrites ».** L'archive de la home traite maintenant la pagination comme une navigation explicite par jour **Plus ancien** / **Plus récent**. Le numéro de page affiché est dérivé du jour UTC sélectionné, pas du dernier payload API, donc le libellé reste aligné avec le jour réellement affiché.\n\n**Plus de réponses obsolètes ni de `hasMore` périmé.** Changer de jour annule la requête précédente vers `/api/video-pages/recent` avec `AbortController`, ce qui empêche une ancienne réponse d'écraser la vue courante. Pendant le chargement d'un jour, les deux contrôles sont désactivés afin qu'un clic ne puisse pas s'appuyer sur un `hasMore` dépassé.\n\n**Navigation UTC bornée conservée.** Le client continue de refléter la fenêtre d'archive API de 60 jours et clamp la navigation entre aujourd'hui et aujourd'hui moins 60 jours.\n\n**Release.** Bump 2.5.28 → 2.5.29.",
+    created_at: "2026-05-04T20:21:00Z",
+  },
+  {
     version: "2.5.28",
     title_en: "v2.5.28: Score-driven home page — quality gate + aligned score column + cron hardening",
     title_fr: "v2.5.28 : Page d'accueil pilotée par le score — filtre qualité + colonne de scores alignée + cron durci",

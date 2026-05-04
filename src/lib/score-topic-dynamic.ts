@@ -252,9 +252,14 @@ async function runScoreTopic(
     if (maxElapsedMs != null) {
       const elapsed = Date.now() - startedAt;
       // Keep enough room for one full OpenAI timeout plus DB writes before
-      // starting another batch. Otherwise the caller's cron budget is consumed
-      // by a request that cannot finish in time.
-      if (elapsed >= maxElapsedMs - OPENAI_BATCH_RESERVE_MS) {
+      // starting a follow-up batch. The first batch only requires that the
+      // topic still has budget; otherwise a 10s cron slice with an 8s OpenAI
+      // timeout can spend 500ms on DB setup and then silently score nothing.
+      const shouldStop =
+        i === 0
+          ? elapsed >= maxElapsedMs
+          : elapsed >= maxElapsedMs - OPENAI_BATCH_RESERVE_MS;
+      if (shouldStop) {
         partial = i < rows.length;
         break;
       }

@@ -8,6 +8,7 @@ import { AudioPlayer } from "@/app/components/AudioPlayer";
 import { FavoriteButton } from "@/app/components/FavoriteButton";
 import { CopyLinkButton } from "@/app/components/CopyLinkButton";
 import { DownloadTranscriptButton } from "@/app/components/DownloadTranscriptButton";
+import { ScoreMeter } from "@/app/components/ScoreMeter";
 
 const ReactMarkdown = dynamic(() => import("react-markdown"), { ssr: false });
 
@@ -38,6 +39,8 @@ export interface VideoItem {
   topicId?: string | null;
   slugKeywords?: string | null;
   publishedDate?: string | null;
+  /** 1-10 recap quality (same meter as articles); unset until scored by cron. */
+  summaryScore?: number | null;
 }
 
 export function isTranscriptionErrorMarkdown(md: string | null): boolean {
@@ -331,9 +334,29 @@ export function VideoCard({
           </div>
         </div>
         <div className="video-body" style={bodyStyle}>
-          <a href={v.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-            <div className="app-title-sm" style={{ color: color.text, fontWeight: 600, marginBottom: 6 }}>{v.title}</div>
-          </a>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              gap: 8,
+              marginBottom: 6,
+            }}
+          >
+            <a
+              href={v.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ textDecoration: "none", flex: 1, minWidth: 0 }}
+            >
+              <div className="app-title-sm" style={{ color: color.text, fontWeight: 600 }}>{v.title}</div>
+            </a>
+            {typeof v.summaryScore === "number" && v.summaryScore >= 1 && v.summaryScore <= 10 && (
+              <span style={{ flexShrink: 0, marginLeft: 4 }}>
+                <ScoreMeter score={v.summaryScore} width={60} />
+              </span>
+            )}
+          </div>
 
           {/* Description — truncated with "Voir plus" */}
           {v.description && (

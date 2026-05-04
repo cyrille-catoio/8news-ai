@@ -66,7 +66,7 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 | Database | Supabase (PostgreSQL) | via `@supabase/supabase-js` ^2.99.2 |
 | Auth (session cookies) | Supabase Auth + `@supabase/ssr` ^0.10.2 — browser anon client + `middleware.ts` refresh + `resolveServerLang()` SSR helper | — |
 | Hosting | Netlify | via `@netlify/plugin-nextjs` ^5.15.8 |
-| Cron Jobs | Netlify Background Functions (15 min budget) triggered every minute for fetching or every 15 min for scoring/transcribe/summary/roundup by **cron-job.org** | `@netlify/functions` ^5.1.4 |
+| Cron Jobs | Netlify Background Functions (15 min budget) triggered every minute for fetching or every 15 min for scoring/transcribe/summary/roundup/video-summary-score by **cron-job.org** | `@netlify/functions` ^5.1.4 |
 | Domain | 8news.ai (redirect from 8news.netlify.app) | |
 
 ---
@@ -168,7 +168,8 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 │   ├── 017-video-roundups.sql              # **v2.4+**: video_roundups table (per-topic-per-day briefings)
 │   ├── 018-roundup-bullets.sql             # **v2.4+**: summary_bullets.video_roundup_id + idx_bullets_video_roundup
 │   ├── 019-articles-title-ai.sql           # **v2.5.x**: articles.title_ai_en / title_ai_fr (AI-translated titles for the Top story hero)
-│   └── 020-crypto-cache.sql                # **v2.5.17+**: crypto_prices cache (BTC/ETH/SOL/XRP) for the AppHeader live ticker
+│   ├── 020-crypto-cache.sql                # **v2.5.17+**: crypto_prices cache (BTC/ETH/SOL/XRP) for the AppHeader live ticker
+│   └── 021-video-summary-score.sql         # video_transcriptions.summary_score + summary_scored_at (AI recap quality 1-10)
 ├── .gitignore
 ├── .env                                    # API keys (not committed)
 ├── netlify.toml                            # Netlify build + redirect config
@@ -276,7 +277,7 @@ Users can create new topics from the Topics page. Each topic includes:
 | `summary_bullets` | Individual bullets with AI-extracted named entities (GIN-indexed). **`source_type`** column = `article` \| `video` \| `video_roundup`. Optional FKs: `daily_summary_id`, `video_transcription_id`, **v2.4+ `video_roundup_id`** (migration 018). Used as a uniform queryable mirror across all bullet sources. |
 | `youtube_channels` | YouTube channel registry (channel_id, handle, title, thumbnail). Auto-refreshed when title/thumbnail are missing. |
 | `youtube_videos` | Cached video metadata from RSS (persists past-date lookups). **Includes `duration_sec`** (backfilled by `enrichDurations()` via YouTube Data API v3 — drives Shorts filtering in both the SPA and the cron) and **`topic_id`** (set when the parent channel belongs to a topic — required for `/v/` SSR slug). |
-| `video_transcriptions` | Full transcript text + AI Markdown summary per (video, lang). **v2.x+** `slug_keywords` + `published_date` columns + `idx_vt_route` (route resolution by `(topic_id, published_date, lang, slug_keywords)`) and `idx_vt_topic_recent` (recent-videos block) — migration 016. |
+| `video_transcriptions` | Full transcript text + AI Markdown summary per (video, lang). **v2.x+** `slug_keywords` + `published_date` columns + `idx_vt_route` (route resolution by `(topic_id, published_date, lang, slug_keywords)`) and `idx_vt_topic_recent` (recent-videos block) — migration 016. **Migration 021** adds `summary_score` (1-10) + `summary_scored_at` (filled by `cron-video-summary-score-background`). |
 | `video_roundups` | **v2.4+** Per-topic-per-day **video roundup** briefings (8-bullet structured Markdown). Columns: `topic_id`, `roundup_date`, `lang`, `slug_keywords`, `seo_title`, `seo_description`, `intro_md`, `video_ids TEXT[]` (ordered list of `video_transcriptions.video_id`). `UNIQUE(topic_id, roundup_date, lang)`. Drives `/{topic}/r/{date}/{slug}` and `/briefings`. Migration 017. |
 
 ### 5.2 `topics` table
@@ -1159,7 +1160,7 @@ User opens /briefings, /summaries, /[topic], /[topic]/[date]/[slug],
 - **Build command**: `npm run build`
 - **Publish directory**: `.next`
 - **Plugin**: `@netlify/plugin-nextjs`
-- **Background functions**: 5 cron jobs — `cron-fetching-background`, `cron-scoring-background`, `cron-daily-summary-background`, `cron-video-roundup-background`, `cron-video-transcribe-background` (triggered by cron-job.org every 1 min for fetching or every 15 min for scoring/transcribe/summary/roundup)
+- **Background functions**: 6 cron jobs — `cron-fetching-background`, `cron-scoring-background`, `cron-daily-summary-background`, `cron-video-roundup-background`, `cron-video-transcribe-background`, `cron-video-summary-score-background` (batched 1-10 quality score for `video_transcriptions.summary_md`; same 15 min wall as other long crons; trigger on your cadence, e.g. every 15 min with `?secret=$CRON_SECRET`)
 - **Rewrites**: every `/app/*` SPA pseudo-route is rewritten to `/app` via `next.config.ts.beforeFiles` (hard-refresh resilience for the SPA)
 - **Domain**: `8news.ai`
 - **Redirect**: `8news.netlify.app/*` → `8news.ai/:splat` (301)
@@ -1175,7 +1176,16 @@ User opens /briefings, /summaries, /[topic], /[topic]/[date]/[slug],
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key (server-side only — never expose) |
 | `TRANSCRIPT_API_KEY` | Yes | TranscriptAPI key for YouTube video transcription |
 | `YOUTUBE_API_KEY` | No | YouTube Data API v3 key — only used to backfill `youtube_videos.duration_sec` so the Shorts filter is reliable. When unset, `enrichDurations()` is a silent no-op (videos display as-is and Shorts filtering falls back to RSS metadata only). |
-| `CRON_SECRET` | Yes | Bearer token used by cron-job.org for `/api/fetch-feeds`, `/api/test-score`, `/api/summaries/generate`, `/api/roundups/generate`, and the cron functions themselves. |
+| `CRON_SECRET` | Yes | Bearer token used by cron-job.org for `/api/fetch-feeds`, `/api/test-score`, `/api/summaries/generate`, `/api/roundups/generate`, and the Netlify cron function URLs (pass as `?secret=`). |
+| `VIDEO_SUMMARY_SCORE_MODEL` | No | OpenAI model for video recap scoring (`cron-video-summary-score-background`). Default `gpt-4.1-nano`. |
+| `VIDEO_SUMMARY_SCORE_BATCH_SIZE` | No | Recaps per OpenAI JSON call. Default `8` (capped by `VIDEO_SUMMARY_SCORE_BATCH_CAP`). |
+| `VIDEO_SUMMARY_SCORE_BATCH_CAP` | No | Hard max recaps per request. Default `12` (safety for context size). |
+| `VIDEO_SUMMARY_SCORE_MAX_CHARS` | No | Truncate each `summary_md` in the prompt. Default `3500`. |
+| `VIDEO_SUMMARY_SCORE_OPENAI_TIMEOUT_MS` | No | Per-batch OpenAI timeout. Default `20000`. |
+| `VIDEO_SUMMARY_SCORE_OPENAI_MAX_RETRIES` | No | SDK retries. Default `0` (fail fast; next cron tick retries backlog). |
+| `CRON_VIDEO_SUMMARY_SCORE_WALL_MS` | No | Hard wall for the function. Default `840000` (14 min). |
+| `CRON_VIDEO_SUMMARY_SCORE_BUDGET_MS` | No | Effective run budget. Default `810000`. |
+| `CRON_VIDEO_SUMMARY_SCORE_SAFETY_MS` | No | Reserve before deadline — stop launching new batches. Default `45000`. |
 
 ---
 

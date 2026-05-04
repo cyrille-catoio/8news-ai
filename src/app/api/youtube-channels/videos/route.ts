@@ -27,6 +27,8 @@ export interface VideoItem {
 /** API list row: persisted AI summary for the requested UI language, if any. */
 export type VideoListResponseItem = VideoItem & {
   summaryMd: string | null;
+  /** 1-10 editorial quality score for `summary_md` (migration 021); null until cron scores. */
+  summaryScore: number | null;
   /**
    * Slug + topic_id of the SSR per-video page (`/{topic}/v/{date}/{slug}`)
    * for the requested UI language. Both null until the video is transcribed
@@ -264,18 +266,20 @@ export async function GET(req: NextRequest) {
 
   const videoIds = rows.map((r) => (r as Record<string, unknown>).video_id as string);
   let summaryByVideoId = new Map<string, string>();
+  let scoreByVideoId = new Map<string, number>();
   // Per-video SSR slug for the current UI lang. Only set when the video
   // has been transcribed AND a topic+slug are present (the route
   // /{topic}/v/{date}/{slug} can't exist without all three).
   let slugByVideoId = new Map<string, { topicId: string; slug: string; publishedDate: string }>();
   async function loadTranscriptionMaps() {
     const nextSummaryByVideoId = new Map<string, string>();
+    const nextScoreByVideoId = new Map<string, number>();
     const nextSlugByVideoId = new Map<string, { topicId: string; slug: string; publishedDate: string }>();
-    if (videoIds.length === 0) return { nextSummaryByVideoId, nextSlugByVideoId };
+    if (videoIds.length === 0) return { nextSummaryByVideoId, nextScoreByVideoId, nextSlugByVideoId };
 
     const { data: trows } = await db
       .from("video_transcriptions")
-      .select("video_id, summary_md, topic_id, slug_keywords, published_date")
+      .select("video_id, summary_md, topic_id, slug_keywords, published_date, summary_score")
       .in("video_id", videoIds)
       .eq("lang", uiLang);
     for (const row of trows ?? []) {
@@ -285,9 +289,13 @@ export async function GET(req: NextRequest) {
         topic_id: string | null;
         slug_keywords: string | null;
         published_date: string | null;
+        summary_score: number | null;
       };
       if (tr.summary_md && tr.summary_md.length > 0) {
         nextSummaryByVideoId.set(tr.video_id, normalizeSummaryHeadings(tr.summary_md, uiLang));
+      }
+      if (tr.summary_score != null && tr.summary_score >= 1 && tr.summary_score <= 10) {
+        nextScoreByVideoId.set(tr.video_id, tr.summary_score);
       }
       if (tr.topic_id && tr.slug_keywords && tr.published_date) {
         nextSlugByVideoId.set(tr.video_id, {
@@ -297,10 +305,14 @@ export async function GET(req: NextRequest) {
         });
       }
     }
-    return { nextSummaryByVideoId, nextSlugByVideoId };
+    return { nextSummaryByVideoId, nextScoreByVideoId, nextSlugByVideoId };
   }
 
-  ({ nextSummaryByVideoId: summaryByVideoId, nextSlugByVideoId: slugByVideoId } = await loadTranscriptionMaps());
+  ({
+    nextSummaryByVideoId: summaryByVideoId,
+    nextScoreByVideoId: scoreByVideoId,
+    nextSlugByVideoId: slugByVideoId,
+  } = await loadTranscriptionMaps());
 
   if (prewarm) {
     const didPrewarm = await prewarmLatestMissingTranscription({
@@ -310,7 +322,11 @@ export async function GET(req: NextRequest) {
       targetDate,
     });
     if (didPrewarm) {
-      ({ nextSummaryByVideoId: summaryByVideoId, nextSlugByVideoId: slugByVideoId } = await loadTranscriptionMaps());
+      ({
+        nextSummaryByVideoId: summaryByVideoId,
+        nextScoreByVideoId: scoreByVideoId,
+        nextSlugByVideoId: slugByVideoId,
+      } = await loadTranscriptionMaps());
     }
   }
 
@@ -329,6 +345,7 @@ export async function GET(req: NextRequest) {
       durationSec: (r.duration_sec as number | null) ?? null,
       link: r.link as string,
       summaryMd: summaryByVideoId.get(videoId) ?? null,
+      summaryScore: scoreByVideoId.get(videoId) ?? null,
       topicId: slug?.topicId ?? null,
       slugKeywords: slug?.slug ?? null,
       publishedDate: slug?.publishedDate ?? null,

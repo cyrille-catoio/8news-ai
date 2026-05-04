@@ -95,6 +95,13 @@ function addUTCDays(dateStr: string, days: number): string {
   return toUTCISODate(d);
 }
 
+function utcDayDiff(fromDate: string, toDate: string): number {
+  const from = Date.parse(`${fromDate}T00:00:00.000Z`);
+  const to = Date.parse(`${toDate}T00:00:00.000Z`);
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return 0;
+  return Math.max(0, Math.round((to - from) / 86_400_000));
+}
+
 /** Browser IANA timezone (e.g. "Europe/Paris"). Empty string in non-browser env. */
 function browserTimeZone(): string {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch { return ""; }
@@ -1052,6 +1059,7 @@ function RecentVideoPagesSection({
   topicLabels: TopicLabel[];
   lang: Lang;
 }) {
+  const maxPage = 60;
   const labelById = useMemo(
     () => new Map(topicLabels.map((t) => [t.id, t.label])),
     [topicLabels],
@@ -1066,21 +1074,25 @@ function RecentVideoPagesSection({
   // pagination avoids relative `page=N` drift and guarantees one click
   // equals one calendar day.
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
     setLoading(true);
-    fetch(`/api/video-pages/recent?date=${selectedDate}&lang=${lang}`, { cache: "no-store" })
+    fetch(`/api/video-pages/recent?date=${selectedDate}&lang=${lang}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    })
       .then((r) => (r.ok ? r.json() : null))
       .then((json: RecentVideoPagesResponse | null) => {
-        if (!cancelled) setData(json);
+        setData(json);
       })
-      .catch(() => {
-        if (!cancelled) setData(null);
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setData(null);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       });
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [selectedDate, lang]);
 
@@ -1109,14 +1121,16 @@ function RecentVideoPagesSection({
   const hasMore = data?.hasMore ?? false;
   const fromDate = data?.fromDate;
   const toDate = data?.toDate;
-  const page = data?.page ?? 0;
   const today = toUTCISODate(new Date());
   // Server clamps to MAX_PAGE = 60 days back; mirror that client-side so
   // rapid taps past the boundary are no-ops instead of silently rolling
   // selectedDate further than the data we can ever fetch.
-  const oldestAllowed = addUTCDays(today, -60);
+  const oldestAllowed = addUTCDays(today, -maxPage);
   const isToday = selectedDate >= today;
   const isOldest = selectedDate <= oldestAllowed;
+  const page = utcDayDiff(selectedDate, today);
+  const canGoNewer = !loading && !isToday;
+  const canGoOlder = !loading && !isOldest && hasMore;
 
   // Hide the section entirely only when we're on page 0, today has no
   // transcribed videos AND there's nothing in the archive either —
@@ -1149,18 +1163,13 @@ function RecentVideoPagesSection({
     cursor: "not-allowed",
   };
 
-  // Functional updates so multiple rapid taps compose into multi-day jumps
-  // even while a fetch is in flight (`loading` is intentionally NOT a
-  // guard here; it only dims the buttons). Boundaries are enforced
-  // client-side against `today` and `oldestAllowed` so we never drift
-  // past what the server will ever return.
-  const onPrev = useCallback(() => {
+  const onOlder = useCallback(() => {
     setSelectedDate((d) => {
       const next = addUTCDays(d, -1);
       return next < oldestAllowed ? oldestAllowed : next;
     });
   }, [oldestAllowed]);
-  const onNext = useCallback(() => {
+  const onNewer = useCallback(() => {
     setSelectedDate((d) => {
       const next = addUTCDays(d, 1);
       return next > today ? today : next;
@@ -1273,20 +1282,18 @@ function RecentVideoPagesSection({
         )}
       </div>
 
-      {/* Pagination controls — always rendered. Buttons stay clickable
-          during `loading` (only dimmed) so rapid taps compose into
-          multi-day jumps; only logical boundaries (today / -60 d) actually
-          disable a button. */}
+      {/* Pagination controls — always rendered. While a new day is loading,
+          keep controls disabled so they never act on stale `hasMore` data. */}
       <div style={{
         display: "flex", justifyContent: "space-between", alignItems: "center",
         marginTop: 10,
       }}>
         <button
           type="button"
-          onClick={onNext}
-          disabled={isToday}
+          onClick={onNewer}
+          disabled={!canGoNewer}
           aria-label={lang === "fr" ? "Jours plus récents" : "More recent days"}
-          style={isToday ? btnDisabled : (loading ? { ...btnBase, opacity: 0.6 } : btnBase)}
+          style={canGoNewer ? btnBase : btnDisabled}
         >
           {lang === "fr" ? "← Plus récent" : "← Newer"}
         </button>
@@ -1295,14 +1302,10 @@ function RecentVideoPagesSection({
         </div>
         <button
           type="button"
-          onClick={onPrev}
-          disabled={isOldest || (!hasMore && !loading)}
+          onClick={onOlder}
+          disabled={!canGoOlder}
           aria-label={lang === "fr" ? "Jours plus anciens" : "Older days"}
-          style={
-            isOldest || (!hasMore && !loading)
-              ? btnDisabled
-              : (loading ? { ...btnBase, opacity: 0.6 } : btnBase)
-          }
+          style={canGoOlder ? btnBase : btnDisabled}
         >
           {lang === "fr" ? "Plus ancien →" : "Older →"}
         </button>

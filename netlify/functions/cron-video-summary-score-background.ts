@@ -9,7 +9,7 @@ import {
  * with batched OpenAI calls and writes `summary_score` (1-10) + `summary_scored_at`.
  *
  * Trigger every ~15 min via cron-job.org GET:
- *   /.netlify/functions/cron-video-summary-score-background?secret=$CRON_SECRET
+ *   /.netlify/functions/cron-video-summary-score-background
  *
  * Catch-up: processes oldest unscored rows first (`id ASC`). Each HTTP request
  * runs multiple batches until wall budget or backlog exhaustion.
@@ -17,7 +17,8 @@ import {
  * Uses Netlify v2 function signature (default export, returns Response | void),
  * matching the other cron-*-background.ts files in this folder. Returning a
  * plain `{ statusCode, body }` object would crash the v2 runtime with
- * "Function returned an unsupported value".
+ * "Function returned an unsupported value". No auth check (URL obscurity,
+ * same as the other cron-*-background.ts files).
  */
 
 const CRON_WALL_MS = Number(process.env.CRON_VIDEO_SUMMARY_SCORE_WALL_MS ?? 840_000);
@@ -37,7 +38,7 @@ async function runCron(): Promise<void> {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   console.log(
-    `[cron-video-summary-score] [start] model=${MODEL} batch_size=${BATCH_SIZE} batch_cap=${BATCH_CAP} max_chars=${MAX_CHARS} openai_timeout_ms=${OPENAI_TIMEOUT_MS} wall_ms=${CRON_WALL_MS} budget_ms=${CRON_BUDGET_MS} env_openai=${apiKey ? "yes" : "NO"} env_supabase_url=${url ? "yes" : "NO"} env_supabase_srk=${key ? "yes" : "NO"} env_cron_secret=${process.env.CRON_SECRET ? "yes" : "no"}`,
+    `[cron-video-summary-score] [start] model=${MODEL} batch_size=${BATCH_SIZE} batch_cap=${BATCH_CAP} max_chars=${MAX_CHARS} openai_timeout_ms=${OPENAI_TIMEOUT_MS} wall_ms=${CRON_WALL_MS} budget_ms=${CRON_BUDGET_MS} env_openai=${apiKey ? "yes" : "NO"} env_supabase_url=${url ? "yes" : "NO"} env_supabase_srk=${key ? "yes" : "NO"}`,
   );
 
   if (!apiKey || !url || !key) {
@@ -146,22 +147,6 @@ async function runCron(): Promise<void> {
   console.log(lines.join("\n"));
 }
 
-export default async (req: Request): Promise<Response | undefined> => {
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const url = new URL(req.url);
-    const provided = url.searchParams.get("secret");
-    if (provided !== cronSecret) {
-      console.warn(
-        `[cron-video-summary-score] [auth] rejected — CRON_SECRET is set on Netlify but the request did not provide a matching ?secret=... query param. Manual browser hits without the secret will short-circuit here.`,
-      );
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-  }
-
+export default async (): Promise<void> => {
   await runCron();
-  return undefined;
 };

@@ -30,7 +30,12 @@ const rssParser: Parser<Record<string, never>, RssItem> = new Parser({
 const FETCH_TIMEOUT_MS = 5_000;
 const GOOGLE_NEWS_BATCH_TIMEOUT_MS = 2_000;
 const GOOGLE_NEWS_BATCH_ENDPOINT =
-  "https://news.google.com/_/DotsSplashUi/data/batchexecute?rpcids=Fbv4je";
+  "https://news.google.com/_/DotsSplashUi/data/batchexecute";
+
+interface GoogleNewsDecodeParams {
+  signature: string;
+  timestamp: string;
+}
 
 export interface FetchResult {
   summary: string;
@@ -129,33 +134,77 @@ function decodeLegacyGoogleNewsUrl(articleId: string): string | null {
   return /^https?:\/\//i.test(decoded) ? decoded : null;
 }
 
+function getHtmlAttribute(tag: string, attribute: string): string | null {
+  const pattern = new RegExp(`${attribute}="([^"]+)"`);
+  return tag.match(pattern)?.[1] ?? null;
+}
+
+async function fetchGoogleNewsDecodeParams(articleId: string): Promise<GoogleNewsDecodeParams | null> {
+  for (const prefix of ["https://news.google.com/articles/", "https://news.google.com/rss/articles/"]) {
+    const response = await fetch(`${prefix}${articleId}`, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      signal: AbortSignal.timeout(GOOGLE_NEWS_BATCH_TIMEOUT_MS),
+    });
+    const html = await response.text();
+    const dataTag = html.match(/<div[^>]+jscontroller="[^"]+"[^>]*data-n-a-sg="[^"]+"[^>]*>/)?.[0];
+    if (!dataTag) continue;
+
+    const signature = getHtmlAttribute(dataTag, "data-n-a-sg");
+    const timestamp = getHtmlAttribute(dataTag, "data-n-a-ts");
+    if (signature && timestamp) return { signature, timestamp };
+  }
+
+  return null;
+}
+
 async function fetchDecodedGoogleNewsUrl(articleId: string): Promise<string | null> {
-  const requestPayload =
-    '[[["Fbv4je","[\\"garturlreq\\",[[\\"en-US\\",\\"US\\",[\\"FINANCE_TOP_INDICES\\",\\"WEB_TEST_1_0_0\\"],null,null,1,1,\\"US:en\\",null,180,null,null,null,null,null,0,null,null,[1608992183,723341000]],\\"en-US\\",\\"US\\",1,[2,3,4,8],1,0,\\"655000234\\",0,0,null,0],\\"' +
-    articleId +
-    '\\"]",null,"generic"]]]';
+  const params = await fetchGoogleNewsDecodeParams(articleId);
+  if (!params) return null;
+
+  const rpcPayload = [
+    "Fbv4je",
+    JSON.stringify([
+      "garturlreq",
+      [
+        ["X", "X", ["X", "X"], null, null, 1, 1, "US:en", null, 1, null, null, null, null, null, 0, 1],
+        "X",
+        "X",
+        1,
+        [1, 1, 1],
+        1,
+        1,
+        null,
+        0,
+        0,
+        null,
+        0,
+      ],
+      articleId,
+      Number(params.timestamp),
+      params.signature,
+    ]),
+  ];
 
   const response = await fetch(GOOGLE_NEWS_BATCH_ENDPOINT, {
     method: "POST",
     headers: {
-      "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
-      Referer: "https://news.google.com/",
+      "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+      "User-Agent": "Mozilla/5.0",
     },
-    body: `f.req=${encodeURIComponent(requestPayload)}`,
+    body: `f.req=${encodeURIComponent(JSON.stringify([[rpcPayload]]))}`,
     signal: AbortSignal.timeout(GOOGLE_NEWS_BATCH_TIMEOUT_MS),
   });
   const text = await response.text();
-  const header = '[\\"garturlres\\",\\"';
-  const start = text.indexOf(header);
-  if (start < 0) return null;
+  const payloadText = text.split("\n\n", 2)[1];
+  if (!payloadText) return null;
 
-  const rawUrlStart = start + header.length;
-  const rawUrlEnd = text.indexOf('\\",', rawUrlStart);
-  if (rawUrlEnd < 0) return null;
+  const parsed = JSON.parse(payloadText) as unknown[];
+  const responsePayload = Array.isArray(parsed[0]) ? parsed[0][2] : null;
+  if (typeof responsePayload !== "string") return null;
 
-  const rawUrl = text.slice(rawUrlStart, rawUrlEnd);
-  const decodedUrl = JSON.parse(`"${rawUrl}"`) as string;
-  return /^https?:\/\//i.test(decodedUrl) ? decodedUrl : null;
+  const decodedPayload = JSON.parse(responsePayload) as unknown[];
+  const decodedUrl = typeof decodedPayload[1] === "string" ? decodedPayload[1] : null;
+  return decodedUrl && /^https?:\/\//i.test(decodedUrl) ? decodedUrl : null;
 }
 
 async function resolveArticleLink(link: string): Promise<string> {

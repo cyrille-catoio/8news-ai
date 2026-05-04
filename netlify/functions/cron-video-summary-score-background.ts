@@ -35,8 +35,15 @@ async function runCron(): Promise<void> {
   const apiKey = process.env.OPENAI_API_KEY;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  console.log(
+    `[cron-video-summary-score] [start] model=${MODEL} batch_size=${BATCH_SIZE} batch_cap=${BATCH_CAP} max_chars=${MAX_CHARS} openai_timeout_ms=${OPENAI_TIMEOUT_MS} wall_ms=${CRON_WALL_MS} budget_ms=${CRON_BUDGET_MS} env_openai=${apiKey ? "yes" : "NO"} env_supabase_url=${url ? "yes" : "NO"} env_supabase_srk=${key ? "yes" : "NO"} env_cron_secret=${process.env.CRON_SECRET ? "yes" : "no"}`,
+  );
+
   if (!apiKey || !url || !key) {
-    console.error("[cron-video-summary-score] Missing OPENAI_API_KEY or Supabase env");
+    console.error(
+      "[cron-video-summary-score] Missing required env (OPENAI_API_KEY, NEXT_PUBLIC_SUPABASE_URL, or SUPABASE_SERVICE_ROLE_KEY) — aborting",
+    );
     return;
   }
 
@@ -45,6 +52,22 @@ async function runCron(): Promise<void> {
   const remaining = () => deadline - Date.now();
 
   const supabase = createClient(url, key, { auth: { persistSession: false } });
+
+  // Pre-flight backlog count: helps tell "no work to do" from "query failed".
+  const { count: backlogCount, error: countErr } = await supabase
+    .from("video_transcriptions")
+    .select("id", { count: "exact", head: true })
+    .is("summary_score", null)
+    .not("summary_md", "is", null)
+    .neq("summary_md", "");
+
+  if (countErr) {
+    console.error(
+      `[cron-video-summary-score] backlog_count error: ${countErr.message} (hint: check migration 021-video-summary-score.sql is applied — column summary_score may not exist)`,
+    );
+    return;
+  }
+  console.log(`[cron-video-summary-score] backlog_count=${backlogCount ?? "?"}`);
 
   let batchNo = 0;
   let totalScored = 0;
@@ -129,6 +152,9 @@ export default async (req: Request): Promise<Response | undefined> => {
     const url = new URL(req.url);
     const provided = url.searchParams.get("secret");
     if (provided !== cronSecret) {
+      console.warn(
+        `[cron-video-summary-score] [auth] rejected — CRON_SECRET is set on Netlify but the request did not provide a matching ?secret=... query param. Manual browser hits without the secret will short-circuit here.`,
+      );
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { "Content-Type": "application/json" },

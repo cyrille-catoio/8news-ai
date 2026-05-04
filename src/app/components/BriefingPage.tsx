@@ -12,6 +12,15 @@ import { VideoCard, type VideoItem } from "@/app/components/VideoCard";
 import type { TopicLabel } from "@/lib/types";
 import type { AppNavPage } from "@/app/components/AppHeader";
 import { summaryPath } from "@/lib/summary-routes";
+import { stripEmoji } from "@/lib/html";
+
+/** Tier color for an inline 1-10 score badge. Mirrors `ScoreMeter`. */
+function scoreTierColor(score: number): string {
+  if (score >= 9) return "#22c55e"; // green
+  if (score >= 5) return color.gold; // gold
+  if (score >= 3) return "#f97316"; // orange
+  return "#ef4444"; // red
+}
 
 interface SummaryRoute {
   topic_id: string;
@@ -45,6 +54,8 @@ interface RecentVideoPage {
   publishedDate: string;
   slug: string;
   lang: string;
+  /** AI quality score 1-10, or null when the recap is still unscored. */
+  summaryScore: number | null;
 }
 
 /** Server response shape — items + pagination metadata. */
@@ -306,8 +317,17 @@ export function BriefingPage({
       if (seq !== videosRefreshSeq.current) return;
 
       type ApiVideo = VideoItem & { summaryMd?: string | null; published: string };
+      // Quality gate: only surface recaps the AI scoring cron rated >= 9/10.
+      // Unscored recaps (score null) are deliberately excluded — they'll
+      // resurface here once the next cron tick gives them a high enough score.
       const merged = [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])]
-        .filter((v: ApiVideo) => v.summaryMd && v.summaryMd.length > 0)
+        .filter(
+          (v: ApiVideo) =>
+            !!v.summaryMd
+            && v.summaryMd.length > 0
+            && typeof v.summaryScore === "number"
+            && v.summaryScore >= 9,
+        )
         .sort((x: ApiVideo, y: ApiVideo) => new Date(y.published).getTime() - new Date(x.published).getTime())
         .slice(0, 3);
       const items: VideoItem[] = merged.map((m: ApiVideo) => {
@@ -416,19 +436,11 @@ export function BriefingPage({
             />
           )}
 
-          {trending.length > 0 && (
-            <TrendingStrip
-              topics={trending}
-              lang={lang}
-              onTopicClick={onOpenTopicArticles}
-            />
-          )}
-
-          {/* Order under Trending: recent transcribed videos, then the
-              latest daily summary right below them, then Top 5. While
-              the videos / summary fetches are pending we render a tiny
-              skeleton (kicker + spinner card) so the layout doesn't
-              jump when data arrives a few seconds later. */}
+          {/* Order: recent transcribed videos go right under the hero,
+              followed by Trending (last 6h), then the daily summary,
+              then Top 5. While the videos / summary fetches are pending
+              we render a tiny skeleton (kicker + spinner card) so the
+              layout doesn't jump when data arrives a few seconds later. */}
           {videosLoading ? (
             <SectionSpinner
               label={lang === "fr" ? "Vidéos transcrites · récentes" : "Recent transcribed videos"}
@@ -450,6 +462,14 @@ export function BriefingPage({
                 onSeeAll={() => onNavigate("videos")}
               />
             )
+          )}
+
+          {trending.length > 0 && (
+            <TrendingStrip
+              topics={trending}
+              lang={lang}
+              onTopicClick={onOpenTopicArticles}
+            />
           )}
 
           {summaryLoading ? (
@@ -1194,25 +1214,58 @@ function RecentVideoPagesSection({
                   })}
                 </div>
                 <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                  {dayItems.map((p) => (
-                    <li key={p.videoId} style={{ marginBottom: 4 }}>
-                      <a
-                        href={`/${p.topicId}/v/${p.publishedDate}/${p.slug}`}
-                        style={{ color: color.text, textDecoration: "none", fontSize: 14, lineHeight: 1.4 }}
-                      >
-                        <span style={{
-                          fontSize: 10, fontWeight: 700, color: color.gold,
-                          border: `1px solid ${color.gold}`, borderRadius: 3,
-                          padding: "1px 5px", marginRight: 8, letterSpacing: "0.03em",
-                          textTransform: "uppercase",
-                        }}>
-                          {labelById.get(p.topicId) ?? p.topicId}
-                        </span>
-                        <span style={{ color: color.gold, marginRight: 6 }}>→</span>
-                        {p.title}
-                      </a>
-                    </li>
-                  ))}
+                  {dayItems.map((p) => {
+                    const cleanTitle = stripEmoji(p.title);
+                    const hasScore =
+                      typeof p.summaryScore === "number"
+                      && p.summaryScore >= 1
+                      && p.summaryScore <= 10;
+                    return (
+                      <li key={p.videoId} style={{ marginBottom: 4 }}>
+                        <a
+                          href={`/${p.topicId}/v/${p.publishedDate}/${p.slug}`}
+                          style={{
+                            display: "flex",
+                            alignItems: "baseline",
+                            gap: 8,
+                            color: color.text,
+                            textDecoration: "none",
+                            fontSize: 14,
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          <span style={{
+                            fontSize: 10, fontWeight: 700, color: color.gold,
+                            border: `1px solid ${color.gold}`, borderRadius: 3,
+                            padding: "1px 5px", letterSpacing: "0.03em",
+                            textTransform: "uppercase",
+                            flexShrink: 0,
+                            alignSelf: "center",
+                          }}>
+                            {labelById.get(p.topicId) ?? p.topicId}
+                          </span>
+                          <span style={{ color: color.gold, flexShrink: 0 }}>→</span>
+                          <span style={{ flex: "1 1 auto", minWidth: 0 }}>{cleanTitle}</span>
+                          <span
+                            aria-label={hasScore ? `Score ${p.summaryScore}/10` : undefined}
+                            aria-hidden={hasScore ? undefined : true}
+                            style={{
+                              flexShrink: 0,
+                              fontFamily: "ui-monospace, Menlo, monospace",
+                              fontSize: 12,
+                              fontWeight: 700,
+                              color: hasScore ? scoreTierColor(p.summaryScore as number) : "transparent",
+                              whiteSpace: "nowrap",
+                              minWidth: 36,
+                              textAlign: "right",
+                            }}
+                          >
+                            {hasScore ? `${p.summaryScore}/10` : "—/10"}
+                          </span>
+                        </a>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             );

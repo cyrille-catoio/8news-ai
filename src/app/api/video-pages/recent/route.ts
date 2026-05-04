@@ -33,6 +33,8 @@ interface VideoPageItem {
   publishedDate: string;
   slug: string;
   lang: string;
+  /** AI quality score 1-10 from `cron-video-summary-score-background`, or `null` when unscored. */
+  summaryScore: number | null;
 }
 
 interface PaginatedResponse {
@@ -52,6 +54,7 @@ interface VideoPageRow {
   slug_keywords: string;
   lang: string;
   created_at: string;
+  summary_score: number | null;
 }
 
 function ymd(d: Date): string {
@@ -72,19 +75,33 @@ function clampUtcDay(d: Date, min: Date, max: Date): Date {
   return new Date(d);
 }
 
+/** PostgREST forwards the underlying Postgres error code. 42703 = undefined_column. */
+function isMissingSummaryScoreColumn(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as { code?: string; message?: string };
+  if (e.code === "42703") return true;
+  return typeof e.message === "string" && /summary_score/i.test(e.message);
+}
+
 async function fetchAllVideoPageRowsForDay(
   db: SupabaseClient,
   lang: string,
   fromDate: string,
   toDate: string,
 ): Promise<{ data: VideoPageRow[] | null; error: unknown }> {
+  const baseColumns = "video_id, title, topic_id, published_date, slug_keywords, lang, created_at";
+  // Migration 021 adds summary_score on video_transcriptions. Tolerate its
+  // absence so the list keeps rendering on an environment where the SQL
+  // migration is pending — we'll retry without the column on `42703`.
+  let columns = `${baseColumns}, summary_score`;
+  let droppedScore = false;
   const rows: VideoPageRow[] = [];
 
   for (let start = 0; ; start += DAY_ITEM_PAGE_SIZE) {
     const end = start + DAY_ITEM_PAGE_SIZE - 1;
     const { data, error } = await db
       .from("video_transcriptions")
-      .select("video_id, title, topic_id, published_date, slug_keywords, lang, created_at")
+      .select(columns)
       .eq("lang", lang)
       .gte("published_date", fromDate)
       .lte("published_date", toDate)
@@ -94,9 +111,30 @@ async function fetchAllVideoPageRowsForDay(
       .order("created_at", { ascending: false })
       .range(start, end);
 
-    if (error) return { data: null, error };
+    if (error) {
+      if (!droppedScore && isMissingSummaryScoreColumn(error)) {
+        console.warn(
+          "[/api/video-pages/recent] summary_score column missing — falling back. Apply migrations/021-video-summary-score.sql to enable AI quality scores in the list.",
+        );
+        columns = baseColumns;
+        droppedScore = true;
+        rows.length = 0;
+        start = -DAY_ITEM_PAGE_SIZE; // restart from offset 0 on next iter
+        continue;
+      }
+      return { data: null, error };
+    }
 
-    const page = (data ?? []) as VideoPageRow[];
+    const page = ((data ?? []) as Array<Partial<VideoPageRow>>).map((row) => ({
+      video_id: row.video_id ?? "",
+      title: row.title ?? "",
+      topic_id: row.topic_id ?? "",
+      published_date: row.published_date ?? "",
+      slug_keywords: row.slug_keywords ?? "",
+      lang: row.lang ?? "",
+      created_at: row.created_at ?? "",
+      summary_score: typeof row.summary_score === "number" ? row.summary_score : null,
+    })) as VideoPageRow[];
     rows.push(...page);
 
     if (page.length < DAY_ITEM_PAGE_SIZE) {
@@ -164,6 +202,10 @@ export async function GET(req: NextRequest) {
   }
 
   const items: VideoPageItem[] = (pageRes.data ?? []).map((row) => {
+    const rawScore = row.summary_score;
+    const score = typeof rawScore === "number" && rawScore >= 1 && rawScore <= 10
+      ? rawScore
+      : null;
     return {
       videoId: row.video_id,
       title: row.title,
@@ -171,6 +213,7 @@ export async function GET(req: NextRequest) {
       publishedDate: row.published_date,
       slug: row.slug_keywords,
       lang: row.lang,
+      summaryScore: score,
     };
   });
 

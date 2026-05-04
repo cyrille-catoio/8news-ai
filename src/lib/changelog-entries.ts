@@ -9,6 +9,16 @@ export interface ChangelogEntryDef {
 
 export const CHANGELOG_ENTRIES: ChangelogEntryDef[] = [
   {
+    version: "2.5.26",
+    title_en: "v2.5.26: Transcribed-videos list — explicit UTC day + full daily fetch",
+    title_fr: "v2.5.26 : Liste des vidéos transcrites — jour UTC explicite + chargement complet",
+    body_en:
+      "**No more `page` drift on the briefing archive.** The « All transcribed videos » block on the Briefing homepage now paginates by **explicit calendar day** (`date=YYYY-MM-DD` in UTC) instead of relative `page=0,1,2…`. Each tap on « Older / Plus ancien » moves back exactly **one UTC day**; « Newer » advances toward today without skipping or drifting when the client clock crosses midnight. Switching EN ↔ FR still resets the picker to **today (UTC)** so you don't land on an empty day because FR and EN publish at different cadences.\n\n**API: `/api/video-pages/recent`.** The route prefers `?date=YYYY-MM-DD` (clamped to the last 60 days) and keeps **`page=N` as a legacy alias**. Busy days are no longer capped at **200 rows**: the handler walks Supabase in **1 000-row chunks** until the full day is loaded, so a dense publishing day still lists every transcribed video SSR page.\n\n**Release.** Bump 2.5.25 → 2.5.26.",
+    body_fr:
+      "**Fini le dérive du `page` sur l'archive du briefing.** Le bloc « Toutes les vidéos transcrites » sur le Briefing pagine maintenant par **jour calendaire explicite** (`date=YYYY-MM-DD` en UTC) au lieu de `page=0,1,2…` relatif. Chaque appui sur « Plus ancien » recule d'**exactement un jour UTC** ; « Plus récent » se rapproche d'aujourd'hui sans saut ni dérive quand l'horloge client passe minuit. Passer EN ↔ FR réinitialise toujours sur **aujourd'hui (UTC)** pour éviter d'atterrir sur un jour vide (cadence différente par langue).\n\n**API : `/api/video-pages/recent`.** La route privilégie `?date=YYYY-MM-DD` (borné sur 60 jours) et garde **`page=N` en alias legacy**. Les jours chargés ne sont plus plafonnés à **200 lignes** : le handler parcourt Supabase par **paquets de 1 000** jusqu'à couvrir la journée entière, donc un jour dense liste bien toutes les pages SSR de vidéos transcrites.\n\n**Release.** Bump 2.5.25 → 2.5.26.",
+    created_at: "2026-05-04T16:00:00Z",
+  },
+  {
     version: "2.5.25",
     title_en: "v2.5.25: Google News RSS links resolve to source articles",
     title_fr: "v2.5.25 : Les liens RSS Google News pointent vers les articles sources",

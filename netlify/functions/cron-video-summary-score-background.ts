@@ -1,4 +1,3 @@
-import type { Handler } from "@netlify/functions";
 import { createClient } from "@supabase/supabase-js";
 import {
   scoreVideoSummaryBatch,
@@ -14,6 +13,11 @@ import {
  *
  * Catch-up: processes oldest unscored rows first (`id ASC`). Each HTTP request
  * runs multiple batches until wall budget or backlog exhaustion.
+ *
+ * Uses Netlify v2 function signature (default export, returns Response | void),
+ * matching the other cron-*-background.ts files in this folder. Returning a
+ * plain `{ statusCode, body }` object would crash the v2 runtime with
+ * "Function returned an unsupported value".
  */
 
 const CRON_WALL_MS = Number(process.env.CRON_VIDEO_SUMMARY_SCORE_WALL_MS ?? 840_000);
@@ -119,23 +123,19 @@ async function runCron(): Promise<void> {
   console.log(lines.join("\n"));
 }
 
-const handler: Handler = async (event) => {
-  const secret = event.queryStringParameters?.secret;
+export default async (req: Request): Promise<Response | undefined> => {
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && secret !== cronSecret) {
-    return {
-      statusCode: 401,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ error: "Unauthorized" }),
-    };
+  if (cronSecret) {
+    const url = new URL(req.url);
+    const provided = url.searchParams.get("secret");
+    if (provided !== cronSecret) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
   }
 
   await runCron();
-  return {
-    statusCode: 200,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ok: true }),
-  };
+  return undefined;
 };
-
-export default handler;

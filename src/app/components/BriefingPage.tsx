@@ -73,6 +73,17 @@ function toISODate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function toUTCISODate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function addUTCDays(dateStr: string, days: number): string {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const d = new Date(Date.UTC(year, month - 1, day));
+  d.setUTCDate(d.getUTCDate() + days);
+  return toUTCISODate(d);
+}
+
 /** Browser IANA timezone (e.g. "Europe/Paris"). Empty string in non-browser env. */
 function browserTimeZone(): string {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch { return ""; }
@@ -997,7 +1008,8 @@ function YourTopicsSection({
 /**
  * Bottom-of-page list of every transcribed video that has an SSR page.
  * Paginated one calendar day at a time (`?page=N`) — page 0 = today,
- * page 1 = yesterday, page 2 = the day before, etc. « Plus ancien »
+ * The selected day is sent explicitly to the API as `date=YYYY-MM-DD`
+ * so each click moves exactly one UTC calendar day. « Plus ancien »
  * walks backwards in time, « Plus récent » brings the user back
  * towards today. The « Plus ancien » button is disabled when the
  * server response says `hasMore: false`.
@@ -1026,17 +1038,17 @@ function RecentVideoPagesSection({
   );
   const locale = dateLocale(lang);
 
-  const [page, setPage] = useState(0);
+  const [selectedDate, setSelectedDate] = useState(() => toUTCISODate(new Date()));
   const [data, setData] = useState<RecentVideoPagesResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Refetch whenever page or lang changes. The `lang` reset to page=0
-  // is handled by the `lang` reset effect below — preserving the page
-  // when toggling FR ↔ EN feels surprising.
+  // Refetch whenever the explicit day or lang changes. Date-based
+  // pagination avoids relative `page=N` drift and guarantees one click
+  // equals one calendar day.
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetch(`/api/video-pages/recent?page=${page}&lang=${lang}`, { cache: "no-store" })
+    fetch(`/api/video-pages/recent?date=${selectedDate}&lang=${lang}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((json: RecentVideoPagesResponse | null) => {
         if (!cancelled) setData(json);
@@ -1050,12 +1062,12 @@ function RecentVideoPagesSection({
     return () => {
       cancelled = true;
     };
-  }, [page, lang]);
+  }, [selectedDate, lang]);
 
-  // Reset to page 0 on lang switch — otherwise toggling EN/FR could
+  // Reset to today on lang switch — otherwise toggling EN/FR could
   // land the user on an empty page (different content cadence per lang).
   useEffect(() => {
-    setPage(0);
+    setSelectedDate(toUTCISODate(new Date()));
   }, [lang]);
 
   // Group items by date for visual rhythm — same as the /briefings hub.
@@ -1077,12 +1089,15 @@ function RecentVideoPagesSection({
   const hasMore = data?.hasMore ?? false;
   const fromDate = data?.fromDate;
   const toDate = data?.toDate;
+  const page = data?.page ?? 0;
+  const today = toUTCISODate(new Date());
+  const isToday = selectedDate >= today;
 
   // Hide the section entirely only when we're on page 0, today has no
   // transcribed videos AND there's nothing in the archive either —
   // otherwise we keep the section rendered so the user can still walk
   // backwards through previous days using « Plus ancien ».
-  if (page === 0 && !loading && items.length === 0 && !hasMore) return null;
+  if (isToday && !loading && items.length === 0 && !hasMore) return null;
 
   // Subtitle: a single day label (« 24 avr. ») since each page is
   // exactly one calendar day. We still call formatDateRange in case
@@ -1110,11 +1125,16 @@ function RecentVideoPagesSection({
   };
 
   const onPrev = useCallback(() => {
-    if (hasMore && !loading) setPage((p) => p + 1);
+    if (hasMore && !loading) setSelectedDate((d) => addUTCDays(d, -1));
   }, [hasMore, loading]);
   const onNext = useCallback(() => {
-    if (page > 0 && !loading) setPage((p) => Math.max(0, p - 1));
-  }, [page, loading]);
+    if (!isToday && !loading) {
+      setSelectedDate((d) => {
+        const next = addUTCDays(d, 1);
+        return next > today ? today : next;
+      });
+    }
+  }, [isToday, loading, today]);
 
   return (
     <section style={{ marginBottom: 36 }}>
@@ -1198,9 +1218,9 @@ function RecentVideoPagesSection({
         <button
           type="button"
           onClick={onNext}
-          disabled={page === 0 || loading}
+          disabled={isToday || loading}
           aria-label={lang === "fr" ? "Jours plus récents" : "More recent days"}
-          style={page === 0 || loading ? btnDisabled : btnBase}
+          style={isToday || loading ? btnDisabled : btnBase}
         >
           {lang === "fr" ? "← Plus récent" : "← Newer"}
         </button>

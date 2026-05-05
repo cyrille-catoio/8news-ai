@@ -1069,6 +1069,9 @@ function RecentVideoPagesSection({
   const [selectedDate, setSelectedDate] = useState(() => toUTCISODate(new Date()));
   const [data, setData] = useState<RecentVideoPagesResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  /** videoId of the row currently under the mouse — drives the hover
+   *  highlight so the user can visually pair a title with its score. */
+  const [hoveredVideoId, setHoveredVideoId] = useState<string | null>(null);
 
   // Refetch whenever the explicit day or lang changes. Date-based
   // pagination avoids relative `page=N` drift and guarantees one click
@@ -1229,10 +1232,19 @@ function RecentVideoPagesSection({
                       typeof p.summaryScore === "number"
                       && p.summaryScore >= 1
                       && p.summaryScore <= 10;
+                    const isHovered = hoveredVideoId === p.videoId;
                     return (
-                      <li key={p.videoId} style={{ marginBottom: 4 }}>
+                      <li key={p.videoId} style={{ marginBottom: 2 }}>
                         <a
                           href={`/${p.topicId}/v/${p.publishedDate}/${p.slug}`}
+                          onMouseEnter={() => setHoveredVideoId(p.videoId)}
+                          onMouseLeave={() =>
+                            setHoveredVideoId((cur) => (cur === p.videoId ? null : cur))
+                          }
+                          onFocus={() => setHoveredVideoId(p.videoId)}
+                          onBlur={() =>
+                            setHoveredVideoId((cur) => (cur === p.videoId ? null : cur))
+                          }
                           style={{
                             display: "flex",
                             alignItems: "baseline",
@@ -1241,6 +1253,15 @@ function RecentVideoPagesSection({
                             textDecoration: "none",
                             fontSize: 14,
                             lineHeight: 1.4,
+                            padding: "4px 8px",
+                            margin: "0 -8px",
+                            borderRadius: 4,
+                            background: isHovered ? "#252525" : "transparent",
+                            borderLeft: isHovered
+                              ? `3px solid ${color.gold}`
+                              : "3px solid transparent",
+                            paddingLeft: 6,
+                            transition: "background 120ms ease, border-color 120ms ease",
                           }}
                         >
                           <span style={{
@@ -1253,7 +1274,6 @@ function RecentVideoPagesSection({
                           }}>
                             {labelById.get(p.topicId) ?? p.topicId}
                           </span>
-                          <span style={{ color: color.gold, flexShrink: 0 }}>→</span>
                           <span style={{ flex: "1 1 auto", minWidth: 0 }}>{cleanTitle}</span>
                           <span
                             aria-label={hasScore ? `Score ${p.summaryScore}/10` : undefined}

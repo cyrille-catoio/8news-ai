@@ -10,19 +10,31 @@ import { normalizeSummaryHeadings } from "@/lib/summary-headings";
  * "TOP VIDEO · MAINTENANT" card. The pick is **synchronized across all
  * visitors** of the same language: every user hitting the page within
  * a given 10-minute wall-clock bucket sees the same video (FR users
- * see the FR top video, EN users see the EN top video).
+ * see the FR top video, EN users see the EN top video) — and the
+ * pick **rotates** across that pool every 10 minutes so the home
+ * actually changes throughout the day even when no new recap lands.
  *
  * Strategy
  * --------
- * 1. Pull the most recent row from `video_transcriptions` matching:
+ * 1. Pull a candidate **pool** of up to {@link CANDIDATE_POOL} rows
+ *    from `video_transcriptions` matching:
  *      - `lang = ?`
  *      - `summary_score >= 8` (AI quality gate from migration 021)
  *      - `summary_md` non-empty
  *      - `topic_id`, `slug_keywords`, `published_date` all set (the
  *        SSR route /{topic}/v/{date}/{slug} can't exist without them)
- *    Ordered `published_date DESC, created_at DESC`, limit 1.
- * 2. Join with `youtube_videos` to surface the card metadata (title,
- *    thumbnail, channel, etc.).
+ *      - `published_date >= today − {@link POOL_WINDOW_DAYS}` so the
+ *        pool stays fresh.
+ *    Ordered `published_date DESC, created_at DESC`. If the score-≥8
+ *    pool is empty (quiet day), widen to score ≥ {@link FALLBACK_MIN_SCORE}
+ *    so the section never freezes on a single old recap.
+ * 2. Pick by 10-minute wall-clock bucket:
+ *      idx = ((bucket % pool.length) + pool.length) % pool.length
+ *    so every visitor lands on the same video at any given minute,
+ *    and the pick advances at the bucket boundary even when the pool
+ *    itself is unchanged.
+ * 3. Join with `youtube_videos` to surface the card metadata (title,
+ *    thumbnail, channel, etc.) — single batched `.in()` query.
  *
  * Caching layers — same shape as `/api/news/top-story`:
  * - **CDN** (`Cache-Control: public, max-age=0, s-maxage=<remaining>,
@@ -44,6 +56,9 @@ import { normalizeSummaryHeadings } from "@/lib/summary-headings";
 
 const ROTATION_BUCKET_MS = 10 * 60 * 1000;
 const MIN_SCORE = 8;
+const FALLBACK_MIN_SCORE = 7;
+const CANDIDATE_POOL = 15;
+const POOL_WINDOW_DAYS = 14;
 
 interface VideoTopItem {
   videoId: string;
@@ -129,27 +144,46 @@ export async function GET(request: NextRequest) {
 
   const db = createClient(url, key, { auth: { persistSession: false } });
 
-  const { data: trData, error: trError } = await db
-    .from("video_transcriptions")
-    .select("video_id, summary_md, topic_id, slug_keywords, published_date, summary_score")
-    .eq("lang", lang)
-    .gte("summary_score", MIN_SCORE)
-    .not("topic_id", "is", null)
-    .not("slug_keywords", "is", null)
-    .not("published_date", "is", null)
-    .not("summary_md", "is", null)
-    .neq("summary_md", "")
-    .order("published_date", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(1);
+  const oldestDate = new Date(now - POOL_WINDOW_DAYS * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
 
-  if (trError || !trData || trData.length === 0) {
+  async function fetchPool(minScore: number): Promise<TranscriptionRow[]> {
+    const { data, error } = await db
+      .from("video_transcriptions")
+      .select("video_id, summary_md, topic_id, slug_keywords, published_date, summary_score")
+      .eq("lang", lang)
+      .gte("summary_score", minScore)
+      .gte("published_date", oldestDate)
+      .not("topic_id", "is", null)
+      .not("slug_keywords", "is", null)
+      .not("published_date", "is", null)
+      .not("summary_md", "is", null)
+      .neq("summary_md", "")
+      .order("published_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(CANDIDATE_POOL);
+    if (error || !data || data.length === 0) return [];
+    return data as TranscriptionRow[];
+  }
+
+  let pool = await fetchPool(MIN_SCORE);
+  if (pool.length === 0) {
+    pool = await fetchPool(FALLBACK_MIN_SCORE);
+  }
+
+  if (pool.length === 0) {
     const empty: TopVideoPayload = { video: null };
     cache.set(lang, { bucket, payload: empty });
     return jsonResponse(empty, bucket, now);
   }
 
-  const tr = trData[0] as TranscriptionRow;
+  // Deterministic 10-minute rotation. Same bucket + same pool ⇒ same
+  // idx ⇒ same video for every Function instance, so the module-level
+  // cache and CDN cache always converge on the same row even when
+  // they're populated from different cold instances.
+  const idx = ((bucket % pool.length) + pool.length) % pool.length;
+  const tr = pool[idx];
 
   const { data: yvData, error: yvError } = await db
     .from("youtube_videos")

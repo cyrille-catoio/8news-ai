@@ -306,19 +306,20 @@ export function BriefingPage({
       if (seq !== videosRefreshSeq.current) return;
 
       type ApiVideo = VideoItem & { summaryMd?: string | null; published: string };
-      // Quality gate: only surface recaps the AI scoring cron rated >= 9/10.
-      // Unscored recaps (score null) are deliberately excluded — they'll
-      // resurface here once the next cron tick gives them a high enough score.
+      // Quality gate: surface a single recap — the most recent one rated
+      // >= 8/10 by the AI scoring cron. Unscored recaps (null) are
+      // excluded; they'll resurface once the next cron tick gives them
+      // a high enough score.
       const merged = [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])]
         .filter(
           (v: ApiVideo) =>
             !!v.summaryMd
             && v.summaryMd.length > 0
             && typeof v.summaryScore === "number"
-            && v.summaryScore >= 9,
+            && v.summaryScore >= 8,
         )
         .sort((x: ApiVideo, y: ApiVideo) => new Date(y.published).getTime() - new Date(x.published).getTime())
-        .slice(0, 3);
+        .slice(0, 1);
       const items: VideoItem[] = merged.map((m: ApiVideo) => {
         const { summaryMd: _summary, ...rest } = m;
         return rest;
@@ -432,7 +433,7 @@ export function BriefingPage({
               layout doesn't jump when data arrives a few seconds later. */}
           {videosLoading ? (
             <SectionSpinner
-              label={lang === "fr" ? "Vidéos transcrites · récentes" : "Recent transcribed videos"}
+              label={lang === "fr" ? "TOP VIDEO · MAINTENANT" : "TOP VIDEO · NOW"}
             />
           ) : (
             videos.length > 0 && (
@@ -827,7 +828,7 @@ function VideosBriefingSection({
   return (
     <section style={{ marginBottom: 36 }}>
       <div style={{ ...kicker(color.gold), marginBottom: 12 }}>
-        {lang === "fr" ? "Vidéos transcrites · récentes" : "Recent transcribed videos"}
+        {lang === "fr" ? "TOP VIDEO · MAINTENANT" : "TOP VIDEO · NOW"}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {videos.map((v) => (

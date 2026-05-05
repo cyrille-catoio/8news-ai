@@ -15,6 +15,15 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
  * the SPA Briefing homepage.
  */
 
+// Force dynamic execution: every request must re-run the handler so the
+// `?page=` query string actually drives a fresh DB read. Without this,
+// Next.js 16's default Data Cache can return the same payload for
+// distinct pages on Netlify, which manifests as « Suivant » updating
+// the page indicator but not the rendered items. The CDN still caches
+// per-URL via the `Cache-Control` header below.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 50;
 

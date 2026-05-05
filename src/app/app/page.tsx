@@ -635,6 +635,15 @@ export default function Home() {
     }
   }, [authLoading, authOwner, isAuthenticated, currentPage]);
 
+  // UX: entering the Top 50 page from the home briefing should always
+  // start at the top of the document; otherwise users can land mid-page
+  // if they clicked "Voir le top 50" after scrolling deep on /app.
+  useEffect(() => {
+    if (currentPage !== "topArticles") return;
+    if (typeof window === "undefined") return;
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [currentPage]);
+
   // Guard: if the selected topic is removed from user's preferred topics, reset
   useEffect(() => {
     if (

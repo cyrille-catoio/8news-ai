@@ -84,11 +84,6 @@ function toISODate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/** Browser IANA timezone (e.g. "Europe/Paris"). Empty string in non-browser env. */
-function browserTimeZone(): string {
-  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch { return ""; }
-}
-
 export function BriefingPage({
   lang,
   isAuthenticated,
@@ -277,84 +272,71 @@ export function BriefingPage({
     return () => { cancelled = true; };
   }, [isAuthenticated, preferredTopicIds, lang]);
 
-  // ─── Recent transcribed videos (today + yesterday) ──────────────────
-  // Same data shape as VideosPage: split between video metadata
-  // (VideoItem) and per-video transcription summaries / loading state.
-  // The VideoCard component drives the Play / Summary / Audio player UI;
-  // we just provide the data and the transcribe handler.
+  // ─── TOP VIDEO · MAINTENANT ─────────────────────────────────────────
+  // Single transcribed YouTube recap, scored ≥ 8/10 by the AI cron.
+  // Picked + cached server-side by `/api/videos/top?lang=...` on the
+  // same 10-minute wall-clock bucket as `/api/news/top-story`, so all
+  // visitors of a given language see the exact same video in a window
+  // and the CDN serves a shared payload (no Supabase round-trip per
+  // visitor). When no recap meets the bar, the endpoint returns
+  // `{ video: null }` and the section hides itself.
+  //
+  // The render pipeline still expects `videos: VideoItem[]` +
+  // `videoSummaries: Record<string, string>` (so VideosBriefingSection
+  // and VideoCard work unchanged), so we just adapt-and-set on each
+  // refresh from the single-item endpoint response.
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [videoSummaries, setVideoSummaries] = useState<Record<string, string>>({});
   const [transcribing, setTranscribing] = useState<Record<string, boolean>>({});
   const [videosLoading, setVideosLoading] = useState(true);
-  const videosRefreshSeq = useRef(0);
-  const refreshBriefingVideos = useCallback(async (showLoading: boolean, prewarm: boolean) => {
-    const seq = ++videosRefreshSeq.current;
-    if (showLoading) setVideosLoading(true);
-
-    const today = new Date();
-    const yesterday = new Date(Date.now() - 86_400_000);
-    const tz = browserTimeZone();
-    const tzQs = tz ? `&tz=${encodeURIComponent(tz)}` : "";
-    const prewarmQs = prewarm ? "&prewarm=1" : "";
-
-    try {
-      const [a, b] = await Promise.all([
-        fetch(`/api/youtube-channels/videos?date=${toISODate(today)}&lang=${lang}${tzQs}${prewarmQs}`, { cache: "no-store" }).then((r) => (r.ok ? r.json() : [])),
-        fetch(`/api/youtube-channels/videos?date=${toISODate(yesterday)}&lang=${lang}${tzQs}&refresh=0`, { cache: "no-store" }).then((r) => (r.ok ? r.json() : [])),
-      ]);
-
-      if (seq !== videosRefreshSeq.current) return;
-
-      type ApiVideo = VideoItem & { summaryMd?: string | null; published: string };
-      // Quality gate: surface a single recap — the most recent one rated
-      // >= 8/10 by the AI scoring cron. Unscored recaps (null) are
-      // excluded; they'll resurface once the next cron tick gives them
-      // a high enough score.
-      const merged = [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])]
-        .filter(
-          (v: ApiVideo) =>
-            !!v.summaryMd
-            && v.summaryMd.length > 0
-            && typeof v.summaryScore === "number"
-            && v.summaryScore >= 8,
-        )
-        .sort((x: ApiVideo, y: ApiVideo) => new Date(y.published).getTime() - new Date(x.published).getTime())
-        .slice(0, 1);
-      const items: VideoItem[] = merged.map((m: ApiVideo) => {
-        const { summaryMd: _summary, ...rest } = m;
-        return rest;
-      });
-      const summaries: Record<string, string> = {};
-      for (const m of merged as ApiVideo[]) {
-        if (m.summaryMd) summaries[m.videoId] = m.summaryMd;
-      }
-      setVideos(items);
-      setVideoSummaries(summaries);
-    } catch {
-      // Silent refresh: keep the current video block on transient failures.
-    } finally {
-      if (seq === videosRefreshSeq.current && showLoading) setVideosLoading(false);
-    }
-  }, [lang]);
-
   useEffect(() => {
+    let cancelled = false;
+
+    type TopVideoApiPayload = {
+      video: (VideoItem & { summaryMd: string | null }) | null;
+    };
+
+    async function fetchTopVideo(showLoading: boolean) {
+      if (showLoading) setVideosLoading(true);
+      try {
+        // No `cache: "no-store"` — let the browser honor the upstream
+        // `Cache-Control: max-age=0, s-maxage=<remaining>, must-revalidate`
+        // so the CDN serves the same shared payload to every visitor of
+        // this lang in this bucket. Same pattern as the top story.
+        const r = await fetch(`/api/videos/top?lang=${lang}`);
+        const json: TopVideoApiPayload = r.ok
+          ? await r.json()
+          : { video: null };
+        if (cancelled) return;
+        if (json.video) {
+          const { summaryMd, ...rest } = json.video;
+          setVideos([rest]);
+          setVideoSummaries(summaryMd ? { [rest.videoId]: summaryMd } : {});
+        } else {
+          setVideos([]);
+          setVideoSummaries({});
+        }
+      } catch {
+        // Silent refresh: keep the current top video on transient failures.
+      } finally {
+        if (!cancelled && showLoading) setVideosLoading(false);
+      }
+    }
+
+    fetchTopVideo(true);
+
     const VIDEO_REFRESH_MS = 10 * 60 * 1000;
-
-    // Initial load may prewarm one missing transcription. Later refreshes
-    // update only this block, mirroring the top-story synchronized refresh
-    // pattern without reloading the rest of the briefing page.
-    refreshBriefingVideos(true, true);
-
     const msToBoundary = VIDEO_REFRESH_MS - (Date.now() % VIDEO_REFRESH_MS) + 500;
     let intervalId: ReturnType<typeof setInterval> | null = null;
     const timeoutId = setTimeout(() => {
-      refreshBriefingVideos(false, true);
-      intervalId = setInterval(() => refreshBriefingVideos(false, true), VIDEO_REFRESH_MS);
+      if (cancelled) return;
+      fetchTopVideo(false);
+      intervalId = setInterval(() => fetchTopVideo(false), VIDEO_REFRESH_MS);
     }, msToBoundary);
 
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
-        refreshBriefingVideos(false, true);
+        fetchTopVideo(false);
       }
     };
     if (typeof document !== "undefined") {
@@ -362,13 +344,14 @@ export function BriefingPage({
     }
 
     return () => {
+      cancelled = true;
       clearTimeout(timeoutId);
       if (intervalId) clearInterval(intervalId);
       if (typeof document !== "undefined") {
         document.removeEventListener("visibilitychange", onVisibility);
       }
     };
-  }, [refreshBriefingVideos]);
+  }, [lang]);
 
   // Same logic as VideosPage.handleTranscribe — POSTs the video to the
   // transcribe endpoint and writes the resulting summaryMd into local
@@ -486,6 +469,7 @@ export function BriefingPage({
               articles={top5}
               lang={lang}
               locale={locale}
+              topicLabels={topicLabels}
               favoriteUrls={favoriteUrls}
               onToggleFavorite={onToggleFavorite}
               isAuthenticated={isAuthenticated}
@@ -673,6 +657,7 @@ function Top5Section({
   articles,
   lang,
   locale,
+  topicLabels,
   favoriteUrls,
   onToggleFavorite,
   isAuthenticated,
@@ -682,12 +667,17 @@ function Top5Section({
   articles: TopFeedArticle[];
   lang: Lang;
   locale: string;
+  topicLabels: TopicLabel[];
   favoriteUrls: Set<string>;
   onToggleFavorite: (a: { url: string; title: string; source: string; pubDate?: string }) => void;
   isAuthenticated: boolean;
   onRequestAuth: () => void;
   onSeeAll: () => void;
 }) {
+  const topicLabelById = useMemo(
+    () => new Map(topicLabels.map((t) => [t.id, t.label])),
+    [topicLabels],
+  );
   return (
     <section style={{ marginBottom: 36 }}>
       <div style={{ ...kicker(color.gold), marginBottom: 12 }}>
@@ -712,6 +702,10 @@ function Top5Section({
           </a>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
             <span style={{ color: color.gold, fontSize: 12, fontFamily: "ui-monospace, Menlo, monospace", letterSpacing: "0.04em" }}>
+              <span style={{ color: color.textMuted, marginRight: 8 }}>
+                {(topicLabelById.get(art.topic) ?? art.topic).toUpperCase()}
+              </span>
+              <span style={{ color: color.textMuted, marginRight: 8 }}>·</span>
               {art.source.toUpperCase()}
               <span style={{ color: color.textMuted, marginLeft: 8 }}>· {relativeTime(art.pubDate, lang)}</span>
             </span>

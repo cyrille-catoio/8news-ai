@@ -1055,7 +1055,8 @@ function RecentVideoPagesSection({
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
-    fetch(`/api/video-pages/recent?page=${page}&pageSize=10&lang=${lang}`, {
+    const cacheBust = Date.now();
+    fetch(`/api/video-pages/recent?page=${page}&pageSize=10&lang=${lang}&_=${cacheBust}`, {
       cache: "no-store",
       signal: controller.signal,
     })

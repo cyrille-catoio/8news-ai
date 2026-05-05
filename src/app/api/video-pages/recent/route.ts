@@ -16,16 +16,21 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
  */
 
 // Force dynamic execution: every request must re-run the handler so the
-// `?page=` query string actually drives a fresh DB read. Without this,
-// Next.js 16's default Data Cache can return the same payload for
-// distinct pages on Netlify, which manifests as « Suivant » updating
-// the page indicator but not the rendered items. The CDN still caches
-// per-URL via the `Cache-Control` header below.
+// `?page=` query string actually drives a fresh DB read. Netlify production
+// has also shown path-level CDN reuse for this route when `s-maxage` is set,
+// so every response below uses explicit no-store headers too.
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 50;
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, max-age=0, must-revalidate",
+  "CDN-Cache-Control": "no-store",
+  "Netlify-CDN-Cache-Control": "no-store",
+  Pragma: "no-cache",
+  Expires: "0",
+} as const;
 
 interface VideoPageItem {
   videoId: string;
@@ -136,7 +141,7 @@ export async function GET(req: NextRequest) {
     const empty: PaginatedResponse = {
       items: [], page: 1, pageSize, totalCount: 0, totalPages: 0,
     };
-    return NextResponse.json(empty, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json(empty, { headers: NO_STORE_HEADERS });
   }
 
   const db = createClient(url, key, { auth: { persistSession: false } });
@@ -154,7 +159,7 @@ export async function GET(req: NextRequest) {
     const empty: PaginatedResponse = {
       items: [], page: 1, pageSize, totalCount: 0, totalPages: 0,
     };
-    return NextResponse.json(empty, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json(empty, { headers: NO_STORE_HEADERS });
   }
 
   const totalCount = rawCount ?? 0;
@@ -165,9 +170,7 @@ export async function GET(req: NextRequest) {
     const empty: PaginatedResponse = {
       items: [], page, pageSize, totalCount, totalPages,
     };
-    return NextResponse.json(empty, {
-      headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" },
-    });
+    return NextResponse.json(empty, { headers: NO_STORE_HEADERS });
   }
 
   const fromIdx = (page - 1) * pageSize;
@@ -178,7 +181,7 @@ export async function GET(req: NextRequest) {
     const empty: PaginatedResponse = {
       items: [], page, pageSize, totalCount, totalPages,
     };
-    return NextResponse.json(empty, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json(empty, { headers: NO_STORE_HEADERS });
   }
 
   const items: VideoPageItem[] = (pageRes.data ?? []).map((row) => {
@@ -205,10 +208,5 @@ export async function GET(req: NextRequest) {
     totalPages,
   };
 
-  return NextResponse.json(body, {
-    // Short edge cache: list refreshes whenever a new transcription
-    // lands, but at most once a minute. Each (page, pageSize, lang)
-    // combo gets its own cache entry via Next.js URL-based caching.
-    headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" },
-  });
+  return NextResponse.json(body, { headers: NO_STORE_HEADERS });
 }

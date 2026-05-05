@@ -19,6 +19,10 @@ function formatDuration(sec: number): string {
   return `${m}m ${s}s`;
 }
 
+function publishedTimeDesc(a: VideoItem, b: VideoItem): number {
+  return new Date(b.published).getTime() - new Date(a.published).getTime();
+}
+
 function pad2(n: number) { return String(n).padStart(2, "0"); }
 function toISODate(d: Date) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
 /** Browser IANA timezone (e.g. "Europe/Paris"). Empty string in non-browser env. */
@@ -257,6 +261,7 @@ export function VideosPage({
           sm[rest.videoId] = summaryMd;
         }
       }
+      clean.sort(publishedTimeDesc);
       setVideos(clean);
       setSummaries(sm);
     } catch (e) {

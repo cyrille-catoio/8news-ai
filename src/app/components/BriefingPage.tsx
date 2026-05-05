@@ -58,14 +58,14 @@ interface RecentVideoPage {
   summaryScore: number | null;
 }
 
-/** Server response shape — items + pagination metadata. */
+/** Server response shape — classic offset/limit pagination metadata. */
 interface RecentVideoPagesResponse {
   items: RecentVideoPage[];
+  /** 1-indexed page number actually returned (clamped server-side). */
   page: number;
-  pageSizeDays: number;
-  fromDate: string;
-  toDate: string;
-  hasMore: boolean;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
 }
 
 function relativeTime(pubDate: string, lang: Lang): string {
@@ -82,24 +82,6 @@ function relativeTime(pubDate: string, lang: Lang): string {
 
 function toISODate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function toUTCISODate(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
-function addUTCDays(dateStr: string, days: number): string {
-  const [year, month, day] = dateStr.split("-").map(Number);
-  const d = new Date(Date.UTC(year, month - 1, day));
-  d.setUTCDate(d.getUTCDate() + days);
-  return toUTCISODate(d);
-}
-
-function utcDayDiff(fromDate: string, toDate: string): number {
-  const from = Date.parse(`${fromDate}T00:00:00.000Z`);
-  const to = Date.parse(`${toDate}T00:00:00.000Z`);
-  if (!Number.isFinite(from) || !Number.isFinite(to)) return 0;
-  return Math.max(0, Math.round((to - from) / 86_400_000));
 }
 
 /** Browser IANA timezone (e.g. "Europe/Paris"). Empty string in non-browser env. */
@@ -1034,23 +1016,18 @@ function YourTopicsSection({
 
 /**
  * Bottom-of-page list of every transcribed video that has an SSR page.
- * Paginated one calendar day at a time (`?page=N`) — page 0 = today,
- * The selected day is sent explicitly to the API as `date=YYYY-MM-DD`
- * so each click moves exactly one UTC calendar day. « Plus ancien »
- * walks backwards in time, « Plus récent » brings the user back
- * towards today. The « Plus ancien » button is disabled when the
- * server response says `hasMore: false`.
+ * Classic offset/limit pagination — 10 items per page, page index
+ * 1-indexed. The list is a flat view ordered by `published_date DESC,
+ * created_at DESC` (most recent first). Each row shows the topic pill,
+ * the emoji-stripped title, the publication date suffixed after a dash
+ * (e.g. « — 5 mai 2026 ») and the AI quality score pinned right.
  *
- * On the first render we always render the section (even if today has
- * zero transcribed videos yet) as long as the server reports older
- * days exist — that way the user can still navigate back through the
- * archive. Only when both today AND the archive are empty do we hide
- * the section completely.
+ * Pagination controls are minimalist: « ‹ Précédent · Page X / N ·
+ * Suivant › ». The section hides itself only when the server reports
+ * an empty total count for this language.
  *
- * Drives traffic to `/v/` pages from inside the SPA. Compact format:
- * date · topic pill · title link. Topic labels are looked up locally
- * from `topicLabels` so we don't add a second API roundtrip just to
- * humanize a slug.
+ * Topic labels are looked up locally from `topicLabels` so we don't
+ * add a second API roundtrip just to humanize a slug.
  */
 function RecentVideoPagesSection({
   topicLabels,
@@ -1059,27 +1036,25 @@ function RecentVideoPagesSection({
   topicLabels: TopicLabel[];
   lang: Lang;
 }) {
-  const maxPage = 60;
   const labelById = useMemo(
     () => new Map(topicLabels.map((t) => [t.id, t.label])),
     [topicLabels],
   );
   const locale = dateLocale(lang);
 
-  const [selectedDate, setSelectedDate] = useState(() => toUTCISODate(new Date()));
+  const [page, setPage] = useState(1);
   const [data, setData] = useState<RecentVideoPagesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   /** videoId of the row currently under the mouse — drives the hover
    *  highlight so the user can visually pair a title with its score. */
   const [hoveredVideoId, setHoveredVideoId] = useState<string | null>(null);
 
-  // Refetch whenever the explicit day or lang changes. Date-based
-  // pagination avoids relative `page=N` drift and guarantees one click
-  // equals one calendar day.
+  // Refetch whenever the page or lang changes. AbortController prevents
+  // an in-flight response from a stale page from racing the latest one.
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
-    fetch(`/api/video-pages/recent?date=${selectedDate}&lang=${lang}`, {
+    fetch(`/api/video-pages/recent?page=${page}&pageSize=10&lang=${lang}`, {
       cache: "no-store",
       signal: controller.signal,
     })
@@ -1097,57 +1072,24 @@ function RecentVideoPagesSection({
     return () => {
       controller.abort();
     };
-  }, [selectedDate, lang]);
+  }, [page, lang]);
 
-  // Reset to today on lang switch — otherwise toggling EN/FR could
-  // land the user on an empty page (different content cadence per lang).
+  // Reset to page 1 on lang switch — content cadence differs per lang
+  // and a high page index in EN may not exist in FR (or vice versa).
   useEffect(() => {
-    setSelectedDate(toUTCISODate(new Date()));
+    setPage(1);
   }, [lang]);
 
-  // Group items by date for visual rhythm — same as the /briefings hub.
-  const byDate = useMemo(() => {
-    const map = new Map<string, RecentVideoPage[]>();
-    for (const p of data?.items ?? []) {
-      const arr = map.get(p.publishedDate) ?? [];
-      arr.push(p);
-      map.set(p.publishedDate, arr);
-    }
-    return map;
-  }, [data]);
-  const sortedDates = useMemo(
-    () => [...byDate.keys()].sort((a, b) => (a < b ? 1 : -1)),
-    [byDate],
-  );
-
   const items = data?.items ?? [];
-  const hasMore = data?.hasMore ?? false;
-  const fromDate = data?.fromDate;
-  const toDate = data?.toDate;
-  const today = toUTCISODate(new Date());
-  // Server clamps to MAX_PAGE = 60 days back; mirror that client-side so
-  // rapid taps past the boundary are no-ops instead of silently rolling
-  // selectedDate further than the data we can ever fetch.
-  const oldestAllowed = addUTCDays(today, -maxPage);
-  const isToday = selectedDate >= today;
-  const isOldest = selectedDate <= oldestAllowed;
-  const page = utcDayDiff(selectedDate, today);
-  const canGoNewer = !loading && !isToday;
-  const canGoOlder = !loading && !isOldest && hasMore;
+  const totalCount = data?.totalCount ?? 0;
+  const totalPages = data?.totalPages ?? 0;
+  const canGoPrev = page > 1;
+  const canGoNext = page < totalPages;
 
-  // Hide the section entirely only when we're on page 0, today has no
-  // transcribed videos AND there's nothing in the archive either —
-  // otherwise we keep the section rendered so the user can still walk
-  // backwards through previous days using « Plus ancien ».
-  if (isToday && !loading && items.length === 0 && !hasMore) return null;
-
-  // Subtitle: a single day label (« 24 avr. ») since each page is
-  // exactly one calendar day. We still call formatDateRange in case
-  // PAGE_SIZE_DAYS is widened again in the future — it gracefully
-  // collapses identical bounds to a single date.
-  const subtitle = fromDate && toDate
-    ? formatDateRange(fromDate, toDate, locale, lang)
-    : "";
+  // Hide the section entirely when this language has no transcribed
+  // videos at all. Otherwise we keep it rendered so the user can
+  // browse pages even mid-loading.
+  if (!loading && totalCount === 0) return null;
 
   const btnBase: CSSProperties = {
     background: "transparent",
@@ -1166,18 +1108,21 @@ function RecentVideoPagesSection({
     cursor: "not-allowed",
   };
 
-  const onOlder = useCallback(() => {
-    setSelectedDate((d) => {
-      const next = addUTCDays(d, -1);
-      return next < oldestAllowed ? oldestAllowed : next;
-    });
-  }, [oldestAllowed]);
-  const onNewer = useCallback(() => {
-    setSelectedDate((d) => {
-      const next = addUTCDays(d, 1);
-      return next > today ? today : next;
-    });
-  }, [today]);
+  // Functional updates so multiple rapid taps compose even while a
+  // fetch is in flight. Boundaries are clamped client-side so the
+  // server never has to clamp a request past the last page.
+  const onPrev = useCallback(() => {
+    setPage((p) => Math.max(1, p - 1));
+  }, []);
+  const onNext = useCallback(() => {
+    setPage((p) => (totalPages > 0 ? Math.min(totalPages, p + 1) : p));
+  }, [totalPages]);
+
+  const dateFmt: Intl.DateTimeFormatOptions = {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  };
 
   return (
     <section style={{ marginBottom: 36 }}>
@@ -1188,167 +1133,150 @@ function RecentVideoPagesSection({
         <div style={{ ...kicker(color.gold) }}>
           {lang === "fr" ? "Toutes les vidéos transcrites" : "All transcribed videos"}
         </div>
-        {subtitle && (
-          <div style={{ color: color.textMuted, fontSize: 12 }}>{subtitle}</div>
-        )}
       </div>
 
       <div style={{ ...card, display: "block", padding: "12px 16px" }}>
-        {loading ? (
+        {loading && items.length === 0 ? (
           <div style={{ color: color.textMuted, fontSize: 13, textAlign: "center", padding: "16px 0" }}>
             {lang === "fr" ? "Chargement…" : "Loading…"}
           </div>
         ) : items.length === 0 ? (
           <div style={{ color: color.textMuted, fontSize: 13, textAlign: "center", padding: "16px 0" }}>
-            {page === 0
-              ? (lang === "fr"
-                  ? "Aucune vidéo transcrite aujourd'hui pour le moment."
-                  : "No transcribed videos yet today.")
-              : (lang === "fr"
-                  ? "Aucune vidéo transcrite ce jour-là."
-                  : "No transcribed videos for this day.")}
+            {lang === "fr"
+              ? "Aucune vidéo transcrite pour le moment."
+              : "No transcribed videos yet."}
           </div>
         ) : (
-          sortedDates.map((date) => {
-            const dayItems = byDate.get(date) ?? [];
-            return (
-              <div key={date} style={{ marginBottom: 12 }}>
-                <div style={{
-                  color: color.textMuted,
-                  fontSize: 11,
-                  fontWeight: 600,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.08em",
-                  marginBottom: 6,
-                }}>
-                  {new Date(`${date}T00:00:00`).toLocaleDateString(locale, {
-                    weekday: "short", day: "numeric", month: "short",
-                  })}
-                </div>
-                <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                  {dayItems.map((p) => {
-                    const cleanTitle = stripEmoji(p.title);
-                    const hasScore =
-                      typeof p.summaryScore === "number"
-                      && p.summaryScore >= 1
-                      && p.summaryScore <= 10;
-                    const isHovered = hoveredVideoId === p.videoId;
-                    return (
-                      <li key={p.videoId} style={{ marginBottom: 2 }}>
-                        <a
-                          href={`/${p.topicId}/v/${p.publishedDate}/${p.slug}`}
-                          onMouseEnter={() => setHoveredVideoId(p.videoId)}
-                          onMouseLeave={() =>
-                            setHoveredVideoId((cur) => (cur === p.videoId ? null : cur))
-                          }
-                          onFocus={() => setHoveredVideoId(p.videoId)}
-                          onBlur={() =>
-                            setHoveredVideoId((cur) => (cur === p.videoId ? null : cur))
-                          }
-                          style={{
-                            display: "flex",
-                            alignItems: "baseline",
-                            gap: 8,
-                            color: color.text,
-                            textDecoration: "none",
-                            fontSize: 14,
-                            lineHeight: 1.4,
-                            padding: "4px 8px",
-                            margin: "0 -8px",
-                            borderRadius: 4,
-                            background: isHovered ? "#252525" : "transparent",
-                            borderLeft: isHovered
-                              ? `3px solid ${color.gold}`
-                              : "3px solid transparent",
-                            paddingLeft: 6,
-                            transition: "background 120ms ease, border-color 120ms ease",
-                          }}
-                        >
-                          <span style={{
-                            fontSize: 10, fontWeight: 700, color: color.gold,
-                            border: `1px solid ${color.gold}`, borderRadius: 3,
-                            padding: "1px 5px", letterSpacing: "0.03em",
-                            textTransform: "uppercase",
-                            flexShrink: 0,
-                            alignSelf: "center",
-                          }}>
-                            {labelById.get(p.topicId) ?? p.topicId}
-                          </span>
-                          <span style={{ flex: "1 1 auto", minWidth: 0 }}>{cleanTitle}</span>
-                          <span
-                            aria-label={hasScore ? `Score ${p.summaryScore}/10` : undefined}
-                            aria-hidden={hasScore ? undefined : true}
-                            style={{
-                              flexShrink: 0,
-                              fontFamily: "ui-monospace, Menlo, monospace",
-                              fontSize: 12,
-                              fontWeight: 700,
-                              color: hasScore ? scoreTierColor(p.summaryScore as number) : "transparent",
-                              whiteSpace: "nowrap",
-                              minWidth: 36,
-                              textAlign: "right",
-                            }}
-                          >
-                            {hasScore ? `${p.summaryScore}/10` : "—/10"}
-                          </span>
-                        </a>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            );
-          })
+          <ul style={{ listStyle: "none", padding: 0, margin: 0, opacity: loading ? 0.6 : 1, transition: "opacity 120ms ease" }}>
+            {items.map((p) => {
+              const cleanTitle = stripEmoji(p.title);
+              const hasScore =
+                typeof p.summaryScore === "number"
+                && p.summaryScore >= 1
+                && p.summaryScore <= 10;
+              const isHovered = hoveredVideoId === p.videoId;
+              const formattedDate = p.publishedDate
+                ? new Date(`${p.publishedDate}T00:00:00`).toLocaleDateString(locale, dateFmt)
+                : "";
+              return (
+                <li key={p.videoId} style={{ marginBottom: 2 }}>
+                  <a
+                    href={`/${p.topicId}/v/${p.publishedDate}/${p.slug}`}
+                    onMouseEnter={() => setHoveredVideoId(p.videoId)}
+                    onMouseLeave={() =>
+                      setHoveredVideoId((cur) => (cur === p.videoId ? null : cur))
+                    }
+                    onFocus={() => setHoveredVideoId(p.videoId)}
+                    onBlur={() =>
+                      setHoveredVideoId((cur) => (cur === p.videoId ? null : cur))
+                    }
+                    style={{
+                      display: "flex",
+                      alignItems: "baseline",
+                      gap: 8,
+                      color: color.text,
+                      textDecoration: "none",
+                      fontSize: 14,
+                      lineHeight: 1.4,
+                      padding: "4px 8px",
+                      margin: "0 -8px",
+                      borderRadius: 4,
+                      background: isHovered ? "#252525" : "transparent",
+                      borderLeft: isHovered
+                        ? `3px solid ${color.gold}`
+                        : "3px solid transparent",
+                      paddingLeft: 6,
+                      transition: "background 120ms ease, border-color 120ms ease",
+                    }}
+                  >
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, color: color.gold,
+                      border: `1px solid ${color.gold}`, borderRadius: 3,
+                      padding: "1px 5px", letterSpacing: "0.03em",
+                      textTransform: "uppercase",
+                      flexShrink: 0,
+                      alignSelf: "center",
+                    }}>
+                      {labelById.get(p.topicId) ?? p.topicId}
+                    </span>
+                    <span style={{ flex: "1 1 auto", minWidth: 0 }}>{cleanTitle}</span>
+                    {formattedDate && (
+                      <span
+                        style={{
+                          flexShrink: 0,
+                          color: color.textMuted,
+                          fontSize: 12,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {`— ${formattedDate}`}
+                      </span>
+                    )}
+                    <span
+                      aria-label={hasScore ? `Score ${p.summaryScore}/10` : undefined}
+                      aria-hidden={hasScore ? undefined : true}
+                      style={{
+                        flexShrink: 0,
+                        fontFamily: "ui-monospace, Menlo, monospace",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: hasScore ? scoreTierColor(p.summaryScore as number) : "transparent",
+                        whiteSpace: "nowrap",
+                        minWidth: 36,
+                        textAlign: "right",
+                      }}
+                    >
+                      {hasScore ? `${p.summaryScore}/10` : "—/10"}
+                    </span>
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </div>
 
-      {/* Pagination controls — always rendered. While a new day is loading,
-          keep controls disabled so they never act on stale `hasMore` data. */}
-      <div style={{
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-        marginTop: 10,
-      }}>
-        <button
-          type="button"
-          onClick={onNewer}
-          disabled={!canGoNewer}
-          aria-label={lang === "fr" ? "Jours plus récents" : "More recent days"}
-          style={canGoNewer ? btnBase : btnDisabled}
-        >
-          {lang === "fr" ? "← Plus récent" : "← Newer"}
-        </button>
-        <div style={{ color: color.textDim, fontSize: 11 }}>
-          {lang === "fr" ? `Page ${page + 1}` : `Page ${page + 1}`}
+      {/* Pagination controls — minimalist style. Buttons stay clickable
+          during `loading` (only dimmed) so rapid taps compose; only
+          logical boundaries (page 1 / totalPages) actually disable. */}
+      {totalPages > 1 && (
+        <div style={{
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+          marginTop: 10,
+        }}>
+          <button
+            type="button"
+            onClick={onPrev}
+            disabled={!canGoPrev}
+            aria-label={lang === "fr" ? "Page précédente" : "Previous page"}
+            style={
+              !canGoPrev
+                ? btnDisabled
+                : (loading ? { ...btnBase, opacity: 0.6 } : btnBase)
+            }
+          >
+            {lang === "fr" ? "‹ Précédent" : "‹ Previous"}
+          </button>
+          <div style={{ color: color.textDim, fontSize: 11 }}>
+            {lang === "fr" ? `Page ${page} / ${totalPages}` : `Page ${page} of ${totalPages}`}
+          </div>
+          <button
+            type="button"
+            onClick={onNext}
+            disabled={!canGoNext}
+            aria-label={lang === "fr" ? "Page suivante" : "Next page"}
+            style={
+              !canGoNext
+                ? btnDisabled
+                : (loading ? { ...btnBase, opacity: 0.6 } : btnBase)
+            }
+          >
+            {lang === "fr" ? "Suivant ›" : "Next ›"}
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={onOlder}
-          disabled={!canGoOlder}
-          aria-label={lang === "fr" ? "Jours plus anciens" : "Older days"}
-          style={canGoOlder ? btnBase : btnDisabled}
-        >
-          {lang === "fr" ? "Plus ancien →" : "Older →"}
-        </button>
-      </div>
+      )}
     </section>
   );
-}
-
-/**
- * Format a [from, to] inclusive date range as a short, locale-aware
- * subtitle: « 23 – 24 avr. », « Apr 23 – 24 », or just « 24 avr. »
- * when both bounds collapse to the same day.
- */
-function formatDateRange(fromDate: string, toDate: string, locale: string, lang: Lang): string {
-  const from = new Date(`${fromDate}T00:00:00`);
-  const to = new Date(`${toDate}T00:00:00`);
-  const fmt: Intl.DateTimeFormatOptions = { day: "numeric", month: "short" };
-  if (fromDate === toDate) {
-    return to.toLocaleDateString(locale, fmt);
-  }
-  const fromStr = from.toLocaleDateString(locale, fmt);
-  const toStr = to.toLocaleDateString(locale, fmt);
-  return lang === "fr" ? `${fromStr} – ${toStr}` : `${fromStr} – ${toStr}`;
 }
 
 /* ────────────────── Footer CTA strip ────────────────── */

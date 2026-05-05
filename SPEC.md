@@ -513,7 +513,7 @@ The matching SSR pages (`/briefings`, `/[topic]/r/[date]/[slug]`) read `video_ro
 | `/api/youtube-channels/transcribe` | POST | **Synchronous** on-demand transcribe — calls `transcribeVideo()` with `model = "gpt-4.1-mini"` and a 25 s OpenAI timeout (Netlify cap is 30 s on serverless functions). Cross-language optimization: if a transcription exists in the other language, translates the existing summary instead of re-transcribing (saves 1 TranscriptAPI credit + ~80 % tokens). |
 | `/api/youtube-channels/transcript` | GET | **v2.5+** Returns the raw transcript text for one `(video_id, lang)` as `text/plain` so the user can download a `.txt` from the SPA (`DownloadTranscriptButton`). |
 | `/api/video-transcription` | GET | Public read of a single transcribed video (used by SSR `/[topic]/v/[date]/[slug]`). |
-| `/api/video-pages/recent` | GET | **v2.3+** Paginated list of recent transcribed videos for the SPA's Briefing homepage. Params: `?lang=` (en/fr), `?page=` (0 = today, 1 = yesterday, …). **v2.5.2+**: page size = **1 day** so the default view shows only today's transcribed videos and the prev/next buttons walk one day at a time; `MAX_PAGE = 60`. The "Toutes les vidéos transcrites" section stays visible even when today is empty as long as older content exists. |
+| `/api/video-pages/recent` | GET | **v2.3+** Paginated list of recent transcribed videos for the SPA's Briefing homepage. Params: `?lang=` (en/fr), `?page=` **1-indexed** (default 1), `?pageSize=` (default 10, clamped to `[1, 50]`). Response: `{ items, page, pageSize, totalCount, totalPages }`. Items are a flat view ordered `published_date DESC, created_at DESC` across the entire archive (no day grouping). The "Toutes les vidéos transcrites" section is hidden when `totalCount === 0`. |
 
 #### `GET /api/cron-stats`
 
@@ -678,7 +678,7 @@ Lives at `src/app/app/page.tsx`. The whole `/app/*` namespace is routed to a sin
 
 **Default page**: `BriefingPage` — a composite landing inside the SPA that shows:
 1. The Top 50 feed (`TopFeedSection` + opt-in AI grouped summary via `/api/news/top-summary`)
-2. The "All transcribed videos" pagination block driven by `/api/video-pages/recent` — **v2.5.2+** one day per page, default = today, prev/next walks one day at a time, section stays visible if today is empty but older content exists
+2. The "All transcribed videos" pagination block driven by `/api/video-pages/recent` — flat list, **10 items per page**, classic numbered pagination (Précédent / Page X / N / Suivant). Each row shows the topic pill, the emoji-stripped title, the publication date suffixed after a dash (« — 5 mai 2026 »), and the AI quality score pinned right (`summary_score` from migration 021). The section is hidden when the language has zero transcribed videos.
 
 **Language sync** (v2.5.3+): on session load, the SPA reads `authUser.user_metadata.preferred_lang` and reconciles `lang` state. If `preferred_lang` is unset for an authenticated user, it's initialised from the current cookie. `handleLangChange()` writes to **both** the cookie and `auth.users.raw_user_meta_data.preferred_lang` via `supabase.auth.updateUser`.
 
@@ -1144,7 +1144,7 @@ User opens / (landing) → SSR landing
 User opens /app       → client SPA → BriefingPage (default)
                               ├─ Top 50 via /api/news/top  (poll 5 min)
                               ├─ Opt-in /api/news/top-summary  (gpt-5.3-chat-latest)
-                              └─ /api/video-pages/recent  (1 day per page, default = today)
+                              └─ /api/video-pages/recent  (10 per page, flat published_date DESC)
 
 User opens /briefings, /summaries, /[topic], /[topic]/[date]/[slug],
            /[topic]/v/[date]/[slug], /[topic]/r/[date]/[slug]

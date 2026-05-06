@@ -51,6 +51,9 @@ import { BriefingPage } from "@/app/components/BriefingPage";
 
 const APP_VERSION = "2.5.31";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
+const NEWS_API_TRANSIENT_STATUSES = new Set([502, 503, 504]);
+const NEWS_API_RETRY_DELAY_MS = 750;
+const MAX_VISIBLE_ERROR_CHARS = 280;
 
 
 const PERIODS = [
@@ -70,6 +73,65 @@ const PERIODS = [
 ] as const;
 
 const MOBILE_TOPIC_PAGE_SIZE = 16;
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isHtmlErrorResponse(text: string, contentType: string): boolean {
+  const trimmed = text.trimStart();
+  return (
+    contentType.toLowerCase().includes("text/html") ||
+    /^<!doctype html/i.test(trimmed) ||
+    /^<html[\s>]/i.test(trimmed)
+  );
+}
+
+async function safeNewsApiErrorMessage(res: Response, lang: Lang): Promise<string> {
+  const contentType = res.headers.get("content-type") ?? "";
+
+  if (contentType.toLowerCase().includes("application/json")) {
+    const body = await res.json().catch(() => null) as { error?: unknown; message?: unknown } | null;
+    const message = typeof body?.error === "string" ? body.error : typeof body?.message === "string" ? body.message : "";
+    if (message.trim()) return message.trim();
+  }
+
+  const text = await res.text().catch(() => "");
+  if (NEWS_API_TRANSIENT_STATUSES.has(res.status) || isHtmlErrorResponse(text, contentType)) {
+    return t("temporaryServerError", lang);
+  }
+
+  const trimmed = text.trim();
+  if (trimmed.length > 0) return trimmed.slice(0, MAX_VISIBLE_ERROR_CHARS);
+  return `${t("unknownError", lang)} (HTTP ${res.status})`;
+}
+
+async function fetchNewsApi(url: string, lang: Lang): Promise<SummaryResponse> {
+  let res = await fetch(url, { cache: "no-store" });
+  if (NEWS_API_TRANSIENT_STATUSES.has(res.status)) {
+    await delay(NEWS_API_RETRY_DELAY_MS);
+    res = await fetch(url, { cache: "no-store" });
+  }
+
+  if (!res.ok) {
+    throw new Error(await safeNewsApiErrorMessage(res, lang));
+  }
+
+  const contentType = res.headers.get("content-type") ?? "";
+  if (!contentType.toLowerCase().includes("application/json")) {
+    const text = await res.text().catch(() => "");
+    if (isHtmlErrorResponse(text, contentType)) {
+      throw new Error(t("temporaryServerError", lang));
+    }
+    throw new Error(t("unknownError", lang));
+  }
+
+  try {
+    return await res.json() as SummaryResponse;
+  } catch {
+    throw new Error(t("temporaryServerError", lang));
+  }
+}
 
 // ── Sub-components ────────────────────────────────────────────────────
 
@@ -807,9 +869,8 @@ export default function Home() {
     const sinceISO = new Date(Date.now() - hours * 3_600_000).toISOString();
 
     try {
-      const res = await fetch(`/api/news?hours=${hours}&lang=${lang}&topic=${encodeURIComponent(targetTopic)}&count=${maxArticles}`);
-      if (!res.ok) throw new Error(await res.text().catch(() => "") || `HTTP ${res.status}`);
-      setData(await res.json());
+      const data = await fetchNewsApi(`/api/news?hours=${hours}&lang=${lang}&topic=${encodeURIComponent(targetTopic)}&count=${maxArticles}`, lang);
+      setData(data);
       playNotificationBeep();
 
       fetch(`/api/news/all?topic=${encodeURIComponent(targetTopic)}&since=${encodeURIComponent(sinceISO)}&lang=${lang}`, { cache: "no-store" })

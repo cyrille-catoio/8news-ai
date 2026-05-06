@@ -21,6 +21,10 @@ const strings = {
     en: "Unable to connect to the server.",
     fr: "Connexion impossible au serveur.",
   },
+  temporaryServerError: {
+    en: "The server is temporarily unavailable. Please try again in a few minutes.",
+    fr: "Le serveur est temporairement indisponible. Veuillez réessayer dans quelques minutes.",
+  },
   unknownError: {
     en: "Unknown error",
     fr: "Erreur inconnue",

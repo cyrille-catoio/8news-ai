@@ -233,14 +233,22 @@ export async function GET(request: NextRequest) {
       return jsonResponse(empty, bucket, now, { liveCache: true });
     }
 
-    const { count: olderCount } = await db
+    // Probe for at least one OTHER candidate row, including rows that
+    // haven't been displayed yet — the chevron walks through the
+    // rotation pool, not just the strict display history. Otherwise the
+    // chevron stays disabled until the queue has cycled through 2+
+    // distinct picks, which is rarely true right after a deploy.
+    let countQ = db
       .from("home_surface_queue")
       .select("id", { count: "exact", head: true })
       .eq("kind", "video")
       .eq("lang", lang)
       .gte("score", threshold)
-      .not("last_displayed_at", "is", null)
       .neq("ref_id", picked.ref_id);
+    if (hiddenTopics.length > 0) {
+      countQ = countQ.not("topic_id", "in", `(${hiddenTopics.map((id) => `"${id}"`).join(",")})`);
+    }
+    const { count: olderCount } = await countQ;
     const hasOlder = (olderCount ?? 0) > 0;
 
     const payload: TopVideoPayload = { video, hasOlder, offset };
@@ -249,14 +257,17 @@ export async function GET(request: NextRequest) {
   }
 
   // ── History mode (offset > 0) ──────────────────────────────
+  // Same ordering rationale as /api/news/top-story: most-recently-
+  // displayed first (= previous bucket's pick), then never-displayed
+  // rows by insertion freshness. NULLS LAST keeps unshown candidates
+  // accessible from the chevron browse.
   let q = db
     .from("home_surface_queue")
     .select("ref_id")
     .eq("kind", "video")
     .eq("lang", lang)
     .gte("score", threshold)
-    .not("last_displayed_at", "is", null)
-    .order("last_displayed_at", { ascending: false })
+    .order("last_displayed_at", { ascending: false, nullsFirst: false })
     .order("inserted_at", { ascending: false })
     .range(offset, offset + 1);
 

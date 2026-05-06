@@ -234,17 +234,23 @@ export async function GET(request: NextRequest) {
       return jsonResponse(empty, bucket, now, { liveCache: true });
     }
 
-    // Probe whether at least one previously-displayed row exists for the
-    // same filter (i.e. would `offset = 1` return something). Cheap: head
-    // count with a LIMIT/OFFSET pair that stops at the first match.
-    const { count: olderCount } = await db
+    // Probe whether at least one OTHER candidate row exists for the same
+    // filter (i.e. would `offset = 1` return something). We deliberately
+    // include rows that haven't been displayed yet — the chevron is meant
+    // to walk through the rotation pool, not just the strict display
+    // history, which would leave the controls permanently disabled until
+    // the queue had cycled through ≥ 2 distinct picks.
+    let countQ = db
       .from("home_surface_queue")
       .select("id", { count: "exact", head: true })
       .eq("kind", "article")
       .eq("lang", lang)
       .gte("score", threshold)
-      .not("last_displayed_at", "is", null)
       .neq("ref_id", picked.ref_id);
+    if (hiddenTopics.length > 0) {
+      countQ = countQ.not("topic_id", "in", `(${hiddenTopics.map((id) => `"${id}"`).join(",")})`);
+    }
+    const { count: olderCount } = await countQ;
     const hasOlder = (olderCount ?? 0) > 0;
 
     const payload: HeroPayload = { article, hasOlder, offset };
@@ -255,14 +261,17 @@ export async function GET(request: NextRequest) {
   // ── History mode (offset > 0) ──────────────────────────────
   // Read-only: pull two rows starting at the requested offset so we know
   // whether an even older one exists without a second round trip.
+  // Order: most-recently-displayed first (the previous bucket's pick),
+  // then never-displayed rows by insertion freshness. NULLS LAST keeps
+  // unshown candidates available when the live rotation hasn't yet
+  // walked through the entire queue.
   let q = db
     .from("home_surface_queue")
     .select("ref_id")
     .eq("kind", "article")
     .eq("lang", lang)
     .gte("score", threshold)
-    .not("last_displayed_at", "is", null)
-    .order("last_displayed_at", { ascending: false })
+    .order("last_displayed_at", { ascending: false, nullsFirst: false })
     .order("inserted_at", { ascending: false })
     .range(offset, offset + 1);
 

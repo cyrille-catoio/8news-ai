@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, type CSSProperties } from "react";
+import { useState, useEffect, useRef, useCallback, type CSSProperties } from "react";
 import dynamic from "next/dynamic";
 import { color, primaryButtonStyle, spinnerStyle } from "@/lib/theme";
 import { t, type Lang } from "@/lib/i18n";
@@ -19,6 +19,28 @@ const VIDEO_SUMMARY_FADE_MS = 1100;
 const VIDEO_SUMMARY_FADE_DELAY_MS = 380;
 
 const DESC_MAX = 120;
+
+/**
+ * Strip markdown formatting from the AI summary and return a clean
+ * teaser snippet (first words, ≤ `maxChars`) suitable for the
+ * homepage hero side panel — no headings, no bullets, no `**`.
+ */
+function buildSummaryPreview(md: string | null, maxChars = 240): string {
+  if (!md) return "";
+  const plain = md
+    .replace(/^##\s+.+$/gm, "")     // drop ## section markers (whole line)
+    .replace(/^###\s+/gm, "")       // strip ### prefix, keep title text
+    .replace(/\*\*/g, "")           // remove bold markers
+    .replace(/^\s*[-*]\s+/gm, "")   // strip leading list bullets
+    .replace(/\n+/g, " ")           // collapse newlines into spaces
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  if (plain.length <= maxChars) return plain;
+  const cut = plain.slice(0, maxChars);
+  const lastSpace = cut.lastIndexOf(" ");
+  const safe = lastSpace > maxChars * 0.6 ? cut.slice(0, lastSpace) : cut;
+  return safe.trimEnd() + "…";
+}
 
 export interface VideoItem {
   videoId: string;
@@ -126,6 +148,7 @@ export function VideoCard({
   onRequestAuth,
   variant = "default",
   topicLabels = [],
+  onPlaybackChange,
 }: {
   v: VideoItem;
   lang: Lang;
@@ -153,6 +176,8 @@ export function VideoCard({
    * shape without the prefix. Used by the homepage TOP VIDEO block.
    */
   topicLabels?: TopicLabel[];
+  /** Homepage TOP VIDEO: notify parent when inline playback starts/stops so auto-refresh can pause. */
+  onPlaybackChange?: (playing: boolean) => void;
 }) {
   const [descExpanded, setDescExpanded] = useState(false);
   const [summaryExpanded, setSummaryExpanded] = useState(false);
@@ -170,8 +195,52 @@ export function VideoCard({
     return () => mq.removeEventListener("change", apply);
   }, []);
 
+  const startPlayback = useCallback(() => {
+    setPlaying(true);
+  }, []);
+
+  useEffect(() => {
+    if (variant !== "hero" || !onPlaybackChange) return;
+    onPlaybackChange(playing);
+  }, [playing, variant, onPlaybackChange]);
+
+  useEffect(() => {
+    if (variant !== "hero" || !onPlaybackChange) return;
+    return () => {
+      onPlaybackChange(false);
+    };
+  }, [variant, onPlaybackChange]);
+
   const transcriptionFailed = isTranscriptionErrorMarkdown(summaryMd);
   const hasTranscription = !!summaryMd && !transcriptionFailed;
+
+  /** Hero homepage: AI summary preview shown next to the thumbnail. */
+  const heroSummaryPreview =
+    variant === "hero" && hasTranscription ? buildSummaryPreview(summaryMd, 432) : "";
+  /** Hero homepage fallback when no AI summary yet — degrade gracefully to YouTube description. */
+  const heroDescriptionFallback =
+    variant === "hero" && !hasTranscription ? (v.description ?? "") : "";
+
+  /**
+   * « Lire la suite » CTA next to the thumb — opens the full summary
+   * panel below. If the summary is not transcribed yet, falls back to
+   * the same flow as the « Résumé » button (request transcription,
+   * auto-expand on success).
+   */
+  const handleSummaryCta = useCallback(() => {
+    if (transcribing) return;
+    if (hasTranscription) {
+      setSummaryExpanded(true);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          summaryPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        });
+      });
+      return;
+    }
+    pendingExpandAfterTranscribeRef.current = true;
+    onTranscribe();
+  }, [transcribing, hasTranscription, onTranscribe]);
 
   useEffect(() => {
     if (transcriptionFailed && summaryMd) {
@@ -223,6 +292,11 @@ export function VideoCard({
   };
 
   const isHero = variant === "hero";
+  /** Homepage TOP VIDEO: full thumbnail uncropped; pillarboxing on wide strip (`object-fit: contain`). */
+  const thumbImgHero: CSSProperties = {
+    ...thumbImg,
+    objectFit: "contain",
+  };
   // Default uses asymmetric padding (no left padding because the thumbnail
   // sits to the left and already provides visual edge). Hero is a vertical
   // stack so we want a balanced 24px around — see `.video-card-hero` rule
@@ -326,78 +400,79 @@ export function VideoCard({
     return `${host}/embed/${encodeURIComponent(v.videoId)}?${params.toString()}`;
   })();
 
+  const thumbMedia = playing ? (
+    <iframe
+      src={youtubeEmbedSrc}
+      title={v.title}
+      style={{ width: "100%", height: "100%", border: "none", display: "block" }}
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+      referrerPolicy="strict-origin-when-cross-origin"
+      allowFullScreen
+    />
+  ) : (
+    <button
+      type="button"
+      onClick={startPlayback}
+      aria-label={lang === "fr" ? `Lire la vidéo : ${v.title}` : `Play video: ${v.title}`}
+      style={{
+        position: "relative",
+        display: "block",
+        width: "100%",
+        height: "100%",
+        padding: 0,
+        margin: 0,
+        border: "none",
+        background: "transparent",
+        cursor: "pointer",
+      }}
+    >
+      {v.thumbnail ? (
+        <img src={v.thumbnail} alt="" style={isHero ? thumbImgHero : thumbImg} loading="lazy" />
+      ) : (
+        <div style={{ ...thumbImg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke={color.textDim} strokeWidth="1.5">
+            <polygon points="5,3 19,12 5,21" />
+          </svg>
+        </div>
+      )}
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "rgba(0,0,0,0.18)",
+          transition: "background 0.15s",
+        }}
+      >
+        <span
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: "50%",
+            background: "rgba(0,0,0,0.65)",
+            border: `2px solid ${color.gold}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.55)",
+          }}
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill={color.gold} stroke="none" style={{ marginLeft: 3 }}>
+            <polygon points="5,3 19,12 5,21" />
+          </svg>
+        </span>
+      </span>
+    </button>
+  );
+
+  /** Default variant only — hero renders its own thumb inside the body's media row. */
   const thumbBlock = (
     <div className="video-thumb">
-      <div style={thumbWrap}>
-            {playing ? (
-              <iframe
-                src={youtubeEmbedSrc}
-                title={v.title}
-                style={{ width: "100%", height: "100%", border: "none", display: "block" }}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
-                referrerPolicy="strict-origin-when-cross-origin"
-                allowFullScreen
-              />
-            ) : (
-              <button
-                type="button"
-                onClick={() => setPlaying(true)}
-                aria-label={lang === "fr" ? `Lire la vidéo : ${v.title}` : `Play video: ${v.title}`}
-                style={{
-                  position: "relative",
-                  display: "block",
-                  width: "100%",
-                  height: "100%",
-                  padding: 0,
-                  margin: 0,
-                  border: "none",
-                  background: "transparent",
-                  cursor: "pointer",
-                }}
-              >
-                {v.thumbnail ? (
-                  <img src={v.thumbnail} alt="" style={thumbImg} loading="lazy" />
-                ) : (
-                  <div style={{ ...thumbImg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke={color.textDim} strokeWidth="1.5">
-                      <polygon points="5,3 19,12 5,21" />
-                    </svg>
-                  </div>
-                )}
-                <span
-                  aria-hidden
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: "rgba(0,0,0,0.18)",
-                    transition: "background 0.15s",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 56,
-                      height: 56,
-                      borderRadius: "50%",
-                      background: "rgba(0,0,0,0.65)",
-                      border: `2px solid ${color.gold}`,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      boxShadow: "0 4px 16px rgba(0,0,0,0.55)",
-                    }}
-                  >
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill={color.gold} stroke="none" style={{ marginLeft: 3 }}>
-                      <polygon points="5,3 19,12 5,21" />
-                    </svg>
-                  </span>
-                </span>
-              </button>
-            )}
-          </div>
-        </div>
+      <div style={thumbWrap}>{thumbMedia}</div>
+    </div>
   );
 
   const bodyBlock = (
@@ -430,8 +505,11 @@ export function VideoCard({
             )}
           </div>
 
-          {/* Description — truncated with "Voir plus" */}
-          {v.description && (
+          {/* YouTube description — kept for the default variant only.
+              In hero we show the AI summary teaser to the right of the
+              thumbnail instead, so the YT marketing copy is hidden to
+              avoid duplicating the editorial preview. */}
+          {!isHero && v.description && (
             <div className="app-paragraph-sm" style={{ color: color.textMuted, marginBottom: 8 }}>
               {descTruncated ? (
                 <>
@@ -495,7 +573,7 @@ export function VideoCard({
                 <span>{formatViews(v.viewCount)} {lang === "fr" ? "vues" : "views"}</span>
               </>
             )}
-            {v.topicId && v.slugKeywords && v.publishedDate && (
+            {!isHero && v.topicId && v.slugKeywords && v.publishedDate && (
               <>
                 <span>·</span>
                 <a
@@ -507,6 +585,56 @@ export function VideoCard({
               </>
             )}
           </div>
+
+          {/* Hero homepage: thumbnail (left) + AI summary teaser (right).
+              The thumbnail's left edge aligns with the body padding —
+              same column as the « Play Vidéo » CTA below — so the
+              card reads as one consistent vertical column. When the
+              user starts playback, the grid template animates so the
+              video frame grows to full width and the teaser fades. */}
+          {isHero && (
+            <div
+              className={
+                "video-card-hero-media-row" +
+                (playing ? " video-card-hero-media-row--playing" : "")
+              }
+            >
+              <div className="video-card-hero-media-thumb">
+                <div className="video-thumb-hero-frame">{thumbMedia}</div>
+              </div>
+              {(heroSummaryPreview || heroDescriptionFallback) && (
+                <div className="video-card-hero-media-summary">
+                  <p className="video-card-hero-media-summary-text">
+                    {heroSummaryPreview || heroDescriptionFallback}
+                  </p>
+                  <button
+                    type="button"
+                    className="video-card-hero-media-summary-cta"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleSummaryCta();
+                    }}
+                    aria-busy={transcribing}
+                    aria-controls={
+                      hasTranscription ? `video-ai-summary-${v.videoId}` : undefined
+                    }
+                  >
+                    {transcribing
+                      ? lang === "fr"
+                        ? "Génération du résumé…"
+                        : "Generating summary…"
+                      : hasTranscription
+                      ? lang === "fr"
+                        ? "Lire la suite →"
+                        : "Read more →"
+                      : lang === "fr"
+                      ? "Générer le résumé →"
+                      : "Generate summary →"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
             {playing ? (
@@ -528,7 +656,7 @@ export function VideoCard({
                 type="button"
                 onClick={(e) => {
                   e.preventDefault();
-                  setPlaying(true);
+                  startPlayback();
                 }}
                 style={{ ...btnStyle, opacity: 1 }}
               >
@@ -626,14 +754,88 @@ export function VideoCard({
         </div>
   );
 
+  /** Hero homepage: full summary panel sits at the bottom of the card under the actions row. */
+  const transcriptionErrorBlock =
+    summaryMd && transcriptionFailed ? (
+      <div
+        className={isHero ? "video-card-hero-summary-panel" : undefined}
+        style={{
+          ...(isHero ? {} : { padding: "0 20px 20px" }),
+          borderTop: `1px solid ${color.border}`,
+        }}
+      >
+        <ReactMarkdown components={mdComponents}>{summaryMd}</ReactMarkdown>
+      </div>
+    ) : null;
+
+  const transcriptionSuccessBlock =
+    summaryMd && !transcriptionFailed ? (
+      <div
+        style={{
+          display: "grid",
+          gridTemplateRows: summaryExpanded ? "1fr" : "0fr",
+          transition: `grid-template-rows ${gridMs}ms cubic-bezier(0.33, 0.86, 0.2, 1)`,
+        }}
+      >
+        <div style={{ minHeight: 0, overflow: "hidden" }}>
+          <div
+            ref={summaryPanelRef}
+            id={`video-ai-summary-${v.videoId}`}
+            role="region"
+            aria-label={t("videoSummaryRegionAria", lang)}
+            className={isHero ? "video-card-hero-summary-panel" : undefined}
+            style={{
+              ...(isHero ? {} : { padding: "0 20px 20px" }),
+              borderTop: `1px solid ${color.border}`,
+              opacity: summaryExpanded ? 1 : 0,
+              transition: summaryExpanded
+                ? `opacity ${fadeMs}ms ease ${fadeDelayMs}ms`
+                : `opacity ${reducedMotion ? 1 : 320}ms ease`,
+            }}
+          >
+            {(() => {
+              const plain = summaryMd
+                .replace(/^##\s+.+$/gm, "")
+                .replace(/^###\s+/gm, "")
+                .replace(/\*\*/g, "")
+                .replace(/^\s*[-*]\s+/gm, "")
+                .replace(/\n{2,}/g, "\n")
+                .trim();
+              const intro = lang === "fr" ? `Résumé de la vidéo ${v.title}.` : `Summary of the video ${v.title}.`;
+              const maxBody = 4800 - intro.length;
+              const body = plain.length > maxBody ? plain.slice(0, maxBody) + "…" : plain;
+              return body.length > 0 ? (
+                <div style={{ paddingTop: 10, marginBottom: 12 }}>
+                  <div
+                    style={{
+                      color: color.gold,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.08em",
+                      marginBottom: 6,
+                    }}
+                  >
+                    {lang === "fr" ? "Lecteur audio" : "Audio player"}
+                  </div>
+                  <AudioPlayer text={`${intro} ${body}`} lang={lang} speed={speed} voice={voice} />
+                </div>
+              ) : null;
+            })()}
+            <ReactMarkdown components={mdComponents}>{summaryMd}</ReactMarkdown>
+            <button type="button" onClick={() => setSummaryExpanded(false)} style={{ ...toggleLink, marginTop: 8 }}>
+              {lang === "fr" ? "Réduire le résumé" : "Collapse summary"}
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null;
+
   return (
     <div style={cardStyle}>
       <div className={isHero ? "video-card-hero" : "video-card-row"}>
         {isHero ? (
-          <>
-            {bodyBlock}
-            {thumbBlock}
-          </>
+          bodyBlock
         ) : (
           <>
             {thumbBlock}
@@ -642,71 +844,8 @@ export function VideoCard({
         )}
       </div>
 
-      {/* Error after a failed run (always visible). Success summary only when expanded (toggle via Transcription). */}
-      {summaryMd && transcriptionFailed && (
-        <div
-          style={{ padding: "0 20px 20px", borderTop: `1px solid ${color.border}` }}
-        >
-          <ReactMarkdown components={mdComponents}>{summaryMd}</ReactMarkdown>
-        </div>
-      )}
-      {summaryMd && !transcriptionFailed && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateRows: summaryExpanded ? "1fr" : "0fr",
-            transition: `grid-template-rows ${gridMs}ms cubic-bezier(0.33, 0.86, 0.2, 1)`,
-          }}
-        >
-          <div style={{ minHeight: 0, overflow: "hidden" }}>
-            <div
-              ref={summaryPanelRef}
-              id={`video-ai-summary-${v.videoId}`}
-              role="region"
-              aria-label={t("videoSummaryRegionAria", lang)}
-              style={{
-                padding: "0 20px 20px",
-                borderTop: `1px solid ${color.border}`,
-                opacity: summaryExpanded ? 1 : 0,
-                transition: summaryExpanded
-                  ? `opacity ${fadeMs}ms ease ${fadeDelayMs}ms`
-                  : `opacity ${reducedMotion ? 1 : 320}ms ease`,
-              }}
-            >
-              {(() => {
-                // h2 = section markers (drop the line). h3 = per-key-point
-                // title (keep text, drop just the `### ` prefix) so TTS
-                // speaks them as part of the body.
-                const plain = summaryMd.replace(/^##\s+.+$/gm, "").replace(/^###\s+/gm, "").replace(/\*\*/g, "").replace(/^\s*[-*]\s+/gm, "").replace(/\n{2,}/g, "\n").trim();
-                const intro = lang === "fr" ? `Résumé de la vidéo ${v.title}.` : `Summary of the video ${v.title}.`;
-                const maxBody = 4800 - intro.length;
-                const body = plain.length > maxBody ? plain.slice(0, maxBody) + "…" : plain;
-                return body.length > 0 ? (
-                  <div style={{ paddingTop: 10, marginBottom: 12 }}>
-                    <div
-                      style={{
-                        color: color.gold,
-                        fontSize: 11,
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.08em",
-                        marginBottom: 6,
-                      }}
-                    >
-                      {lang === "fr" ? "Lecteur audio" : "Audio player"}
-                    </div>
-                    <AudioPlayer text={`${intro} ${body}`} lang={lang} speed={speed} voice={voice} />
-                  </div>
-                ) : null;
-              })()}
-              <ReactMarkdown components={mdComponents}>{summaryMd}</ReactMarkdown>
-              <button type="button" onClick={() => setSummaryExpanded(false)} style={{ ...toggleLink, marginTop: 8 }}>
-                {lang === "fr" ? "Réduire le résumé" : "Collapse summary"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {transcriptionErrorBlock}
+      {transcriptionSuccessBlock}
     </div>
   );
 }

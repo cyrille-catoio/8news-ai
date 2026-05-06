@@ -109,6 +109,8 @@ interface TranscriptionRow {
   slug_keywords: string | null;
   published_date: string | null;
   summary_score: number | null;
+  /** Per-lang translated title (NULL for legacy rows; reader falls back to `youtube_videos.title`). */
+  title_localized: string | null;
 }
 
 interface YoutubeVideoRow {
@@ -129,13 +131,33 @@ async function hydrateVideo(
   refId: number,
   lang: Lang,
 ): Promise<VideoTopItem | null> {
-  const { data: trData, error: trError } = await db
-    .from("video_transcriptions")
-    .select("video_id, summary_md, topic_id, slug_keywords, published_date, summary_score")
-    .eq("id", refId)
-    .limit(1);
-  if (trError || !trData || trData.length === 0) return null;
-  const tr = trData[0] as TranscriptionRow;
+  // `title_localized` is added by migration 023; gracefully fall back to
+  // the pre-023 column list if the env hasn't been migrated yet so the
+  // home keeps rendering with the YouTube title.
+  const fullColumns =
+    "video_id, summary_md, topic_id, slug_keywords, published_date, summary_score, title_localized";
+  const baseColumns =
+    "video_id, summary_md, topic_id, slug_keywords, published_date, summary_score";
+  const runTr = (columns: string) =>
+    db
+      .from("video_transcriptions")
+      .select(columns)
+      .eq("id", refId)
+      .limit(1);
+
+  let trRes = await runTr(fullColumns);
+  if (trRes.error && /title_localized/i.test(trRes.error.message ?? "")) {
+    trRes = await runTr(baseColumns);
+  }
+  if (trRes.error || !trRes.data || trRes.data.length === 0) return null;
+  const tr = trRes.data[0] as unknown as Partial<TranscriptionRow> & {
+    video_id: string;
+    summary_md: string | null;
+    topic_id: string | null;
+    slug_keywords: string | null;
+    published_date: string | null;
+    summary_score: number | null;
+  };
 
   const { data: yvData, error: yvError } = await db
     .from("youtube_videos")
@@ -153,7 +175,7 @@ async function hydrateVideo(
 
   return {
     videoId: yv.video_id,
-    title: yv.title,
+    title: tr.title_localized ?? yv.title,
     description: yv.description,
     channelTitle: yv.channel_title,
     channelId: yv.channel_id,

@@ -137,7 +137,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     : undefined;
 
   // À la volée title (default #5): "{Video title} · {Topic} · 8news.ai".
-  const title = `${page.video?.title ?? page.title} · ${topicLabel} · 8news.ai`;
+  // Migration 023+: prefer the per-lang translated title when populated
+  // so an English visitor on a French source video sees an English
+  // headline. Legacy rows have `title_localized = NULL`, falling back
+  // to the YouTube cache title (or the transcription's stored title).
+  const videoTitle = page.title_localized ?? page.video?.title ?? page.title;
+  const title = `${videoTitle} · ${topicLabel} · 8news.ai`;
   const description = descriptionFromSummary(normalizeSummaryHeadings(page.summary_md, lang));
 
   return {
@@ -203,6 +208,8 @@ export default async function VideoSeoPage({ params }: PageProps) {
   const summaryMd = normalizeSummaryHeadings(page.summary_md, lang);
   const transcript = (page.transcript ?? "").trim();
   const durationLabel = formatDuration(page.video?.duration_sec ?? null);
+  /** Per-lang translated title (mig. 023) → YouTube title → stored fallback. */
+  const videoTitle = page.title_localized ?? page.video?.title ?? page.title;
 
   // JSON-LD: VideoObject (rich snippet on Google) + Article (so the page
   // qualifies for News-style boxes too). Both schemas reference the
@@ -211,7 +218,7 @@ export default async function VideoSeoPage({ params }: PageProps) {
   const jsonLdVideo: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "VideoObject",
-    name: page.video?.title ?? page.title,
+    name: videoTitle,
     description: descriptionFromSummary(summaryMd),
     uploadDate: page.video?.published ?? `${date}T00:00:00Z`,
     contentUrl: page.video?.link ?? `https://www.youtube.com/watch?v=${page.video_id}`,
@@ -223,7 +230,7 @@ export default async function VideoSeoPage({ params }: PageProps) {
   const jsonLdArticle = {
     "@context": "https://schema.org",
     "@type": "Article",
-    headline: page.video?.title ?? page.title,
+    headline: videoTitle,
     datePublished: page.video?.published ?? `${date}T00:00:00Z`,
     dateModified: page.created_at,
     author: { "@type": "Organization", name: "8news.ai" },
@@ -260,7 +267,7 @@ export default async function VideoSeoPage({ params }: PageProps) {
         {/* Header */}
         <header style={{ marginBottom: 24 }}>
           <h1 style={{ color: color.gold, fontSize: 26, fontWeight: 700, lineHeight: 1.3, marginBottom: 12, marginTop: 0 }}>
-            {page.video?.title ?? page.title}
+            {videoTitle}
           </h1>
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             <span style={{
@@ -308,7 +315,7 @@ export default async function VideoSeoPage({ params }: PageProps) {
         }}>
           <iframe
             src={`https://www.${process.env.NODE_ENV === "development" ? "youtube-nocookie" : "youtube"}.com/embed/${page.video_id}?rel=0&modestbranding=1&playsinline=1`}
-            title={page.video?.title ?? page.title}
+            title={videoTitle}
             style={{ width: "100%", height: "100%", border: "none", display: "block" }}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
             referrerPolicy="strict-origin-when-cross-origin"
@@ -319,7 +326,7 @@ export default async function VideoSeoPage({ params }: PageProps) {
         {/* TTS audio player */}
         <VideoPageAudio
           summaryMd={summaryMd}
-          videoTitle={page.video?.title ?? page.title}
+          videoTitle={videoTitle}
           lang={lang}
         />
 
@@ -379,7 +386,7 @@ export default async function VideoSeoPage({ params }: PageProps) {
                     style={{ color: color.text, textDecoration: "none", fontSize: 15 }}
                   >
                     <span style={{ color: color.gold, marginRight: 8 }}>→</span>
-                    {r.title}
+                    {r.title_localized ?? r.title}
                     <span style={{ color: color.textMuted, fontSize: 12, marginLeft: 8 }}>
                       · {new Date(r.published_date).toLocaleDateString(locale, { day: "numeric", month: "short" })}
                     </span>

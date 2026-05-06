@@ -334,6 +334,16 @@ export function BriefingPage({
   // offset in home_surface_queue (kind=video), driven by the chevrons.
   const [videoHistoryOffset, setVideoHistoryOffset] = useState(0);
   const [videoHasOlder, setVideoHasOlder] = useState(false);
+  /** While true, skip TOP VIDEO interval + visibility refetch so iframe playback is not torn down. */
+  const topVideoPlaybackRef = useRef(false);
+  const onTopVideoPlaybackChange = useCallback((playing: boolean) => {
+    topVideoPlaybackRef.current = playing;
+  }, []);
+
+  useEffect(() => {
+    topVideoPlaybackRef.current = false;
+  }, [videos[0]?.videoId]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -387,14 +397,19 @@ export function BriefingPage({
     let intervalId: ReturnType<typeof setInterval> | null = null;
     const timeoutId = setTimeout(() => {
       if (cancelled) return;
-      fetchTopVideo(false);
-      intervalId = setInterval(() => fetchTopVideo(false), VIDEO_REFRESH_MS);
+      if (!topVideoPlaybackRef.current) {
+        fetchTopVideo(false);
+      }
+      intervalId = setInterval(() => {
+        if (cancelled || topVideoPlaybackRef.current) return;
+        fetchTopVideo(false);
+      }, VIDEO_REFRESH_MS);
     }, msToBoundary);
 
     const onVisibility = () => {
-      if (document.visibilityState === "visible") {
-        fetchTopVideo(false);
-      }
+      if (document.visibilityState !== "visible") return;
+      if (topVideoPlaybackRef.current) return;
+      fetchTopVideo(false);
     };
     if (typeof document !== "undefined") {
       document.addEventListener("visibilitychange", onVisibility);
@@ -469,27 +484,7 @@ export function BriefingPage({
         </div>
       ) : (
         <>
-          {heroArticle && (
-            <HeroStory
-              article={heroArticle}
-              lang={lang}
-              isFavorite={favoriteUrls.has(heroArticle.link)}
-              isAuthenticated={isAuthenticated}
-              onToggleFavorite={onToggleFavorite}
-              onRequestAuth={onRequestAuth}
-              historyOffset={articleHistoryOffset}
-              canGoOlder={articleHasOlder}
-              onHistoryPrev={onArticleHistoryPrev}
-              onHistoryNext={onArticleHistoryNext}
-              topicLabels={topicLabels}
-            />
-          )}
-
-          {/* Order: recent transcribed videos go right under the hero,
-              followed by Trending (last 6h), then the daily summary,
-              then Top 5. While the videos / summary fetches are pending
-              we render a tiny skeleton (kicker + spinner card) so the
-              layout doesn't jump when data arrives a few seconds later. */}
+          {/* TOP VIDEO, Top story, Tendances, puis « Toutes les vidéos transcrites », résumé du jour, top 5, … */}
           {videosLoading ? (
             <SectionSpinner
               label={lang === "fr" ? "TOP VIDEO · MAINTENANT" : "TOP VIDEO · NOW"}
@@ -514,8 +509,25 @@ export function BriefingPage({
                 onHistoryPrev={onVideoHistoryPrev}
                 onHistoryNext={onVideoHistoryNext}
                 topicLabels={topicLabels}
+                onPlaybackChange={onTopVideoPlaybackChange}
               />
             )
+          )}
+
+          {heroArticle && (
+            <HeroStory
+              article={heroArticle}
+              lang={lang}
+              isFavorite={favoriteUrls.has(heroArticle.link)}
+              isAuthenticated={isAuthenticated}
+              onToggleFavorite={onToggleFavorite}
+              onRequestAuth={onRequestAuth}
+              historyOffset={articleHistoryOffset}
+              canGoOlder={articleHasOlder}
+              onHistoryPrev={onArticleHistoryPrev}
+              onHistoryNext={onArticleHistoryNext}
+              topicLabels={topicLabels}
+            />
           )}
 
           {trending.length > 0 && (
@@ -525,6 +537,11 @@ export function BriefingPage({
               onTopicClick={onOpenTopicArticles}
             />
           )}
+
+          <RecentVideoPagesSection
+            topicLabels={topicLabels}
+            lang={lang}
+          />
 
           {summaryLoading ? (
             <SectionSpinner
@@ -571,11 +588,6 @@ export function BriefingPage({
               onSeeAllForTopic={() => onNavigate("home")}
             />
           )}
-
-          <RecentVideoPagesSection
-            topicLabels={topicLabels}
-            lang={lang}
-          />
 
           <FooterCTAs
             lang={lang}
@@ -1015,6 +1027,7 @@ function VideosBriefingSection({
   onHistoryPrev,
   onHistoryNext,
   topicLabels,
+  onPlaybackChange,
 }: {
   videos: VideoItem[];
   videoSummaries: Record<string, string>;
@@ -1033,6 +1046,7 @@ function VideosBriefingSection({
   onHistoryPrev: () => void;
   onHistoryNext: () => void;
   topicLabels: TopicLabel[];
+  onPlaybackChange: (playing: boolean) => void;
 }) {
   return (
     <section style={{ marginBottom: 36 }}>
@@ -1065,6 +1079,7 @@ function VideosBriefingSection({
             onRequestAuth={onRequestAuth}
             variant="hero"
             topicLabels={topicLabels}
+            onPlaybackChange={onPlaybackChange}
           />
         ))}
       </div>
@@ -1357,7 +1372,16 @@ function RecentVideoPagesSection({
         </div>
       </div>
 
-      <div style={{ ...card, display: "block", padding: "12px 16px" }}>
+      <div
+        style={{
+          ...card,
+          display: "block",
+          padding: "12px 16px",
+          borderColor: color.gold,
+          background:
+            "linear-gradient(180deg, rgba(201,162,39,0.04), transparent 60%), " + color.surface,
+        }}
+      >
         {loading && items.length === 0 ? (
           <div style={{ color: color.textMuted, fontSize: 13, textAlign: "center", padding: "16px 0" }}>
             {lang === "fr" ? "Chargement…" : "Loading…"}

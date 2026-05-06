@@ -429,9 +429,114 @@ a.hero-story-title-link {
 .video-card-hero .video-thumb {
   width: 100%;
 }
+
+/* TOP VIDEO hero — 16:9 thumbnail frame used inside the side-by-side
+   media row. Width is driven by the parent grid (`grid-template-columns`),
+   so the frame just fills its column at all sizes. */
+.video-card-hero .video-thumb-hero-frame {
+  width: 100%;
+  background: #1a1a1a;
+  overflow: hidden;
+  position: relative;
+  aspect-ratio: 16 / 9;
+}
+
+/* TOP VIDEO hero — side-by-side media row sitting between the meta
+   line and the action buttons inside the body.
+   - Left column (thumbnail) is sized at ~46% of the body width, with
+     a comfortable cap so the teaser column never collapses on wide
+     screens.
+   - Right column (AI summary teaser) takes the remaining space.
+   - On Play, `--playing` collapses the teaser column to 0 and the
+     thumbnail grows to full width; the iframe smoothly enlarges as
+     the grid template animates between the two states. */
+.video-card-hero-media-row {
+  display: grid;
+  grid-template-columns: minmax(0, 46%) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+  margin-top: 14px;
+  margin-bottom: 14px;
+  transition: grid-template-columns 0.6s cubic-bezier(0.33, 0.86, 0.22, 1);
+}
+.video-card-hero-media-row--playing {
+  grid-template-columns: minmax(0, 1fr) 0fr;
+}
+.video-card-hero-media-thumb {
+  min-width: 0;
+}
+.video-card-hero-media-summary {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  transition: opacity 0.3s ease;
+}
+.video-card-hero-media-row--playing .video-card-hero-media-summary {
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.video-card-hero-media-summary-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #d4d4d4;
+  display: -webkit-box;
+  -webkit-line-clamp: 11;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.video-card-hero-media-summary-cta {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin-top: 10px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #c9a227;
+  cursor: pointer;
+  letter-spacing: 0.01em;
+}
+.video-card-hero-media-summary-cta[aria-busy="true"] {
+  opacity: 0.7;
+  cursor: wait;
+}
+.video-card-hero-media-summary-cta:hover {
+  text-decoration: underline;
+}
+@media (prefers-reduced-motion: reduce) {
+  .video-card-hero-media-row,
+  .video-card-hero-media-summary {
+    transition-duration: 0.01ms;
+    transition-timing-function: linear;
+  }
+}
+
+/* Summary panel (full AI markdown rendered after « Lire la suite »). */
+.video-card-hero-summary-panel {
+  padding: 0 24px 18px;
+  box-sizing: border-box;
+}
+
 @media (max-width: 640px) {
   .video-card-hero .video-body {
     padding: 18px 16px 14px !important;
+  }
+  .video-card-hero-summary-panel {
+    padding: 0 16px 14px;
+  }
+  /* Stack on phones — thumbnail on top, teaser below. */
+  .video-card-hero-media-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .video-card-hero-media-row--playing {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .video-card-hero-media-row--playing .video-card-hero-media-summary {
+    display: none;
   }
 }
 

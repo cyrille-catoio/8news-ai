@@ -54,6 +54,18 @@ function normalizeConclusionHeading(summaryMd: string): string {
 }
 
 /**
+ * Uppercase the « Points clés » / « Key Points » section heading so it
+ * matches the visual weight of the « INTRO » and « CONCLUSION »
+ * markers above and below it. Idempotent — already-uppercased markup
+ * is matched and re-emitted unchanged.
+ */
+function normalizeKeyPointsHeading(summaryMd: string): string {
+  return summaryMd
+    .replace(/^##\s+Points?\s+cl[ée]s?\s*$/gim, "## POINTS CLÉS")
+    .replace(/^##\s+Key\s+Points\s*$/gim, "## KEY POINTS");
+}
+
+/**
  * Convert legacy `- **Title**: paragraph` bullets into the loose-list form
  * `- **Title**\n\n  paragraph`. Only touches lines that look like the legacy
  * form so re-running the transformation is a no-op.
@@ -164,9 +176,19 @@ export function normalizeSummaryHeadings(summaryMd: string, lang: string): strin
   // intro-heading replace and the bullet-line-break reflow see plain
   // Markdown. Then reflow legacy single-line bullets into the loose
   // form so `promoteBulletTitlesToHeadings` finds a uniform input.
-  return stripSubtitleCreditArtifacts(normalizeConclusionHeading(promoteBulletTitlesToHeadings(
-    normalizeBulletLineBreaks(
-      normalizeIntroHeading(stripCodeFences(summaryMd), lang),
+  // Run `promoteBulletTitlesToHeadings` BEFORE the « Points clés »
+  // uppercase pass — promotion uses a case-insensitive regex on the
+  // section heading, so it works either way, but we keep the same
+  // heading shape end-to-end (uppercase reaches the renderer).
+  return stripSubtitleCreditArtifacts(
+    normalizeKeyPointsHeading(
+      normalizeConclusionHeading(
+        promoteBulletTitlesToHeadings(
+          normalizeBulletLineBreaks(
+            normalizeIntroHeading(stripCodeFences(summaryMd), lang),
+          ),
+        ),
+      ),
     ),
-  )));
+  );
 }

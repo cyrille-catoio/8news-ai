@@ -107,7 +107,7 @@ Règles :
 ## INTRO
 Une phrase de synthèse, factuelle, sans mention de la source.
 
-## Points clés
+## POINTS CLÉS
 - **Point 1**
 
   2-4 phrases détaillées avec chiffres, noms, faits marquants, écrites comme un paragraphe d'article.
@@ -151,7 +151,7 @@ Rules:
 ## TL;DR
 One factual summary sentence, with no mention of the source.
 
-## Key Points
+## KEY POINTS
 - **Point 1**
 
   2-4 detailed sentences with figures, names, key facts, written as an article paragraph.
@@ -172,14 +172,90 @@ A short factual conclusion of 1-2 sentences that synthesizes the main stake with
 FINAL REMINDER: the full Markdown output MUST be at most ${SUMMARY_MAX_CHARS} characters and end with a complete sentence, never with "…" or "...". If you risk going over, write fewer bullets or shorter paragraphs from the start instead of truncating the ending.`;
 }
 
+/**
+ * Tiny LLM call that rewrites a video title in the target lang.
+ *
+ * - Returns the translated title (single line, no quotes / markdown).
+ * - Returns `null` when the source is empty, the API key is missing,
+ *   the call errors out, or the response would degrade the original
+ *   (e.g. came back wrapped in quotes that we can't safely strip).
+ * - Caller persists the result in `video_transcriptions.title_localized`.
+ *   On `null`, the column is left unset and the read side falls back
+ *   to `youtube_videos.title` — same display as before migration 023.
+ *
+ * Cost: ~50 input tokens, ~30 output tokens with `gpt-4.1-mini`.
+ * Worst case under the synchronous route's 25 s timeout, the title
+ * translation is allowed up to 8 s before we abandon and persist the
+ * row without it.
+ */
+async function translateVideoTitle(
+  client: OpenAI,
+  sourceTitle: string,
+  targetLang: "en" | "fr",
+  model: string,
+  timeoutMs: number,
+): Promise<string | null> {
+  const trimmed = sourceTitle.trim();
+  if (!trimmed) return null;
+
+  const system =
+    targetLang === "fr"
+      ? `Tu traduis un titre de vidéo YouTube en français journalistique.
+
+Règles strictes :
+- Réponds UNIQUEMENT par le titre traduit, sur une seule ligne, sans guillemets, sans markdown, sans préfixe/suffixe.
+- Si le titre est déjà en français, renvoie-le tel quel (corrige seulement les fautes manifestes ou la casse exagérée).
+- Conserve les noms propres, marques, sigles, chiffres et unités.
+- Conserve la ponctuation et la structure (« : », « — », « ? », « ! »…).
+- Pas d'ajout ni d'omission d'information : pas de reformulation marketing.
+- Vise un titre court (≤ 110 caractères). Si le titre source est plus long, condense légèrement sans perdre les noms propres et chiffres clés.`
+      : `You translate a YouTube video title into journalistic English.
+
+Strict rules:
+- Reply ONLY with the translated title, on a single line, no quotes, no markdown, no prefix/suffix.
+- If the title is already in English, return it as-is (fix obvious typos or excessive caps only).
+- Keep proper nouns, brands, acronyms, numbers, and units.
+- Preserve punctuation and structure (":", "—", "?", "!"…).
+- No added or omitted information; do not reword for marketing.
+- Aim for a short title (≤ 110 characters). If the source is longer, condense slightly without losing proper nouns and key figures.`;
+
+  try {
+    const completion = await client.chat.completions.create(
+      {
+        model,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: trimmed },
+        ],
+      },
+      { timeout: timeoutMs },
+    );
+    const raw = completion.choices[0]?.message?.content ?? "";
+    const cleaned = raw
+      .replace(/^\s*["“«]+|["”»]+\s*$/g, "")
+      .split(/\r?\n/)[0]
+      .trim();
+    if (!cleaned) return null;
+    if (cleaned === trimmed) return cleaned;
+    return cleaned;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "unknown";
+    console.warn(
+      `[transcribe] translateVideoTitle failed (lang=${targetLang}, model=${model}): ${msg}`,
+    );
+    return null;
+  }
+}
+
 function buildTranslatePrompt(targetLang: string): string {
   if (targetLang === "fr") {
     return `Tu es un traducteur expert. Traduis le résumé Markdown suivant en français.
 
 Règles :
-- Conserve exactement la même structure Markdown (## INTRO, ## Points clés, bullet points, ## CONCLUSION).
+- Conserve exactement la même structure Markdown (## INTRO, ## POINTS CLÉS, bullet points, ## CONCLUSION).
 - Conserve le **gras** sur les mêmes termes.
-- Traduis "## Key Points" en "## Points clés", remplace "## TL;DR" par "## INTRO", et conserve/ajoute le titre final "## CONCLUSION" en majuscules.
+- Traduis "## KEY POINTS" en "## POINTS CLÉS", remplace "## TL;DR" par "## INTRO", et conserve/ajoute le titre final "## CONCLUSION" en majuscules.
+- Les titres "## INTRO", "## POINTS CLÉS" et "## CONCLUSION" doivent être strictement en majuscules.
 - Pour chaque point : titre en **gras** seul sur sa ligne, ligne vide, puis le paragraphe indenté de deux espaces (préserve ce format si l'original l'utilise, et applique-le si l'original a le titre et le paragraphe sur la même ligne).
 - Si le résumé source n'a pas de conclusion, ajoute une courte section finale "## CONCLUSION" de 1-2 phrases.
 - Supprime tout artefact technique de sous-titrage ou crédit de captions (ex. « Sous-titrage ST' 501 »).
@@ -190,9 +266,10 @@ Règles :
   return `You are an expert translator. Translate the following Markdown summary into English.
 
 Rules:
-- Keep the exact same Markdown structure (## TL;DR, ## Key Points, bullet points, ## CONCLUSION).
+- Keep the exact same Markdown structure (## TL;DR, ## KEY POINTS, bullet points, ## CONCLUSION).
 - Keep **bold** on the same terms.
-- Translate "## Points clés" to "## Key Points", replace "## INTRO" with "## TL;DR", and keep/add the final heading "## CONCLUSION" in uppercase.
+- Translate "## POINTS CLÉS" to "## KEY POINTS", replace "## INTRO" with "## TL;DR", and keep/add the final heading "## CONCLUSION" in uppercase.
+- The headings "## TL;DR", "## KEY POINTS" and "## CONCLUSION" must be strictly uppercase.
 - For each point: bold title alone on its line, blank line, then the paragraph indented by two spaces (preserve this format if the source uses it, and apply it if the source has the title and paragraph on the same line).
 - If the source summary has no conclusion, add a short final "## CONCLUSION" section of 1-2 sentences.
 - Remove any technical caption/subtitle artifact or credit (for example "Sous-titrage ST' 501").
@@ -434,10 +511,28 @@ export async function transcribeVideo(
       }
     }
 
+    // Translate the YouTube title into the row's lang so the home page
+    // and SSR pages display titles in the visitor's UI lang. Best-effort:
+    // a failure here returns NULL and the read side falls back to
+    // `youtube_videos.title` (same display as before migration 023).
+    // Capped at 8 s so it never starves the surrounding 25 s synchronous
+    // budget — gpt-4.1-mini typically returns in 1-3 s on these inputs.
+    let titleLocalized: string | null = null;
+    if (title && title.trim().length > 0) {
+      titleLocalized = await translateVideoTitle(
+        new OpenAI({ apiKey }),
+        title,
+        safeLang,
+        model,
+        Math.min(8000, openaiTimeoutMs),
+      );
+    }
+
     const transcriptionId = await insertVideoTranscription({
       video_id: videoId,
       channel_id: channelId ?? "",
       title: title ?? "Untitled",
+      title_localized: titleLocalized,
       lang: safeLang,
       topic_id: topicId,
       transcript: transcriptText,

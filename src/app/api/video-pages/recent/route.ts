@@ -55,6 +55,8 @@ interface PaginatedResponse {
 interface VideoPageRow {
   video_id: string;
   title: string;
+  /** Per-lang translated title (migration 023). NULL on legacy rows. */
+  title_localized: string | null;
   topic_id: string;
   published_date: string;
   slug_keywords: string;
@@ -69,17 +71,20 @@ function parsePositiveInt(raw: string | null, fallback: number): number {
 }
 
 /** PostgREST forwards the underlying Postgres error code. 42703 = undefined_column. */
-function isMissingSummaryScoreColumn(err: unknown): boolean {
+function isMissingColumn(err: unknown, name: string): boolean {
   if (!err || typeof err !== "object") return false;
   const e = err as { code?: string; message?: string };
-  if (e.code === "42703") return true;
-  return typeof e.message === "string" && /summary_score/i.test(e.message);
+  if (e.code === "42703" && typeof e.message === "string" && new RegExp(name, "i").test(e.message)) {
+    return true;
+  }
+  return typeof e.message === "string" && new RegExp(name, "i").test(e.message);
 }
 
 /**
  * Read one page of rows (offset/limit). Tolerates a missing
- * `summary_score` column (migration 021 pending) by retrying without
- * the column once.
+ * `summary_score` column (migration 021 pending) and a missing
+ * `title_localized` column (migration 023 pending) by retrying with
+ * progressively narrower SELECT lists.
  */
 async function fetchPageRows(
   db: SupabaseClient,
@@ -88,7 +93,8 @@ async function fetchPageRows(
   toIdx: number,
 ): Promise<{ data: VideoPageRow[] | null; error: unknown }> {
   const baseColumns = "video_id, title, topic_id, published_date, slug_keywords, lang, created_at";
-  const fullColumns = `${baseColumns}, summary_score`;
+  const withScore = `${baseColumns}, summary_score`;
+  const withScoreAndTitle = `${withScore}, title_localized`;
 
   const run = async (columns: string) =>
     db
@@ -101,8 +107,11 @@ async function fetchPageRows(
       .order("created_at", { ascending: false })
       .range(fromIdx, toIdx);
 
-  let res = await run(fullColumns);
-  if (res.error && isMissingSummaryScoreColumn(res.error)) {
+  let res = await run(withScoreAndTitle);
+  if (res.error && isMissingColumn(res.error, "title_localized")) {
+    res = await run(withScore);
+  }
+  if (res.error && isMissingColumn(res.error, "summary_score")) {
     console.warn(
       "[/api/video-pages/recent] summary_score column missing — falling back. Apply migrations/021-video-summary-score.sql to enable AI quality scores in the list.",
     );
@@ -114,6 +123,7 @@ async function fetchPageRows(
   const rows = ((res.data ?? []) as Array<Partial<VideoPageRow>>).map((row) => ({
     video_id: row.video_id ?? "",
     title: row.title ?? "",
+    title_localized: row.title_localized ?? null,
     topic_id: row.topic_id ?? "",
     published_date: row.published_date ?? "",
     slug_keywords: row.slug_keywords ?? "",
@@ -191,7 +201,10 @@ export async function GET(req: NextRequest) {
       : null;
     return {
       videoId: row.video_id,
-      title: row.title,
+      // Prefer the per-lang translated title (migration 023); fall back
+      // to the YouTube title for legacy rows where translation never
+      // ran.
+      title: row.title_localized ?? row.title,
       topicId: row.topic_id,
       publishedDate: row.published_date,
       slug: row.slug_keywords,

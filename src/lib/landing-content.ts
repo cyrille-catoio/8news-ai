@@ -24,6 +24,22 @@ export interface LandingContent {
     footer: { en: string; fr: string };
     rows: Array<{ s: number; t_en: string; t_fr: string; src: string; topic: string }>;
   };
+  videoHero: {
+    title_en: string;
+    title_fr: string;
+    channel: string;
+    duration: string;
+    badge: { en: string; fr: string };
+    arrow: { en: string; fr: string };
+    bullets_en: string[];
+    bullets_fr: string[];
+    perVideoBadge: { en: string; fr: string };
+  };
+  scoringSection: {
+    kicker: { en: string; fr: string };
+    title: { en: string; fr: string };
+    sub: { en: string; fr: string };
+  };
   ticker: {
     items_en: string[];
     items_fr: string[];
@@ -124,6 +140,44 @@ export const LANDING_CONTENT: LandingContent = {
       { s: 5,  t_en: "Tesla delays Optimus Gen-3 reveal to Q3 2026 earnings call", t_fr: "Tesla repousse la présentation d'Optimus Gen-3 à l'appel résultats du T3 2026", src: "reuters.com", topic: "ELON" },
       { s: 3,  t_en: "Op-ed: why AI companies keep naming products after colors", t_fr: "Tribune : pourquoi les boîtes IA nomment leurs produits avec des couleurs", src: "medium.com", topic: "AI" },
     ],
+  },
+  // Static visual mock for the home hero (right column). Mirrors the
+  // shape of a real `video_transcriptions` row + its `youtube_videos`
+  // metadata so the marketing page advertises exactly what the product
+  // ships: a YouTube thumbnail, an AI summary in 3 gold bullets, and a
+  // « 45 min · Par vidéo » badge that quantifies the time saved.
+  videoHero: {
+    title_en: "Why this Tuesday could be decisive for crypto",
+    title_fr: "Pourquoi ce mardi peut être décisif pour la crypto",
+    channel: "Hasheur",
+    duration: "47:32",
+    badge: { en: "▶ YouTube", fr: "▶ YouTube" },
+    arrow: {
+      en: "✦ Transcribed & summarized by AI in 18 sec ✦",
+      fr: "✦ Transcrit & résumé par IA en 18 sec ✦",
+    },
+    bullets_en: [
+      "Bitcoin stuck at $80K — nobody knows if it bounces or dives.",
+      "Clarity Act unlocks regulation; Circle stock jumps on the news.",
+      "Strategy: buy now or wait? On-chain and macro signals dissected.",
+    ],
+    bullets_fr: [
+      "Bitcoin bloqué à 80 000 $ — personne ne sait si ça repart ou replonge.",
+      "Clarity Act débloque la régulation ; l'action Circle s'envole.",
+      "Stratégie : acheter maintenant ou attendre ? Signaux on-chain et macro décortiqués.",
+    ],
+    perVideoBadge: { en: "45 min · Per video", fr: "45 min · Par vidéo" },
+  },
+  scoringSection: {
+    kicker: { en: "Live · scoring console", fr: "Live · console de scoring" },
+    title: {
+      en: "Every RSS article scored <em>1 to 10</em> the second it lands.",
+      fr: "Chaque article RSS noté <em>1 à 10</em> à la seconde où il tombe.",
+    },
+    sub: {
+      en: "400+ feeds, refreshed every minute. Below is the live ladder of what the AI just scored — same scoring you see inside the app.",
+      fr: "400+ flux, rafraîchis chaque minute. Ci-dessous l'échelle live de ce que l'IA vient de scorer — exactement le même score que dans l'app.",
+    },
   },
   ticker: {
     items_en: [
@@ -248,11 +302,11 @@ export const LANDING_CONTENT: LandingContent = {
     },
     plans: {
       en: [
-        { tag: "CURRENT", name: "Free", price: "$0", per: "/forever", desc: "Everything we shipped in v2.6.1. No credit card, no waitlist.", features: ["Choose 8 topics out of the 36 available.", "Top daily articles and videos with AI summary + sources.", "YouTube transcription and video summaries.", "Morning email digest covering all your topics.", "Bilingual EN / FR"], cta: "Try it now", featured: false },
+        { tag: "CURRENT", name: "Free", price: "$0", per: "/forever", desc: "Everything we shipped in v2.6.2. No credit card, no waitlist.", features: ["Choose 8 topics out of the 36 available.", "Top daily articles and videos with AI summary + sources.", "YouTube transcription and video summaries.", "Morning email digest covering all your topics.", "Bilingual EN / FR"], cta: "Try it now", featured: false },
         { tag: "COMING SOON", name: "Pro", price: "$8", per: "/month", priceYear: "$88", perYear: "/year", saveLabel: "−8% per year", desc: "For founders, analysts and builders who need custom topics and higher limits.", features: ["Unlimited custom topics with AI feed discovery", "Unlimited YouTube transcriptions, add your favorite YouTube channels", "Email alert when an article or a videoscores 9 or 10 in one of your selected topics"], cta: "Join the waitlist", featured: true },
       ],
       fr: [
-        { tag: "ACTUEL", name: "Gratuit", price: "0 €", per: "/à vie", desc: "Tout ce qu'on a livré en v2.6.1. Sans carte bancaire, sans liste d'attente.", features: ["Choisissez 8 topics parmi les 36 disponibles.", "Top des articles et videos quotidiens avec résumé IA + sources.", "Transcription YouTube et résumé des vidéos.", "Digest email matinal reprenant tous vos topics.", "Bilingue EN / FR"], cta: "Essayer", featured: false },
+        { tag: "ACTUEL", name: "Gratuit", price: "0 €", per: "/à vie", desc: "Tout ce qu'on a livré en v2.6.2. Sans carte bancaire, sans liste d'attente.", features: ["Choisissez 8 topics parmi les 36 disponibles.", "Top des articles et videos quotidiens avec résumé IA + sources.", "Transcription YouTube et résumé des vidéos.", "Digest email matinal reprenant tous vos topics.", "Bilingue EN / FR"], cta: "Essayer", featured: false },
         { tag: "BIENTÔT", name: "Pro", price: "8 €", per: "/mois", priceYear: "88 €", perYear: "/an", saveLabel: "−8 % à l'année", desc: "Pour fondateurs, analystes et builders qui veulent des topics sur mesure et plus de volume.", features: ["Topics personnalisés illimités avec découverte IA des flux", "Transcriptions YouTube illimitées, ajout de vos chaînes YouTube favorites", "Alerte email quand un article ou une vidéo a un score >=9 pour un de vos topics."], cta: "Rejoindre la liste", featured: true },
       ],
     },

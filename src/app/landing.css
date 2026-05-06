@@ -412,6 +412,192 @@
 }
 .landing-root .console-footer b { color: var(--gold); font-weight: 500; }
 
+/* ===== VIDEO HERO (hero right column) =====
+   YouTube card mock + connector strip + 3 gold bullets + a small
+   rotated « 45 min · Per video » badge. Replaces the older RSS
+   scoring console as the hero visual; the console moves down the
+   page in `LandingScoringSection`. */
+.landing-root .video-hero {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.landing-root .video-hero-card {
+  background: var(--surface);
+  border: 1px solid var(--gold);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow:
+    0 30px 80px -30px rgba(201, 162, 39, 0.28),
+    0 0 0 1px rgba(255, 255, 255, 0.02) inset;
+}
+.landing-root .video-hero-thumb {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  /* Synthetic gradient placeholder so the visual ships without an
+     external asset. The diagonal sheen suggests a video frame. */
+  background:
+    radial-gradient(1200px 400px at 30% -10%, rgba(201, 162, 39, 0.18), transparent 60%),
+    radial-gradient(800px 300px at 90% 110%, rgba(74, 222, 128, 0.10), transparent 60%),
+    linear-gradient(135deg, #0a0a0a 0%, #161616 50%, #0a0a0a 100%);
+}
+.landing-root .video-hero-thumb-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.18);
+}
+.landing-root .video-hero-play {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.65);
+  border: 2px solid var(--gold);
+  color: var(--gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+}
+.landing-root .video-hero-play svg { margin-left: 4px; }
+.landing-root .video-hero-duration {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.78);
+  padding: 3px 7px;
+  border-radius: 4px;
+}
+.landing-root .video-hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px 0 16px;
+}
+.landing-root .video-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #cc0000;
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+.landing-root .video-hero-channel {
+  color: var(--text-2);
+  font-weight: 600;
+  font-size: 13px;
+}
+.landing-root .video-hero-title {
+  padding: 8px 16px 16px 16px;
+  font-family: var(--serif);
+  font-size: 16px;
+  line-height: 1.3;
+  color: var(--text);
+}
+
+/* Connector strip: " ✦ Transcribed & summarized by AI in 18 sec ✦ " */
+.landing-root .video-hero-arrow {
+  position: relative;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--gold);
+  text-transform: uppercase;
+  padding: 4px 0;
+}
+.landing-root .video-hero-arrow::before,
+.landing-root .video-hero-arrow::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: 1px;
+  background: linear-gradient(var(--gold), transparent);
+  height: 18px;
+}
+.landing-root .video-hero-arrow::before {
+  top: -22px;
+}
+.landing-root .video-hero-arrow::after {
+  top: 100%;
+  background: linear-gradient(transparent, var(--gold));
+}
+
+/* AI summary in 3 gold-bulleted lines. */
+.landing-root .video-hero-bullets {
+  list-style: none;
+  margin: 0;
+  padding: 18px 22px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.landing-root .video-hero-bullets li {
+  position: relative;
+  padding-left: 18px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.landing-root .video-hero-bullets li::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--gold);
+  font-weight: 700;
+}
+
+/* Rotated promise badge — anchors the « time saved » headline. */
+.landing-root .video-hero-per-video {
+  position: absolute;
+  right: -12px;
+  bottom: -10px;
+  background: var(--gold);
+  color: #000;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transform: rotate(-3deg);
+  box-shadow: 0 12px 28px -10px rgba(201, 162, 39, 0.45);
+}
+
+/* ===== SCORING SECTION (2nd position, RSS demo) =====
+   Mirrors the .yt-content / .yt-copy / .yt-preview layout used by
+   LandingYT so the rhythm of the page stays consistent. */
+.landing-root .scoring-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  gap: 64px;
+  align-items: center;
+}
+@media (max-width: 960px) {
+  .landing-root .scoring-grid { grid-template-columns: 1fr; gap: 48px; }
+}
+.landing-root .scoring-copy { max-width: 460px; }
+.landing-root .scoring-visual { width: 100%; min-width: 0; }
+
 /* ===== TICKER ===== */
 .landing-root .ticker {
   border-top: 1px solid var(--border);

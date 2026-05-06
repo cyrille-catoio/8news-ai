@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { LANDING_CONTENT, type LandingLang } from "@/lib/landing-content";
-import { LandingConsole } from "./LandingConsole";
+import { LandingVideoHero } from "./LandingVideoHero";
 
 export function LandingHero({ lang }: { lang: LandingLang }) {
   const h = LANDING_CONTENT.hero;
@@ -30,7 +30,11 @@ export function LandingHero({ lang }: { lang: LandingLang }) {
           </div>
         </div>
         <div className="hero-visual">
-          <LandingConsole lang={lang} />
+          {/* Visual centered on the YouTube → AI summary pipeline (the
+              actual flagship of the product). The previous RSS scoring
+              console moves to its own dedicated section below the hero
+              — see LandingScoringSection. */}
+          <LandingVideoHero lang={lang} />
         </div>
       </div>
     </section>

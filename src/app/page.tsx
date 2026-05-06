@@ -3,6 +3,7 @@ import "./landing.css";
 import type { LandingLang } from "@/lib/landing-content";
 import { LandingNav } from "@/app/components/landing/LandingNav";
 import { LandingHero } from "@/app/components/landing/LandingHero";
+import { LandingScoringSection } from "@/app/components/landing/LandingScoringSection";
 import { LandingTicker } from "@/app/components/landing/LandingTicker";
 import { LandingStats } from "@/app/components/landing/LandingStats";
 import { LandingHow } from "@/app/components/landing/LandingHow";
@@ -56,6 +57,10 @@ export default async function Page({ searchParams }: PageProps) {
     <div className="landing-root" data-lang={lang} data-hero="sober">
       <LandingNav lang={lang} />
       <LandingHero lang={lang} />
+      {/* RSS scoring demo — was inside the hero, promoted to its own
+          section in 2nd position when the hero visual was refocused on
+          the YouTube → AI summary pipeline. */}
+      <LandingScoringSection lang={lang} />
       <LandingTicker lang={lang} />
       <LandingStats lang={lang} />
       <LandingYT lang={lang} />

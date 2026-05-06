@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { ScoreResult } from "@/lib/types";
 import { getFeedById } from "@/lib/supabase";
 import { requireOwnerSession } from "@/lib/auth-api";
+import { enqueueHomeSurface } from "@/lib/supabase/home-surface";
 
 /**
  * Keep this route under Netlify's observed ~13s wall-time cap.
@@ -190,7 +191,36 @@ For articles scoring below 5, omit summary_en and summary_fr.`;
           return supabase.from("articles").update(fields).eq("id", article.id);
         });
 
-        await Promise.all(updates);
+        const updateResponses = await Promise.all(updates);
+
+        // Mirror successful high-score writes into the home_surface_queue
+        // (migration 022). Two rows per article (one per UI lang) — same
+        // contract as the cron-driven path in score-topic-dynamic.ts.
+        await Promise.all(
+          results.flatMap((r, idx) => {
+            if (updateResponses[idx]?.error) return [];
+            const finalScore = Math.min(10, Math.max(1, Math.round(r.score)));
+            if (finalScore < 7) return [];
+            const article = batch[r.index];
+            return [
+              enqueueHomeSurface(supabase, {
+                kind: "article",
+                refId: article.id,
+                lang: "en",
+                score: finalScore,
+                topicId,
+              }),
+              enqueueHomeSurface(supabase, {
+                kind: "article",
+                refId: article.id,
+                lang: "fr",
+                score: finalScore,
+                topicId,
+              }),
+            ];
+          }),
+        );
+
         return { n: updates.length };
       } catch (err) {
         return { n: 0, err: err instanceof Error ? err.message : String(err) };

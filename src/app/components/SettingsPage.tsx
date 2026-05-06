@@ -19,6 +19,10 @@ export function SettingsPage({
   onTtsVoiceChange,
   ttsVoiceFr,
   onTtsVoiceFrChange,
+  homeMinScoreArticle,
+  onHomeMinScoreArticleChange,
+  homeMinScoreVideo,
+  onHomeMinScoreVideoChange,
 }: {
   lang: Lang;
   maxArticles: number;
@@ -29,6 +33,10 @@ export function SettingsPage({
   onTtsVoiceChange: (v: string) => void;
   ttsVoiceFr: string;
   onTtsVoiceFrChange: (v: string) => void;
+  homeMinScoreArticle: number;
+  onHomeMinScoreArticleChange: (v: number) => void;
+  homeMinScoreVideo: number;
+  onHomeMinScoreVideoChange: (v: number) => void;
 }) {
   const { session } = useAuth();
   const user = session?.user ?? null;
@@ -129,6 +137,55 @@ export function SettingsPage({
               )}
             </div>
 
+          </div>
+
+          {/* ── Home thresholds section ──────────────────── */}
+          <div style={sectionStyle}>
+            <h4 style={sectionTitle}>
+              {lang === "fr" ? "Page d'accueil" : "Home page"}
+            </h4>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+              <label style={{ color: color.textLabel, fontSize: 14, fontWeight: 500, whiteSpace: "nowrap" }}>
+                {lang === "fr" ? "Score min. articles" : "Min. article score"}
+              </label>
+              <input
+                type="range"
+                min={1}
+                max={10}
+                step={1}
+                value={homeMinScoreArticle}
+                onChange={(e) => onHomeMinScoreArticleChange(Number(e.target.value))}
+                style={{ flex: 1, accentColor: color.gold, cursor: "pointer" }}
+              />
+              <span style={{ color: color.gold, fontSize: 15, fontWeight: 600, minWidth: 36, textAlign: "center" }}>
+                {homeMinScoreArticle}/10
+              </span>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <label style={{ color: color.textLabel, fontSize: 14, fontWeight: 500, whiteSpace: "nowrap" }}>
+                {lang === "fr" ? "Score min. vidéos" : "Min. video score"}
+              </label>
+              <input
+                type="range"
+                min={1}
+                max={10}
+                step={1}
+                value={homeMinScoreVideo}
+                onChange={(e) => onHomeMinScoreVideoChange(Number(e.target.value))}
+                style={{ flex: 1, accentColor: color.gold, cursor: "pointer" }}
+              />
+              <span style={{ color: color.gold, fontSize: 15, fontWeight: 600, minWidth: 36, textAlign: "center" }}>
+                {homeMinScoreVideo}/10
+              </span>
+            </div>
+
+            <p style={{ color: color.textMuted, fontSize: 12, lineHeight: 1.5, marginTop: 10, marginBottom: 0 }}>
+              {lang === "fr"
+                ? "Filtre minimum pour le top story et la top vidéo de la home. Défauts : 9 / 8."
+                : "Minimum filter for the home page's top story and top video. Defaults: 9 / 8."}
+            </p>
           </div>
 
           {/* ── Voice section ─────────────────────────────── */}

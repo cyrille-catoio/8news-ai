@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import type { ScoreResult } from "@/lib/types";
+import { enqueueHomeSurface } from "@/lib/supabase/home-surface";
 
 const DEFAULT_BATCH_SIZE = 10;
 const MAX_ARTICLES_PER_RUN = 50;
@@ -299,6 +300,37 @@ async function runScoreTopic(
       );
 
       scored += responses.filter((r) => !r.error).length;
+
+      // Mirror successful high-score writes into the home_surface_queue
+      // (migration 022) so the home rotation cycle picks them up. We
+      // insert TWO rows per qualifying article — one per UI lang — since
+      // a single article serves both EN and FR via title_ai_*/snippet_ai_*.
+      // Best-effort: enqueueHomeSurface swallows errors so a missing
+      // migration doesn't abort the scoring write itself.
+      await Promise.all(
+        results.flatMap((r, idx) => {
+          if (responses[idx].error) return [];
+          const finalScore = Math.min(10, Math.max(1, Math.round(r.score)));
+          if (finalScore < 7) return [];
+          const refId = batch[r.index].id;
+          return [
+            enqueueHomeSurface(supabase, {
+              kind: "article",
+              refId,
+              lang: "en",
+              score: finalScore,
+              topicId,
+            }),
+            enqueueHomeSurface(supabase, {
+              kind: "article",
+              refId,
+              lang: "fr",
+              score: finalScore,
+              topicId,
+            }),
+          ];
+        }),
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[${topicId}] Scoring batch error:`, msg);

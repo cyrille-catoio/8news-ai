@@ -46,6 +46,7 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 - `first_name`, `last_name` — editable in Settings → My Account.
 - `user_type` — `member` (default at sign-up) or `owner`. Only `owner` may use Topics, Feed management, Categories, Daily Summaries (admin), YouTube Channels, and Users.
 - **v2.5.3+** `preferred_lang` — `en` | `fr`. Persisted on every language toggle (cookie + `auth.users.raw_user_meta_data`) so signed-in users keep their language across SSR navigation. Resolution priority on SSR pages: `?lang=` query param → `preferred_lang` → cookie `lang` → page default. Anonymous users use the cookie only.
+- **v2.5.32+** `home_min_score_article`, `home_min_score_video` — integer 1..10 (defaults 9 / 8). Per-user thresholds applied by `/api/news/top-story` and `/api/videos/top` to filter the `home_surface_queue` rotation. Persisted on every change (cookie `homeMinScoreArticle` / `homeMinScoreVideo` + `user_metadata`). Configurable from the SettingsPage. Anonymous users get the defaults via the cookie path.
 
 ---
 
@@ -169,7 +170,8 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 │   ├── 018-roundup-bullets.sql             # **v2.4+**: summary_bullets.video_roundup_id + idx_bullets_video_roundup
 │   ├── 019-articles-title-ai.sql           # **v2.5.x**: articles.title_ai_en / title_ai_fr (AI-translated titles for the Top story hero)
 │   ├── 020-crypto-cache.sql                # **v2.5.17+**: crypto_prices cache (BTC/ETH/SOL/XRP) for the AppHeader live ticker
-│   └── 021-video-summary-score.sql         # video_transcriptions.summary_score + summary_scored_at (AI recap quality 1-10)
+│   ├── 021-video-summary-score.sql         # video_transcriptions.summary_score + summary_scored_at (AI recap quality 1-10)
+│   └── 022-home-surface-queue.sql          # **v2.5.32+** home_surface_queue (article + video round-robin queue) + pick_home_surface() RPC + backfill
 ├── .gitignore
 ├── .env                                    # API keys (not committed)
 ├── netlify.toml                            # Netlify build + redirect config
@@ -279,6 +281,7 @@ Users can create new topics from the Topics page. Each topic includes:
 | `youtube_videos` | Cached video metadata from RSS (persists past-date lookups). **Includes `duration_sec`** (backfilled by `enrichDurations()` via YouTube Data API v3 — drives Shorts filtering in both the SPA and the cron) and **`topic_id`** (set when the parent channel belongs to a topic — required for `/v/` SSR slug). |
 | `video_transcriptions` | Full transcript text + AI Markdown summary per (video, lang). **v2.x+** `slug_keywords` + `published_date` columns + `idx_vt_route` (route resolution by `(topic_id, published_date, lang, slug_keywords)`) and `idx_vt_topic_recent` (recent-videos block) — migration 016. **Migration 021** adds `summary_score` (1-10) + `summary_scored_at` (filled by `cron-video-summary-score-background`). |
 | `video_roundups` | **v2.4+** Per-topic-per-day **video roundup** briefings (8-bullet structured Markdown). Columns: `topic_id`, `roundup_date`, `lang`, `slug_keywords`, `seo_title`, `seo_description`, `intro_md`, `video_ids TEXT[]` (ordered list of `video_transcriptions.video_id`). `UNIQUE(topic_id, roundup_date, lang)`. Drives `/{topic}/r/{date}/{slug}` and `/briefings`. Migration 017. |
+| `home_surface_queue` | **v2.5.32+** (migration 022) Round-robin queue feeding the home page TOP STORY (article) and TOP VIDEO (video) cards. One row per `(kind, ref_id, lang)` discriminated by `kind ∈ ('article', 'video')`. `score` is denormalized at insert time (article ≥ 7 → 2 rows EN+FR; video ≥ 7 → 1 row in its lang) and `display_count` is bumped atomically by the `pick_home_surface()` RPC each time the row wins a 10-min wall-clock bucket. Order is `(display_count ASC, last_displayed_at ASC NULLS FIRST, inserted_at DESC)` — un-shown items first, then round-robin within a count, then freshest insertions. RLS: service-role only. |
 
 ### 5.2 `topics` table
 
@@ -514,6 +517,8 @@ The matching SSR pages (`/briefings`, `/[topic]/r/[date]/[slug]`) read `video_ro
 | `/api/youtube-channels/transcript` | GET | **v2.5+** Returns the raw transcript text for one `(video_id, lang)` as `text/plain` so the user can download a `.txt` from the SPA (`DownloadTranscriptButton`). |
 | `/api/video-transcription` | GET | Public read of a single transcribed video (used by SSR `/[topic]/v/[date]/[slug]`). |
 | `/api/video-pages/recent` | GET | **v2.3+** Paginated list of recent transcribed videos for the SPA's Briefing homepage. Params: `?lang=` (en/fr), `?page=` **1-indexed** (default 1), `?pageSize=` (default 10, clamped to `[1, 50]`). Response: `{ items, page, pageSize, totalCount, totalPages }`. Items are a flat view ordered `published_date DESC, created_at DESC` across the entire archive (no day grouping). The "Toutes les vidéos transcrites" section is hidden when `totalCount === 0`. |
+| `/api/news/top-story` | GET | **v2.5.32+** Backed by `home_surface_queue` (migration 022). One ATOMIC `pick_home_surface(p_kind='article', p_lang, p_min_score)` per (lang, threshold, 10-min bucket): selects the queue row with the lowest `display_count` matching the visitor's `homeMinScoreArticle` cookie (default **9**, clamp 1..10) and bumps `display_count` in the same statement. Hydrates from `articles` for the response. Module + CDN bucket cache keyed by `${lang}:${threshold}` with `Vary: Cookie`. Returns `{ article: null }` if the queue is empty for that filter. |
+| `/api/videos/top` | GET | **v2.5.32+** Same DB-backed pick as `/api/news/top-story` but for the TOP VIDEO card. `pick_home_surface(p_kind='video', p_lang, p_min_score)` with cookie `homeMinScoreVideo` (default **8**, clamp 1..10). Hydrates from `video_transcriptions` + `youtube_videos` for the card metadata, applies `normalizeSummaryHeadings` to the recap Markdown. Returns `{ video: null }` when the queue is empty for that filter (the SPA hides the section). |
 
 #### `GET /api/cron-stats`
 
@@ -1250,7 +1255,7 @@ Release history is maintained in **`src/lib/changelog-entries.ts`** and auto-syn
 - **AI cost** — Each request consumes OpenAI tokens; each TTS request consumes ElevenLabs credits; each video transcription costs 1 TranscriptAPI credit (cross-language translation reuses the existing summary to save credits — only one `/transcript` call per `(video_id, lang0)`, the second lang only pays the LLM bill).
 - **TranscriptAPI reliability** — The `/channel/latest` RSS endpoint can time out (408) for some channels; retry logic with @handle fallback mitigates most failures.
 - **Hybrid rendering** — The SPA (`/app`) is client-only; landing, briefings hub, summaries hub, per-topic hubs, daily summaries, per-video pages and per-roundup pages are server-rendered (SEO-first).
-- **Cookie-based UI prefs** — Most UI prefs (`maxArticles`, TTS speed/voice, etc.) are persisted in cookies; topic and period selection reset on reload. `lang` is the exception — also written to `preferred_lang` in `user_metadata` for authenticated users (v2.5.3+).
+- **Cookie-based UI prefs** — Most UI prefs (`maxArticles`, TTS speed/voice, etc.) are persisted in cookies; topic and period selection reset on reload. `lang` is the exception — also written to `preferred_lang` in `user_metadata` for authenticated users (v2.5.3+). **v2.5.32+** the home thresholds (`homeMinScoreArticle` default **9**, `homeMinScoreVideo` default **8**, clamp 1..10) follow the same dual-store pattern: cookies are the source of truth for the API endpoints (`/api/news/top-story` and `/api/videos/top` filter the queue by the cookie value), and authenticated users have them mirrored to `user_metadata.home_min_score_article` / `home_min_score_video` so the choice follows them across browsers. Configurable from the SettingsPage.
 - **AI feed discovery accuracy** — GPT may suggest invalid URLs; validation catches most but not all edge cases.
 - **Crypto ticker upstream** — `/api/crypto` depends on the public CoinGecko free tier (no API key, ≤ 30 calls/min). Our cache strategy keeps us at exactly 1 call/min so we sit 30× under the limit, but a CoinGecko-side outage surfaces as a `stale: true` flag in the response and a small grey dot next to the ticker — prices keep showing the last cached values from `crypto_prices` until upstream recovers. See §19.
 

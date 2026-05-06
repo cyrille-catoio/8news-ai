@@ -49,7 +49,7 @@ import { BriefingPage } from "@/app/components/BriefingPage";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.5.31";
+const APP_VERSION = "2.6";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 const NEWS_API_TRANSIENT_STATUSES = new Set([502, 503, 504]);
 const NEWS_API_RETRY_DELAY_MS = 750;
@@ -540,6 +540,53 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser?.id, authLoading]);
 
+  // Same dual-store reconciliation for the home min-score thresholds.
+  // On session arrival: prefer values stored in user_metadata; if
+  // missing, seed user_metadata from the current cookie / state. We
+  // intentionally don't depend on the local state vars to avoid
+  // re-running and overwriting fresh user input.
+  useEffect(() => {
+    if (authLoading) return;
+    if (!authUser) return;
+    const meta = (authUser.user_metadata ?? {}) as {
+      home_min_score_article?: unknown;
+      home_min_score_video?: unknown;
+    };
+
+    const metaArticleRaw = meta.home_min_score_article;
+    const metaArticle =
+      typeof metaArticleRaw === "number" && metaArticleRaw >= 1 && metaArticleRaw <= 10
+        ? Math.round(metaArticleRaw)
+        : null;
+    const metaVideoRaw = meta.home_min_score_video;
+    const metaVideo =
+      typeof metaVideoRaw === "number" && metaVideoRaw >= 1 && metaVideoRaw <= 10
+        ? Math.round(metaVideoRaw)
+        : null;
+
+    if (metaArticle != null) {
+      setHomeMinScoreArticle(metaArticle);
+      setCookie("homeMinScoreArticle", String(metaArticle));
+    }
+    if (metaVideo != null) {
+      setHomeMinScoreVideo(metaVideo);
+      setCookie("homeMinScoreVideo", String(metaVideo));
+    }
+
+    if (metaArticle != null && metaVideo != null) return;
+
+    const supa = supabaseRef.current;
+    if (!supa) return;
+    void supa.auth.updateUser({
+      data: {
+        ...authUser.user_metadata,
+        home_min_score_article: metaArticle ?? homeMinScoreArticle,
+        home_min_score_video: metaVideo ?? homeMinScoreVideo,
+      },
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authUser?.id, authLoading]);
+
   const handleLangChange = useCallback((newLang: Lang) => {
     setCookie("lang", newLang);
     setLang(newLang);
@@ -569,6 +616,52 @@ export default function Home() {
     setMaxArticles(value);
     setCookie("maxArticles", String(value));
   }, []);
+
+  // Per-user thresholds for the home page TOP STORY / TOP VIDEO blocks.
+  // Stored in a cookie (works for anon + auth) and mirrored into
+  // `user_metadata.home_min_score_*` for signed-in users so the choice
+  // follows them across browsers — same dual-store pattern as
+  // `preferred_lang` above. Default 9 (article) / 8 (video). Clamp 1..10.
+  const [homeMinScoreArticle, setHomeMinScoreArticle] = useState(() => {
+    if (typeof document === "undefined") return 9;
+    const raw = getCookie("homeMinScoreArticle");
+    if (raw && /^\d+$/.test(raw)) return Math.min(10, Math.max(1, Number(raw)));
+    return 9;
+  });
+  const updateHomeMinScoreArticle = useCallback(
+    (value: number) => {
+      const clamped = Math.min(10, Math.max(1, Math.round(value)));
+      setHomeMinScoreArticle(clamped);
+      setCookie("homeMinScoreArticle", String(clamped));
+      const supa = supabaseRef.current;
+      if (authUser && supa) {
+        void supa.auth.updateUser({
+          data: { ...authUser.user_metadata, home_min_score_article: clamped },
+        });
+      }
+    },
+    [authUser],
+  );
+  const [homeMinScoreVideo, setHomeMinScoreVideo] = useState(() => {
+    if (typeof document === "undefined") return 8;
+    const raw = getCookie("homeMinScoreVideo");
+    if (raw && /^\d+$/.test(raw)) return Math.min(10, Math.max(1, Number(raw)));
+    return 8;
+  });
+  const updateHomeMinScoreVideo = useCallback(
+    (value: number) => {
+      const clamped = Math.min(10, Math.max(1, Math.round(value)));
+      setHomeMinScoreVideo(clamped);
+      setCookie("homeMinScoreVideo", String(clamped));
+      const supa = supabaseRef.current;
+      if (authUser && supa) {
+        void supa.auth.updateUser({
+          data: { ...authUser.user_metadata, home_min_score_video: clamped },
+        });
+      }
+    },
+    [authUser],
+  );
   const [ttsSpeed, setTtsSpeed] = useState(() => {
     if (typeof document === "undefined") return 1.05;
     const raw = getCookie("ttsSpeed");
@@ -1091,6 +1184,10 @@ export default function Home() {
             onTtsVoiceChange={updateTtsVoice}
             ttsVoiceFr={ttsVoiceFr}
             onTtsVoiceFrChange={updateTtsVoiceFr}
+            homeMinScoreArticle={homeMinScoreArticle}
+            onHomeMinScoreArticleChange={updateHomeMinScoreArticle}
+            homeMinScoreVideo={homeMinScoreVideo}
+            onHomeMinScoreVideoChange={updateHomeMinScoreVideo}
           />
         ) : currentPage === "favorites" ? (
           authLoading ? (

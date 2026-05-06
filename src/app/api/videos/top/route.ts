@@ -2,63 +2,42 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { Lang } from "@/lib/i18n";
 import { normalizeSummaryHeadings } from "@/lib/summary-headings";
+import { getHiddenTopicIds } from "@/lib/supabase";
 
 /**
  * GET /api/videos/top?lang=fr
  *
- * Returns ONE transcribed YouTube video suitable for the Briefing's
- * "TOP VIDEO · MAINTENANT" card. The pick is **synchronized across all
- * visitors** of the same language: every user hitting the page within
- * a given 10-minute wall-clock bucket sees the same video (FR users
- * see the FR top video, EN users see the EN top video) — and the
- * pick **rotates** across that pool every 10 minutes so the home
- * actually changes throughout the day even when no new recap lands.
+ * Returns ONE transcribed YouTube video for the Briefing's
+ * "TOP VIDEO · MAINTENANT" card. Backed by `home_surface_queue`
+ * (migration 022): every video transcription scored ≥ 7 with topic /
+ * slug / published_date set is inserted into the queue at scoring
+ * time, and the pick is the row with the lowest `display_count`
+ * matching the visitor's threshold (`pick_home_surface()` bumps
+ * display_count atomically).
  *
- * Strategy
- * --------
- * 1. Pull a candidate **pool** of up to {@link CANDIDATE_POOL} rows
- *    from `video_transcriptions` matching:
- *      - `lang = ?`
- *      - `summary_score >= 8` (AI quality gate from migration 021)
- *      - `summary_md` non-empty
- *      - `topic_id`, `slug_keywords`, `published_date` all set (the
- *        SSR route /{topic}/v/{date}/{slug} can't exist without them)
- *      - `published_date >= today − {@link POOL_WINDOW_DAYS}` so the
- *        pool stays fresh.
- *    Ordered `published_date DESC, created_at DESC`. If the score-≥8
- *    pool is empty (quiet day), widen to score ≥ {@link FALLBACK_MIN_SCORE}
- *    so the section never freezes on a single old recap.
- * 2. Pick by 10-minute wall-clock bucket:
- *      idx = ((bucket % pool.length) + pool.length) % pool.length
- *    so every visitor lands on the same video at any given minute,
- *    and the pick advances at the bucket boundary even when the pool
- *    itself is unchanged.
- * 3. Join with `youtube_videos` to surface the card metadata (title,
- *    thumbnail, channel, etc.) — single batched `.in()` query.
+ * Per-user thresholds
+ * -------------------
+ * The visitor's `homeMinScoreVideo` cookie (default **8**, clamp 1..10)
+ * filters which queue rows can be picked. Authenticated users have the
+ * value mirrored into `auth.users.user_metadata.home_min_score_video`.
  *
- * Caching layers — same shape as `/api/news/top-story`:
- * - **CDN** (`Cache-Control: public, max-age=0, s-maxage=<remaining>,
- *   must-revalidate`): the response is shared across all visitors of
- *   the same `?lang=` until the bucket flips.
- * - **Module-level cache** (per warm Netlify Function instance): a tiny
- *   `Map<Lang, { bucket, payload }>` skips the Supabase round-trip when
- *   the same instance handles multiple cache-miss requests in the same
- *   bucket.
+ * Caching layers (preserved)
+ * --------------------------
+ * - Module-level cache `Map<key, { bucket, payload }>` keyed by
+ *   `${lang}:${threshold}` so anonymous visitors share a hot entry
+ *   while custom thresholds get their own slot.
+ * - CDN: `Cache-Control: public, max-age=0, s-maxage=<remaining>,
+ *   must-revalidate` aligned to the bucket flip, with `Vary: Cookie`.
  *
- * Returns `{ video: null }` when no recap meets the bar; the client
- * hides the section when that's the case.
+ * Returns `{ video: null }` when the queue is empty for the active
+ * filter; the client hides the section in that case.
  *
  * Response shape mirrors `VideoListResponseItem` from
- * `src/app/api/youtube-channels/videos/route.ts` so the SPA can render
- * the result through the same VideoCard pipeline as the rest of the
- * briefing.
+ * `src/app/api/youtube-channels/videos/route.ts`.
  */
 
 const ROTATION_BUCKET_MS = 10 * 60 * 1000;
-const MIN_SCORE = 8;
-const FALLBACK_MIN_SCORE = 7;
-const CANDIDATE_POOL = 15;
-const POOL_WINDOW_DAYS = 14;
+const DEFAULT_MIN_SCORE = 8;
 
 interface VideoTopItem {
   videoId: string;
@@ -87,10 +66,17 @@ interface CacheEntry {
   payload: TopVideoPayload;
 }
 
-const cache = new Map<Lang, CacheEntry>();
+const cache = new Map<string, CacheEntry>();
 
 function parseLang(raw: string | null): Lang {
   return raw === "fr" ? "fr" : "en";
+}
+
+function parseThreshold(raw: string | null | undefined, fallback: number): number {
+  if (!raw) return fallback;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(10, Math.max(1, n));
 }
 
 function jsonResponse(payload: TopVideoPayload, bucket: number, now: number): NextResponse {
@@ -99,6 +85,7 @@ function jsonResponse(payload: TopVideoPayload, bucket: number, now: number): Ne
   return NextResponse.json(payload, {
     headers: {
       "Cache-Control": `public, max-age=0, s-maxage=${remainingSec}, must-revalidate`,
+      Vary: "Cookie",
     },
   });
 }
@@ -127,10 +114,15 @@ interface YoutubeVideoRow {
 
 export async function GET(request: NextRequest) {
   const lang = parseLang(request.nextUrl.searchParams.get("lang"));
+  const threshold = parseThreshold(
+    request.cookies.get("homeMinScoreVideo")?.value,
+    DEFAULT_MIN_SCORE,
+  );
   const now = Date.now();
   const bucket = Math.floor(now / ROTATION_BUCKET_MS);
+  const cacheKey = `${lang}:${threshold}`;
 
-  const cached = cache.get(lang);
+  const cached = cache.get(cacheKey);
   if (cached && cached.bucket === bucket) {
     return jsonResponse(cached.payload, bucket, now);
   }
@@ -143,48 +135,50 @@ export async function GET(request: NextRequest) {
   }
 
   const db = createClient(url, key, { auth: { persistSession: false } });
+  const hiddenTopics = await getHiddenTopicIds();
 
-  const oldestDate = new Date(now - POOL_WINDOW_DAYS * 86_400_000)
-    .toISOString()
-    .slice(0, 10);
+  // Atomic SELECT + display_count++ via the SQL function from migration 022.
+  // `p_excluded_topics` mirrors the operator-level hidden-topics list so a
+  // freshly-hidden topic never surfaces, even if its rows are still queued.
+  const { data: pickRows, error: pickErr } = await db.rpc("pick_home_surface", {
+    p_kind: "video",
+    p_lang: lang,
+    p_min_score: threshold,
+    p_excluded_topics: hiddenTopics,
+  });
 
-  async function fetchPool(minScore: number): Promise<TranscriptionRow[]> {
-    const { data, error } = await db
-      .from("video_transcriptions")
-      .select("video_id, summary_md, topic_id, slug_keywords, published_date, summary_score")
-      .eq("lang", lang)
-      .gte("summary_score", minScore)
-      .gte("published_date", oldestDate)
-      .not("topic_id", "is", null)
-      .not("slug_keywords", "is", null)
-      .not("published_date", "is", null)
-      .not("summary_md", "is", null)
-      .neq("summary_md", "")
-      .order("published_date", { ascending: false })
-      .order("created_at", { ascending: false })
-      .limit(CANDIDATE_POOL);
-    if (error || !data || data.length === 0) return [];
-    return data as TranscriptionRow[];
-  }
-
-  let pool = await fetchPool(MIN_SCORE);
-  if (pool.length === 0) {
-    pool = await fetchPool(FALLBACK_MIN_SCORE);
-  }
-
-  if (pool.length === 0) {
+  if (pickErr) {
+    console.error(`[/api/videos/top] pick_home_surface error: ${pickErr.message}`);
     const empty: TopVideoPayload = { video: null };
-    cache.set(lang, { bucket, payload: empty });
     return jsonResponse(empty, bucket, now);
   }
 
-  // Deterministic 10-minute rotation. Same bucket + same pool ⇒ same
-  // idx ⇒ same video for every Function instance, so the module-level
-  // cache and CDN cache always converge on the same row even when
-  // they're populated from different cold instances.
-  const idx = ((bucket % pool.length) + pool.length) % pool.length;
-  const tr = pool[idx];
+  const picked = Array.isArray(pickRows) && pickRows.length > 0
+    ? (pickRows[0] as { id: number; ref_id: number; score: number })
+    : null;
 
+  if (!picked) {
+    const empty: TopVideoPayload = { video: null };
+    cache.set(cacheKey, { bucket, payload: empty });
+    return jsonResponse(empty, bucket, now);
+  }
+
+  // Hydrate from video_transcriptions (the queue's ref_id is its `id`).
+  const { data: trData, error: trError } = await db
+    .from("video_transcriptions")
+    .select("video_id, summary_md, topic_id, slug_keywords, published_date, summary_score")
+    .eq("id", picked.ref_id)
+    .limit(1);
+
+  if (trError || !trData || trData.length === 0) {
+    const empty: TopVideoPayload = { video: null };
+    cache.set(cacheKey, { bucket, payload: empty });
+    return jsonResponse(empty, bucket, now);
+  }
+
+  const tr = trData[0] as TranscriptionRow;
+
+  // Card metadata from youtube_videos.
   const { data: yvData, error: yvError } = await db
     .from("youtube_videos")
     .select(
@@ -195,12 +189,11 @@ export async function GET(request: NextRequest) {
 
   if (yvError || !yvData || yvData.length === 0) {
     const empty: TopVideoPayload = { video: null };
-    cache.set(lang, { bucket, payload: empty });
+    cache.set(cacheKey, { bucket, payload: empty });
     return jsonResponse(empty, bucket, now);
   }
 
   const yv = yvData[0] as YoutubeVideoRow;
-
   const summaryMd = tr.summary_md
     ? normalizeSummaryHeadings(tr.summary_md, lang)
     : null;
@@ -224,6 +217,6 @@ export async function GET(request: NextRequest) {
   };
 
   const payload: TopVideoPayload = { video };
-  cache.set(lang, { bucket, payload });
+  cache.set(cacheKey, { bucket, payload });
   return jsonResponse(payload, bucket, now);
 }

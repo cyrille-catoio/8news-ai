@@ -3,6 +3,7 @@ import {
   scoreVideoSummaryBatch,
   type VideoSummaryScoreInput,
 } from "../../src/lib/score-video-summary-batch";
+import { enqueueHomeSurface } from "../../src/lib/supabase/home-surface";
 
 /**
  * Background (≤15 min): scores AI Markdown video recaps in `video_transcriptions`
@@ -78,9 +79,12 @@ async function runCron(): Promise<void> {
   const minRemainingToStartBatch = CRON_SAFETY_MS + OPENAI_TIMEOUT_MS + 2000;
 
   while (remaining() > minRemainingToStartBatch) {
+    // Pull the renderable-on-/v/ metadata in the same query so the
+    // home_surface_queue insert below has everything in memory and we
+    // don't need a second round-trip per scored video.
     const { data: rowsRaw, error: fetchErr } = await supabase
       .from("video_transcriptions")
-      .select("id, video_id, title, lang, summary_md")
+      .select("id, video_id, title, lang, summary_md, topic_id, slug_keywords, published_date")
       .is("summary_score", null)
       .not("summary_md", "is", null)
       .neq("summary_md", "")
@@ -92,11 +96,17 @@ async function runCron(): Promise<void> {
       break;
     }
 
-    const rows = (rowsRaw ?? []) as VideoSummaryScoreInput[];
+    type EnrichedRow = VideoSummaryScoreInput & {
+      topic_id: string | null;
+      slug_keywords: string | null;
+      published_date: string | null;
+    };
+    const rows = (rowsRaw ?? []) as EnrichedRow[];
     if (rows.length === 0) {
       lines.push("[cron-video-summary-score] backlog empty");
       break;
     }
+    const rowById = new Map(rows.map((r) => [r.id, r]));
 
     batchNo += 1;
     const batchStart = Date.now();
@@ -126,8 +136,31 @@ async function runCron(): Promise<void> {
 
       if (upErr) {
         lines.push(`[batch=${batchNo}] db_update id=${id}: ${upErr.message}`);
-      } else {
-        totalScored += 1;
+        continue;
+      }
+      totalScored += 1;
+
+      // Mirror the score into home_surface_queue (migration 022) so the
+      // home rotation cycle picks the recap up. Skipped silently when
+      // the row is unrenderable on /v/ (missing topic/slug/date) or the
+      // score is below the queue floor.
+      if (score >= 7) {
+        const src = rowById.get(id);
+        if (
+          src
+          && src.topic_id
+          && src.slug_keywords
+          && src.published_date
+          && (src.lang === "en" || src.lang === "fr")
+        ) {
+          await enqueueHomeSurface(supabase, {
+            kind: "video",
+            refId: id,
+            lang: src.lang,
+            score,
+            topicId: src.topic_id,
+          });
+        }
       }
     }
 

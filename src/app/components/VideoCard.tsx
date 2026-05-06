@@ -9,6 +9,7 @@ import { FavoriteButton } from "@/app/components/FavoriteButton";
 import { CopyLinkButton } from "@/app/components/CopyLinkButton";
 import { DownloadTranscriptButton } from "@/app/components/DownloadTranscriptButton";
 import { ScoreMeter } from "@/app/components/ScoreMeter";
+import type { TopicLabel } from "@/lib/types";
 
 const ReactMarkdown = dynamic(() => import("react-markdown"), { ssr: false });
 
@@ -123,6 +124,8 @@ export function VideoCard({
   isAuthenticated,
   onToggleFavorite,
   onRequestAuth,
+  variant = "default",
+  topicLabels = [],
 }: {
   v: VideoItem;
   lang: Lang;
@@ -135,6 +138,21 @@ export function VideoCard({
   isAuthenticated: boolean;
   onToggleFavorite: (a: { url: string; title: string; source: string; pubDate?: string; sourceType?: "article" | "video" }) => void;
   onRequestAuth: () => void;
+  /**
+   * Visual chrome variant. `"default"` is the standard gray-bordered card
+   * used everywhere (`/app/videos`, channel pages, etc.). `"hero"` mirrors
+   * the home « Top story · maintenant » outer styling — gold border + a
+   * subtle gold gradient overlay — so the homepage TOP VIDEO block reads
+   * as a peer of the article hero card right above it.
+   */
+  variant?: "default" | "hero";
+  /**
+   * Optional topic label dictionary used to prepend the topic name to the
+   * meta line (e.g. « CRYPTO · Hasheur · 5 mai 2026 · … »). When empty or
+   * the topic id has no match, the meta line falls back to its previous
+   * shape without the prefix. Used by the homepage TOP VIDEO block.
+   */
+  topicLabels?: TopicLabel[];
 }) {
   const [descExpanded, setDescExpanded] = useState(false);
   const [summaryExpanded, setSummaryExpanded] = useState(false);
@@ -177,12 +195,20 @@ export function VideoCard({
   const fadeMs = reducedMotion ? 1 : VIDEO_SUMMARY_FADE_MS;
   const fadeDelayMs = reducedMotion ? 0 : VIDEO_SUMMARY_FADE_DELAY_MS;
 
-  const cardStyle: CSSProperties = {
-    background: color.surface,
-    border: `1px solid ${color.border}`,
-    borderRadius: 10,
-    overflow: "hidden",
-  };
+  const cardStyle: CSSProperties = variant === "hero"
+    ? {
+        background:
+          "linear-gradient(180deg, rgba(201,162,39,0.04), transparent 60%), " + color.surface,
+        border: `1px solid ${color.gold}`,
+        borderRadius: 10,
+        overflow: "hidden",
+      }
+    : {
+        background: color.surface,
+        border: `1px solid ${color.border}`,
+        borderRadius: 10,
+        overflow: "hidden",
+      };
 
   const thumbWrap: CSSProperties = {
     aspectRatio: "16 / 9",
@@ -196,12 +222,35 @@ export function VideoCard({
     display: "block",
   };
 
-  const bodyStyle: CSSProperties = {
-    padding: "14px 16px 14px 0",
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "center",
-  };
+  const isHero = variant === "hero";
+  // Default uses asymmetric padding (no left padding because the thumbnail
+  // sits to the left and already provides visual edge). Hero is a vertical
+  // stack so we want a balanced 24px around — see `.video-card-hero` rule
+  // in globals.css for the responsive override.
+  const bodyStyle: CSSProperties = isHero
+    ? {
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "flex-start",
+      }
+    : {
+        padding: "14px 16px 14px 0",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+      };
+
+  const titleStyle: CSSProperties = isHero
+    ? {
+        fontFamily: "ui-serif, Georgia, serif",
+        fontSize: "clamp(20px, 2.6vw, 28px)",
+        lineHeight: 1.2,
+        color: color.text,
+        fontWeight: 400,
+        letterSpacing: "-0.01em",
+        margin: 0,
+      }
+    : {};
 
   const metaStyle: CSSProperties = {
     color: color.textDim,
@@ -217,16 +266,34 @@ export function VideoCard({
     return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
   };
 
-  const btnStyle: CSSProperties = {
-    ...primaryButtonStyle,
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
-    padding: "6px 14px",
-    fontSize: 12,
-    marginTop: 10,
-    opacity: 1,
-  };
+  // Primary CTA shape. In the hero variant we bump padding / font size
+  // so the buttons match the « Lire l'article » CTA on the home Top
+  // Story hero — the two cards sit next to each other and primary
+  // actions need to read at the same visual weight. In the default
+  // variant we keep the historical compact shape used on /app/videos
+  // and channel pages.
+  const btnStyle: CSSProperties = isHero
+    ? {
+        ...primaryButtonStyle,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "9px 16px",
+        fontSize: 13,
+        fontWeight: 700,
+        marginTop: 10,
+        opacity: 1,
+      }
+    : {
+        ...primaryButtonStyle,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "6px 14px",
+        fontSize: 12,
+        marginTop: 10,
+        opacity: 1,
+      };
 
   /** Gold-on-gold spinner is invisible; use dark ring on primary (gold) button. */
   const transcribeBtnSpinnerStyle: CSSProperties = {
@@ -259,11 +326,9 @@ export function VideoCard({
     return `${host}/embed/${encodeURIComponent(v.videoId)}?${params.toString()}`;
   })();
 
-  return (
-    <div style={cardStyle}>
-      <div className="video-card-row">
-        <div className="video-thumb">
-          <div style={thumbWrap}>
+  const thumbBlock = (
+    <div className="video-thumb">
+      <div style={thumbWrap}>
             {playing ? (
               <iframe
                 src={youtubeEmbedSrc}
@@ -333,14 +398,17 @@ export function VideoCard({
             )}
           </div>
         </div>
+  );
+
+  const bodyBlock = (
         <div className="video-body" style={bodyStyle}>
           <div
             style={{
               display: "flex",
               justifyContent: "space-between",
               alignItems: "flex-start",
-              gap: 8,
-              marginBottom: 6,
+              gap: 12,
+              marginBottom: isHero ? 12 : 6,
             }}
           >
             <a
@@ -349,11 +417,15 @@ export function VideoCard({
               rel="noopener noreferrer"
               style={{ textDecoration: "none", flex: 1, minWidth: 0 }}
             >
-              <div className="app-title-sm" style={{ color: color.text, fontWeight: 600 }}>{v.title}</div>
+              {isHero ? (
+                <h2 style={titleStyle}>{v.title}</h2>
+              ) : (
+                <div className="app-title-sm" style={{ color: color.text, fontWeight: 600 }}>{v.title}</div>
+              )}
             </a>
             {typeof v.summaryScore === "number" && v.summaryScore >= 1 && v.summaryScore <= 10 && (
               <span style={{ flexShrink: 0, marginLeft: 4 }}>
-                <ScoreMeter score={v.summaryScore} width={60} />
+                <ScoreMeter score={v.summaryScore} width={isHero ? 72 : 60} />
               </span>
             )}
           </div>
@@ -385,6 +457,27 @@ export function VideoCard({
           )}
 
           <div style={metaStyle}>
+            {(() => {
+              const topicLabel = v.topicId
+                ? topicLabels.find((tl) => tl.id === v.topicId)?.label ?? null
+                : null;
+              if (!topicLabel) return null;
+              return (
+                <>
+                  <span
+                    style={{
+                      color: color.textMuted,
+                      fontFamily: "ui-monospace, Menlo, monospace",
+                      letterSpacing: "0.04em",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {topicLabel.toUpperCase()}
+                  </span>
+                  <span>·</span>
+                </>
+              );
+            })()}
             <span style={{ color: color.textSecondary, fontWeight: 500 }}>{v.channelTitle}</span>
             <span>·</span>
             <span>{new Date(v.published).toLocaleDateString(lang === "fr" ? "fr-FR" : "en-US", { day: "numeric", month: "short", year: "numeric" })}</span>
@@ -531,6 +624,22 @@ export function VideoCard({
             </div>
           </div>
         </div>
+  );
+
+  return (
+    <div style={cardStyle}>
+      <div className={isHero ? "video-card-hero" : "video-card-row"}>
+        {isHero ? (
+          <>
+            {bodyBlock}
+            {thumbBlock}
+          </>
+        ) : (
+          <>
+            {thumbBlock}
+            {bodyBlock}
+          </>
+        )}
       </div>
 
       {/* Error after a failed run (always visible). Success summary only when expanded (toggle via Transcription). */}

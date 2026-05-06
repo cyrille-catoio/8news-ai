@@ -413,6 +413,28 @@ a.hero-story-title-link {
   }
 }
 
+/* Hero variant — used by the home page TOP VIDEO block.
+   Body sits on top (title + meta + actions), thumbnail spans the
+   full width below it, mirroring the editorial weight of the
+   article hero card directly above it. */
+.video-card-hero {
+  display: flex;
+  flex-direction: column;
+}
+.video-card-hero .video-body {
+  padding: 24px 24px 18px;
+  flex: 1;
+  min-width: 0;
+}
+.video-card-hero .video-thumb {
+  width: 100%;
+}
+@media (max-width: 640px) {
+  .video-card-hero .video-body {
+    padding: 18px 16px 14px !important;
+  }
+}
+
 /* App typography — paragraphs (article snippets, video summaries, descriptions).
    Bumped on mobile so long-form content stays comfortable on small screens. */
 .app-paragraph-sm { font-size: 13px; line-height: 1.5; }

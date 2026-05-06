@@ -146,6 +146,13 @@ export function BriefingPage({
   //     but visibilitychange fires immediately on focus).
   const [heroStory, setHeroStory] = useState<TopFeedArticle | null>(null);
   const [heroLoading, setHeroLoading] = useState(true);
+  // History navigation state — `0` means live (auto-refreshing on the
+  // 10-min bucket); any positive value freezes the auto-refresh and
+  // shows the row at that offset in `home_surface_queue` ordered by
+  // `last_displayed_at DESC`. Driven by the discreet ‹ › chevrons in
+  // the hero card header.
+  const [articleHistoryOffset, setArticleHistoryOffset] = useState(0);
+  const [articleHasOlder, setArticleHasOlder] = useState(false);
   useEffect(() => {
     let cancelled = false;
 
@@ -157,9 +164,16 @@ export function BriefingPage({
         // from the server: revalidate every time, but let the CDN serve
         // the same shared payload to every visitor of this lang in
         // this bucket. That's what guarantees synchronization.
-        const r = await fetch(`/api/news/top-story?lang=${lang}`);
-        const json: { article: TopFeedArticle | null } = r.ok ? await r.json() : { article: null };
-        if (!cancelled) setHeroStory(json.article ?? null);
+        const r = await fetch(
+          `/api/news/top-story?lang=${lang}&offset=${articleHistoryOffset}`,
+        );
+        const json: {
+          article: TopFeedArticle | null;
+          hasOlder?: boolean;
+        } = r.ok ? await r.json() : { article: null };
+        if (cancelled) return;
+        setHeroStory(json.article ?? null);
+        setArticleHasOlder(Boolean(json.hasOlder));
       } catch {
         // Silent fail — keep the previous hero on screen rather than
         // wiping it on a transient network blip.
@@ -171,6 +185,16 @@ export function BriefingPage({
     fetchTopStory(true);
 
     const HERO_REFRESH_MS = 10 * 60 * 1000;
+    // Auto-refresh only in live mode. When the user is browsing past
+    // picks (offset > 0), suspend the timer + visibility refetch so the
+    // hero doesn't snap back to live unprompted.
+    const liveMode = articleHistoryOffset === 0;
+    if (!liveMode) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
     // Align the first interval refresh to the next wall-clock 10-min
     // boundary (+200ms safety) so every browser flips into the new
     // bucket at roughly the same moment. After the first aligned
@@ -202,7 +226,20 @@ export function BriefingPage({
         document.removeEventListener("visibilitychange", onVisibility);
       }
     };
+  }, [lang, articleHistoryOffset]);
+
+  // Reset to live mode on lang switch so a user toggling FR↔EN doesn't
+  // stay stuck on a frozen historical pick from the other queue.
+  useEffect(() => {
+    setArticleHistoryOffset(0);
   }, [lang]);
+
+  const onArticleHistoryPrev = useCallback(() => {
+    setArticleHistoryOffset((o) => (articleHasOlder ? o + 1 : o));
+  }, [articleHasOlder]);
+  const onArticleHistoryNext = useCallback(() => {
+    setArticleHistoryOffset((o) => Math.max(0, o - 1));
+  }, []);
 
   // ─── Latest daily summary (today or yesterday fallback) ─────────────
   const [summaryRoutes, setSummaryRoutes] = useState<SummaryRoute[]>([]);
@@ -289,11 +326,17 @@ export function BriefingPage({
   const [videoSummaries, setVideoSummaries] = useState<Record<string, string>>({});
   const [transcribing, setTranscribing] = useState<Record<string, boolean>>({});
   const [videosLoading, setVideosLoading] = useState(true);
+  // History navigation state for the TOP VIDEO card — same semantics
+  // as the article side. `0` = live, positive = past pick at that
+  // offset in home_surface_queue (kind=video), driven by the chevrons.
+  const [videoHistoryOffset, setVideoHistoryOffset] = useState(0);
+  const [videoHasOlder, setVideoHasOlder] = useState(false);
   useEffect(() => {
     let cancelled = false;
 
     type TopVideoApiPayload = {
       video: (VideoItem & { summaryMd: string | null }) | null;
+      hasOlder?: boolean;
     };
 
     async function fetchTopVideo(showLoading: boolean) {
@@ -303,11 +346,14 @@ export function BriefingPage({
         // `Cache-Control: max-age=0, s-maxage=<remaining>, must-revalidate`
         // so the CDN serves the same shared payload to every visitor of
         // this lang in this bucket. Same pattern as the top story.
-        const r = await fetch(`/api/videos/top?lang=${lang}`);
+        const r = await fetch(
+          `/api/videos/top?lang=${lang}&offset=${videoHistoryOffset}`,
+        );
         const json: TopVideoApiPayload = r.ok
           ? await r.json()
           : { video: null };
         if (cancelled) return;
+        setVideoHasOlder(Boolean(json.hasOlder));
         if (json.video) {
           const { summaryMd, ...rest } = json.video;
           setVideos([rest]);
@@ -326,6 +372,13 @@ export function BriefingPage({
     fetchTopVideo(true);
 
     const VIDEO_REFRESH_MS = 10 * 60 * 1000;
+    const liveMode = videoHistoryOffset === 0;
+    if (!liveMode) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
     const msToBoundary = VIDEO_REFRESH_MS - (Date.now() % VIDEO_REFRESH_MS) + 500;
     let intervalId: ReturnType<typeof setInterval> | null = null;
     const timeoutId = setTimeout(() => {
@@ -351,7 +404,18 @@ export function BriefingPage({
         document.removeEventListener("visibilitychange", onVisibility);
       }
     };
+  }, [lang, videoHistoryOffset]);
+
+  useEffect(() => {
+    setVideoHistoryOffset(0);
   }, [lang]);
+
+  const onVideoHistoryPrev = useCallback(() => {
+    setVideoHistoryOffset((o) => (videoHasOlder ? o + 1 : o));
+  }, [videoHasOlder]);
+  const onVideoHistoryNext = useCallback(() => {
+    setVideoHistoryOffset((o) => Math.max(0, o - 1));
+  }, []);
 
   // Same logic as VideosPage.handleTranscribe — POSTs the video to the
   // transcribe endpoint and writes the resulting summaryMd into local
@@ -379,11 +443,14 @@ export function BriefingPage({
   }, [lang]);
 
   // Prefer the dedicated /api/news/top-story result for the hero; fall
-  // back to the highest-scored item in the top feed if the dedicated
-  // endpoint returned null (e.g. nothing scored ≥ 9 in the last 24 h).
-  // While both queries are still in flight, drop into a plain spinner
-  // — the hero is the page's anchor so we'd rather wait than flash.
-  const heroArticle = heroStory ?? topFeed[0] ?? null;
+  // back to the highest-scored item in the top feed only in **live**
+  // mode (offset === 0) — in history mode we want to faithfully show
+  // exactly what the queue returned (or null), never a different
+  // article from the live top-feed.
+  const heroArticle =
+    articleHistoryOffset === 0
+      ? (heroStory ?? topFeed[0] ?? null)
+      : heroStory;
   const heroBlocked = heroLoading && topFeedLoading && !heroArticle;
   // Top 5 excludes whatever is currently in the hero so the same
   // article never shows up twice on the page.
@@ -406,6 +473,11 @@ export function BriefingPage({
               isAuthenticated={isAuthenticated}
               onToggleFavorite={onToggleFavorite}
               onRequestAuth={onRequestAuth}
+              historyOffset={articleHistoryOffset}
+              canGoOlder={articleHasOlder}
+              onHistoryPrev={onArticleHistoryPrev}
+              onHistoryNext={onArticleHistoryNext}
+              topicLabels={topicLabels}
             />
           )}
 
@@ -433,6 +505,11 @@ export function BriefingPage({
                 isAuthenticated={isAuthenticated}
                 onRequestAuth={onRequestAuth}
                 onSeeAll={() => onNavigate("videos")}
+                historyOffset={videoHistoryOffset}
+                canGoOlder={videoHasOlder}
+                onHistoryPrev={onVideoHistoryPrev}
+                onHistoryNext={onVideoHistoryNext}
+                topicLabels={topicLabels}
               />
             )
           )}
@@ -512,6 +589,103 @@ export function BriefingPage({
 /* ────────────────── Hero Story ─────────────────────── */
 
 /**
+ * Discreet ‹ › chevrons that let the visitor scroll back through the
+ * sequence of items previously shown on the home (driven by the
+ * `home_surface_queue.last_displayed_at DESC` ordering). Rendered
+ * inline next to a section's kicker — small, low-contrast at rest,
+ * gold on hover; disabled state is fully transparent so the chevrons
+ * read as "barely there" until the user notices them.
+ *
+ * `onPrev` walks one step further into the past (older pick); `onNext`
+ * brings the user back towards the current (live) pick. Used by both
+ * the article hero and the TOP VIDEO card.
+ */
+function HistoryArrows({
+  offset,
+  canGoOlder,
+  onPrev,
+  onNext,
+  lang,
+}: {
+  offset: number;
+  canGoOlder: boolean;
+  onPrev: () => void;
+  onNext: () => void;
+  lang: Lang;
+}) {
+  const canGoNewer = offset > 0;
+  // Bumped to 22px so the chevrons feel like real controls (not a UI
+  // afterthought) while still staying low-contrast at rest. Padding is
+  // symmetric so the visible glyph centers exactly on the kicker
+  // baseline when the parent uses `alignItems: "baseline"`.
+  const baseBtn: CSSProperties = {
+    background: "transparent",
+    border: "none",
+    color: color.textDim,
+    fontSize: 22,
+    lineHeight: 1,
+    fontFamily: "inherit",
+    padding: "0 6px",
+    cursor: "pointer",
+    transition: "color 120ms ease, opacity 120ms ease",
+    // Negative top offset compensates for the chevron glyph's intrinsic
+    // top whitespace inside its own line-box, pulling the visible
+    // character down to sit on the kicker's text baseline.
+    position: "relative",
+    top: 1,
+  };
+  return (
+    <div
+      style={{
+        display: "inline-flex",
+        alignItems: "baseline",
+        gap: 4,
+        marginLeft: 8,
+      }}
+    >
+      <button
+        type="button"
+        onClick={onPrev}
+        disabled={!canGoOlder}
+        aria-label={lang === "fr" ? "Précédent (plus ancien)" : "Previous (older)"}
+        style={{
+          ...baseBtn,
+          opacity: canGoOlder ? 0.7 : 0.2,
+          cursor: canGoOlder ? "pointer" : "not-allowed",
+        }}
+        onMouseEnter={(e) => {
+          if (canGoOlder) (e.currentTarget as HTMLButtonElement).style.color = color.gold;
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLButtonElement).style.color = color.textDim;
+        }}
+      >
+        ‹
+      </button>
+      <button
+        type="button"
+        onClick={onNext}
+        disabled={!canGoNewer}
+        aria-label={lang === "fr" ? "Suivant (plus récent)" : "Next (newer)"}
+        style={{
+          ...baseBtn,
+          opacity: canGoNewer ? 0.7 : 0.2,
+          cursor: canGoNewer ? "pointer" : "not-allowed",
+        }}
+        onMouseEnter={(e) => {
+          if (canGoNewer) (e.currentTarget as HTMLButtonElement).style.color = color.gold;
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLButtonElement).style.color = color.textDim;
+        }}
+      >
+        ›
+      </button>
+    </div>
+  );
+}
+
+/**
  * Hero card on the briefing — headline and CTA link to the article
  * (new tab); source line stays plain text so we avoid the old
  * triple-link double-tab issue with extensions / touch ghosting.
@@ -523,6 +697,11 @@ function HeroStory({
   isAuthenticated,
   onToggleFavorite,
   onRequestAuth,
+  historyOffset,
+  canGoOlder,
+  onHistoryPrev,
+  onHistoryNext,
+  topicLabels,
 }: {
   article: TopFeedArticle;
   lang: Lang;
@@ -530,11 +709,27 @@ function HeroStory({
   isAuthenticated: boolean;
   onToggleFavorite: (a: { url: string; title: string; source: string; pubDate?: string; sourceType?: "article" | "video" }) => void;
   onRequestAuth: () => void;
+  historyOffset: number;
+  canGoOlder: boolean;
+  onHistoryPrev: () => void;
+  onHistoryNext: () => void;
+  topicLabels: TopicLabel[];
 }) {
+  const topicLabel = topicLabels.find((t) => t.id === article.topic)?.label
+    ?? article.topic;
   return (
     <section style={{ marginBottom: 36 }}>
-      <div style={{ ...kicker(color.gold) }}>
-        {lang === "fr" ? "Top story · maintenant" : "Top story · now"}
+      <div style={{ display: "flex", alignItems: "baseline" }}>
+        <div style={{ ...kicker(color.gold) }}>
+          {lang === "fr" ? "Top story · maintenant" : "Top story · now"}
+        </div>
+        <HistoryArrows
+          offset={historyOffset}
+          canGoOlder={canGoOlder}
+          onPrev={onHistoryPrev}
+          onNext={onHistoryNext}
+          lang={lang}
+        />
       </div>
       <div
         style={{
@@ -587,11 +782,12 @@ function HeroStory({
             style={{
               display: "inline-flex",
               alignItems: "center",
+              gap: 6,
               padding: "9px 16px",
-              border: `1px solid ${color.gold}`,
+              border: "none",
               borderRadius: 6,
-              background: "rgba(201,162,39,0.08)",
-              color: color.gold,
+              background: color.gold,
+              color: "#000",
               fontSize: 13,
               fontWeight: 700,
               fontFamily: "inherit",
@@ -628,6 +824,10 @@ function HeroStory({
               whiteSpace: "nowrap",
             }}
           >
+            <span style={{ color: color.textMuted, marginRight: 8 }}>
+              {topicLabel.toUpperCase()}
+            </span>
+            <span style={{ color: color.textMuted, marginRight: 8 }}>·</span>
             {article.source.toUpperCase()}
             <span style={{ color: color.textMuted, marginLeft: 8 }}>· {relativeTime(article.pubDate, lang)}</span>
           </span>
@@ -644,6 +844,7 @@ function HeroStory({
               onRequestAuth={onRequestAuth}
               isAuthenticated={isAuthenticated}
             />
+            <CopyLinkButton url={article.link} />
           </div>
         </div>
       </div>
@@ -805,6 +1006,11 @@ function VideosBriefingSection({
   isAuthenticated,
   onRequestAuth,
   onSeeAll,
+  historyOffset,
+  canGoOlder,
+  onHistoryPrev,
+  onHistoryNext,
+  topicLabels,
 }: {
   videos: VideoItem[];
   videoSummaries: Record<string, string>;
@@ -818,11 +1024,25 @@ function VideosBriefingSection({
   isAuthenticated: boolean;
   onRequestAuth: () => void;
   onSeeAll: () => void;
+  historyOffset: number;
+  canGoOlder: boolean;
+  onHistoryPrev: () => void;
+  onHistoryNext: () => void;
+  topicLabels: TopicLabel[];
 }) {
   return (
     <section style={{ marginBottom: 36 }}>
-      <div style={{ ...kicker(color.gold), marginBottom: 12 }}>
-        {lang === "fr" ? "TOP VIDEO · MAINTENANT" : "TOP VIDEO · NOW"}
+      <div style={{ display: "flex", alignItems: "baseline", marginBottom: 12 }}>
+        <div style={{ ...kicker(color.gold) }}>
+          {lang === "fr" ? "TOP VIDEO · MAINTENANT" : "TOP VIDEO · NOW"}
+        </div>
+        <HistoryArrows
+          offset={historyOffset}
+          canGoOlder={canGoOlder}
+          onPrev={onHistoryPrev}
+          onNext={onHistoryNext}
+          lang={lang}
+        />
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {videos.map((v) => (
@@ -839,6 +1059,8 @@ function VideosBriefingSection({
             isAuthenticated={isAuthenticated}
             onToggleFavorite={onToggleFavorite}
             onRequestAuth={onRequestAuth}
+            variant="hero"
+            topicLabels={topicLabels}
           />
         ))}
       </div>

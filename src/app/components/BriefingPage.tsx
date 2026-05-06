@@ -159,13 +159,16 @@ export function BriefingPage({
     async function fetchTopStory(showLoading: boolean) {
       if (showLoading) setHeroLoading(true);
       try {
-        // No `cache: "no-store"` — we want the browser to honor
-        // `Cache-Control: max-age=0, s-maxage=<remaining>, must-revalidate`
-        // from the server: revalidate every time, but let the CDN serve
-        // the same shared payload to every visitor of this lang in
-        // this bucket. That's what guarantees synchronization.
+        // `cache: "no-store"` — Netlify's edge cache was collapsing
+        // distinct `?offset=N` URLs onto one entry by hashing the path
+        // only, which made the « previous » chevrons return the same
+        // article every time. The endpoint also sends no-store
+        // headers; the explicit option here makes the browser /
+        // service worker layer can't sneak in a cached response. The
+        // server still dedups within a bucket via its module cache.
         const r = await fetch(
           `/api/news/top-story?lang=${lang}&offset=${articleHistoryOffset}`,
+          { cache: "no-store" },
         );
         const json: {
           article: TopFeedArticle | null;
@@ -342,12 +345,13 @@ export function BriefingPage({
     async function fetchTopVideo(showLoading: boolean) {
       if (showLoading) setVideosLoading(true);
       try {
-        // No `cache: "no-store"` — let the browser honor the upstream
-        // `Cache-Control: max-age=0, s-maxage=<remaining>, must-revalidate`
-        // so the CDN serves the same shared payload to every visitor of
-        // this lang in this bucket. Same pattern as the top story.
+        // `cache: "no-store"` — see /api/news/top-story fetch comment.
+        // The server is no-store across all CDN layers; the explicit
+        // option here makes sure the browser can't replay a cached
+        // response when only the offset changes between clicks.
         const r = await fetch(
           `/api/videos/top?lang=${lang}&offset=${videoHistoryOffset}`,
+          { cache: "no-store" },
         );
         const json: TopVideoApiPayload = r.ok
           ? await r.json()

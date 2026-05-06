@@ -113,21 +113,21 @@ function pickTitle(r: TopStoryRow, lang: Lang): string {
 
 function jsonResponse(
   payload: HeroPayload,
-  bucket: number,
-  now: number,
-  options?: { liveCache?: boolean },
+  _bucket: number,
+  _now: number,
 ): NextResponse {
-  const remainingMs = (bucket + 1) * ROTATION_BUCKET_MS - now;
-  const remainingSec = Math.max(1, Math.floor(remainingMs / 1000));
-  // History responses (offset > 0) only change when a new pick happens,
-  // so we let the CDN cache them for a full bucket too — same TTL as
-  // live responses keeps the headers consistent and easy to reason about.
+  // Explicit no-store across all caching layers. Netlify's edge cache for
+  // Next.js Route Handlers turned out to key on **path only** (ignoring
+  // `?offset=` query strings), which made every `?offset=N` hit return
+  // the cached `?offset=0` payload — that's why « previous » chevrons
+  // appeared to do nothing in production. We rely on the module-level
+  // cache inside the Function for the live-mode bucket dedup instead.
   return NextResponse.json(payload, {
     headers: {
-      "Cache-Control": `public, max-age=0, s-maxage=${remainingSec}, must-revalidate`,
-      // Different threshold cookies → different edge cache entries.
+      "Cache-Control": "private, no-store, max-age=0",
+      "CDN-Cache-Control": "no-store",
+      "Netlify-CDN-Cache-Control": "no-store",
       Vary: "Cookie",
-      "X-Live": options?.liveCache ? "1" : "0",
     },
   });
 }
@@ -188,7 +188,7 @@ export async function GET(request: NextRequest) {
   if (isLive) {
     const cached = heroCache.get(cacheKey);
     if (cached && cached.bucket === bucket) {
-      return jsonResponse(cached.payload, bucket, now, { liveCache: true });
+      return jsonResponse(cached.payload, bucket, now);
     }
   }
 
@@ -196,7 +196,7 @@ export async function GET(request: NextRequest) {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
     const empty: HeroPayload = { article: null, hasOlder: false, offset };
-    return jsonResponse(empty, bucket, now, { liveCache: false });
+    return jsonResponse(empty, bucket, now);
   }
 
   const db = createClient(url, key, { auth: { persistSession: false } });
@@ -214,7 +214,7 @@ export async function GET(request: NextRequest) {
     if (pickErr) {
       console.error(`[/api/news/top-story] pick_home_surface error: ${pickErr.message}`);
       const empty: HeroPayload = { article: null, hasOlder: false, offset };
-      return jsonResponse(empty, bucket, now, { liveCache: false });
+      return jsonResponse(empty, bucket, now);
     }
 
     const picked = Array.isArray(pickRows) && pickRows.length > 0
@@ -224,14 +224,14 @@ export async function GET(request: NextRequest) {
     if (!picked) {
       const empty: HeroPayload = { article: null, hasOlder: false, offset };
       heroCache.set(cacheKey, { bucket, payload: empty });
-      return jsonResponse(empty, bucket, now, { liveCache: true });
+      return jsonResponse(empty, bucket, now);
     }
 
     const article = await hydrateArticle(db, picked.ref_id, lang);
     if (!article) {
       const empty: HeroPayload = { article: null, hasOlder: false, offset };
       heroCache.set(cacheKey, { bucket, payload: empty });
-      return jsonResponse(empty, bucket, now, { liveCache: true });
+      return jsonResponse(empty, bucket, now);
     }
 
     // Probe whether at least one OTHER candidate row exists for the same
@@ -255,7 +255,7 @@ export async function GET(request: NextRequest) {
 
     const payload: HeroPayload = { article, hasOlder, offset };
     heroCache.set(cacheKey, { bucket, payload });
-    return jsonResponse(payload, bucket, now, { liveCache: true });
+    return jsonResponse(payload, bucket, now);
   }
 
   // ── History mode (offset > 0) ──────────────────────────────
@@ -283,12 +283,12 @@ export async function GET(request: NextRequest) {
   if (histErr) {
     console.error(`[/api/news/top-story] history SELECT error: ${histErr.message}`);
     const empty: HeroPayload = { article: null, hasOlder: false, offset };
-    return jsonResponse(empty, bucket, now, { liveCache: false });
+    return jsonResponse(empty, bucket, now);
   }
   const rows = (histRows ?? []) as QueueRow[];
   if (rows.length === 0) {
     const empty: HeroPayload = { article: null, hasOlder: false, offset };
-    return jsonResponse(empty, bucket, now, { liveCache: false });
+    return jsonResponse(empty, bucket, now);
   }
 
   const article = await hydrateArticle(db, rows[0].ref_id, lang);
@@ -298,5 +298,5 @@ export async function GET(request: NextRequest) {
     hasOlder,
     offset,
   };
-  return jsonResponse(payload, bucket, now, { liveCache: false });
+  return jsonResponse(payload, bucket, now);
 }

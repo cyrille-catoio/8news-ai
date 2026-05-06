@@ -85,17 +85,19 @@ function parseThreshold(raw: string | null | undefined, fallback: number): numbe
 
 function jsonResponse(
   payload: TopVideoPayload,
-  bucket: number,
-  now: number,
-  options?: { liveCache?: boolean },
+  _bucket: number,
+  _now: number,
 ): NextResponse {
-  const remainingMs = (bucket + 1) * ROTATION_BUCKET_MS - now;
-  const remainingSec = Math.max(1, Math.floor(remainingMs / 1000));
+  // Explicit no-store across all caching layers — see /api/news/top-story
+  // for the rationale (Netlify edge cache was collapsing all `?offset=N`
+  // URLs onto one entry by hashing the path only, which made the chevron
+  // history appear broken in production).
   return NextResponse.json(payload, {
     headers: {
-      "Cache-Control": `public, max-age=0, s-maxage=${remainingSec}, must-revalidate`,
+      "Cache-Control": "private, no-store, max-age=0",
+      "CDN-Cache-Control": "no-store",
+      "Netlify-CDN-Cache-Control": "no-store",
       Vary: "Cookie",
-      "X-Live": options?.liveCache ? "1" : "0",
     },
   });
 }
@@ -188,7 +190,7 @@ export async function GET(request: NextRequest) {
   if (isLive) {
     const cached = cache.get(cacheKey);
     if (cached && cached.bucket === bucket) {
-      return jsonResponse(cached.payload, bucket, now, { liveCache: true });
+      return jsonResponse(cached.payload, bucket, now);
     }
   }
 
@@ -196,7 +198,7 @@ export async function GET(request: NextRequest) {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
     const empty: TopVideoPayload = { video: null, hasOlder: false, offset };
-    return jsonResponse(empty, bucket, now, { liveCache: false });
+    return jsonResponse(empty, bucket, now);
   }
 
   const db = createClient(url, key, { auth: { persistSession: false } });
@@ -213,7 +215,7 @@ export async function GET(request: NextRequest) {
     if (pickErr) {
       console.error(`[/api/videos/top] pick_home_surface error: ${pickErr.message}`);
       const empty: TopVideoPayload = { video: null, hasOlder: false, offset };
-      return jsonResponse(empty, bucket, now, { liveCache: false });
+      return jsonResponse(empty, bucket, now);
     }
 
     const picked = Array.isArray(pickRows) && pickRows.length > 0
@@ -223,14 +225,14 @@ export async function GET(request: NextRequest) {
     if (!picked) {
       const empty: TopVideoPayload = { video: null, hasOlder: false, offset };
       cache.set(cacheKey, { bucket, payload: empty });
-      return jsonResponse(empty, bucket, now, { liveCache: true });
+      return jsonResponse(empty, bucket, now);
     }
 
     const video = await hydrateVideo(db, picked.ref_id, lang);
     if (!video) {
       const empty: TopVideoPayload = { video: null, hasOlder: false, offset };
       cache.set(cacheKey, { bucket, payload: empty });
-      return jsonResponse(empty, bucket, now, { liveCache: true });
+      return jsonResponse(empty, bucket, now);
     }
 
     // Probe for at least one OTHER candidate row, including rows that
@@ -253,7 +255,7 @@ export async function GET(request: NextRequest) {
 
     const payload: TopVideoPayload = { video, hasOlder, offset };
     cache.set(cacheKey, { bucket, payload });
-    return jsonResponse(payload, bucket, now, { liveCache: true });
+    return jsonResponse(payload, bucket, now);
   }
 
   // ── History mode (offset > 0) ──────────────────────────────
@@ -279,12 +281,12 @@ export async function GET(request: NextRequest) {
   if (histErr) {
     console.error(`[/api/videos/top] history SELECT error: ${histErr.message}`);
     const empty: TopVideoPayload = { video: null, hasOlder: false, offset };
-    return jsonResponse(empty, bucket, now, { liveCache: false });
+    return jsonResponse(empty, bucket, now);
   }
   const rows = (histRows ?? []) as Array<{ ref_id: number }>;
   if (rows.length === 0) {
     const empty: TopVideoPayload = { video: null, hasOlder: false, offset };
-    return jsonResponse(empty, bucket, now, { liveCache: false });
+    return jsonResponse(empty, bucket, now);
   }
 
   const video = await hydrateVideo(db, rows[0].ref_id, lang);
@@ -294,5 +296,5 @@ export async function GET(request: NextRequest) {
     hasOlder,
     offset,
   };
-  return jsonResponse(payload, bucket, now, { liveCache: false });
+  return jsonResponse(payload, bucket, now);
 }

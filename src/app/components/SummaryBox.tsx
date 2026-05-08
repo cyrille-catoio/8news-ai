@@ -98,6 +98,18 @@ export function SummaryBox({ data, locale, lang, hours, topicName, speed, voice,
                 padding: "5px 0",
               }}
             >
+              {bullet.title && (
+                <div
+                  style={{
+                    color: color.gold,
+                    fontWeight: 700,
+                    marginBottom: 4,
+                    lineHeight: 1.3,
+                  }}
+                >
+                  {bullet.title}
+                </div>
+              )}
               <div style={{ display: "flex", gap: 8 }}>
                 <span style={{ color: color.gold, flexShrink: 0 }}>•</span>
                 <span>{bullet.text}</span>

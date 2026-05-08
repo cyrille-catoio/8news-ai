@@ -43,6 +43,13 @@ export interface ArticleSummary {
 export interface SummaryBullet {
   text: string;
   refs: Array<{ title: string; link: string; source: string }>;
+  /**
+   * Optional short journalistic title (3-8 words) above the bullet
+   * body. Currently produced only by the Top articles pipeline
+   * (`POST /api/news/top-summary`); other callers leave it undefined
+   * and the renderer falls back to the previous bullet-only layout.
+   */
+  title?: string | null;
 }
 
 export interface SummaryResponse {
@@ -63,7 +70,9 @@ export interface SummaryResponse {
 
 export interface AIAnalysis {
   relevant: Array<{ index: number; snippet: string; title?: string }>;
-  globalSummary: string | Array<{ text: string; refs: number[]; entities?: string[] }>;
+  globalSummary:
+    | string
+    | Array<{ text: string; refs: number[]; entities?: string[]; title?: string }>;
   seoKeywords?: string[];
   seoTitle?: string;
   seoDescription?: string;

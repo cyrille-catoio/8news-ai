@@ -22,3 +22,4 @@ export * from "./supabase/articles";
 export * from "./supabase/summaries";
 export * from "./supabase/videos";
 export * from "./supabase/bullets";
+export * from "./supabase/top-summaries";

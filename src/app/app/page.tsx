@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, useState, useEffect, useCallback, useRef, useLayoutEffect } from "react";
+import { type CSSProperties, useState, useEffect, useCallback, useMemo, useRef, useLayoutEffect } from "react";
 import type {
   SummaryResponse,
   ArticleSummary,
@@ -15,7 +15,6 @@ import {
   font,
   card,
   spinnerStyle,
-  primaryButtonStyle,
 } from "@/lib/theme";
 import { CopyLinkButton } from "@/app/components/CopyLinkButton";
 import { ScoreMeter } from "@/app/components/ScoreMeter";
@@ -34,7 +33,7 @@ import { TopFeedSection } from "@/app/components/TopFeedSection";
 import { TopicPersonalizationBar } from "@/app/components/TopicPersonalizationBar";
 import { GeneralMenu } from "@/app/components/GeneralMenu";
 import { TopicOnboardingModal } from "@/app/components/TopicOnboardingModal";
-import { useTopFeed } from "@/hooks/useTopFeed";
+import type { TopFeedArticle } from "@/hooks/useTopFeed";
 import { useUserTopics } from "@/hooks/useUserTopics";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useAuth } from "@/app/providers";
@@ -49,7 +48,7 @@ import { BriefingPage } from "@/app/components/BriefingPage";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.6.4";
+const APP_VERSION = "2.6.5";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 const NEWS_API_TRANSIENT_STATUSES = new Set([502, 503, 504]);
 const NEWS_API_RETRY_DELAY_MS = 750;
@@ -821,16 +820,26 @@ export default function Home() {
   const [periodToast, setPeriodToast] = useState<string | null>(null);
   const periodToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [topSummary, setTopSummary] = useState<SummaryResponse | null>(null);
+  /**
+   * /top-articles snapshot: pre-computed once a day by
+   * `cron-top-summary-background`, served by GET
+   * `/api/news/top-summary/latest`. The page no longer triggers any
+   * LLM call in real time — visiting the page just reads the latest
+   * row (today's if the cron has run, yesterday's otherwise).
+   */
+  type TopSummarySnapshot = SummaryResponse & {
+    summaryDate: string;
+    generatedAt: string;
+  };
+  const [topSummary, setTopSummary] = useState<TopSummarySnapshot | null>(null);
   const [topSummaryLoading, setTopSummaryLoading] = useState(false);
   /**
-   * Whether the user has explicitly asked for the AI summary on the
-   * Top-du-jour page. We no longer auto-generate on landing — it costs
-   * OpenAI tokens on every visit even when the user just wants to browse
-   * the article list. A gold CTA triggers the fetch.
+   * `null` while the first fetch is in flight, `true` once a snapshot
+   * has been delivered, `false` after a 404 (no row yet — typically
+   * before the first cron tick on a fresh deploy). Drives the empty
+   * state rendering vs. the loaded card.
    */
-  const [topSummaryRequested, setTopSummaryRequested] = useState(false);
-  const topSummaryKeyRef = useRef<string>("");
+  const [topSummaryAvailable, setTopSummaryAvailable] = useState<boolean | null>(null);
 
   // Topics to display: all in personalization mode (so user can toggle any),
   // filtered by committed prefs otherwise (no change until "Done" is clicked)
@@ -841,50 +850,65 @@ export default function Home() {
     : topicLabels;
 
   const isTopArticlesPage = currentPage === "topArticles";
-  /** Top 50: no background poll — periodic refetch could reorder articles and retrigger /api/news/top-summary, wiping the on-screen summary into loading. */
-  const topFeedPoll = false;
-  const {
-    articles: topFeed,
-    loading: topFeedLoading,
-    clear: clearTopFeed,
-    lastUpdatedAt: topFeedUpdatedAt,
-  } = useTopFeed({
-    poll: topFeedPoll,
-    lang,
-    preferredTopics: preferredTopicIds,
-    enabled: isTopArticlesPage,
-  });
 
-  // Only kicks off once the user has clicked the gold "Generate AI summary"
-  // CTA. A reopened page with the same top-50 list won't re-spend OpenAI
-  // tokens because the dedup key is stored in topSummaryKeyRef.
+  // Map the snapshot's frozen 50-article list to the shape expected by
+  // `<TopFeedSection>` / `TopFeedArticle`. Keeps the displayed list
+  // strictly aligned with what the LLM read, so each bullet's `refs`
+  // always points to a card visible just below.
+  const topFeed: TopFeedArticle[] = useMemo(() => {
+    if (!topSummary) return [];
+    type SnapshotArticle = TopSummarySnapshot["articles"][number] & {
+      topic?: string;
+      score?: number | null;
+    };
+    return topSummary.articles.map((raw) => {
+      const a = raw as SnapshotArticle;
+      return {
+        title: a.title,
+        snippet: a.snippet,
+        link: a.link,
+        source: a.source,
+        pubDate: a.pubDate,
+        topic: a.topic ?? "",
+        score: typeof a.score === "number" ? a.score : 0,
+      };
+    });
+  }, [topSummary]);
+
+  // Pre-computed snapshot fetch. Re-fires when the user lands on the
+  // page or switches lang. Cancellation guard avoids a stale response
+  // overwriting a newer one if the user toggles lang twice in a row.
   useEffect(() => {
-    if (!isTopArticlesPage || !topSummaryRequested || topFeed.length === 0) return;
-    const key = topFeed.map((a) => a.link).join("|");
-    if (key === topSummaryKeyRef.current) return;
-    topSummaryKeyRef.current = key;
+    if (!isTopArticlesPage) return;
+    let cancelled = false;
     setTopSummaryLoading(true);
-    setTopSummary(null);
-    fetch("/api/news/top-summary", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        articles: topFeed.map((a) => ({
-          title: a.title,
-          snippet: a.snippet,
-          link: a.link,
-          source: a.source,
-          pubDate: a.pubDate,
-          topic: a.topic,
-        })),
-        lang,
-      }),
-    })
-      .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
-      .then((json: SummaryResponse) => setTopSummary(json))
-      .catch(() => {})
-      .finally(() => setTopSummaryLoading(false));
-  }, [isTopArticlesPage, topFeed, lang, topSummaryRequested]);
+    fetch(`/api/news/top-summary/latest?lang=${lang}`, { cache: "no-store" })
+      .then(async (r) => {
+        if (cancelled) return null;
+        if (r.status === 404) {
+          setTopSummary(null);
+          setTopSummaryAvailable(false);
+          return null;
+        }
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return (await r.json()) as TopSummarySnapshot;
+      })
+      .then((json) => {
+        if (cancelled || !json) return;
+        setTopSummary(json);
+        setTopSummaryAvailable(true);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setTopSummaryAvailable(false);
+      })
+      .finally(() => {
+        if (!cancelled) setTopSummaryLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isTopArticlesPage, lang]);
 
   useEffect(() => {
     const check = async () => {
@@ -1000,9 +1024,7 @@ export default function Home() {
     setAllArticlesLoading(false);
     setTopSummary(null);
     setTopSummaryLoading(false);
-    setTopSummaryRequested(false);
-    topSummaryKeyRef.current = "";
-    clearTopFeed();
+    setTopSummaryAvailable(null);
   }
 
   function handleReset() {
@@ -1017,9 +1039,7 @@ export default function Home() {
     setAllArticlesLoading(false);
     setTopSummary(null);
     setTopSummaryLoading(false);
-    setTopSummaryRequested(false);
-    topSummaryKeyRef.current = "";
-    clearTopFeed();
+    setTopSummaryAvailable(null);
   }
 
   function showSelectTopicToast() {
@@ -1073,7 +1093,7 @@ export default function Home() {
           lang={lang}
           currentPage={currentPage}
           isAuthenticated={isAuthenticated}
-          analyzeTopLoading={topFeedLoading || topSummaryLoading}
+          analyzeTopLoading={topSummaryLoading}
           onNavigateBriefing={() => { setCurrentPage("briefing"); handleReset(); }}
           onNavigateHome={() => { setCurrentPage("home"); handleReset(); }}
           onNavigateFavorites={() => setCurrentPage("favorites")}
@@ -1205,123 +1225,73 @@ export default function Home() {
           ) : null
         ) : currentPage === "topArticles" ? (
           <div>
-            {topFeedLoading ? (
+            {topSummaryLoading && !topSummary ? (
               <div style={{ textAlign: "center", padding: "40px 0" }}>
                 <span style={spinnerStyle(24)} />
               </div>
-            ) : topFeed.length > 0 ? (
+            ) : topSummary ? (
               <>
-                {/* Single gold-bordered card. Its content switches between
-                    three states computed from one variable so no render
-                    can ever land on "all branches false" — which was the
-                    source of the 1-frame flicker on click. The AI summary
-                    is expensive (full top-50 sent to OpenAI), so we don't
-                    auto-fire. */}
-                {(() => {
-                  const state: "idle" | "loading" | "ready" = topSummary
-                    ? "ready"
-                    : topSummaryRequested || topSummaryLoading
-                    ? "loading"
-                    : "idle";
-
-                  return (
-                    <div
-                      style={{
-                        border: `1px solid ${color.gold}`,
-                        borderRadius: 12,
-                        padding: "24px 22px",
-                        margin: "16px 0 24px",
-                        background: "rgba(212, 175, 55, 0.06)",
-                        transition: "padding 200ms ease",
-                      }}
-                    >
-                      {state === "idle" && (
-                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, textAlign: "center" }}>
-                          <div style={{ color: color.gold, fontSize: 18, fontWeight: 700, letterSpacing: "0.02em" }}>
-                            {t("topSummaryCtaTitle", lang)}
-                          </div>
-                          <div style={{ color: color.textSecondary, fontSize: 14, lineHeight: 1.5, maxWidth: 520 }}>
-                            {t("topSummaryCtaHint", lang)}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              // Set both flags synchronously so the card jumps
-                              // directly from "idle" to "loading" on the very
-                              // same render — no empty intermediate frame.
-                              setTopSummaryRequested(true);
-                              setTopSummaryLoading(true);
-                            }}
-                            style={{
-                              ...primaryButtonStyle,
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 8,
-                              padding: "12px 28px",
-                              fontSize: 15,
-                              fontWeight: 700,
-                              marginTop: 4,
-                            }}
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                              <path d="M12 2l2.39 7.36H22l-6.19 4.5L18.2 21 12 16.5 5.8 21l2.39-7.14L2 9.36h7.61L12 2z" />
-                            </svg>
-                            {t("topSummaryCtaButton", lang)}
-                          </button>
-                        </div>
-                      )}
-                      {state === "loading" && (
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: 14,
-                            padding: "32px 0",
-                            animation: "topSummaryFadeIn 220ms ease-out both",
-                          }}
-                        >
-                          <span style={spinnerStyle(32)} />
-                          <span style={{ color: color.gold, fontSize: 14, fontWeight: 600, letterSpacing: "0.02em" }}>
-                            {lang === "fr" ? "Analyse IA — Génération du résumé" : "AI Analysis — Generating summary"}
-                          </span>
-                          <span style={{ color: color.textDim, fontSize: 12 }}>
-                            {lang === "fr" ? "Cela prend quelques secondes." : "This takes a few seconds."}
-                          </span>
-                        </div>
-                      )}
-                      {state === "ready" && topSummary && (
-                        <div
-                          style={{ animation: "topSummaryFadeIn 260ms ease-out both" }}
-                        >
-                          <SummaryBox
-                            data={topSummary}
-                            locale={locale}
-                            lang={lang}
-                            hours={24}
-                            topicName={t("analyzeTopArticlesBtn", lang)}
-                            speed={ttsSpeed}
-                            voice={lang === "fr" ? ttsVoiceFr : ttsVoice}
-                            embedded
-                          />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
+                <div
+                  style={{
+                    border: `1px solid ${color.gold}`,
+                    borderRadius: 12,
+                    padding: "24px 22px",
+                    margin: "16px 0 24px",
+                    background: "rgba(212, 175, 55, 0.06)",
+                  }}
+                >
+                  <SummaryBox
+                    data={topSummary}
+                    locale={locale}
+                    lang={lang}
+                    hours={24}
+                    topicName={t("analyzeTopArticlesBtn", lang)}
+                    speed={ttsSpeed}
+                    voice={lang === "fr" ? ttsVoiceFr : ttsVoice}
+                    embedded
+                  />
+                  <div
+                    style={{
+                      color: color.textDim,
+                      fontSize: 12,
+                      marginTop: 14,
+                      textAlign: "right",
+                      letterSpacing: "0.02em",
+                    }}
+                  >
+                    {t("topSummaryGeneratedOn", lang).replace(
+                      "{date}",
+                      new Date(topSummary.generatedAt).toLocaleString(locale),
+                    )}
+                  </div>
+                </div>
                 <TopFeedSection
                   articles={topFeed}
-                  loading={topFeedLoading}
+                  loading={false}
                   lang={lang}
                   locale={locale}
-                  lastUpdatedAt={topFeedUpdatedAt}
+                  lastUpdatedAt={null}
                   favoriteUrls={favoriteUrls}
                   onToggleFavorite={toggleFavorite}
                   isAuthenticated={isAuthenticated}
                   onRequestAuth={() => setAuthModalOpen(true)}
                 />
               </>
+            ) : topSummaryAvailable === false ? (
+              <div
+                style={{
+                  border: `1px solid ${color.border}`,
+                  borderRadius: 12,
+                  padding: "32px 22px",
+                  margin: "16px 0 24px",
+                  textAlign: "center",
+                  color: color.textSecondary,
+                  fontSize: 14,
+                  lineHeight: 1.5,
+                }}
+              >
+                {t("topSummaryNotYet", lang)}
+              </div>
             ) : (
               <div style={{ textAlign: "center", padding: "40px 0" }}>
                 <span style={spinnerStyle(24)} />

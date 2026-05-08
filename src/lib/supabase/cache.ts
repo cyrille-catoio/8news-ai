@@ -20,7 +20,12 @@ function getCacheTtlMinutes(hours: number): number {
 
 export interface CachedResponse {
   summary: string;
-  bullets: Array<{ text: string; refs: Array<{ title: string; link: string; source: string }> }>;
+  bullets: Array<{
+    text: string;
+    refs: Array<{ title: string; link: string; source: string }>;
+    /** Top articles surface only — see SummaryBullet in lib/types.ts. */
+    title?: string | null;
+  }>;
   articles: Array<{ title: string; link: string; source: string; pubDate: string; snippet: string }>;
   allArticles: Array<{ title: string; link: string; source: string; pubDate: string; snippet: string }>;
   period: { from: string; to: string };

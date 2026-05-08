@@ -1,0 +1,292 @@
+/**
+ * Shared core for the daily Top articles AI summary.
+ *
+ * Two callers:
+ *  - `netlify/functions/cron-top-summary-background.ts` — primary
+ *    production driver. Runs once a day on cron-job.org, generates a
+ *    fresh snapshot for both langs, persists into `top_summaries` +
+ *    mirrors bullets into `summary_bullets`.
+ *  - `src/app/api/news/top-summary/route.ts` — legacy POST endpoint
+ *    kept for manual debug / replay. The /top-articles UI no longer
+ *    calls it.
+ *
+ * Pipeline:
+ *  1. Pull the top 50 articles of the past 24 h (excluding hidden
+ *     topics) via `getTopArticlesForStats`.
+ *  2. Build the `ArticleSummary[]` payload + the editorial prompt
+ *     (FR or EN).
+ *  3. Call `analyzeWithAI` with `gpt-5.5` — returns bullets each
+ *     carrying { title, text, refs }.
+ *  4. Persist a frozen snapshot of the input articles + the rendered
+ *     `summary_md` into `top_summaries` (one row per (date, lang)).
+ *  5. Mirror per-bullet detail into `summary_bullets`
+ *     (source_type='top50') keyed on (lang, summary_date) so the GET
+ *     read path can hydrate structured data without parsing markdown.
+ *
+ * Idempotent: a re-run on the same (summary_date, lang) deletes the
+ * previous row first (both for `top_summaries` and the matching
+ * `summary_bullets` rows) before re-inserting. This is what makes
+ * intra-day re-ticks safe.
+ */
+
+import { analyzeWithAI } from "./ai-analyze";
+import {
+  getHiddenTopicIds,
+  getTopArticlesForStats,
+  insertTopSummaryBullets,
+  upsertTopSummary,
+  type TopSummaryArticle,
+} from "./supabase";
+import type { Lang } from "./i18n";
+import type { ArticleSummary } from "./types";
+import { SNIPPET_MAX } from "./constants";
+
+/** OpenAI model used for the editorial Top articles summary. */
+export const TOP_SUMMARY_MODEL = "gpt-5.5";
+
+/** Top-50, last 24 h (rolling window). */
+const TOP_DAYS = 1;
+const TOP_LIMIT = 50;
+
+/** Char cap on the snippet sent to the LLM (kept aligned with the
+ *  legacy POST route to avoid surprising the prompt). */
+const PROMPT_SNIPPET_MAX = 250;
+
+export function generateTopSummaryPrompt(lang: Lang): string {
+  if (lang === "fr") {
+    return [
+      "Tu es un rédacteur en chef spécialisé dans l'actualité technologique. Tu produis un briefing quotidien de haut niveau.",
+      "Tu reçois les 50 articles tech les mieux notés des dernières 24 heures.",
+      "",
+      "Règles strictes :",
+      "1. Regroupe les articles par grand thème HOMOGÈNE (ex : Intelligence Artificielle, Cybersécurité, Cloud & Infrastructure, Hardware & Semi-conducteurs, Startups & Levées de fonds, Régulation & Politique tech…).",
+      "2. Chaque bullet point doit couvrir UN SEUL thème cohérent. Ne mélange JAMAIS des sujets sans rapport (ex : ne parle pas de géopolitique dans un bullet sur l'IA, sauf si le lien technologique est direct comme les puces d'IA soumises à embargo).",
+      "3. Pour chaque bullet point, rédige 3 à 5 phrases détaillées : explique les faits, nomme les entreprises/acteurs clés, et explique pourquoi c'est important pour l'industrie tech.",
+      "4. Intègre systématiquement les CHIFFRES et DONNÉES concrètes mentionnés dans les articles (montants levés, pourcentages de croissance, nombre d'utilisateurs, benchmarks, prix, parts de marché…). Ajoute des ANECDOTES marquantes ou des détails surprenants quand les articles en contiennent, pour rendre le briefing vivant et mémorable.",
+      "5. Produis entre 8 et 15 bullet points selon la richesse de l'actualité.",
+      "6. Chaque bullet point DOIT référencer dans \"refs\" les indices de TOUS les articles qui alimentent ce point. C'est essentiel pour que le lecteur puisse accéder aux sources.",
+      "7. Si un article ne rentre dans aucun groupe cohérent, ignore-le plutôt que de forcer un regroupement artificiel.",
+      "8. Sois factuel, précis et informatif. Le ton doit être celui d'un analyste tech professionnel qui sait captiver son audience.",
+      "9. N'inclus JAMAIS de références aux articles, noms de sources ou numéros d'index dans le texte des bullet points (pas de citations entre parenthèses comme \"(Source)\", \"(Article 3)\", \"[TechCrunch]\", etc.). Les références sont gérées séparément via le tableau \"refs\".",
+      "10. Pour CHAQUE bullet, produis aussi un \"title\" : un titre court de 3 à 8 mots, accroche journalistique, ancré sur un nom propre, un produit ou un chiffre clé (ex : « OpenAI lève 40 Md$ », « Nvidia frôle les 4 000 Md$ », « Meta licencie 5 % de ses équipes IA »). Pas de guillemets, pas de ponctuation finale (ni point, ni « … »). Pas de chevrons. Le titre doit être informatif à lui seul (pas de teaser flou type « Une journée mouvementée pour la tech »).",
+      "",
+      "Réponds en JSON : {\"relevant\":[{\"index\":0,\"snippet\":\"résumé court\"}],\"globalSummary\":[{\"title\":\"titre court accrocheur\",\"text\":\"bullet point détaillé\",\"refs\":[0,1,...]}]}",
+    ].join("\n");
+  }
+  return [
+    "You are an editor-in-chief specializing in technology news. You produce a high-level daily briefing.",
+    "You receive the top 50 highest-scored tech articles from the last 24 hours.",
+    "",
+    "Strict rules:",
+    "1. Group articles by HOMOGENEOUS theme (e.g. Artificial Intelligence, Cybersecurity, Cloud & Infrastructure, Hardware & Semiconductors, Startups & Fundraising, Tech Regulation & Policy…).",
+    "2. Each bullet point must cover ONE coherent theme. NEVER mix unrelated topics (e.g. do not mention geopolitics in an AI bullet unless the tech link is direct, like AI chips under embargo).",
+    "3. For each bullet point, write 3-5 detailed sentences: explain the facts, name the key companies/players, and explain why it matters for the tech industry.",
+    "4. Systematically include NUMBERS and CONCRETE DATA from the articles (funding amounts, growth percentages, user counts, benchmarks, prices, market share…). Add striking ANECDOTES or surprising details when the articles contain them, to make the briefing vivid and memorable.",
+    "5. Produce 8-15 bullet points depending on how rich the news cycle is.",
+    "6. Each bullet point MUST reference in \"refs\" the indices of ALL articles that feed into that point. This is essential so readers can access the sources.",
+    "7. If an article does not fit any coherent group, skip it rather than forcing an artificial grouping.",
+    "8. Be factual, precise, and informative. The tone should be that of a professional tech analyst who knows how to captivate their audience.",
+    "9. NEVER include article references, source names, or index numbers inside the bullet text (no parenthetical citations like \"(Source)\", \"(Article 3)\", \"[TechCrunch]\", etc.). References are handled separately via the \"refs\" array.",
+    "10. For EACH bullet, also produce a \"title\": a short 3-8 word journalistic headline, anchored on a proper noun, product or key figure (e.g. \"OpenAI raises $40B\", \"Nvidia nears $4T market cap\", \"Meta cuts 5% of AI staff\"). No quotes, no trailing punctuation (no period, no ellipsis), no angle brackets. The title must be informative on its own (no vague teaser like \"A busy day in tech\").",
+    "",
+    "Respond with JSON: {\"relevant\":[{\"index\":0,\"snippet\":\"short summary\"}],\"globalSummary\":[{\"title\":\"short punchy headline\",\"text\":\"detailed bullet point\",\"refs\":[0,1,...]}]}",
+  ].join("\n");
+}
+
+export type GenerateTopSummaryStatus =
+  | "ok"
+  | "no_articles"
+  | "no_openai"
+  | "ai_error"
+  | "db_error";
+
+export interface GenerateTopSummaryResult {
+  status: GenerateTopSummaryStatus;
+  summaryDate: string;
+  lang: Lang;
+  articleCount: number;
+  bulletCount: number;
+  errorMessage?: string;
+}
+
+/**
+ * Pull the top 50 articles for the given lang and produce the AI
+ * snapshot. Caller passes the date used as the snapshot key (typically
+ * `today` in UTC).
+ *
+ * Optional `articlesOverride` lets the legacy POST route keep its
+ * existing client-supplied articles flow without re-querying the DB.
+ */
+export async function generateTopSummary(
+  summaryDate: string,
+  lang: Lang,
+  options: { articlesOverride?: TopSummaryArticle[] } = {},
+): Promise<GenerateTopSummaryResult> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey || apiKey.trim() === "" || apiKey === "sk-your-key-here") {
+    return {
+      status: "no_openai",
+      summaryDate,
+      lang,
+      articleCount: 0,
+      bulletCount: 0,
+      errorMessage: "OPENAI_API_KEY not configured",
+    };
+  }
+
+  let articles: TopSummaryArticle[] = options.articlesOverride ?? [];
+  if (articles.length === 0) {
+    const hiddenIds = await getHiddenTopicIds();
+    const rows = await getTopArticlesForStats(
+      null,
+      TOP_DAYS,
+      TOP_LIMIT,
+      hiddenIds.length > 0 ? hiddenIds : undefined,
+    );
+    articles = rows.map((r) => {
+      const aiSnippet = lang === "fr" ? r.snippet_ai_fr : r.snippet_ai_en;
+      const base = (aiSnippet || r.snippet || r.content || "").trim();
+      return {
+        title: r.title,
+        link: r.link,
+        source: r.source,
+        pubDate: r.pub_date,
+        snippet: base.slice(0, SNIPPET_MAX),
+        topic: r.topic,
+        score: r.relevance_score,
+      };
+    });
+  }
+
+  if (articles.length === 0) {
+    return {
+      status: "no_articles",
+      summaryDate,
+      lang,
+      articleCount: 0,
+      bulletCount: 0,
+    };
+  }
+
+  const items: ArticleSummary[] = articles.map((a) => ({
+    title: a.title,
+    link: a.link,
+    source: a.source,
+    pubDate: a.pubDate,
+    snippet: (a.snippet || "").slice(0, PROMPT_SNIPPET_MAX),
+  }));
+
+  const systemPrompt = generateTopSummaryPrompt(lang);
+
+  let summaryMd = "";
+  let bullets: Awaited<ReturnType<typeof analyzeWithAI>>["bullets"] = [];
+  try {
+    const result = await analyzeWithAI(items, systemPrompt, lang, apiKey, TOP_SUMMARY_MODEL);
+    summaryMd = result.summary;
+    bullets = result.bullets;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "unknown";
+    console.error(`[generateTopSummary] analyzeWithAI failed (lang=${lang}, date=${summaryDate}): ${msg}`);
+    return {
+      status: "ai_error",
+      summaryDate,
+      lang,
+      articleCount: articles.length,
+      bulletCount: 0,
+      errorMessage: msg,
+    };
+  }
+
+  // Persist the frozen snapshot first — even if the bullet mirror
+  // fails downstream, the GET endpoint can still render the summary
+  // and the article list.
+  const snapshotOk = await upsertTopSummary({
+    summaryDate,
+    lang,
+    model: TOP_SUMMARY_MODEL,
+    articles,
+    summaryMd,
+  });
+  if (!snapshotOk) {
+    return {
+      status: "db_error",
+      summaryDate,
+      lang,
+      articleCount: articles.length,
+      bulletCount: bullets.length,
+      errorMessage: "upsertTopSummary failed",
+    };
+  }
+
+  // Mirror each bullet into `summary_bullets` (source_type='top50').
+  // Same shape used by the legacy POST route + the daily-summary
+  // pipeline: the embedded `**Title**\n\nbody` markdown in `text` lets
+  // any plain-text consumer keep the visual hierarchy without joining
+  // on the dedicated `title` column.
+  if (bullets.length > 0) {
+    const bulletRows: Array<{
+      topic_id: string | null;
+      lang: string;
+      summary_date: string;
+      bullet_index: number;
+      title: string | null;
+      text: string;
+      refs: unknown;
+      source_type: string;
+      entities: string[];
+    }> = [];
+
+    for (let i = 0; i < bullets.length; i++) {
+      const blt = bullets[i];
+      const refIndices = (blt.refs ?? [])
+        .map((ref) => articles.findIndex((a) => a.link === ref.link))
+        .filter((idx) => idx >= 0);
+      const topics = new Set<string>();
+      for (const idx of refIndices) {
+        const t = articles[idx]?.topic;
+        if (t) topics.add(t);
+      }
+      const persistedText = blt.title
+        ? `**${blt.title}**\n\n${blt.text}`
+        : blt.text;
+      const titleValue = blt.title ?? null;
+      if (topics.size === 0) {
+        bulletRows.push({
+          topic_id: null,
+          lang,
+          summary_date: summaryDate,
+          bullet_index: i,
+          title: titleValue,
+          text: persistedText,
+          refs: blt.refs,
+          source_type: "top50",
+          entities: [],
+        });
+      } else {
+        for (const topicId of topics) {
+          bulletRows.push({
+            topic_id: topicId,
+            lang,
+            summary_date: summaryDate,
+            bullet_index: i,
+            title: titleValue,
+            text: persistedText,
+            refs: blt.refs,
+            source_type: "top50",
+            entities: [],
+          });
+        }
+      }
+    }
+
+    await insertTopSummaryBullets(lang, summaryDate, bulletRows);
+  }
+
+  return {
+    status: "ok",
+    summaryDate,
+    lang,
+    articleCount: articles.length,
+    bulletCount: bullets.length,
+  };
+}

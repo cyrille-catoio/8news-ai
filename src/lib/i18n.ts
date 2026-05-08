@@ -253,6 +253,22 @@ const strings = {
     en: "Are you sure?",
     fr: "Êtes-vous sûr ?",
   },
+  topicDeleteConfirmTitle: {
+    en: "Permanently delete topic",
+    fr: "Supprimer définitivement le topic",
+  },
+  topicDeleteConfirmBody: {
+    en: "This will permanently delete:\n• All RSS feeds linked to this topic\n• All articles fetched for this topic\n• All daily summaries and SEO bullet points\n• All video roundups\n• This topic from every user's selected topics\n• All home rotation queue entries\n\nLinked YouTube channels, videos and transcriptions will be kept but unlinked from the topic.\n\nThis action cannot be undone.",
+    fr: "Cela supprimera définitivement :\n• Tous les flux RSS liés à ce topic\n• Tous les articles collectés pour ce topic\n• Tous les résumés quotidiens et leurs bullets SEO\n• Tous les roundups vidéo\n• Ce topic des préférences de tous les utilisateurs\n• Toutes les entrées de la file de rotation home\n\nLes chaînes YouTube, vidéos et transcriptions liées seront conservées mais détachées du topic.\n\nAction irréversible.",
+  },
+  topicDeleteSuccessNotice: {
+    en: "Topic deleted ({articles} articles, {queue} queue entries, {prefs} user prefs cleaned).",
+    fr: "Topic supprimé ({articles} articles, {queue} entrées de file, {prefs} préférences nettoyées).",
+  },
+  topicDeleteIconTitle: {
+    en: "Delete this topic",
+    fr: "Supprimer ce topic",
+  },
   addFeed: {
     en: "Add feed",
     fr: "Ajouter un flux",
@@ -674,15 +690,15 @@ const strings = {
     fr: "Accueil",
   },
   /** General menu: goes to the topic-grouped article flow (`/app/articles`).
-   *  Renamed from "Topics" to "Articles" in v2.5.17 to remove the
-   *  topics/topics cognitive collision (the word "topics" is heavily reused
-   *  in the app — "your topics", "8 topics out of 36", "customize my topics"
-   *  — and using it as a nav button confused users into expecting a topic
-   *  management screen instead of a content feed). The pill now signals
-   *  format (articles, by opposition to videos) instead of the grouping. */
+   *  Renamed from "Topics" to "Articles" in v2.5.17, then to "All topics"
+   *  / "Tous les topics" in v2.6.5 to make the affordance clearer — the
+   *  page is, in practice, the entry point to browse every topic the
+   *  visitor has access to (with an article-list per topic). The key
+   *  name `generalMenuArticlesBtn` is kept as a compatibility alias to
+   *  avoid a sweep across 14 unrelated callsites. */
   generalMenuArticlesBtn: {
-    en: "Articles",
-    fr: "Articles",
+    en: "All topics",
+    fr: "Tous les topics",
   },
   navTopicsAria: {
     en: "Topics",
@@ -847,17 +863,13 @@ const strings = {
     en: "Top articles",
     fr: "Top articles",
   },
-  topSummaryCtaTitle: {
-    en: "AI summary of today's top",
-    fr: "Résumé IA du top du jour",
+  topSummaryGeneratedOn: {
+    en: "Generated on {date}",
+    fr: "Généré le {date}",
   },
-  topSummaryCtaHint: {
-    en: "Get a 2-minute digest of the 50 most relevant stories across all your topics.",
-    fr: "Obtenez un condensé de 2 min des 50 actus les plus pertinentes, tous topics confondus.",
-  },
-  topSummaryCtaButton: {
-    en: "Generate AI summary",
-    fr: "Générer le résumé IA",
+  topSummaryNotYet: {
+    en: "Today's AI summary is not available yet — it will appear automatically after the next scheduled run.",
+    fr: "Le résumé IA du jour n'est pas encore disponible — il apparaîtra automatiquement après le prochain passage du cron.",
   },
   myTopicsEdit: {
     en: "Edit",

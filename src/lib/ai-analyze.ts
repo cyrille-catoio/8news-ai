@@ -80,18 +80,36 @@ export async function analyzeWithAI(
   let bullets: SummaryBullet[] = [];
 
   if (Array.isArray(parsed.globalSummary)) {
-    const arr = parsed.globalSummary as Array<{ text: string; refs?: number[] }>;
-    bullets = arr.map((b) => ({
-      text: (typeof b === "string" ? b : b.text ?? "").replace(/^•\s*/, "").trim(),
-      refs: (b.refs ?? [])
-        .filter((idx) => idx >= 0 && idx < items.length)
-        .map((idx) => ({
-          title: items[idx].title,
-          link: items[idx].link,
-          source: items[idx].source,
-        })),
-    })).filter((b) => b.text.length > 0);
-    summaryText = bullets.map((b) => `• ${b.text}`).join("\n");
+    const arr = parsed.globalSummary as Array<{ text: string; refs?: number[]; title?: string }>;
+    bullets = arr.map((b) => {
+      const rawTitle = typeof b === "string" ? "" : (b.title ?? "");
+      const cleanedTitle = rawTitle
+        .replace(/^\s*["“«]+|["”»]+\s*$/g, "")
+        .replace(/[\.…]+\s*$/u, "")
+        .trim();
+      return {
+        text: (typeof b === "string" ? b : b.text ?? "").replace(/^•\s*/, "").trim(),
+        refs: (b.refs ?? [])
+          .filter((idx) => idx >= 0 && idx < items.length)
+          .map((idx) => ({
+            title: items[idx].title,
+            link: items[idx].link,
+            source: items[idx].source,
+          })),
+        title: cleanedTitle.length > 0 ? cleanedTitle : null,
+      };
+    }).filter((b) => b.text.length > 0);
+    // When the prompt produces per-bullet titles, render them in bold
+    // above each bullet so the markdown surface (returned `summary`
+    // string) carries the same hierarchy as the persisted DB rows.
+    // Without a title we fall back to the previous bullet-only layout
+    // (single newline between bullets) — that path is what every
+    // non-Top-articles caller still uses, so layout stays unchanged
+    // for them.
+    const hasAnyTitle = bullets.some((b) => b.title);
+    summaryText = bullets
+      .map((b) => (b.title ? `**${b.title}**\n• ${b.text}` : `• ${b.text}`))
+      .join(hasAnyTitle ? "\n\n" : "\n");
   } else {
     const str = typeof parsed.globalSummary === "string" ? parsed.globalSummary : msg.fallback;
     summaryText = str;

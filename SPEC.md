@@ -67,7 +67,7 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 | Database | Supabase (PostgreSQL) | via `@supabase/supabase-js` ^2.99.2 |
 | Auth (session cookies) | Supabase Auth + `@supabase/ssr` ^0.10.2 — browser anon client + `middleware.ts` refresh + `resolveServerLang()` SSR helper | — |
 | Hosting | Netlify | via `@netlify/plugin-nextjs` ^5.15.8 |
-| Cron Jobs | Netlify Background Functions (15 min budget) triggered every minute for fetching or every 15 min for scoring/transcribe/summary/roundup/video-summary-score by **cron-job.org** | `@netlify/functions` ^5.1.4 |
+| Cron Jobs | Netlify Background Functions (15 min budget) triggered every minute for fetching, every 15 min for scoring/transcribe/summary/roundup/video-summary-score, and **once a day** for `cron-top-summary-background` by **cron-job.org** | `@netlify/functions` ^5.1.4 |
 | Domain | 8news.ai (redirect from 8news.netlify.app) | |
 
 ---
@@ -148,7 +148,8 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 │       ├── cron-scoring-background.ts          # Multi-pass AI scoring (15 min wall budget, every 15 min)
 │       ├── cron-daily-summary-background.ts    # Daily SEO summary generation (every 15 min, all topics × EN+FR, skip-if-exists)
 │       ├── cron-video-roundup-background.ts    # **v2.4+**: Per-topic-per-day roundups, **v2.4.1+** 48 h source window
-│       └── cron-video-transcribe-background.ts # **v2.5+**: Pre-warm transcribe of every "today's" video, EN+FR; **v2.5.4+** uses `gpt-5.3-chat-latest` with a 180 s OpenAI timeout
+│       ├── cron-video-transcribe-background.ts # **v2.5+**: Pre-warm transcribe of every "today's" video, EN+FR; **v2.5.4+** uses `gpt-5.3-chat-latest` with a 180 s OpenAI timeout
+│       └── cron-top-summary-background.ts      # Daily Top 50 AI summary snapshot (gpt-5.5, EN+FR), persisted into `top_summaries`. Reads served by GET /api/news/top-summary/latest — no on-demand LLM call from /top-articles anymore.
 ├── migrations/
 │   ├── 001-topics-feeds.sql                # topics + feeds tables, seed 8 topics + ~160 feeds
 │   ├── 002-prompts.sql                     # prompt_en/prompt_fr columns, seed prompts
@@ -171,7 +172,10 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 │   ├── 019-articles-title-ai.sql           # **v2.5.x**: articles.title_ai_en / title_ai_fr (AI-translated titles for the Top story hero)
 │   ├── 020-crypto-cache.sql                # **v2.5.17+**: crypto_prices cache (BTC/ETH/SOL/XRP) for the AppHeader live ticker
 │   ├── 021-video-summary-score.sql         # video_transcriptions.summary_score + summary_scored_at (AI recap quality 1-10)
-│   └── 022-home-surface-queue.sql          # **v2.6+** home_surface_queue (article + video round-robin queue) + pick_home_surface() RPC + backfill
+│   ├── 022-home-surface-queue.sql          # **v2.6+** home_surface_queue (article + video round-robin queue) + pick_home_surface() RPC + backfill
+│   ├── 023-video-title-localized.sql       # **v2.5.x+** video_transcriptions.title_localized (per-lang AI title)
+│   ├── 024-summary-bullets-title.sql       # summary_bullets.title (short journalistic title per Top articles bullet)
+│   └── 025-top-summaries.sql               # top_summaries snapshot for the daily Top articles cron (gpt-5.5)
 ├── .gitignore
 ├── .env                                    # API keys (not committed)
 ├── netlify.toml                            # Netlify build + redirect config
@@ -408,6 +412,19 @@ Canonical implementations live in `src/lib/`:
 - Single bulk SELECT on `video_transcriptions(video_id, lang)` builds a `Set<videoId|lang>` of already-done buckets — fast-skip pattern, no per-bucket cache check
 - For each candidate × `(en, fr)`: full pipeline on the first lang (~25-90 s on `gpt-5.3-chat-latest`), then translate path on the second lang (~15-25 s) since the alt-lang cache row now exists
 - **v2.5.4+** Calls `transcribeVideo()` with `model: "gpt-5.3-chat-latest"` and `openaiTimeoutMs: 180_000` (vs the synchronous route's `gpt-4.1-mini` + 25 s budget). Result: ~95 % of summaries a real visitor sees come from this higher-quality background pre-warm path; the synchronous on-demand button is now only a fallback for very-fresh videos not yet picked up by a tick
+
+#### `cron-top-summary-background.ts` — Daily Top articles AI summary snapshot
+
+- Triggered **once a day** by cron-job.org (suggested `0 2 * * *` UTC). Each tick produces both `en` and `fr` snapshots in sequence.
+- Driver: a flat loop over `['en','fr']` calling the shared lib `generateTopSummary(today, lang)`. No fan-out by topic — the Top 50 is a global cross-topic feed.
+- Pipeline per lang:
+  - Pulls the top 50 articles of the last 24 h via `getTopArticlesForStats(null, 1, 50)` excluding `is_displayed=false` topics (mirror of what `/api/news/top` returns to the live feed).
+  - Calls `analyzeWithAI` with **`gpt-5.5`** and the editorial prompt (group by theme, 3-5 sentence bullets, per-bullet 3-8-word title since v2.6).
+  - Persists the snapshot atomically: a row in `top_summaries (summary_date, lang)` with the frozen 50-article list (JSONB) + the rendered markdown, then a bullet-by-bullet mirror into `summary_bullets` (`source_type='top50'`, keyed `(lang, summary_date)`).
+- Idempotent: re-ticking the same day deletes the previous row first (both for `top_summaries` and the matching `summary_bullets` rows). Useful when the operator wants a refresh after late-arriving high-score articles.
+- Date override: `TOP_SUMMARY_DATE=YYYY-MM-DD` to backfill or replay a past date.
+- Bootstrap after first deploy: `curl https://<host>/.netlify/functions/cron-top-summary-background` so the page has a row to render before the next scheduled tick.
+- Read path: `GET /api/news/top-summary/latest?lang=…` returns the latest available row (transparent fallback to yesterday if today's tick hasn't landed). The /top-articles page reads exclusively from this endpoint; **no on-demand LLM call from the UI anymore**.
 
 **Scoring criteria** (stored in `topics` table, used by `gpt-4.1-nano` scoring runs):
 - **9-10**: Major breaking news
@@ -1145,13 +1162,22 @@ interface CronStatsResponse {
           │    pull last 48 h transcribed videos for the topic         │
           │  - gpt-5.3-chat-latest → 8 structured bullets + SEO meta   │
           │  - Persist video_roundups + mirror to summary_bullets      │
+          │                                                            │
+          │  cron-top-summary-background.ts     (1×/day, 02:00 UTC)    │
+          │  - Pulls top 50 articles of last 24 h (excl. hidden topics)│
+          │  - For each {en,fr}: gpt-5.3-chat-latest → bullets + titles│
+          │  - Persists snapshot in `top_summaries` (articles + MD)    │
+          │  - Mirrors per-bullet rows to `summary_bullets` (top50)    │
           └────────────────────────────────────────────────────────────┘
 
 User opens / (landing) → SSR landing
 User opens /app       → client SPA → BriefingPage (default)
                               ├─ Top 50 via /api/news/top  (poll 5 min)
-                              ├─ Opt-in /api/news/top-summary  (gpt-5.3-chat-latest)
                               └─ /api/video-pages/recent  (10 per page, flat published_date DESC)
+                       → /top-articles
+                              └─ GET /api/news/top-summary/latest
+                                  reads pre-computed `top_summaries` row
+                                  (articles list + bullets) — no LLM at request time
 
 User opens /briefings, /summaries, /[topic], /[topic]/[date]/[slug],
            /[topic]/v/[date]/[slug], /[topic]/r/[date]/[slug]
@@ -1167,7 +1193,7 @@ User opens /briefings, /summaries, /[topic], /[topic]/[date]/[slug],
 - **Build command**: `npm run build`
 - **Publish directory**: `.next`
 - **Plugin**: `@netlify/plugin-nextjs`
-- **Background functions**: 6 cron jobs — `cron-fetching-background`, `cron-scoring-background`, `cron-daily-summary-background`, `cron-video-roundup-background`, `cron-video-transcribe-background`, `cron-video-summary-score-background` (batched 1-10 quality score for `video_transcriptions.summary_md`; same 15 min wall as other long crons; trigger on your cadence, e.g. every 15 min — no auth, URL-obscurity like the other background crons)
+- **Background functions**: 7 cron jobs — `cron-fetching-background`, `cron-scoring-background`, `cron-daily-summary-background`, `cron-video-roundup-background`, `cron-video-transcribe-background`, `cron-video-summary-score-background` (batched 1-10 quality score for `video_transcriptions.summary_md`; same 15 min wall as other long crons; trigger on your cadence, e.g. every 15 min — no auth, URL-obscurity like the other background crons), and **`cron-top-summary-background`** — daily Top articles AI summary snapshot (suggested cadence `0 2 * * *` UTC; one tick per day produces the EN+FR rows in `top_summaries`; bootstrap manually after first deploy with `curl https://<host>/.netlify/functions/cron-top-summary-background`).
 - **Rewrites**: every `/app/*` SPA pseudo-route is rewritten to `/app` via `next.config.ts.beforeFiles` (hard-refresh resilience for the SPA)
 - **Domain**: `8news.ai`
 - **Redirect**: `8news.netlify.app/*` → `8news.ai/:splat` (301)

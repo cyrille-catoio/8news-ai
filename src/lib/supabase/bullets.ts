@@ -56,6 +56,13 @@ export async function insertTopSummaryBullets(
     lang: string;
     summary_date: string;
     bullet_index: number;
+    /**
+     * Short journalistic title rendered in bold above the bullet body.
+     * Populated since migration 024 by the Top articles pipeline only;
+     * NULL on legacy rows (any insert before the column existed) and
+     * still NULL for any future writer that doesn't produce a title.
+     */
+    title: string | null;
     text: string;
     refs: unknown;
     source_type: string;

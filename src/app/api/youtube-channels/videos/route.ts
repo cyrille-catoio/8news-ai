@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getChannelLatest, type RssVideoResult } from "@/lib/transcript-api";
 import { createClient } from "@supabase/supabase-js";
 import { normalizeSummaryHeadings } from "@/lib/summary-headings";
 import { enrichDurations } from "@/lib/youtube-duration";
 import { transcribeVideo } from "@/lib/transcribe-video";
+import { refreshYoutubeVideosFromRss } from "@/lib/refresh-youtube-videos";
 
 function getDb() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -94,49 +94,11 @@ function zonedDayBounds(dateStr: string, tz: string): { start: Date; end: Date }
 
 /**
  * Fetch latest videos from all active channels via TranscriptAPI RSS,
- * upsert them into youtube_videos, then return.
+ * upsert them into youtube_videos. Logic shared with the transcribe
+ * cron (see `src/lib/refresh-youtube-videos.ts`).
  */
 async function refreshFromRss(db: ReturnType<typeof getDb>) {
-  const { data: channels } = await db
-    .from("youtube_channels")
-    .select("channel_id, title, topic_id")
-    .eq("is_active", true);
-
-  if (!channels || channels.length === 0) return;
-
-  await Promise.allSettled(
-    channels.map(async (ch) => {
-      try {
-        const latest = await getChannelLatest(ch.channel_id);
-        const rows = latest.results
-          .filter((v: RssVideoResult) => v.videoId && v.published)
-          .map((v: RssVideoResult) => {
-            const pub = new Date(v.published!);
-            return {
-              video_id: v.videoId!,
-              channel_id: ch.channel_id,
-              channel_title: latest.channel?.title ?? ch.title,
-              title: v.title ?? "Untitled",
-              description: v.description ?? null,
-              published: v.published!,
-              published_date: toDateStr(pub),
-              thumbnail: v.thumbnail?.url ?? null,
-              view_count: v.viewCount ?? null,
-              topic_id: ch.topic_id ?? null,
-              link: v.link ?? `https://www.youtube.com/watch?v=${v.videoId}`,
-            };
-          });
-
-        if (rows.length > 0) {
-          await db
-            .from("youtube_videos")
-            .upsert(rows, { onConflict: "video_id", ignoreDuplicates: false });
-        }
-      } catch {
-        // skip channels that fail
-      }
-    }),
-  );
+  await refreshYoutubeVideosFromRss(db);
 }
 
 async function prewarmLatestMissingTranscription({

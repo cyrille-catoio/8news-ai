@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { transcribeVideo } from "./shared/transcribe-video";
 import { enrichDurations } from "../../src/lib/youtube-duration";
+import { refreshYoutubeVideosFromRss } from "../../src/lib/refresh-youtube-videos";
 
 /**
  * 15-minute background function — pre-warms the AI summary cache for
@@ -73,6 +74,24 @@ export default async () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { persistSession: false } },
   );
+
+  // 0. Pull the latest videos from every active channel BEFORE we look
+  // at the candidate window. Without this step the cron silently
+  // depended on organic SPA traffic to keep `youtube_videos` fresh —
+  // a quiet 48 h on /app/videos starves the table and the cron logs
+  // « No candidate videos in the last 24h » indefinitely. The refresh
+  // is best-effort: a failing TranscriptAPI on one channel is
+  // counted but doesn't abort the run.
+  try {
+    const refreshStart = Date.now();
+    const refreshResult = await refreshYoutubeVideosFromRss(supabase);
+    console.log(
+      `[cron-video-transcribe] rss-refresh channels=${refreshResult.channelsTotal} ok=${refreshResult.channelsOk} failed=${refreshResult.channelsFailed} rows_upserted=${refreshResult.rowsUpserted} elapsed_ms=${Date.now() - refreshStart}`,
+    );
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "unknown";
+    console.warn(`[cron-video-transcribe] rss-refresh threw — ${msg}`);
+  }
 
   // 1. Pull candidates: published in the last 24h, has a topic_id (so the
   // SSR `/v/` page can be generated downstream).

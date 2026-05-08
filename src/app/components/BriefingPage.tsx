@@ -659,18 +659,22 @@ function HistoryArrows({
         marginLeft: 8,
       }}
     >
+      {/* Left chevron walks toward « now » (newer / back to live);
+          right chevron walks toward the past (older). Mirrors the
+          natural reading direction « now → past » that the product
+          team validated for the home rotation. */}
       <button
         type="button"
-        onClick={onPrev}
-        disabled={!canGoOlder}
-        aria-label={lang === "fr" ? "Précédent (plus ancien)" : "Previous (older)"}
+        onClick={onNext}
+        disabled={!canGoNewer}
+        aria-label={lang === "fr" ? "Plus récent" : "Newer"}
         style={{
           ...baseBtn,
-          opacity: canGoOlder ? 0.7 : 0.2,
-          cursor: canGoOlder ? "pointer" : "not-allowed",
+          opacity: canGoNewer ? 0.7 : 0.2,
+          cursor: canGoNewer ? "pointer" : "not-allowed",
         }}
         onMouseEnter={(e) => {
-          if (canGoOlder) (e.currentTarget as HTMLButtonElement).style.color = color.gold;
+          if (canGoNewer) (e.currentTarget as HTMLButtonElement).style.color = color.gold;
         }}
         onMouseLeave={(e) => {
           (e.currentTarget as HTMLButtonElement).style.color = color.textDim;
@@ -680,16 +684,16 @@ function HistoryArrows({
       </button>
       <button
         type="button"
-        onClick={onNext}
-        disabled={!canGoNewer}
-        aria-label={lang === "fr" ? "Suivant (plus récent)" : "Next (newer)"}
+        onClick={onPrev}
+        disabled={!canGoOlder}
+        aria-label={lang === "fr" ? "Plus ancien" : "Older"}
         style={{
           ...baseBtn,
-          opacity: canGoNewer ? 0.7 : 0.2,
-          cursor: canGoNewer ? "pointer" : "not-allowed",
+          opacity: canGoOlder ? 0.7 : 0.2,
+          cursor: canGoOlder ? "pointer" : "not-allowed",
         }}
         onMouseEnter={(e) => {
-          if (canGoNewer) (e.currentTarget as HTMLButtonElement).style.color = color.gold;
+          if (canGoOlder) (e.currentTarget as HTMLButtonElement).style.color = color.gold;
         }}
         onMouseLeave={(e) => {
           (e.currentTarget as HTMLButtonElement).style.color = color.textDim;
@@ -1441,7 +1445,13 @@ function RecentVideoPagesSection({
                       padding: "1px 5px", letterSpacing: "0.03em",
                       textTransform: "uppercase",
                       flexShrink: 0,
-                      alignSelf: "center",
+                      // Top-aligned next to the first line of a multi-line
+                      // title (parent's baseline alignment would let the
+                      // badge drop too low when the title wraps). The 2px
+                      // top margin lines the badge's top edge up with the
+                      // visual top of the title's first line at 14px / 1.4.
+                      alignSelf: "flex-start",
+                      marginTop: 2,
                     }}>
                       {labelById.get(p.topicId) ?? p.topicId}
                     </span>

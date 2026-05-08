@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { LANDING_CONTENT, type LandingLang } from "@/lib/landing-content";
-import { LandingVideoHero } from "./LandingVideoHero";
 
 export function LandingHero({ lang }: { lang: LandingLang }) {
   const h = LANDING_CONTENT.hero;
@@ -30,11 +29,30 @@ export function LandingHero({ lang }: { lang: LandingLang }) {
           </div>
         </div>
         <div className="hero-visual">
-          {/* Visual centered on the YouTube → AI summary pipeline (the
-              actual flagship of the product). The previous RSS scoring
-              console moves to its own dedicated section below the hero
-              — see LandingScoringSection. */}
-          <LandingVideoHero lang={lang} />
+          {/* v2.6.4 — the standalone « YouTube intelligence » section
+              folded into the hero. The summary preview screenshot
+              that used to live in `LandingYT` is promoted here as the
+              hero illustration: it pictures exactly what the new sub
+              copy describes (audio player + intro + key points). The
+              previous `LandingVideoHero` mock is retired. */}
+          <img
+            src="/landing/yt-summary-preview.png"
+            alt={
+              lang === "fr"
+                ? "Aperçu d'un résumé vidéo YouTube généré par 8news avec lecteur audio, intro et points clés."
+                : "Preview of an 8news YouTube video summary with audio player, intro and key points."
+            }
+            loading="eager"
+            style={{
+              width: "100%",
+              height: "auto",
+              display: "block",
+              borderRadius: 12,
+              border: "1px solid var(--border)",
+              boxShadow:
+                "0 20px 60px -20px rgba(201, 162, 39, 0.15), 0 0 0 1px rgba(255,255,255,0.02) inset",
+            }}
+          />
         </div>
       </div>
     </section>

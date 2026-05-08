@@ -6,7 +6,7 @@ import { LandingConsole } from "./LandingConsole";
  * RSS-pipeline demo just below the hero. Used to live inside the hero
  * itself; promoted to a section of its own when the hero visual was
  * refocused on the YouTube → AI summary pipeline (see `LandingHero` →
- * `LandingVideoHero`). The RSS scoring is still core to the product,
+ * `LandingHero` image). The RSS scoring is still core to the product,
  * just no longer the headline visual — it now sits in second position
  * with a kicker + title that name what the user is looking at.
  */

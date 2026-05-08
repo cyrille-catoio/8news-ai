@@ -8,7 +8,6 @@ import { LandingTicker } from "@/app/components/landing/LandingTicker";
 import { LandingStats } from "@/app/components/landing/LandingStats";
 import { LandingHow } from "@/app/components/landing/LandingHow";
 import { LandingTopics } from "@/app/components/landing/LandingTopics";
-import { LandingYT } from "@/app/components/landing/LandingYT";
 import { LandingPricing } from "@/app/components/landing/LandingPricing";
 import { LandingFAQ } from "@/app/components/landing/LandingFAQ";
 import { LandingCTA } from "@/app/components/landing/LandingCTA";
@@ -57,13 +56,17 @@ export default async function Page({ searchParams }: PageProps) {
     <div className="landing-root" data-lang={lang} data-hero="sober">
       <LandingNav lang={lang} />
       <LandingHero lang={lang} />
+      {/* Topics ticker (DB-backed): sits directly under the hero so the
+          first thing a visitor sees after the H1 is the actual coverage
+          breadth. Animated marquee, server-rendered async to pull
+          `topics` rows live (falls back to a curated static list when
+          the DB is offline). */}
+      <LandingTicker lang={lang} />
       {/* RSS scoring demo — was inside the hero, promoted to its own
           section in 2nd position when the hero visual was refocused on
           the YouTube → AI summary pipeline. */}
       <LandingScoringSection lang={lang} />
-      <LandingTicker lang={lang} />
       <LandingStats lang={lang} />
-      <LandingYT lang={lang} />
       <LandingHow lang={lang} />
       <LandingTopics lang={lang} />
       <LandingPricing lang={lang} />

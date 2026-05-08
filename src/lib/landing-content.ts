@@ -24,17 +24,6 @@ export interface LandingContent {
     footer: { en: string; fr: string };
     rows: Array<{ s: number; t_en: string; t_fr: string; src: string; topic: string }>;
   };
-  videoHero: {
-    title_en: string;
-    title_fr: string;
-    channel: string;
-    duration: string;
-    badge: { en: string; fr: string };
-    arrow: { en: string; fr: string };
-    bullets_en: string[];
-    bullets_fr: string[];
-    perVideoBadge: { en: string; fr: string };
-  };
   scoringSection: {
     kicker: { en: string; fr: string };
     title: { en: string; fr: string };
@@ -61,19 +50,6 @@ export interface LandingContent {
     title: { en: string; fr: string };
     sub: { en: string; fr: string };
     list: Array<{ label_en: string; label_fr: string; feeds: number }>;
-  };
-  yt: {
-    kicker: { en: string; fr: string };
-    title: { en: string; fr: string };
-    sub: { en: string; fr: string };
-    cards: Array<{
-      title_en: string;
-      title_fr: string;
-      channel: string;
-      dur: string;
-      bullets_en: string[];
-      bullets_fr: string[];
-    }>;
   };
   pricing: {
     kicker: { en: string; fr: string };
@@ -106,8 +82,11 @@ export interface LandingContent {
 export const LANDING_CONTENT: LandingContent = {
   nav: {
     links: {
-      en: [["features", "How it works"], ["topics", "Topics"], ["videos", "Video AI"], ["pricing", "Pricing"], ["faq", "FAQ"]],
-      fr: [["features", "Fonctionnement"], ["topics", "Topics"], ["videos", "Vidéo IA"], ["pricing", "Tarifs"], ["faq", "FAQ"]],
+      // « videos » entry was removed when LandingYT folded into the hero
+      // (v2.6.4) — the hero now showcases the YouTube → AI summary
+      // pipeline directly so a separate anchor was redundant.
+      en: [["features", "How it works"], ["topics", "Topics"], ["pricing", "Pricing"], ["faq", "FAQ"]],
+      fr: [["features", "Fonctionnement"], ["topics", "Topics"], ["pricing", "Tarifs"], ["faq", "FAQ"]],
     },
     signin: { en: "Sign in", fr: "Se connecter" },
     cta: { en: "Try it now", fr: "Essayer" },
@@ -119,8 +98,12 @@ export const LANDING_CONTENT: LandingContent = {
       fr: "2 heures de YouTube,<br /><em>lues en 8 minutes.</em>",
     },
     sub: {
-      en: "8news aggregates the YouTube channels you actually care about and 400+ articles per day. AI scores every article from 1 to 10.",
-      fr: "8news agrège les chaînes YouTube qui comptent et plus de 5000 articles par jour. L'IA score chaque article de 1 à 10.",
+      // Folded the « YouTube intelligence » section copy into the hero
+      // so the visitor gets the full pitch in the first viewport
+      // (LandingYT was removed in v2.6.4 — its standalone visual
+      // becomes the hero illustration).
+      en: "A 2-hour podcast, summarized in 8 key points. Pick the YouTube channels you follow. 8news ingests daily uploads, transcribes the ones you click, and returns a structured Markdown summary. Smart bilingual: summary in English and translated to French in under 10 seconds. Download the full transcript as a .txt file or the summary as .md in one click.",
+      fr: "Un podcast de 2 heures, résumé en 8 points clés. Choisissez les chaînes YouTube que vous suivez. 8news récupère les uploads du jour, transcrit celles que vous cliquez, et renvoie un résumé Markdown structuré. Bilingue intelligent, résumé en anglais et traduit en français en moins de 10 secondes. Téléchargez la transcription complète au format .txt ou le résumé au format .md en un clic.",
     },
     ctaPrimary: { en: "Try it now →", fr: "Essayer →" },
     ctaSecondary: { en: "See a daily summary", fr: "Voir un résumé du jour" },
@@ -140,33 +123,6 @@ export const LANDING_CONTENT: LandingContent = {
       { s: 5,  t_en: "Tesla delays Optimus Gen-3 reveal to Q3 2026 earnings call", t_fr: "Tesla repousse la présentation d'Optimus Gen-3 à l'appel résultats du T3 2026", src: "reuters.com", topic: "ELON" },
       { s: 3,  t_en: "Op-ed: why AI companies keep naming products after colors", t_fr: "Tribune : pourquoi les boîtes IA nomment leurs produits avec des couleurs", src: "medium.com", topic: "AI" },
     ],
-  },
-  // Static visual mock for the home hero (right column). Mirrors the
-  // shape of a real `video_transcriptions` row + its `youtube_videos`
-  // metadata so the marketing page advertises exactly what the product
-  // ships: a YouTube thumbnail, an AI summary in 3 gold bullets, and a
-  // « 45 min · Par vidéo » badge that quantifies the time saved.
-  videoHero: {
-    title_en: "Why this Tuesday could be decisive for crypto",
-    title_fr: "Pourquoi ce mardi peut être décisif pour la crypto",
-    channel: "Hasheur",
-    duration: "47:32",
-    badge: { en: "▶ YouTube", fr: "▶ YouTube" },
-    arrow: {
-      en: "✦ Transcribed & summarized by AI in 18 sec ✦",
-      fr: "✦ Transcrit & résumé par IA en 18 sec ✦",
-    },
-    bullets_en: [
-      "Bitcoin stuck at $80K — nobody knows if it bounces or dives.",
-      "Clarity Act unlocks regulation; Circle stock jumps on the news.",
-      "Strategy: buy now or wait? On-chain and macro signals dissected.",
-    ],
-    bullets_fr: [
-      "Bitcoin bloqué à 80 000 $ — personne ne sait si ça repart ou replonge.",
-      "Clarity Act débloque la régulation ; l'action Circle s'envole.",
-      "Stratégie : acheter maintenant ou attendre ? Signaux on-chain et macro décortiqués.",
-    ],
-    perVideoBadge: { en: "45 min · Per video", fr: "45 min · Par vidéo" },
   },
   scoringSection: {
     kicker: { en: "Live · scoring console", fr: "Live · console de scoring" },
@@ -245,55 +201,6 @@ export const LANDING_CONTENT: LandingContent = {
       { label_en: "Video Games", label_fr: "Jeux Vidéo", feeds: 14 },
     ],
   },
-  yt: {
-    kicker: { en: "YouTube intelligence", fr: "Intelligence YouTube" },
-    title: {
-      en: "A 2-hour podcast, <em>summarized in 8 key points.</em>",
-      fr: "Un podcast de 2 heures, <em>résumé en 8 points clés.</em>",
-    },
-    sub: {
-      en: "Pick the YouTube channels you follow. 8news ingests daily uploads, transcribes the ones you click, and returns a structured Markdown summary. Smart bilingual: summary in English and translated to French in under 10 seconds. Download the full transcript as a .txt file or the summary as .md in one click.",
-      fr: "Choisissez les chaînes YouTube que vous suivez. 8news récupère les uploads du jour, transcrit celles que vous cliquez, et renvoie un résumé Markdown structuré. Bilingue intelligent, résumé en anglais et traduit en français en moins de 10 secondes. Téléchargez la transcription complète au format .txt ou le résumé au format .md en un clic.",
-    },
-    cards: [
-      {
-        title_en: "Dwarkesh Patel × Demis Hassabis — on scaling, AlphaFold 3, and AGI timelines",
-        title_fr: "Dwarkesh Patel × Demis Hassabis — scaling, AlphaFold 3, et calendrier AGI",
-        channel: "DWARKESH PODCAST",
-        dur: "2:14:07",
-        bullets_en: [
-          "Hassabis thinks AGI is 5–10 years out and disagrees with Anthropic's 2-year timeline.",
-          "AlphaFold 3 drug discovery pipeline is already in clinical use at Isomorphic Labs.",
-          "Google is training a model with 100T parameters — inference cost is the blocker, not training.",
-          "Video generation will hit feature-film quality by 2027 per internal benchmarks.",
-        ],
-        bullets_fr: [
-          "Hassabis estime l'AGI à 5–10 ans, en désaccord avec le calendrier de 2 ans d'Anthropic.",
-          "Le pipeline de découverte de médicaments AlphaFold 3 est déjà en usage clinique chez Isomorphic Labs.",
-          "Google entraîne un modèle à 100 000 Md de paramètres — l'inférence est le blocage, pas l'entraînement.",
-          "La génération vidéo atteindra la qualité long-métrage d'ici 2027 selon les benchmarks internes.",
-        ],
-      },
-      {
-        title_en: "Lex Fridman × Andrej Karpathy — software 2.0, reinforcement learning, the end of coding",
-        title_fr: "Lex Fridman × Andrej Karpathy — software 2.0, apprentissage par renforcement, fin du code",
-        channel: "LEX FRIDMAN PODCAST",
-        dur: "3:08:22",
-        bullets_en: [
-          "Karpathy expects 90% of new code written in 2027 to be LLM-authored, supervised by humans.",
-          "RL from AI feedback scales further than RLHF — the key unlock for reasoning models.",
-          "His new startup Eureka Labs is building an AI-first CS 101 curriculum.",
-          "He is bearish on custom silicon: NVIDIA's moat is CUDA, not the chips.",
-        ],
-        bullets_fr: [
-          "Karpathy s'attend à ce que 90% du nouveau code en 2027 soit écrit par LLM, supervisé par humains.",
-          "Le RL à partir de feedback IA passe mieux à l'échelle que le RLHF — clé pour les modèles raisonnement.",
-          "Sa nouvelle startup Eureka Labs construit un cursus CS 101 IA-first.",
-          "Il est pessimiste sur le silicium custom : le moat de NVIDIA est CUDA, pas les puces.",
-        ],
-      },
-    ],
-  },
   pricing: {
     kicker: { en: "Pricing", fr: "Tarifs" },
     title: {
@@ -302,11 +209,11 @@ export const LANDING_CONTENT: LandingContent = {
     },
     plans: {
       en: [
-        { tag: "CURRENT", name: "Free", price: "$0", per: "/forever", desc: "Everything we shipped in v2.6.3. No credit card, no waitlist.", features: ["Choose 8 topics out of the 36 available.", "Top daily articles and videos with AI summary + sources.", "YouTube transcription and video summaries.", "Morning email digest covering all your topics.", "Bilingual EN / FR"], cta: "Try it now", featured: false },
+        { tag: "CURRENT", name: "Free", price: "$0", per: "/forever", desc: "Everything we shipped in v2.6.4. No credit card, no waitlist.", features: ["Choose 8 topics out of the 36 available.", "Top daily articles and videos with AI summary + sources.", "YouTube transcription and video summaries.", "Morning email digest covering your topics.", "Bilingual EN / FR"], cta: "Try it now", featured: false },
         { tag: "COMING SOON", name: "Pro", price: "$8", per: "/month", priceYear: "$88", perYear: "/year", saveLabel: "−8% per year", desc: "For founders, analysts and builders who need custom topics and higher limits.", features: ["Unlimited custom topics with AI feed discovery", "Unlimited YouTube transcriptions, add your favorite YouTube channels", "Email alert when an article or a videoscores 9 or 10 in one of your selected topics"], cta: "Join the waitlist", featured: true },
       ],
       fr: [
-        { tag: "ACTUEL", name: "Gratuit", price: "0 €", per: "/à vie", desc: "Tout ce qu'on a livré en v2.6.3. Sans carte bancaire, sans liste d'attente.", features: ["Choisissez 8 topics parmi les 36 disponibles.", "Top des articles et videos quotidiens avec résumé IA + sources.", "Transcription YouTube et résumé des vidéos.", "Digest email matinal reprenant tous vos topics.", "Bilingue EN / FR"], cta: "Essayer", featured: false },
+        { tag: "ACTUEL", name: "Gratuit", price: "0 €", per: "/à vie", desc: "Tout ce qu'on a livré en v2.6.4. Sans carte bancaire, sans liste d'attente.", features: ["Choisissez 8 topics parmi les 36 disponibles.", "Top des articles et videos quotidiens avec résumé IA + sources.", "Transcription YouTube et résumé des vidéos.", "Newsletter matinale reprenant vos topics.", "Bilingue EN / FR"], cta: "Essayer", featured: false },
         { tag: "BIENTÔT", name: "Pro", price: "8 €", per: "/mois", priceYear: "88 €", perYear: "/an", saveLabel: "−8 % à l'année", desc: "Pour fondateurs, analystes et builders qui veulent des topics sur mesure et plus de volume.", features: ["Topics personnalisés illimités avec découverte IA des flux", "Transcriptions YouTube illimitées, ajout de vos chaînes YouTube favorites", "Alerte email quand un article ou une vidéo a un score >=9 pour un de vos topics."], cta: "Rejoindre la liste", featured: true },
       ],
     },

@@ -15,9 +15,10 @@
 Both pipelines feed into a hybrid rendering model: a black-and-gold **client-side SPA at `/app`** for the authenticated / power-user surface, plus a **server-rendered SEO surface** at `/`, `/briefings`, `/summaries`, `/[topic]`, `/[topic]/[date]/[slug]`, `/[topic]/v/[date]/[slug]` and `/[topic]/r/[date]/[slug]` for indexability.
 
 **OpenAI models in use**:
-- `gpt-4.1-nano` — per-article scoring (1-10) and per-topic Relevant-articles summary (`/api/news` flow).
+- `gpt-4.1-nano` — per-article scoring (1-10) and **v2.6.6+** per-topic AI analysis on `/app` (`/api/news` flow, swapped from `gpt-4.1-mini`).
 - `gpt-4.1-mini` — daily SEO summaries (`/api/summaries`), synchronous on-demand video transcription (`/api/youtube-channels/transcribe`, fallback path < 30 s).
-- `gpt-5.3-chat-latest` — homepage Top 50 grouped summary (`/api/news/top-summary`), per-topic-per-day video roundups (`generate-video-roundup.ts`), and **v2.5.4+** the background pre-warm video transcription cron (`cron-video-transcribe-background`).
+- `gpt-5.3-chat-latest` — per-topic-per-day video roundups (`generate-video-roundup.ts`) and **v2.5.4+** the background pre-warm video transcription cron (`cron-video-transcribe-background`).
+- **v2.6.5+** `gpt-5.5` — daily Top articles AI summary cron (`generate-top-summary.ts` → `cron-top-summary-background`). Editorial flagship model; the snapshot is read by /top-articles and the home `Top24hHero` accordion via `GET /api/news/top-summary/latest` (no on-demand LLM call from any user-facing surface).
 
 **Tagline**: "Tech / AI / Crypto" (same EN + FR — sub on the landing varies per surface).
 
@@ -59,7 +60,7 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 | Frontend | React | 19.2.3 |
 | CSS | `globals.css` (tables, grids, keyframes) + `landing.css` (SSR landing only) + `theme.ts` tokens + inline styles | — |
 | RSS Parsing | rss-parser | ^3.13.0 |
-| AI (text analysis) | OpenAI API — `gpt-4.1-nano` (scoring + per-topic relevant summary), `gpt-4.1-mini` (daily SEO summaries + sync video transcription fallback), `gpt-5.3-chat-latest` (Top-50 grouped summary, video roundups, **v2.5.4+** pre-warm video transcription cron) | via `openai` ^6.25.0 |
+| AI (text analysis) | OpenAI API — `gpt-4.1-nano` (scoring + **v2.6.6+** per-topic AI analysis on `/app`), `gpt-4.1-mini` (daily SEO summaries + sync video transcription fallback), `gpt-5.3-chat-latest` (video roundups, **v2.5.4+** pre-warm video transcription cron), **v2.6.5+** `gpt-5.5` (daily Top articles snapshot cron) | via `openai` ^6.25.0 |
 | AI (text-to-speech) | ElevenLabs API — `eleven_flash_v2_5` model | via REST API |
 | YouTube transcription | TranscriptAPI — `/channel/latest` (free), `/channel/resolve` (free), `/transcript` (1 credit) | via REST API |
 | YouTube metadata | YouTube Data API v3 — `/videos?part=contentDetails` to backfill `youtube_videos.duration_sec` (Shorts filter) | via REST API |
@@ -186,7 +187,7 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 
 ### 3.1 `src/app/components/` — feature UI
 
-**SPA + shared**: `AppHeader` (**v2.5.17+** mounts the `CryptoTicker` on every page except `currentPage === "landing"`), `CryptoTicker` (**v2.5.17+** live BTC/ETH/SOL/XRP — see §19), `GeneralMenu` (+ `SeoGeneralMenu`), `SeoNavBar` (**v2.5.3+** intercepts language toggle to persist `preferred_lang`), `AuthModal`, `BriefingPage` (the SPA's default landing — composed of Top 50 + recent transcribed videos pagination), `TopFeedSection`, `SummaryBox`, `AllArticlesTab`, `StatsPage`, `CronMonitorPage`, `TopicsPage/`, `FeedsAdminPage`, `CategoriesPage`, `FavoritesPage`, `FavoriteButton`, `CopyLinkButton`, `ScoreMeter`, `ChangelogPage`, `SettingsPage` (`MyAccountSection`, `UsersSection`, `VoiceAccordion`), `AudioPlayer`, `TopicPersonalizationBar`, `TopicOnboardingModal`, `SummariesBrowsePage`.
+**SPA + shared**: `AppHeader` (**v2.5.17+** mounts the `CryptoTicker` on every page except `currentPage === "landing"`), `CryptoTicker` (**v2.5.17+** live BTC/ETH/SOL/XRP — see §19), `GeneralMenu` (+ `SeoGeneralMenu`), `SeoNavBar` (**v2.5.3+** intercepts language toggle to persist `preferred_lang`), `AuthModal`, `BriefingPage` (the SPA's default landing — **v2.6.6** order: `Top24hHero` → TOP VIDEO → Top story → All transcribed videos → Trending strip → daily summary teaser → Top 5 → Your topics → Footer CTAs), **`Top24hHero`** (v2.6.6 — gold accordion card pinned at the top of the home, reads `GET /api/news/top-summary/latest`, shows group titles only and expands sub-bullets on click), `TopFeedSection`, `SummaryBox` (v2.6.5+ renders an optional `bullet.title` in gold above each bullet body, groups consecutive same-title rows), `AllArticlesTab`, `StatsPage`, `CronMonitorPage`, `TopicsPage/`, `FeedsAdminPage`, `CategoriesPage`, `FavoritesPage`, `FavoriteButton`, `CopyLinkButton`, `ScoreMeter`, `ChangelogPage`, `SettingsPage` (`MyAccountSection`, `UsersSection`, `VoiceAccordion`), `AudioPlayer`, `TopicPersonalizationBar`, `TopicOnboardingModal`, `SummariesBrowsePage`.
 
 **Video surface**: `VideosPage` (today / day-by-day video list with Shorts toggle), `VideoCard` (iframe embed with **v2.x+** localhost-aware `youtube-nocookie` swap to fix black-screen), `VideoPageAudio`, `DownloadTranscriptButton`.
 
@@ -199,10 +200,11 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 ```
 api/
 ├── news/
-│   ├── route.ts                  # GET /api/news — Supabase read + AI analysis (per-topic relevant articles)
+│   ├── route.ts                  # GET /api/news — Supabase read + AI analysis (per-topic relevant articles, v2.6.6+ gpt-4.1-nano)
 │   ├── all/route.ts              # GET /api/news/all — All articles (lazy load, up to 1000)
 │   ├── top/route.ts              # GET /api/news/top — Top scored articles (Top 50)
-│   └── top-summary/route.ts      # POST /api/news/top-summary — Top 50 grouped summary (gpt-5.3-chat-latest)
+│   ├── top-summary/route.ts            # POST — manual replay/debug for the Top articles snapshot. Delegates to `generateTopSummary` (gpt-5.5). UI no longer calls it.
+│   └── top-summary/latest/route.ts     # **v2.6.5+** GET — read latest pre-computed `top_summaries` snapshot (used by /top-articles + the home `Top24hHero` accordion).
 ├── summaries/
 │   ├── generate/route.ts         # POST — generate daily SEO summary (owner or CRON_SECRET)
 │   ├── routes/route.ts           # GET — all generated summary routes (used by SPA + sitemap)
@@ -416,15 +418,16 @@ Canonical implementations live in `src/lib/`:
 #### `cron-top-summary-background.ts` — Daily Top articles AI summary snapshot
 
 - Triggered **once a day** by cron-job.org (suggested `0 2 * * *` UTC). Each tick produces both `en` and `fr` snapshots in sequence.
-- Driver: a flat loop over `['en','fr']` calling the shared lib `generateTopSummary(today, lang)`. No fan-out by topic — the Top 50 is a global cross-topic feed.
+- Driver: a flat loop over `['en','fr']` calling the shared lib `generateTopSummary(today, lang)`. Per-lang `try/catch` so a failure on one lang never blocks the other.  No fan-out by topic — the Top 50 is a global cross-topic feed.
 - Pipeline per lang:
   - Pulls the top 50 articles of the last 24 h via `getTopArticlesForStats(null, 1, 50)` excluding `is_displayed=false` topics (mirror of what `/api/news/top` returns to the live feed).
-  - Calls `analyzeWithAI` with **`gpt-5.5`** and the editorial prompt (group by theme, 3-5 sentence bullets, per-bullet 3-8-word title since v2.6).
-  - Persists the snapshot atomically: a row in `top_summaries (summary_date, lang)` with the frozen 50-article list (JSONB) + the rendered markdown, then a bullet-by-bullet mirror into `summary_bullets` (`source_type='top50'`, keyed `(lang, summary_date)`).
+  - Calls `analyzeWithAI` with **`gpt-5.5`** and the editorial prompt. **v2.6.6+** the prompt produces a **grouped JSON shape** — `globalSummary[]` is a list of thematic groups `{ title (3-8 word headline), bullets: [{ text (3-5 sentences), refs }] }`. 6-12 groups, 8-15 bullets total (1-3 bullets per group). The parser flattens groups: every sub-bullet inherits its group's `title`, so the existing flat `summary_bullets` schema needs no migration. Renderers (`SummaryBox`, `Top24hHero`) fold consecutive same-title rows back into a visible group.
+  - **JSON parse retry (v2.6.6)**: `analyzeWithAI` retries the OpenAI call once if the first response fails to parse, and logs the first 400 chars of the raw response on the second failure. Fixes the prior "FR snapshot silently missing while EN succeeded" pattern caused by an occasional malformed JSON on the second sequential call.
+  - Persists the snapshot atomically: a row in `top_summaries (summary_date, lang)` with the frozen 50-article list (JSONB) + the rendered markdown, then a bullet-by-bullet mirror into `summary_bullets` (`source_type='top50'`, keyed `(lang, summary_date)`). Each row gets the **shared** group title in the dedicated `title` column AND the same `**Title**\n\nbody` markdown prefix in `text` so plain-text consumers keep the visual hierarchy without joining on `title`.
 - Idempotent: re-ticking the same day deletes the previous row first (both for `top_summaries` and the matching `summary_bullets` rows). Useful when the operator wants a refresh after late-arriving high-score articles.
 - Date override: `TOP_SUMMARY_DATE=YYYY-MM-DD` to backfill or replay a past date.
 - Bootstrap after first deploy: `curl https://<host>/.netlify/functions/cron-top-summary-background` so the page has a row to render before the next scheduled tick.
-- Read path: `GET /api/news/top-summary/latest?lang=…` returns the latest available row (transparent fallback to yesterday if today's tick hasn't landed). The /top-articles page reads exclusively from this endpoint; **no on-demand LLM call from the UI anymore**.
+- Read path: `GET /api/news/top-summary/latest?lang=…` returns the latest available row (transparent fallback to yesterday if today's tick hasn't landed). The /top-articles page AND the home `Top24hHero` accordion read exclusively from this endpoint; **no on-demand LLM call from any user-facing surface anymore**.
 
 **Scoring criteria** (stored in `topics` table, used by `gpt-4.1-nano` scoring runs):
 - **9-10**: Major breaking news
@@ -505,9 +508,15 @@ Homepage default feed. Returns top-scored articles across all topics (by `releva
 
 **Response** (`articles[]`): `title`, `link`, `source`, `topic`, `pubDate`, `score`, **`snippet`** (**v1.76+**; empty string if nothing to show).
 
-#### `POST /api/news/top-summary`
+#### `GET /api/news/top-summary/latest` — **v2.6.5+** primary read path
 
-Homepage-only AI summary endpoint. Accepts `{ articles, lang }` from the Top feed and returns `SummaryResponse` with grouped bullet points (`globalSummary`) and source references (`refs`) rendered by `SummaryBox`. Uses dedicated homepage prompt rules (homogeneous grouping + mandatory refs) and OpenAI **`gpt-5.3-chat-latest`**.
+Returns the latest available pre-computed Top articles snapshot for a given lang (transparent fallback to yesterday's row when today's cron hasn't tickled yet). Shape mirrors the legacy `SummaryResponse` so `SummaryBox` consumes it directly, plus `summaryDate`, `generatedAt`, `model`. 404 when `top_summaries` has no row yet (first deploy before the first cron tick — UI shows the empty state). `Cache-Control: public, max-age=60, s-maxage=300`. Consumed by `/top-articles` and by the home `Top24hHero` accordion.
+
+Bullets in the response carry an optional **`title`** field (since v2.6.5) and may share that title across consecutive rows when the LLM returned the **grouped shape** introduced in v2.6.6 (a single thematic title spans 1-3 sub-bullets). Renderers fold consecutive same-title bullets into one accordion / heading group.
+
+#### `POST /api/news/top-summary` — manual replay / debug
+
+Kept for admin / curl replay after the v2.6.5 refactor; the UI no longer calls it. Accepts an optional `{ articles, lang, date }` body, delegates to the shared `generateTopSummary` lib (same path the cron uses), persists the snapshot in `top_summaries`, mirrors bullets in `summary_bullets`, and re-reads the snapshot back. Uses **`gpt-5.5`** with the grouped editorial prompt (`title` + `bullets[]` per theme; per-bullet headlines 3-8 words; 6-12 groups, 8-15 bullets total). `analyzeWithAI` retries the JSON parse once on failure (v2.6.6) so a malformed first response no longer wipes a whole lang's snapshot.
 
 #### Daily Summaries API
 
@@ -673,7 +682,7 @@ The app root is `src/app/page.tsx` (`"use client"`): **home** topic/period flow,
 The SPA at `/app` has 15+ pseudo-pages managed by `currentPage` state (`"briefing"` | `"home"` (= Top 50) | `"stats"` | `"crons"` | `"topics"` | `"feeds"` | `"categories"` | `"dailySummaries"` | `"favorites"` | `"topArticles"` | `"summaries"` | `"videos"` | `"youtubeChannels"` | `"changelog"` | `"settings"`). Route-mapped via `next.config.ts` rewrites for hard-refresh resilience. `topics`, `feeds`, `categories`, `dailySummaries`, `youtubeChannels` are owner-only. `favorites` requires any authenticated user.
 
 **General Menu** (`GeneralMenu`, visible on all SPA pages):
-- Persistent navigation bar: **Briefing** (default), **Top 50**, **Daily Summaries**, **Videos**, **My Favorites** (authenticated only)
+- Persistent navigation bar (current pill labels, **v2.6.6**): **Today** (= Briefing, default), **All videos** (was « Videos / Vidéos », renamed in v2.6.6 to clarify it's the exhaustive archive vs. the new TOP VIDEO hero card on the home), **Video briefings** (`/briefings`), **Top articles 24h** (was « Top articles », renamed in v2.6.6 to mirror the home `Top24hHero` card and the page header), **Daily Summaries**, **My Favorites** (authenticated only)
 - Active button highlighted with gold border/background
 - SSR variant (`SeoGeneralMenu`) used on every SSR page (landing, briefings, summaries, `/[topic]/...`) with `<a>` links
 
@@ -698,29 +707,34 @@ A pure SSR marketing page composed of `LandingNav` → `LandingHero` → `Landin
 
 Lives at `src/app/app/page.tsx`. The whole `/app/*` namespace is routed to a single client component via the `next.config.ts` rewrite list — pseudo-routes (`/app/articles`, `/app/videos`, `/app/stats`, …) are managed by `pushState`. Cold-loading e.g. `/app/videos` rewrites to `/app` and the SPA reads the path on mount to set `currentPage`.
 
-**Default page**: `BriefingPage` — a composite landing inside the SPA that shows:
-1. **TOP STORY · maintenant** — single article hero card driven by `/api/news/top-story` and the `home_surface_queue` rotation (**v2.6+**, see §5.1). Refreshes every 10 minutes on the wall-clock bucket boundary + on `visibilitychange`. **v2.6.1+** discreet `‹ ›` chevrons next to the kicker let the visitor walk back through previously-displayed picks (read-only history mode via `?offset=N`); auto-refresh is suspended while `offset > 0` so the user isn't yanked back to live mid-browse, and resumed on returning to `offset === 0`. Topic label, source, relative time and a CopyLinkButton next to the favorite star sit in the meta row. CTA "Lire l'article →" is filled gold + black text (harmonized with the TOP VIDEO buttons).
-2. **TOP VIDEO · maintenant** — single transcribed YouTube recap card, same rotation pattern via `/api/videos/top` and the `home_surface_queue` (kind=video). Same `‹ ›` chevron history. Layout is **vertical** with a serif `<h2>` title at the top, meta + actions in the middle, and a full-width 16:9 thumbnail at the bottom (uses `VideoCard variant="hero"` with `.video-card-hero` CSS class, see `globals.css`). Section auto-hides when the queue has no rows ≥ user's `homeMinScoreVideo` threshold.
-3. The Top 50 feed (`TopFeedSection` + opt-in AI grouped summary via `/api/news/top-summary`).
-4. The "All transcribed videos" pagination block driven by `/api/video-pages/recent` — flat list, **10 items per page**, classic numbered pagination (Précédent / Page X / N / Suivant). Each row shows the topic pill, the emoji-stripped title, the publication date suffixed after a dash (« — 5 mai 2026 »), and the AI quality score pinned right (`summary_score` from migration 021). The section is hidden when the language has zero transcribed videos.
+**Default page**: `BriefingPage` — a composite landing inside the SPA. Vertical order (top → bottom):
+1. **Top articles · 24h** — `Top24hHero` accordion card pinned at the very top (**v2.6.6+**). Self-fetches `GET /api/news/top-summary/latest` and renders an accordion of the day's group titles only (gold-bordered card, kicker « TOP ARTICLES · 24H », serif title « Top articles 24 heures », « Generated on … » tag). Each row is a clickable `<button aria-expanded>` with • + title + optional bullet count + chevron `▾` rotating 180° on open; hover highlights via `.top24h-row:hover` (gold). Click expands the bullets that belong to the group + their refs. Hidden silently on 404 (no snapshot yet) or fetch error. Bottom-right « Read the full briefing → » jumps to `/top-articles`.
+2. **TOP VIDEO · maintenant** — single transcribed YouTube recap card, rotation pattern via `/api/videos/top` and the `home_surface_queue` (kind=video). `‹ ›` chevron history (v2.6.1+). Layout is **vertical** with a serif `<h2>` title at the top, meta + actions in the middle, and a full-width 16:9 thumbnail at the bottom (uses `VideoCard variant="hero"` with `.video-card-hero` CSS class, see `globals.css`). Section auto-hides when the queue has no rows ≥ user's `homeMinScoreVideo` threshold.
+3. **TOP STORY · maintenant** — single article hero card driven by `/api/news/top-story` and the `home_surface_queue` rotation (**v2.6+**, see §5.1). Refreshes every 10 minutes on the wall-clock bucket boundary + on `visibilitychange`. **v2.6.1+** discreet `‹ ›` chevrons next to the kicker let the visitor walk back through previously-displayed picks (read-only history mode via `?offset=N`); auto-refresh is suspended while `offset > 0` so the user isn't yanked back to live mid-browse, and resumed on returning to `offset === 0`. Topic label, source, relative time and a CopyLinkButton next to the favorite star sit in the meta row. CTA "Lire l'article →" is filled gold + black text (harmonized with the TOP VIDEO buttons).
+4. **Toutes les vidéos transcrites** — `RecentVideoPagesSection`, the "All transcribed videos" pagination block driven by `/api/video-pages/recent`. Flat list, **10 items per page**, classic numbered pagination (Précédent / Page X / N / Suivant). Each row shows the topic pill, the emoji-stripped title, the publication date suffixed after a dash (« — 5 mai 2026 »), and the AI quality score pinned right (`summary_score` from migration 021). Hidden when the language has zero transcribed videos. **v2.6.6+** moved above « Tendances » so the editorial archive sits with the hero block instead of being buried under the trending strip.
+5. **Tendances · 6 dernières heures** — `TrendingStrip` (chip rail of topic IDs whose ingestion volume spiked over the last 6 h, falls back to a 24 h window when 6 h is empty). **v2.6.6+** moved below « Toutes les vidéos transcrites ».
+6. Daily summary teaser, Top 5, Your topics, Footer CTAs.
 
 **Language sync** (v2.5.3+): on session load, the SPA reads `authUser.user_metadata.preferred_lang` and reconciles `lang` state. If `preferred_lang` is unset for an authenticated user, it's initialised from the current cookie. `handleLangChange()` writes to **both** the cookie and `auth.users.raw_user_meta_data.preferred_lang` via `supabase.auth.updateUser`.
 
-#### Top 50 Feed (default sub-view of Briefing)
+#### `/app/top-articles` (was the on-demand Top 50 surface, **v2.6.5+** snapshot reader)
 
-On launch (no topic or period selected), the homepage displays the **Top 50 best-scored articles from the last 24 hours** across displayed topics, fetched from **`/api/news/top`** ( **`v1.83+`**: `?limit=50&days=1&lang={ui lang}` ). UI: **`TopFeedSection`** (caption, sorted rows, NEW badge, topic pill, copy link, **v1.82+** last-updated timestamp `— Mise à jour HH:MM` / `— Updated HH:MM`). Data + polling: **`useTopFeed`** with `poll === true` only when **`currentPage === "home"`** and **`topic === null`** (initial fetch on mount, silent 5 min refresh, `refresh()` after logo/home reset, `clear()` when user picks a topic). **`v1.76+`**: hook shape **`useTopFeed({ poll, lang })`** — **language change refetches** the Top 50. **v1.82+**: hook also exposes **`lastUpdatedAt`** (`Date | null`), updated on every successful fetch. (`cache: "no-store"` on fetches.)
+The dedicated « Top articles 24h » page (general menu pill renamed in v2.6.6 from « Top articles » to « Top articles 24h » to mirror the home accordion) reads exclusively from `GET /api/news/top-summary/latest` — the pre-computed snapshot written once a day by `cron-top-summary-background`. No on-demand LLM call from the UI anymore. The visitor sees:
+- A `<SummaryBox>` with the rendered grouped markdown, per-bullet headlines in gold, and source refs.
+- A « Generated on … » sub-label under the box (drives off `generatedAt` from the snapshot).
+- The frozen 50-article list rendered by `<TopFeedSection>` so each bullet's `refs` always points to a card visible just below — refs ↔ article list coherence is guaranteed by construction.
+- Empty state when GET 404s (« Today's AI summary is not available yet — it will appear automatically after the next scheduled run. »); no manual « Generate » button.
 
-Each Top 50 row shows a small **topic ID badge** (gold outline) next to the source line when `topic` is present. Items with `pubDate` in the **last hour** show a **NEW** badge. **`v1.76+` — French UI**: when a non-empty **`snippet`** is returned (typically **`snippet_ai_fr`**), the **main line** is that French text and the **RSS `title`** appears below in muted style; **English** keeps **title** first and **snippet** under it (like **ArticleCard**). If no AI snippet exists, only the RSS title is shown.
-
-When a topic is selected but no period chosen, the Top 50 disappears and a message prompts the user: "Select a time period to start the analysis."
+`/api/news/top` (live Top 50 endpoint) is **no longer consumed by the UI** since v2.6.5; it stays available as an internal helper for `generateTopSummary` (the cron pulls top 50 articles via `getTopArticlesForStats`, so this endpoint is technically a redundant read path now — kept for debug). The legacy `useTopFeed` hook is no longer mounted on `/top-articles` either; the snapshot drives the entire surface.
 
 #### Action Bar (`TopicPersonalizationBar`)
 
-**v1.96+**: Positioned **above** the topic grid. Contains:
+**v1.96+**: Positioned **above** the topic grid on the per-topic AI analysis surface. Contains:
 - **Customize my topics** / **Edit my topics** (personalization mode toggle)
-- **Analyze top 50 articles** (launches Top 50 AI analysis)
 - **Daily Summaries** (link to `/summaries` public page)
 - When in personalization mode: **Done** button, **+ New topic** button, save status
+
+The « Analyze top 50 articles » CTA was removed in **v2.6.5** (the Top articles snapshot is now displayed automatically on `/top-articles` and on the home `Top24hHero`).
 
 #### Topic Selector (`TopicToggle`)
 
@@ -1165,15 +1179,20 @@ interface CronStatsResponse {
           │                                                            │
           │  cron-top-summary-background.ts     (1×/day, 02:00 UTC)    │
           │  - Pulls top 50 articles of last 24 h (excl. hidden topics)│
-          │  - For each {en,fr}: gpt-5.3-chat-latest → bullets + titles│
+          │  - For each {en,fr}: gpt-5.5 → grouped bullets w/ titles   │
           │  - Persists snapshot in `top_summaries` (articles + MD)    │
           │  - Mirrors per-bullet rows to `summary_bullets` (top50)    │
           └────────────────────────────────────────────────────────────┘
 
 User opens / (landing) → SSR landing
-User opens /app       → client SPA → BriefingPage (default)
-                              ├─ Top 50 via /api/news/top  (poll 5 min)
-                              └─ /api/video-pages/recent  (10 per page, flat published_date DESC)
+User opens /app       → client SPA → BriefingPage (default, v2.6.6 order)
+                              ├─ Top24hHero (first hero card)
+                              │   └─ GET /api/news/top-summary/latest
+                              │       (latest top_summaries row, accordion of group titles)
+                              ├─ TOP VIDEO via /api/videos/top  (rotation, 10 min refresh)
+                              ├─ TOP STORY via /api/news/top-story  (rotation, 10 min refresh)
+                              ├─ /api/video-pages/recent  (10 per page, flat published_date DESC)
+                              └─ /api/topics/trending     (Trending strip, 6 h then 24 h fallback)
                        → /top-articles
                               └─ GET /api/news/top-summary/latest
                                   reads pre-computed `top_summaries` row
@@ -1202,7 +1221,7 @@ User opens /briefings, /summaries, /[topic], /[topic]/[date]/[slug],
 
 | Variable | Required | Description |
 |---|---|---|
-| `OPENAI_API_KEY` | Yes | OpenAI API key (gpt-4.1-nano + gpt-4.1-mini + gpt-5.3-chat-latest) |
+| `OPENAI_API_KEY` | Yes | OpenAI API key (gpt-4.1-nano + gpt-4.1-mini + gpt-5.3-chat-latest + **v2.6.5+** gpt-5.5) |
 | `ELEVENLABS_API_KEY` | Yes | ElevenLabs API key for TTS |
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anon (public) key — browser auth + session validation in API routes |

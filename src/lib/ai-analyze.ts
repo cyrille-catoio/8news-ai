@@ -58,19 +58,48 @@ export async function analyzeWithAI(
       ? `Article list:\n${formatArticleList(items)}\n\nIMPORTANT — Réponds entièrement en français : pour chaque entrée du tableau "relevant", les champs "title" (titre traduit ou réécrit) et "snippet" (2–3 phrases factuelles) doivent être en français.`
       : `Article list:\n${formatArticleList(items)}`;
 
-  const completion = await openai.chat.completions.create({
-    model,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userList },
-    ],
-    response_format: { type: "json_object" },
-  });
+  // Two-attempt parse: even with `response_format: json_object`, OpenAI
+  // can occasionally return malformed JSON (especially on long, complex
+  // schemas like the grouped Top articles prompt). Retrying once with
+  // the same input is cheap and reliably recovers the call instead of
+  // letting the caller (cron / API route) fall through to its error
+  // branch and lose a whole lang's snapshot.
+  const callOnce = () =>
+    openai.chat.completions.create({
+      model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userList },
+      ],
+      response_format: { type: "json_object" },
+    });
 
-  const raw = completion.choices[0]?.message?.content;
-  if (!raw) return { summary: msg.fallback, bullets: [], relevant: new Map() };
+  let parsed: AIAnalysis | null = null;
+  let lastRawForLog: string = "";
+  let lastErrMsg: string = "";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const completion = await callOnce();
+      const raw = completion.choices[0]?.message?.content ?? "";
+      lastRawForLog = raw;
+      if (!raw) {
+        lastErrMsg = "empty response";
+        continue;
+      }
+      parsed = JSON.parse(raw) as AIAnalysis;
+      break;
+    } catch (err) {
+      lastErrMsg = err instanceof Error ? err.message : "unknown";
+      if (attempt === 1) {
+        const sample = lastRawForLog.slice(0, 400).replace(/\s+/g, " ").trim();
+        console.error(
+          `[analyzeWithAI] JSON parse failed after 2 attempts (lang=${lang}, model=${model}): ${lastErrMsg} | raw[0..400]="${sample}"`,
+        );
+      }
+    }
+  }
 
-  const parsed: AIAnalysis = JSON.parse(raw);
+  if (!parsed) return { summary: msg.fallback, bullets: [], relevant: new Map() };
   const relevant = new Map<number, RelevantEntry>();
   for (const r of parsed.relevant ?? []) {
     relevant.set(r.index, { snippet: r.snippet, title: r.title });
@@ -80,36 +109,78 @@ export async function analyzeWithAI(
   let bullets: SummaryBullet[] = [];
 
   if (Array.isArray(parsed.globalSummary)) {
-    const arr = parsed.globalSummary as Array<{ text: string; refs?: number[]; title?: string }>;
-    bullets = arr.map((b) => {
-      const rawTitle = typeof b === "string" ? "" : (b.title ?? "");
-      const cleanedTitle = rawTitle
+    type FlatBullet = { text?: string; refs?: number[]; title?: string };
+    type GroupedBullet = { title?: string; bullets?: Array<{ text?: string; refs?: number[] }> };
+    type RawEntry = string | FlatBullet | GroupedBullet;
+    const arr = parsed.globalSummary as RawEntry[];
+
+    const cleanTitle = (raw: unknown): string =>
+      String(raw ?? "")
         .replace(/^\s*["“«]+|["”»]+\s*$/g, "")
         .replace(/[\.…]+\s*$/u, "")
         .trim();
-      return {
-        text: (typeof b === "string" ? b : b.text ?? "").replace(/^•\s*/, "").trim(),
-        refs: (b.refs ?? [])
-          .filter((idx) => idx >= 0 && idx < items.length)
-          .map((idx) => ({
-            title: items[idx].title,
-            link: items[idx].link,
-            source: items[idx].source,
-          })),
-        title: cleanedTitle.length > 0 ? cleanedTitle : null,
-      };
-    }).filter((b) => b.text.length > 0);
-    // When the prompt produces per-bullet titles, render them in bold
-    // above each bullet so the markdown surface (returned `summary`
-    // string) carries the same hierarchy as the persisted DB rows.
-    // Without a title we fall back to the previous bullet-only layout
-    // (single newline between bullets) — that path is what every
-    // non-Top-articles caller still uses, so layout stays unchanged
-    // for them.
-    const hasAnyTitle = bullets.some((b) => b.title);
-    summaryText = bullets
-      .map((b) => (b.title ? `**${b.title}**\n• ${b.text}` : `• ${b.text}`))
-      .join(hasAnyTitle ? "\n\n" : "\n");
+
+    const buildRefs = (refs: number[] | undefined) =>
+      (refs ?? [])
+        .filter((idx) => idx >= 0 && idx < items.length)
+        .map((idx) => ({
+          title: items[idx].title,
+          link: items[idx].link,
+          source: items[idx].source,
+        }));
+
+    // Two shapes accepted:
+    //  - Grouped (Top articles since v2.6.6): { title, bullets:[{text,refs}] }.
+    //    The same `title` is propagated to every flattened bullet so the
+    //    DB stays in the existing flat `summary_bullets` shape and the
+    //    UI can render them under a shared heading.
+    //  - Flat (legacy + simple callers): { title?, text, refs } — each
+    //    entry is a 1-bullet group on its own.
+    for (const entry of arr) {
+      if (entry && typeof entry === "object" && Array.isArray((entry as GroupedBullet).bullets)) {
+        const group = entry as GroupedBullet;
+        const groupTitle = cleanTitle(group.title);
+        for (const sub of group.bullets ?? []) {
+          const text = String(sub?.text ?? "").replace(/^•\s*/, "").trim();
+          if (!text) continue;
+          bullets.push({
+            text,
+            refs: buildRefs(sub?.refs),
+            title: groupTitle.length > 0 ? groupTitle : null,
+          });
+        }
+        continue;
+      }
+      const flat = entry as FlatBullet | string;
+      const flatTitle = typeof flat === "string" ? "" : cleanTitle(flat.title);
+      const flatText = (typeof flat === "string" ? flat : flat.text ?? "").replace(/^•\s*/, "").trim();
+      if (!flatText) continue;
+      bullets.push({
+        text: flatText,
+        refs: buildRefs(typeof flat === "string" ? undefined : flat.refs),
+        title: flatTitle.length > 0 ? flatTitle : null,
+      });
+    }
+
+    // Render as grouped markdown: the title prints once at the top of
+    // each group, then `•` lines for every bullet that shares it.
+    // Untitled bullets keep the previous bullet-only layout — that path
+    // is what every non-Top-articles caller still uses, so layout stays
+    // unchanged for them.
+    const lines: string[] = [];
+    let prevTitle: string | null = null;
+    let firstGroup = true;
+    for (const b of bullets) {
+      const t: string | null = b.title ?? null;
+      if (t !== prevTitle) {
+        if (!firstGroup) lines.push("");
+        if (t) lines.push(`**${t}**`);
+        prevTitle = t;
+        firstGroup = false;
+      }
+      lines.push(`• ${b.text}`);
+    }
+    summaryText = lines.join("\n");
   } else {
     const str = typeof parsed.globalSummary === "string" ? parsed.globalSummary : msg.fallback;
     summaryText = str;

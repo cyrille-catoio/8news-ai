@@ -7,6 +7,21 @@ import { SNIPPET_MAX } from "@/lib/constants";
 
 const PREVIEW_LIMIT = 10;
 
+/**
+ * OpenAI model used for the per-topic AI analysis served by this
+ * route (the « tous les topics » section in the SPA — `/app` with a
+ * topic + period selected). Bumping to a smaller model is safe here
+ * because the prompt is short, the article snippets are pre-scored
+ * (so the LLM only re-ranks + writes bullets), and the response is
+ * cached per (topic, lang, hours, maxArticles).
+ *
+ * Other AI surfaces use their own models, set independently:
+ *  - Top articles 24h cron — `gpt-5.5` (`generate-top-summary.ts`).
+ *  - Daily SEO summaries cron — `gpt-4.1-mini` (`generate-daily-summary.ts`).
+ *  - Video transcript summaries — see `transcribe-video.ts`.
+ */
+const AI_MODEL = "gpt-4.1-nano";
+
 export const maxDuration = 60;
 
 function buildPeriod(since: number): SummaryResponse["period"] {
@@ -128,7 +143,13 @@ export async function GET(request: NextRequest) {
     let relevant: Map<number, RelevantEntry>;
 
     try {
-      ({ summary, bullets, relevant } = await analyzeWithAI(items, systemPrompt, lang, apiKey));
+      ({ summary, bullets, relevant } = await analyzeWithAI(
+        items,
+        systemPrompt,
+        lang,
+        apiKey,
+        AI_MODEL,
+      ));
     } catch {
       summary = msg.aiError;
       bullets = [];

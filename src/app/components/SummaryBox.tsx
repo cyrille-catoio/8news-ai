@@ -89,59 +89,72 @@ export function SummaryBox({ data, locale, lang, hours, topicName, speed, voice,
       {ttsText.length > 0 && <div style={{ marginBottom: 12 }}><AudioPlayer text={ttsText} lang={lang} speed={speed} voice={voice} /></div>}
       {hasBullets ? (
         <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none" }}>
-          {bullets.map((bullet, i) => (
-            <li
-              key={i}
-              className="app-paragraph-lg"
-              style={{
-                color: color.textSecondary,
-                padding: "5px 0",
-              }}
-            >
-              {bullet.title && (
-                <div
-                  style={{
-                    color: color.gold,
-                    fontWeight: 700,
-                    marginBottom: 4,
-                    lineHeight: 1.3,
-                  }}
-                >
-                  {bullet.title}
+          {bullets.map((bullet, i) => {
+            // A title is shown only on the FIRST bullet of each group
+            // (bullets sharing the same `title` line up under one
+            // heading). Group break = either no previous bullet, or
+            // previous bullet's title differs. Bullets without a title
+            // never render a heading and keep the legacy plain layout.
+            const prevTitle = i > 0 ? bullets[i - 1].title ?? null : null;
+            const showTitle = !!bullet.title && bullet.title !== prevTitle;
+            const isNewGroup = showTitle || (!bullet.title && prevTitle);
+            return (
+              <li
+                key={i}
+                className="app-paragraph-lg"
+                style={{
+                  color: color.textSecondary,
+                  padding: "5px 0",
+                  // Tight spacing inside a group, larger gap when the
+                  // group header changes — visually separates themes.
+                  marginTop: i > 0 && isNewGroup ? 14 : 0,
+                }}
+              >
+                {showTitle && (
+                  <div
+                    style={{
+                      color: color.gold,
+                      fontWeight: 700,
+                      marginBottom: 6,
+                      lineHeight: 1.3,
+                    }}
+                  >
+                    {bullet.title}
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <span style={{ color: color.gold, flexShrink: 0 }}>•</span>
+                  <span>{bullet.text}</span>
                 </div>
-              )}
-              <div style={{ display: "flex", gap: 8 }}>
-                <span style={{ color: color.gold, flexShrink: 0 }}>•</span>
-                <span>{bullet.text}</span>
-              </div>
-              {bullet.refs.length > 0 && (
-                <div style={{ display: "flex", gap: 10, marginTop: 4, marginLeft: 18, flexWrap: "wrap" }}>
-                  {bullet.refs.map((ref, j) => (
-                    <a
-                      key={j}
-                      href={ref.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title={ref.title}
-                      style={{
-                        color: color.textDim,
-                        fontSize: 11,
-                        textDecoration: "none",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 3,
-                        transition: "color 0.15s",
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.color = color.gold)}
-                      onMouseLeave={(e) => (e.currentTarget.style.color = color.textDim)}
-                    >
-                      {ref.source} <RefIcon />
-                    </a>
-                  ))}
-                </div>
-              )}
-            </li>
-          ))}
+                {bullet.refs.length > 0 && (
+                  <div style={{ display: "flex", gap: 10, marginTop: 4, marginLeft: 18, flexWrap: "wrap" }}>
+                    {bullet.refs.map((ref, j) => (
+                      <a
+                        key={j}
+                        href={ref.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={ref.title}
+                        style={{
+                          color: color.textDim,
+                          fontSize: 11,
+                          textDecoration: "none",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 3,
+                          transition: "color 0.15s",
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.color = color.gold)}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = color.textDim)}
+                      >
+                        {ref.source} <RefIcon />
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </li>
+            );
+          })}
         </ul>
       ) : (
         <p className="app-paragraph-lg" style={{ color: color.textSecondary, whiteSpace: "pre-wrap", margin: 0 }}>

@@ -860,8 +860,8 @@ const strings = {
    *  ~360px). The intent is unchanged: "the day's top stories across all
    *  your topics". */
   analyzeTopArticlesBtn: {
-    en: "Top articles",
-    fr: "Top articles",
+    en: "Top articles 24h",
+    fr: "Top articles 24h",
   },
   topSummaryGeneratedOn: {
     en: "Generated on {date}",
@@ -870,6 +870,22 @@ const strings = {
   topSummaryNotYet: {
     en: "Today's AI summary is not available yet — it will appear automatically after the next scheduled run.",
     fr: "Le résumé IA du jour n'est pas encore disponible — il apparaîtra automatiquement après le prochain passage du cron.",
+  },
+  top24hHeroKicker: {
+    en: "Top articles · 24h",
+    fr: "Top articles · 24h",
+  },
+  top24hHeroTitle: {
+    en: "Top articles 24 hours",
+    fr: "Top articles 24 heures",
+  },
+  top24hHeroSubtitle: {
+    en: "Click a headline to read the full angle.",
+    fr: "Clique sur un titre pour lire l'analyse détaillée.",
+  },
+  top24hHeroSeeAll: {
+    en: "Read the full briefing →",
+    fr: "Lire le briefing complet →",
   },
   myTopicsEdit: {
     en: "Edit",
@@ -1096,13 +1112,16 @@ const strings = {
     fr: "Récaps vidéo",
   },
   /** General menu pill for `/app/videos` — today's videos feed.
-   *  Renamed in v2.5.17 from "Today's Videos / Vidéos du jour" to just
-   *  "Videos / Vidéos": "today" is already redundant once the homepage pill
-   *  is "Today", and the shorter label balances visually with the parallel
-   *  "Articles" pill (both pure-format nav items, side by side). */
+   *  Renamed in v2.6.6 from "Videos / Vidéos" to "All videos / Toutes les
+   *  vidéos" once the home gained a dedicated TOP VIDEO hero card: the
+   *  longer label clarifies that this pill is the exhaustive archive
+   *  view, not a single hero clip. Earlier v2.5.17 rename ("Today's
+   *  Videos" → "Videos") is still relevant in spirit — "today" was
+   *  redundant once the home pill became "Today" — but the shorter
+   *  label confused with the new TOP VIDEO surface. */
   videosBtn: {
-    en: "Videos",
-    fr: "Vidéos",
+    en: "All videos",
+    fr: "Toutes les vidéos",
   },
   videoKindLong: {
     en: "Long",

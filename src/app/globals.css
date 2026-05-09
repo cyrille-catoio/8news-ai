@@ -73,6 +73,35 @@ a.hero-story-title-link {
   }
 }
 
+/* Smooth open animation for `Top24hHero` accordion rows — fades the
+   expanded body in + drops it 4 px so the click visibly produces
+   movement. Tied to inline `animation: top24hExpandFade …` in the
+   component, no className needed. */
+@keyframes top24hExpandFade {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Hover affordance on the `Top24hHero` accordion title rows so the
+   visitor sees they can click. Inline styles can't carry a `:hover`,
+   so the component adds the `top24h-row` class and lets this rule
+   gild the title text + the chevron at rest. The collapsed state
+   already uses `color: color.text` (off-gold near-white), so the
+   hover bumps to gold for contrast; the open state already paints
+   the title gold and is unchanged. */
+.top24h-row:hover {
+  color: #c9a227 !important;
+}
+.top24h-row:hover svg {
+  color: #c9a227;
+}
+
 .cron-pulse-dot {
   width: 8px;
   height: 8px;

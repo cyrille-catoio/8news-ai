@@ -9,6 +9,7 @@ import { ScoreMeter } from "@/app/components/ScoreMeter";
 import { CopyLinkButton } from "@/app/components/CopyLinkButton";
 import { FavoriteButton } from "@/app/components/FavoriteButton";
 import { VideoCard, type VideoItem } from "@/app/components/VideoCard";
+import { Top24hHero } from "@/app/components/Top24hHero";
 import type { TopicLabel } from "@/lib/types";
 import type { AppNavPage } from "@/app/components/AppHeader";
 import { summaryPath } from "@/lib/summary-routes";
@@ -484,7 +485,13 @@ export function BriefingPage({
         </div>
       ) : (
         <>
-          {/* TOP VIDEO, Top story, Tendances, puis « Toutes les vidéos transcrites », résumé du jour, top 5, … */}
+          {/* Top articles 24h hero — pre-computed daily briefing pinned
+              at the very top. Self-fetches the latest snapshot so its
+              loading / error / 404 states stay fully isolated from the
+              rest of the home (a missing snapshot just hides the card). */}
+          <Top24hHero lang={lang} onNavigate={onNavigate} />
+
+          {/* Top articles 24h hero, TOP VIDEO, Top story, puis « Toutes les vidéos transcrites », Tendances, résumé du jour, top 5, … */}
           {videosLoading ? (
             <SectionSpinner
               label={lang === "fr" ? "TOP VIDEO · MAINTENANT" : "TOP VIDEO · NOW"}
@@ -530,6 +537,11 @@ export function BriefingPage({
             />
           )}
 
+          <RecentVideoPagesSection
+            topicLabels={topicLabels}
+            lang={lang}
+          />
+
           {trending.length > 0 && (
             <TrendingStrip
               topics={trending}
@@ -537,11 +549,6 @@ export function BriefingPage({
               onTopicClick={onOpenTopicArticles}
             />
           )}
-
-          <RecentVideoPagesSection
-            topicLabels={topicLabels}
-            lang={lang}
-          />
 
           {summaryLoading ? (
             <SectionSpinner

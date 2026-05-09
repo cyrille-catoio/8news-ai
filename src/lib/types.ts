@@ -70,9 +70,24 @@ export interface SummaryResponse {
 
 export interface AIAnalysis {
   relevant: Array<{ index: number; snippet: string; title?: string }>;
+  /**
+   * The LLM may return either of two shapes — the parser in
+   * `src/lib/ai-analyze.ts` accepts both:
+   *  - **Flat** (legacy + simple callers): every entry is a single
+   *    bullet, optional `title`, no nested `bullets`.
+   *  - **Grouped** (Top articles since v2.6.6): every entry is a
+   *    thematic group with one shared `title` and a nested `bullets`
+   *    array of 1-3 sub-bullets that get flattened at parse time.
+   */
   globalSummary:
     | string
-    | Array<{ text: string; refs: number[]; entities?: string[]; title?: string }>;
+    | Array<{
+        text?: string;
+        refs?: number[];
+        entities?: string[];
+        title?: string;
+        bullets?: Array<{ text: string; refs?: number[] }>;
+      }>;
   seoKeywords?: string[];
   seoTitle?: string;
   seoDescription?: string;

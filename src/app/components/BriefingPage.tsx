@@ -337,13 +337,14 @@ export function BriefingPage({
   const [videoHasOlder, setVideoHasOlder] = useState(false);
   /** While true, skip TOP VIDEO interval + visibility refetch so iframe playback is not torn down. */
   const topVideoPlaybackRef = useRef(false);
+  const topVideoId = videos[0]?.videoId;
   const onTopVideoPlaybackChange = useCallback((playing: boolean) => {
     topVideoPlaybackRef.current = playing;
   }, []);
 
   useEffect(() => {
     topVideoPlaybackRef.current = false;
-  }, [videos[0]?.videoId]);
+  }, [topVideoId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1334,6 +1335,16 @@ function RecentVideoPagesSection({
   const canGoPrev = page > 1;
   const canGoNext = page < totalPages;
 
+  // Functional updates so multiple rapid taps compose even while a
+  // fetch is in flight. Boundaries are clamped client-side so the
+  // server never has to clamp a request past the last page.
+  const onPrev = useCallback(() => {
+    setPage((p) => Math.max(1, p - 1));
+  }, []);
+  const onNext = useCallback(() => {
+    setPage((p) => (totalPages > 0 ? Math.min(totalPages, p + 1) : p));
+  }, [totalPages]);
+
   // Hide the section entirely when this language has no transcribed
   // videos at all. Otherwise we keep it rendered so the user can
   // browse pages even mid-loading.
@@ -1355,16 +1366,6 @@ function RecentVideoPagesSection({
     opacity: 0.35,
     cursor: "not-allowed",
   };
-
-  // Functional updates so multiple rapid taps compose even while a
-  // fetch is in flight. Boundaries are clamped client-side so the
-  // server never has to clamp a request past the last page.
-  const onPrev = useCallback(() => {
-    setPage((p) => Math.max(1, p - 1));
-  }, []);
-  const onNext = useCallback(() => {
-    setPage((p) => (totalPages > 0 ? Math.min(totalPages, p + 1) : p));
-  }, [totalPages]);
 
   const dateFmt: Intl.DateTimeFormatOptions = {
     day: "numeric",
@@ -1650,4 +1651,3 @@ const ctaLink: CSSProperties = {
   textDecoration: "underline",
   marginTop: 6,
 };
-

@@ -196,6 +196,7 @@ export interface StatsResponse {
 // ── Cron Monitor ─────────────────────────────────────────────────────
 
 export interface CronStatsResponse {
+  generatedAt: string;
   global: {
     backlog: number;
     fetched24h: number;

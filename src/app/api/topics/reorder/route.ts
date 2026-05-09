@@ -43,7 +43,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Topic not found" }, { status: 404 });
   }
 
-  let orderA = rowA.sort_order as number;
+  const orderA = rowA.sort_order as number;
   let orderB = rowB.sort_order as number;
 
   if (orderA === orderB) {

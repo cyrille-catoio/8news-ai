@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { scoreTopicForCron } from "./shared/score-topic";
 
 // Background functions have a 15-minute hard timeout on Netlify and the
@@ -64,7 +64,7 @@ function pickAdaptiveMaxArticles(remainingMs: number, backlog: number): number {
 
 // Fetches unscored article counts for all topics in parallel (one DB query each).
 async function getBacklogCounts(
-  supabase: ReturnType<typeof createClient<any, any, any>>,
+  supabase: SupabaseClient,
   topicIds: string[],
 ): Promise<Map<string, number>> {
   const counts = new Map<string, number>();

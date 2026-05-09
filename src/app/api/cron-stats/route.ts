@@ -37,7 +37,6 @@ export async function GET() {
   const topics = await getActiveTopics(true);
   const now = Date.now();
   const since24h = new Date(now - 24 * 3_600_000).toISOString();
-  const since7d = new Date(now - 7 * 86_400_000).toISOString();
   const sinceFreshBacklog = new Date(now - FRESH_BACKLOG_WINDOW_MINUTES * 60_000).toISOString();
 
   /** PostgREST max rows per response (Supabase default). Request wider ranges but only get 1000 → must page with this size. */
@@ -217,6 +216,7 @@ export async function GET() {
   if (coverage24h < 70) alerts.push("coverage24h_low");
 
   const response: CronStatsResponse = {
+    generatedAt: new Date(now).toISOString(),
     global: {
       backlog: totalBacklog,
       fetched24h,

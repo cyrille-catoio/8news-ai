@@ -11,14 +11,6 @@ function isShortVideo(v: VideoItem): boolean {
   return v.durationSec != null && v.durationSec < 120;
 }
 
-function formatDuration(sec: number): string {
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = sec % 60;
-  if (h > 0) return `${h}h ${m}m ${s}s`;
-  return `${m}m ${s}s`;
-}
-
 function publishedTimeDesc(a: VideoItem, b: VideoItem): number {
   return new Date(b.published).getTime() - new Date(a.published).getTime();
 }

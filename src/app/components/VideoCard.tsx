@@ -240,7 +240,7 @@ export function VideoCard({
     }
     pendingExpandAfterTranscribeRef.current = true;
     onTranscribe();
-  }, [transcribing, hasTranscription, onTranscribe]);
+  }, [transcribing, hasTranscription, onTranscribe, setSummaryExpanded]);
 
   useEffect(() => {
     if (transcriptionFailed && summaryMd) {

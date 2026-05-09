@@ -65,6 +65,27 @@ function groupBullets(bullets: Bullet[]): Group[] {
   return out;
 }
 
+/** Number of groups produced by `groupBullets` without allocating the
+ *  full Group array — useful to size the initial `openIdx` Set when
+ *  `defaultOpen` is true (the actual array gets built once below). */
+function countGroups(bullets: Bullet[]): number {
+  let n = 0;
+  let prev: string | null = null;
+  for (const b of bullets) {
+    const t = (b.title ?? "").trim();
+    if (!t) {
+      n += 1;
+      prev = null;
+      continue;
+    }
+    if (t !== prev) {
+      n += 1;
+      prev = t;
+    }
+  }
+  return n;
+}
+
 /** Inline kicker style (matches the rest of `BriefingPage`'s sections
  *  — gold mono uppercase, low contrast). Duplicated here on purpose
  *  so the component stays self-contained and importable from any
@@ -117,24 +138,65 @@ function RefIcon() {
 export function Top24hHero({
   lang,
   onNavigate,
+  data: externalData,
+  showSeeAllLink = true,
+  defaultOpen = false,
 }: {
   lang: Lang;
-  onNavigate: (page: AppNavPage) => void;
+  /** Required when `showSeeAllLink` is `true` (default). The footer
+   *  « Read the full briefing → » button calls `onNavigate("topArticles")`
+   *  to switch the SPA to the dedicated /top-articles page. */
+  onNavigate?: (page: AppNavPage) => void;
+  /** When provided (even as `null`), the component skips its self-fetch
+   *  and uses the parent's snapshot directly. Lets the /top-articles
+   *  page pass its own already-fetched snapshot so we don't duplicate
+   *  the network call (the parent also needs the snapshot for its
+   *  article list). When omitted, the component fetches on its own
+   *  (the home use case). */
+  data?: Snapshot | null;
+  /** Default `true` (home use case). Set to `false` on the
+   *  /top-articles page where the « Read the full briefing → » link
+   *  would loop back to the same surface. */
+  showSeeAllLink?: boolean;
+  /** Default `false` (collapsed). On the home we want the visitor to
+   *  scan headlines and only expand what interests them; on the
+   *  dedicated /top-articles page, the visitor explicitly came for the
+   *  briefing — opening every group up front matches the prior
+   *  SummaryBox layout that page replaced. */
+  defaultOpen?: boolean;
 }) {
-  const [snap, setSnap] = useState<Snapshot | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const isSelfFetched = externalData === undefined;
+  const [snapInternal, setSnapInternal] = useState<Snapshot | null>(null);
+  const [loadingInternal, setLoadingInternal] = useState(isSelfFetched);
+  const [errorInternal, setErrorInternal] = useState(false);
+  const snap = isSelfFetched ? snapInternal : externalData ?? null;
+
+  // Reset the open-index set whenever the snapshot or `defaultOpen`
+  // changes. When `defaultOpen=true` we open every group up front
+  // (the /top-articles page wants the whole briefing visible); when
+  // false we open none (the home accordion wants headlines only).
+  // Manual toggle clicks update `openIdx` directly and aren't
+  // overwritten because neither dep below changes on click.
+  const groupCount = snap ? countGroups(snap.bullets) : 0;
   const [openIdx, setOpenIdx] = useState<Set<number>>(new Set());
+  useEffect(() => {
+    setOpenIdx(
+      defaultOpen
+        ? new Set(Array.from({ length: groupCount }, (_, i) => i))
+        : new Set(),
+    );
+  }, [defaultOpen, groupCount]);
 
   useEffect(() => {
+    if (!isSelfFetched) return;
     let cancelled = false;
-    setLoading(true);
-    setError(false);
+    setLoadingInternal(true);
+    setErrorInternal(false);
     fetch(`/api/news/top-summary/latest?lang=${lang}`, { cache: "no-store" })
       .then(async (r) => {
         if (cancelled) return null;
         if (r.status === 404) {
-          setError(true);
+          setErrorInternal(true);
           return null;
         }
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -142,25 +204,26 @@ export function Top24hHero({
       })
       .then((json) => {
         if (cancelled || !json) return;
-        setSnap(json);
-        setOpenIdx(new Set());
+        setSnapInternal(json);
       })
       .catch(() => {
         if (cancelled) return;
-        setError(true);
+        setErrorInternal(true);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setLoadingInternal(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [lang]);
+  }, [isSelfFetched, lang]);
 
   // Loading: discreet spinner that doesn't push the rest of the home
   // off-screen. ~80px tall is enough to feel like a placeholder while
-  // remaining unobtrusive when the cron has nothing to show yet.
-  if (loading) {
+  // remaining unobtrusive when the cron has nothing to show yet. Only
+  // shown when self-fetching — when the parent drives `data`, it
+  // owns its own loading skeleton.
+  if (isSelfFetched && loadingInternal) {
     return (
       <section style={{ marginBottom: 36 }}>
         <div style={kickerStyle(color.gold)}>{t("top24hHeroKicker", lang)}</div>
@@ -181,10 +244,11 @@ export function Top24hHero({
     );
   }
 
-  // Hide on error / 404 — the home shouldn't display an empty-state
-  // copy in the visitor's #1 above-the-fold slot. /top-articles owns
-  // that messaging.
-  if (error || !snap) return null;
+  // Hide on error / 404 / no data — the home shouldn't display an
+  // empty-state copy in the visitor's #1 above-the-fold slot, and on
+  // /top-articles the parent renders its own empty state anyway.
+  if (isSelfFetched && errorInternal) return null;
+  if (!snap) return null;
 
   const groups = groupBullets(snap.bullets);
   if (groups.length === 0) return null;
@@ -344,8 +408,8 @@ export function Top24hHero({
                           <div
                             style={{
                               display: "flex",
-                              gap: 10,
-                              marginTop: 4,
+                              gap: 8,
+                              marginTop: 8,
                               marginLeft: 18,
                               flexWrap: "wrap",
                             }}
@@ -357,17 +421,35 @@ export function Top24hHero({
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 title={ref.title}
+                                // Chip/pill style: a thin gold border + soft
+                                // gold tint background makes the source links
+                                // pop instead of blending into the body text.
+                                // Hover deepens the tint to confirm clickability
+                                // and adds a subtle lift via box-shadow.
                                 style={{
-                                  color: color.textDim,
-                                  fontSize: 11,
+                                  color: color.gold,
+                                  fontSize: 12,
+                                  fontWeight: 600,
                                   textDecoration: "none",
                                   display: "inline-flex",
                                   alignItems: "center",
-                                  gap: 3,
-                                  transition: "color 0.15s",
+                                  gap: 5,
+                                  padding: "3px 9px",
+                                  borderRadius: 999,
+                                  border: "1px solid rgba(201, 162, 39, 0.45)",
+                                  background: "rgba(201, 162, 39, 0.10)",
+                                  letterSpacing: "0.01em",
+                                  lineHeight: 1.3,
+                                  transition: "background 140ms ease, border-color 140ms ease, transform 140ms ease",
                                 }}
-                                onMouseEnter={(e) => (e.currentTarget.style.color = color.gold)}
-                                onMouseLeave={(e) => (e.currentTarget.style.color = color.textDim)}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.background = "rgba(201, 162, 39, 0.22)";
+                                  e.currentTarget.style.borderColor = "rgba(201, 162, 39, 0.85)";
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.background = "rgba(201, 162, 39, 0.10)";
+                                  e.currentTarget.style.borderColor = "rgba(201, 162, 39, 0.45)";
+                                }}
                               >
                                 {ref.source} <RefIcon />
                               </a>
@@ -383,24 +465,26 @@ export function Top24hHero({
           })}
         </ul>
 
-        <div style={{ marginTop: 14, textAlign: "right" }}>
-          <button
-            type="button"
-            onClick={() => onNavigate("topArticles")}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: color.gold,
-              cursor: "pointer",
-              fontSize: 13,
-              fontWeight: 600,
-              padding: "4px 0",
-              letterSpacing: "0.01em",
-            }}
-          >
-            {t("top24hHeroSeeAll", lang)}
-          </button>
-        </div>
+        {showSeeAllLink && onNavigate && (
+          <div style={{ marginTop: 14, textAlign: "right" }}>
+            <button
+              type="button"
+              onClick={() => onNavigate("topArticles")}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: color.gold,
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 600,
+                padding: "4px 0",
+                letterSpacing: "0.01em",
+              }}
+            >
+              {t("top24hHeroSeeAll", lang)}
+            </button>
+          </div>
+        )}
       </div>
     </section>
   );

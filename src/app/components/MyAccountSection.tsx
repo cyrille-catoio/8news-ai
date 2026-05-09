@@ -68,7 +68,7 @@ export function MyAccountSection({ lang }: { lang: Lang }) {
   const user = session?.user;
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
-  const meta = user?.user_metadata ?? {};
+  const meta = useMemo(() => user?.user_metadata ?? {}, [user?.user_metadata]);
   const email = user?.email ?? "";
   const userType = getAppUserType(user);
 

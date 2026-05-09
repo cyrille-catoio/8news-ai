@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, useState, useEffect, useCallback, useMemo, useRef, useLayoutEffect } from "react";
+import { type CSSProperties, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import type {
   SummaryResponse,
   ArticleSummary,
@@ -23,6 +23,7 @@ import { FeedsAdminPage } from "@/app/components/FeedsAdminPage";
 import { CategoriesPage } from "@/app/components/CategoriesPage";
 import { SettingsPage } from "@/app/components/SettingsPage";
 import { SummaryBox } from "@/app/components/SummaryBox";
+import { Top24hHero } from "@/app/components/Top24hHero";
 import { AllArticlesTab, type AllArticleEntry } from "@/app/components/AllArticlesTab";
 import { StatsPage } from "@/app/components/StatsPage";
 import { CronMonitorPage } from "@/app/components/CronMonitorPage";
@@ -282,48 +283,6 @@ function PeriodButton({
     >
       {label}
     </button>
-  );
-}
-
-function RevealBox({ children, active }: { children: React.ReactNode; active: boolean }) {
-  const outerRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
-
-  useLayoutEffect(() => {
-    const outer = outerRef.current;
-    const inner = contentRef.current;
-    if (!outer || !inner) return;
-
-    if (active) {
-      const h = inner.scrollHeight;
-      outer.style.maxHeight = `${h}px`;
-      outer.style.opacity = "1";
-
-      const onEnd = () => {
-        outer.style.overflow = "visible";
-        outer.style.maxHeight = "none";
-      };
-      outer.addEventListener("transitionend", onEnd, { once: true });
-      return () => outer.removeEventListener("transitionend", onEnd);
-    } else {
-      outer.style.overflow = "hidden";
-      outer.style.maxHeight = "0";
-      outer.style.opacity = "0";
-    }
-  }, [active]);
-
-  return (
-    <div
-      ref={outerRef}
-      style={{
-        overflow: "hidden",
-        maxHeight: 0,
-        opacity: 0,
-        transition: "max-height 6.6s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 3s ease-out",
-      }}
-    >
-      <div ref={contentRef}>{children}</div>
-    </div>
   );
 }
 
@@ -787,7 +746,7 @@ export default function Home() {
     if (!isAuthenticated && currentPage === "favorites") {
       setCurrentPage("briefing", true);
     }
-  }, [authLoading, authOwner, isAuthenticated, currentPage]);
+  }, [authLoading, authOwner, isAuthenticated, currentPage, setCurrentPage]);
 
   // UX: entering the Top 50 page from the home briefing should always
   // start at the top of the document; otherwise users can land mid-page
@@ -1231,40 +1190,21 @@ export default function Home() {
               </div>
             ) : topSummary ? (
               <>
-                <div
-                  style={{
-                    border: `1px solid ${color.gold}`,
-                    borderRadius: 12,
-                    padding: "24px 22px",
-                    margin: "16px 0 24px",
-                    background: "rgba(212, 175, 55, 0.06)",
-                  }}
-                >
-                  <SummaryBox
-                    data={topSummary}
-                    locale={locale}
-                    lang={lang}
-                    hours={24}
-                    topicName={t("analyzeTopArticlesBtn", lang)}
-                    speed={ttsSpeed}
-                    voice={lang === "fr" ? ttsVoiceFr : ttsVoice}
-                    embedded
-                  />
-                  <div
-                    style={{
-                      color: color.textDim,
-                      fontSize: 12,
-                      marginTop: 14,
-                      textAlign: "right",
-                      letterSpacing: "0.02em",
-                    }}
-                  >
-                    {t("topSummaryGeneratedOn", lang).replace(
-                      "{date}",
-                      new Date(topSummary.generatedAt).toLocaleString(locale),
-                    )}
-                  </div>
-                </div>
+                {/* Same accordion experience as the home `Top24hHero` —
+                    homogeneous gold chrome, group titles only by default…
+                    except here we **open every group** (`defaultOpen`) so
+                    the dedicated /top-articles surface preserves the prior
+                    « full briefing visible at a glance » feel. The user
+                    can still collapse a group by clicking its title.
+                    `showSeeAllLink={false}` because we ARE the see-all
+                    surface; `data` is the snapshot the parent already
+                    fetched (no double network call). */}
+                <Top24hHero
+                  lang={lang}
+                  data={topSummary}
+                  showSeeAllLink={false}
+                  defaultOpen
+                />
                 <TopFeedSection
                   articles={topFeed}
                   loading={false}

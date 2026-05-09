@@ -670,8 +670,8 @@ const strings = {
     fr: "Sélectionner une durée pour lancer l'analyse IA",
   },
   homeTop20Subtitle: {
-    en: "Top 50 Articles from the last 24h",
-    fr: "Top 50 Articles des dernières 24h",
+    en: "Sources: Top 50 Articles from the last 24h",
+    fr: "Sources : Top 50 Articles des dernières 24h",
   },
   actionRefresh: {
     en: "Refresh",

@@ -1,6 +1,7 @@
 "use client";
 
 import { type CSSProperties, type MouseEvent as ReactMouseEvent, type ReactNode, useState, useRef, useEffect, useMemo } from "react";
+import Link from "next/link";
 import { color } from "@/lib/theme";
 import { t, type Lang } from "@/lib/i18n";
 import { useAuth } from "@/app/providers";
@@ -22,9 +23,9 @@ function NavLink({ href, ariaLabel, children }: { href: string; ariaLabel: strin
     textDecoration: "none",
   };
   return (
-    <a href={href} aria-label={ariaLabel} style={style}>
+    <Link href={href} aria-label={ariaLabel} style={style}>
       {children}
-    </a>
+    </Link>
   );
 }
 
@@ -147,11 +148,11 @@ function UserMenu({ lang, authed, authLoading, isOwner, onSignIn, onSignOut }: {
         }}>
           {isOwner && authed && (
             <>
-              <a href="/app/topics" onClick={() => setOpen(false)} style={menuItemStyle}>{t("navTopicsAria", lang)}</a>
-              <a href="/app/categories" onClick={() => setOpen(false)} style={menuItemStyle}>{t("categoriesAdminAria", lang)}</a>
-              <a href="/app/feeds" onClick={() => setOpen(false)} style={menuItemStyle}>{t("feedsAdminAria", lang)}</a>
-              <a href="/app/daily-summaries" onClick={() => setOpen(false)} style={menuItemStyle}>{t("dailySummariesAdmin", lang)}</a>
-              <a href="/app" onClick={() => setOpen(false)} style={menuItemStyle}>Videos</a>
+              <Link href="/app/topics" onClick={() => setOpen(false)} style={menuItemStyle}>{t("navTopicsAria", lang)}</Link>
+              <Link href="/app/categories" onClick={() => setOpen(false)} style={menuItemStyle}>{t("categoriesAdminAria", lang)}</Link>
+              <Link href="/app/feeds" onClick={() => setOpen(false)} style={menuItemStyle}>{t("feedsAdminAria", lang)}</Link>
+              <Link href="/app/daily-summaries" onClick={() => setOpen(false)} style={menuItemStyle}>{t("dailySummariesAdmin", lang)}</Link>
+              <Link href="/app" onClick={() => setOpen(false)} style={menuItemStyle}>Videos</Link>
               <div style={{ height: 1, background: color.border, margin: "4px 0" }} />
             </>
           )}
@@ -246,9 +247,9 @@ export function SeoNavBar({ lang, altLangUrl }: { lang: Lang; altLangUrl?: strin
         <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} lang={lang} />
       </div>
 
-      <a href="/app" style={{ textDecoration: "none", display: "block" }}>
+      <Link href="/app" style={{ textDecoration: "none", display: "block" }}>
         <img src="/logo-8news.png" alt="8news" style={{ height: "clamp(32px, 5vw, 48px)", width: "auto", display: "block" }} />
-      </a>
+      </Link>
       <p style={{ color: color.textMuted, fontSize: 15, marginTop: 8, marginLeft: 0 }}>
         {t("subtitle", lang)}
       </p>

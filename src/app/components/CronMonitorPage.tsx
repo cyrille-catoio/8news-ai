@@ -27,9 +27,9 @@ export function CronMonitorPage({ lang }: { lang: Lang }) {
 
   const fmt = (n: number) => n.toLocaleString(lang === "fr" ? "fr-FR" : "en-US");
 
-  function timeAgo(iso: string | null): string {
+  function timeAgo(iso: string | null, nowMs: number): string {
     if (!iso) return "—";
-    const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
+    const mins = Math.floor((nowMs - new Date(iso).getTime()) / 60_000);
     if (mins < 1) return "< 1 " + t("minutesAgo", lang);
     if (mins < 60) return `${mins} ${t("minutesAgo", lang)}`;
     const hours = Math.floor(mins / 60);
@@ -88,6 +88,7 @@ export function CronMonitorPage({ lang }: { lang: Lang }) {
 
   if (!data) return null;
 
+  const generatedAtMs = new Date(data.generatedAt).getTime();
   const maxBar = Math.max(...data.timeline.map((h) => Math.max(h.fetched, h.scored)), 1);
 
   return (
@@ -189,8 +190,8 @@ export function CronMonitorPage({ lang }: { lang: Lang }) {
               {data.topics.map((tp) => (
                 <tr key={tp.id}>
                   <td style={{ ...tdStyle, fontWeight: 600 }}>{tp.label}</td>
-                  <td style={tdStyle}>{timeAgo(tp.lastFetchedAt)}</td>
-                  <td style={tdStyle}>{timeAgo(tp.lastScoredAt)}</td>
+                  <td style={tdStyle}>{timeAgo(tp.lastFetchedAt, generatedAtMs)}</td>
+                  <td style={tdStyle}>{timeAgo(tp.lastScoredAt, generatedAtMs)}</td>
                   <td style={{
                     ...tdStyle,
                     textAlign: "right",
@@ -221,7 +222,7 @@ export function CronMonitorPage({ lang }: { lang: Lang }) {
               </tr>
             </thead>
             <tbody>
-              {data.timeline.filter((row) => new Date(row.hour).getTime() <= Date.now()).map((row) => {
+              {data.timeline.filter((row) => new Date(row.hour).getTime() <= generatedAtMs).map((row) => {
                 const hDate = new Date(row.hour);
                 const hLabel = hDate.toLocaleTimeString(lang === "fr" ? "fr-FR" : "en-US", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
                 const cov = row.fetched > 0 ? Math.round((row.scored / row.fetched) * 100) : 0;

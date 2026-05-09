@@ -15,7 +15,6 @@ function isNew(pubDate: string | undefined): boolean {
 
 export function TopFeedSection({
   articles,
-  loading,
   lang,
   locale,
   lastUpdatedAt,

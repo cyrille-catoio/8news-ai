@@ -5,7 +5,7 @@ import { t, type Lang } from "@/lib/i18n";
 import { color } from "@/lib/theme";
 import { VoiceAccordion, TTS_VOICES_EN, TTS_VOICES_FR } from "@/app/components/VoiceAccordion";
 import { useAuth } from "@/app/providers";
-import { isOwnerUser, getAppUserType } from "@/lib/user-type";
+import { isOwnerUser } from "@/lib/user-type";
 import { UsersSection } from "@/app/components/UsersSection";
 import { MyAccountSection } from "@/app/components/MyAccountSection";
 

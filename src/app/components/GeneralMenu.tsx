@@ -1,6 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
+import Link from "next/link";
 import { color } from "@/lib/theme";
 import { t, type Lang } from "@/lib/i18n";
 import type { AppNavPage } from "@/app/components/AppHeader";
@@ -58,7 +59,6 @@ export function GeneralMenu({
   onAnalyzeTop,
   onNavigateSummaries,
   onNavigateVideos,
-  onRequestAuth,
 }: {
   lang: Lang;
   currentPage: AppNavPage;
@@ -88,12 +88,9 @@ export function GeneralMenu({
       >
         {t("videosBtn", lang)}
       </button>
-      {/* Hard <a> link: /briefings is an SSR route outside the SPA, so
-          we want a full navigation (not pushState). The current SPA can't
-          render this page in-place. */}
-      <a href="/briefings" style={base}>
+      <Link href="/briefings" style={base}>
         {t("videoBriefingsBtn", lang)}
-      </a>
+      </Link>
       <button
         type="button"
         onClick={onNavigateHome}
@@ -143,28 +140,28 @@ export function SeoGeneralMenu({
 
   return (
     <div style={barWrap}>
-      <a href="/app" style={activePage === "briefing" ? activeStyle : base}>
+      <Link href="/app" style={activePage === "briefing" ? activeStyle : base}>
         {t("briefingBtn", lang)}
-      </a>
-      <a href="/app/videos" style={activePage === "videos" ? activeStyle : base}>
+      </Link>
+      <Link href="/app/videos" style={activePage === "videos" ? activeStyle : base}>
         {t("videosBtn", lang)}
-      </a>
-      <a href="/briefings" style={activePage === "videoBriefings" ? activeStyle : base}>
+      </Link>
+      <Link href="/briefings" style={activePage === "videoBriefings" ? activeStyle : base}>
         {t("videoBriefingsBtn", lang)}
-      </a>
-      <a href="/app/articles" style={activePage === "home" ? activeStyle : base}>
+      </Link>
+      <Link href="/app/articles" style={activePage === "home" ? activeStyle : base}>
         {t("generalMenuArticlesBtn", lang)}
-      </a>
-      <a href="/app/top-articles" style={activePage === "topArticles" ? activeStyle : base}>
+      </Link>
+      <Link href="/app/top-articles" style={activePage === "topArticles" ? activeStyle : base}>
         {t("analyzeTopArticlesBtn", lang)}
-      </a>
-      <a href="/summaries" style={activePage === "summaries" ? activeStyle : base}>
+      </Link>
+      <Link href="/summaries" style={activePage === "summaries" ? activeStyle : base}>
         {t("dailySummaryBtn", lang)}
-      </a>
+      </Link>
       {authed && (
-        <a href="/app/favorites" style={activePage === "favorites" ? activeStyle : base}>
+        <Link href="/app/favorites" style={activePage === "favorites" ? activeStyle : base}>
           {t("myFavoritesBtn", lang)}
-        </a>
+        </Link>
       )}
     </div>
   );

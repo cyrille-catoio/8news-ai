@@ -61,7 +61,6 @@ export function slugifyVideoTitle(title: string, lang: "en" | "fr"): string {
   // 0x0300-0x036F is the "Combining Diacritical Marks" range.
   const normalized = title
     .normalize("NFKD")
-    // eslint-disable-next-line no-misleading-character-class
     .replace(/[\u0300-\u036F]/g, "")
     .toLowerCase();
 

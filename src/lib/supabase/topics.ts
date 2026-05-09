@@ -241,20 +241,143 @@ export async function updateTopic(
   }
 }
 
-export async function deleteTopic(id: string): Promise<boolean> {
+/**
+ * Counts of every side-effect performed during a hard delete. Surfaced
+ * to the admin UI so the operator can audit the cleanup at a glance.
+ *
+ * - `articlesDeleted`: rows removed from `articles` (no FK from articles
+ *   to topics — manual sweep).
+ * - `homeQueueDeleted`: rows removed from `home_surface_queue` (the
+ *   queue holds polymorphic refs and intentionally has no FK).
+ * - `userPrefsUpdated`: number of `user_topic_preferences` rows whose
+ *   `topic_ids` array was rewritten to drop the deleted topic.
+ *
+ * Cascade-deleted via FK ON DELETE CASCADE (no count needed): `feeds`,
+ * `daily_summaries`, `summary_bullets`, `video_roundups`.
+ *
+ * Set-NULL via FK ON DELETE SET NULL (rows kept, topic_id cleared):
+ * `youtube_videos`, `video_transcriptions`, `youtube_channels`.
+ */
+export interface DeleteTopicResult {
+  ok: boolean;
+  articlesDeleted: number;
+  homeQueueDeleted: number;
+  userPrefsUpdated: number;
+}
+
+/**
+ * Hard delete a topic and every dependent row that the FK graph won't
+ * clean up on its own. Order matters — we sweep tables that don't have
+ * a cascading FK BEFORE issuing the `DELETE FROM topics` so the row
+ * counters returned to the UI reflect what we actually removed.
+ *
+ * Idempotent: a re-delete on a missing topic returns
+ * `{ ok: true, ...0s }` because the per-table sweeps each match nothing.
+ */
+export async function deleteTopic(id: string): Promise<DeleteTopicResult> {
+  const empty: DeleteTopicResult = {
+    ok: false,
+    articlesDeleted: 0,
+    homeQueueDeleted: 0,
+    userPrefsUpdated: 0,
+  };
   const clientP = getServerClient();
-  if (!clientP) return false;
+  if (!clientP) return empty;
 
   try {
     const supabase = await clientP;
-    const { error } = await supabase
-      .from("topics")
-      .update({ is_active: false })
-      .eq("id", id);
 
-    return !error;
-  } catch {
-    return false;
+    // 1. home_surface_queue — kind='article' rows reference articles.id,
+    //    kind='video' rows reference video_transcriptions.id; both carry
+    //    the denormalized `topic_id`, so a single sweep removes both.
+    //    Run BEFORE deleting articles so the queue.ref_id never points
+    //    at an already-deleted article id.
+    const queueRes = await supabase
+      .from("home_surface_queue")
+      .delete({ count: "exact" })
+      .eq("topic_id", id);
+    if (queueRes.error) {
+      console.warn(
+        `[deleteTopic] home_surface_queue cleanup failed for topic=${id}: ${queueRes.error.message}`,
+      );
+    }
+
+    // 2. articles — `articles.topic` is a TEXT label (no FK). A topic
+    //    delete must explicitly remove its articles or they linger as
+    //    orphans visible in /api/cron-stats and the topic_dynamic
+    //    pipelines.
+    const articlesRes = await supabase
+      .from("articles")
+      .delete({ count: "exact" })
+      .eq("topic", id);
+    if (articlesRes.error) {
+      console.warn(
+        `[deleteTopic] articles cleanup failed for topic=${id}: ${articlesRes.error.message}`,
+      );
+    }
+
+    // 3. user_topic_preferences.topic_ids is a TEXT[] array. Pull every
+    //    row that contains this id, rewrite the array without it, push
+    //    back. `.contains([id])` is a Postgres `@>` containment check.
+    const { data: prefsRows, error: prefsSelErr } = await supabase
+      .from("user_topic_preferences")
+      .select("user_id, topic_ids")
+      .contains("topic_ids", [id]);
+    if (prefsSelErr) {
+      console.warn(
+        `[deleteTopic] user_topic_preferences select failed for topic=${id}: ${prefsSelErr.message}`,
+      );
+    }
+    let userPrefsUpdated = 0;
+    if (prefsRows) {
+      for (const row of prefsRows as Array<{ user_id: string; topic_ids: string[] }>) {
+        const next = (row.topic_ids ?? []).filter((t) => t !== id);
+        const { error: prefUpdErr } = await supabase
+          .from("user_topic_preferences")
+          .update({ topic_ids: next })
+          .eq("user_id", row.user_id);
+        if (!prefUpdErr) userPrefsUpdated++;
+      }
+    }
+
+    // 4. topics row itself. ON DELETE CASCADE on:
+    //    - feeds.topic_id          → all RSS feeds gone
+    //    - daily_summaries.topic_id → cascades summary_bullets too via
+    //                                 daily_summary_id (and summary_bullets
+    //                                 also has a direct ON DELETE CASCADE
+    //                                 on its own topic_id, defense in depth).
+    //    - video_roundups.topic_id  → all video roundup pages gone
+    //    ON DELETE SET NULL on:
+    //    - youtube_videos.topic_id, video_transcriptions.topic_id,
+    //      youtube_channels.topic_id — the rows persist with topic_id
+    //      = NULL so the cron / SSR can keep operating on them, just
+    //      detached from the deleted label.
+    const { error: topicErr } = await supabase
+      .from("topics")
+      .delete()
+      .eq("id", id);
+    if (topicErr) {
+      console.error(
+        `[deleteTopic] topics delete failed for topic=${id}: ${topicErr.message}`,
+      );
+      return {
+        ok: false,
+        articlesDeleted: articlesRes.count ?? 0,
+        homeQueueDeleted: queueRes.count ?? 0,
+        userPrefsUpdated,
+      };
+    }
+
+    return {
+      ok: true,
+      articlesDeleted: articlesRes.count ?? 0,
+      homeQueueDeleted: queueRes.count ?? 0,
+      userPrefsUpdated,
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "unknown";
+    console.error(`[deleteTopic] threw for topic=${id}: ${msg}`);
+    return empty;
   }
 }
 

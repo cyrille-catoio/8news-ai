@@ -263,12 +263,29 @@ export function TopicsPage({
     }
   }
 
-  async function handleDeleteTopic(id: string) {
-    if (!confirm(t("confirmDelete", lang))) return;
+  async function handleDeleteTopic(id: string, label?: string) {
+    const labelLine = label
+      ? `${t("topicDeleteConfirmTitle", lang)} « ${label} » ?`
+      : `${t("topicDeleteConfirmTitle", lang)} « ${id} » ?`;
+    const message = `${labelLine}\n\n${t("topicDeleteConfirmBody", lang)}`;
+    if (!confirm(message)) return;
     try {
-      await fetch(`/api/topics/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/topics/${id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError((data as { error?: string }).error || "Failed");
+        return;
+      }
       setView("list");
       await loadTopics();
+      const tpl = t("topicDeleteSuccessNotice", lang);
+      setListNotice(
+        tpl
+          .replace("{articles}", String((data as { articlesDeleted?: number }).articlesDeleted ?? 0))
+          .replace("{queue}", String((data as { homeQueueDeleted?: number }).homeQueueDeleted ?? 0))
+          .replace("{prefs}", String((data as { userPrefsUpdated?: number }).userPrefsUpdated ?? 0)),
+      );
+      setTimeout(() => setListNotice(null), 6000);
     } catch {
       setError("Failed to delete");
     }
@@ -706,6 +723,7 @@ Les valeurs "index" correspondent aux positions (à partir de 0) dans la liste. 
       onReorder={handleReorder}
       onToggleDisplay={handleToggleDisplay}
       onCategoryChange={handleListCategoryChange}
+      onDeleteTopic={handleDeleteTopic}
     />
   );
 }

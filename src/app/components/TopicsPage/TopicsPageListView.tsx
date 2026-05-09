@@ -25,6 +25,7 @@ export function TopicsPageListView({
   onReorder,
   onToggleDisplay,
   onCategoryChange,
+  onDeleteTopic,
 }: {
   lang: Lang;
   topics: TopicItem[];
@@ -38,6 +39,7 @@ export function TopicsPageListView({
   onReorder: (idA: string, idB: string) => void;
   onToggleDisplay: (id: string, value: boolean) => void;
   onCategoryChange: (topicId: string, categoryId: number) => void;
+  onDeleteTopic: (id: string, label?: string) => void;
 }) {
   return (
     <div>
@@ -185,9 +187,47 @@ export function TopicsPageListView({
                       {tp.isDisplayed ? "👁" : "👁‍🗨"}
                     </button>
                   </td>
-                  <td>
+                  <td style={{ whiteSpace: "nowrap" }}>
                     <button type="button" onClick={() => onLoadDetail(tp.id)} style={ghostOutlineBtn}>
                       {t("editBtn", lang)}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onDeleteTopic(tp.id, lang === "fr" ? tp.labelFr : tp.labelEn)
+                      }
+                      title={t("topicDeleteIconTitle", lang)}
+                      aria-label={t("topicDeleteIconTitle", lang)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: "4px 8px",
+                        marginLeft: 4,
+                        color: "#ef4444",
+                        fontSize: 16,
+                        lineHeight: 1,
+                        verticalAlign: "middle",
+                        opacity: 0.7,
+                        transition: "opacity 120ms ease",
+                      }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.opacity = "1";
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.opacity = "0.7";
+                      }}
+                    >
+                      {/* Trash glyph (Heroicons-style outline). Inline SVG keeps the
+                          icon crisp at any DPR and lets us recolor on hover via
+                          currentColor. */}
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6l-1.5 14.5a2 2 0 0 1-2 1.5h-7a2 2 0 0 1-2-1.5L5 6" />
+                        <path d="M10 11v6" />
+                        <path d="M14 11v6" />
+                        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                      </svg>
                     </button>
                   </td>
                 </tr>

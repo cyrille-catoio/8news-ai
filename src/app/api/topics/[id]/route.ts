@@ -125,16 +125,25 @@ export async function DELETE(
   if (!auth.ok) return auth.response;
   try {
     const { id } = await params;
-    const ok = await deleteTopic(id);
+    const result = await deleteTopic(id);
 
-    if (!ok) {
+    if (!result.ok) {
       return NextResponse.json(
-        { error: "Topic not found or delete failed" },
+        { error: "Topic not found or delete failed", ...result },
         { status: 404 },
       );
     }
 
-    return NextResponse.json({ success: true });
+    // Surfaces row counts to the admin UI so the operator can audit
+    // the cleanup. Cascade-only sweeps (feeds, daily_summaries,
+    // summary_bullets, video_roundups) are not counted here — they
+    // happen inside Postgres.
+    return NextResponse.json({
+      success: true,
+      articlesDeleted: result.articlesDeleted,
+      homeQueueDeleted: result.homeQueueDeleted,
+      userPrefsUpdated: result.userPrefsUpdated,
+    });
   } catch {
     return NextResponse.json(
       { error: "Failed to delete topic" },

@@ -110,7 +110,7 @@ export function TopicsPageDetailView({
   } | null;
   onToggleActive: () => void;
   onSaveTopic: () => void;
-  onDeleteTopic: (id: string) => void;
+  onDeleteTopic: (id: string, label?: string) => void;
   onSavePrompt: () => void;
   onAddFeed: () => void;
   onDiscoverFeeds: () => void;
@@ -219,7 +219,11 @@ export function TopicsPageDetailView({
               <button type="button" onClick={onSaveTopic} disabled={saving} style={{ ...primaryButtonStyle, opacity: saving ? 0.6 : 1 }}>
                 {saving ? "..." : t("saveBtn", lang)}
               </button>
-              <button type="button" onClick={() => onDeleteTopic(d.id)} style={dangerButtonStyle}>
+              <button
+                type="button"
+                onClick={() => onDeleteTopic(d.id, lang === "fr" ? d.labelFr : d.labelEn)}
+                style={dangerButtonStyle}
+              >
                 {t("deleteBtn", lang)}
               </button>
             </div>

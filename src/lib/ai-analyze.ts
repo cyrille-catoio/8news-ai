@@ -109,8 +109,21 @@ export async function analyzeWithAI(
   let bullets: SummaryBullet[] = [];
 
   if (Array.isArray(parsed.globalSummary)) {
-    type FlatBullet = { text?: string; refs?: number[]; title?: string };
-    type GroupedBullet = { title?: string; bullets?: Array<{ text?: string; refs?: number[] }> };
+    type FlatBullet = { text?: string; refs?: number[]; title?: string; importance?: number };
+    type GroupedBullet = {
+      title?: string;
+      /**
+       * Editorial importance 1-10 for the whole group (Top 24h prompt
+       * v2.6.9+). Propagated below to every flattened sub-bullet so the
+       * persistence layer keeps its flat-row shape and the UI can read
+       * the score off the first bullet of each visible group. The LLM
+       * is asked to ground the score on industry impact (see prompt in
+       * `generate-top-summary.ts`). Anything outside 1-10 is dropped to
+       * null at flatten time.
+       */
+      importance?: number;
+      bullets?: Array<{ text?: string; refs?: number[] }>;
+    };
     type RawEntry = string | FlatBullet | GroupedBullet;
     const arr = parsed.globalSummary as RawEntry[];
 
@@ -119,6 +132,13 @@ export async function analyzeWithAI(
         .replace(/^\s*["“«]+|["”»]+\s*$/g, "")
         .replace(/[\.…]+\s*$/u, "")
         .trim();
+
+    const clampImportance = (raw: unknown): number | null => {
+      if (typeof raw !== "number" || !Number.isFinite(raw)) return null;
+      const rounded = Math.round(raw);
+      if (rounded < 1 || rounded > 10) return null;
+      return rounded;
+    };
 
     const buildRefs = (refs: number[] | undefined) =>
       (refs ?? [])
@@ -130,16 +150,18 @@ export async function analyzeWithAI(
         }));
 
     // Two shapes accepted:
-    //  - Grouped (Top articles since v2.6.6): { title, bullets:[{text,refs}] }.
-    //    The same `title` is propagated to every flattened bullet so the
-    //    DB stays in the existing flat `summary_bullets` shape and the
-    //    UI can render them under a shared heading.
+    //  - Grouped (Top articles since v2.6.6): { title, importance?, bullets:[{text,refs}] }.
+    //    The same `title` AND `importance` are propagated to every flattened
+    //    bullet so the DB stays in the existing flat `summary_bullets`
+    //    shape and the UI can render them under a shared heading + meter.
     //  - Flat (legacy + simple callers): { title?, text, refs } — each
-    //    entry is a 1-bullet group on its own.
+    //    entry is a 1-bullet group on its own; `importance` may also be
+    //    present at the leaf level for completeness.
     for (const entry of arr) {
       if (entry && typeof entry === "object" && Array.isArray((entry as GroupedBullet).bullets)) {
         const group = entry as GroupedBullet;
         const groupTitle = cleanTitle(group.title);
+        const groupImportance = clampImportance(group.importance);
         for (const sub of group.bullets ?? []) {
           const text = String(sub?.text ?? "").replace(/^•\s*/, "").trim();
           if (!text) continue;
@@ -147,6 +169,7 @@ export async function analyzeWithAI(
             text,
             refs: buildRefs(sub?.refs),
             title: groupTitle.length > 0 ? groupTitle : null,
+            importance: groupImportance,
           });
         }
         continue;
@@ -154,11 +177,13 @@ export async function analyzeWithAI(
       const flat = entry as FlatBullet | string;
       const flatTitle = typeof flat === "string" ? "" : cleanTitle(flat.title);
       const flatText = (typeof flat === "string" ? flat : flat.text ?? "").replace(/^•\s*/, "").trim();
+      const flatImportance = typeof flat === "string" ? null : clampImportance(flat.importance);
       if (!flatText) continue;
       bullets.push({
         text: flatText,
         refs: buildRefs(typeof flat === "string" ? undefined : flat.refs),
         title: flatTitle.length > 0 ? flatTitle : null,
+        importance: flatImportance,
       });
     }
 

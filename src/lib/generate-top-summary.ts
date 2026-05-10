@@ -72,8 +72,16 @@ export function generateTopSummaryPrompt(lang: Lang): string {
       "9. N'inclus JAMAIS de références aux articles, noms de sources ou numéros d'index dans le texte des bullet points (pas de citations entre parenthèses comme \"(Source)\", \"(Article 3)\", \"[TechCrunch]\", etc.). Les références sont gérées séparément via le tableau \"refs\".",
       "10. Pour CHAQUE groupe, produis un \"title\" : un titre court de 3 à 8 mots, accroche journalistique, ancré sur un nom propre, un produit ou un chiffre clé (ex : « OpenAI lève 40 Md$ », « Nvidia frôle les 4 000 Md$ », « Meta licencie 5 % de ses équipes IA »). Pas de guillemets, pas de ponctuation finale (ni point, ni « … »). Pas de chevrons. Le titre doit être informatif à lui seul (pas de teaser flou type « Une journée mouvementée pour la tech »).",
       "11. Si plusieurs bullets sont dans le même groupe, ils doivent vraiment partager un thème central et apporter chacun un angle différent (ex : « Nvidia frôle les 4 000 Md$ » avec un bullet sur la valorisation, un bullet sur les contrats data center, un bullet sur la réaction des concurrents). Si tu hésites, fais plutôt un groupe d'un seul bullet plutôt qu'un groupe artificiel.",
+      "12. Pour CHAQUE groupe, produis un score d'importance éditoriale entier de 1 à 10 dans le champ \"importance\". Échelle calibrée comme le scoring article :",
+      "    - 10 : breaking news majeure (régulation historique, M&A > 10 Md$, événement de marché > 5 %, crash, AGI/AGR notable, IPO emblématique)",
+      "    - 9  : signal fort (lancement produit phare d'un acteur majeur, partenariat structurant, levée > 1 Md$, benchmark record d'un modèle frontier)",
+      "    - 7-8: développement notable (release importante, levée 100 M-1 Md$, mouvement marché significatif, partenariat sourcé)",
+      "    - 5-6: intéressant mais sans urgence (mise à jour produit, analyse sourcée, mouvement de fonds notable)",
+      "    - 3-4: peu important (opinion sans faits nouveaux, analyse sans data)",
+      "    - 1-2: anecdotique (rumeur, content marketing, top-list, contenu promotionnel)",
+      "    Le score reflète l'importance d'aujourd'hui pour un lecteur tech professionnel. Sois exigeant : ne donne 9-10 que si l'événement est vraiment marquant à l'échelle de l'industrie.",
       "",
-      "Réponds en JSON : {\"relevant\":[{\"index\":0,\"snippet\":\"résumé court\"}],\"globalSummary\":[{\"title\":\"titre court accrocheur\",\"bullets\":[{\"text\":\"premier angle détaillé\",\"refs\":[0,1]},{\"text\":\"second angle détaillé\",\"refs\":[2]}]}]}",
+      "Réponds en JSON : {\"relevant\":[{\"index\":0,\"snippet\":\"résumé court\"}],\"globalSummary\":[{\"title\":\"titre court accrocheur\",\"importance\":8,\"bullets\":[{\"text\":\"premier angle détaillé\",\"refs\":[0,1]},{\"text\":\"second angle détaillé\",\"refs\":[2]}]}]}",
     ].join("\n");
   }
   return [
@@ -94,8 +102,16 @@ export function generateTopSummaryPrompt(lang: Lang): string {
     "9. NEVER include article references, source names, or index numbers inside the bullet text (no parenthetical citations like \"(Source)\", \"(Article 3)\", \"[TechCrunch]\", etc.). References are handled separately via the \"refs\" array.",
     "10. For EACH group, produce a \"title\": a short 3-8 word journalistic headline, anchored on a proper noun, product or key figure (e.g. \"OpenAI raises $40B\", \"Nvidia nears $4T market cap\", \"Meta cuts 5% of AI staff\"). No quotes, no trailing punctuation (no period, no ellipsis), no angle brackets. The title must be informative on its own (no vague teaser like \"A busy day in tech\").",
     "11. When a group has multiple bullets, they must genuinely share a central theme and each must bring a distinct angle (e.g. \"Nvidia nears $4T\" with one bullet on valuation, one on data-center contracts, one on competitor reaction). If in doubt, prefer a single-bullet group over an artificial multi-bullet one.",
+    "12. For EACH group, produce an editorial importance integer score 1-10 in the \"importance\" field. Scale calibrated like article scoring:",
+    "    - 10: major breaking news (historic regulation, M&A > $10B, market move > 5%, crash, notable AGI/AGR step, landmark IPO)",
+    "    - 9 : strong signal (flagship product launch from a major player, structuring partnership, raise > $1B, frontier-model benchmark record)",
+    "    - 7-8: notable development (significant release, $100M-$1B raise, meaningful market move, sourced partnership)",
+    "    - 5-6: interesting but not urgent (product update, sourced analysis, notable fund flow)",
+    "    - 3-4: low value (opinion without new facts, analysis without data)",
+    "    - 1-2: anecdotal (rumor, content marketing, listicle, promotional content)",
+    "    The score reflects how important THIS news is TODAY for a professional tech reader. Be demanding: only award 9-10 when the event is genuinely industry-defining.",
     "",
-    "Respond with JSON: {\"relevant\":[{\"index\":0,\"snippet\":\"short summary\"}],\"globalSummary\":[{\"title\":\"short punchy headline\",\"bullets\":[{\"text\":\"first angle, detailed\",\"refs\":[0,1]},{\"text\":\"second angle, detailed\",\"refs\":[2]}]}]}",
+    "Respond with JSON: {\"relevant\":[{\"index\":0,\"snippet\":\"short summary\"}],\"globalSummary\":[{\"title\":\"short punchy headline\",\"importance\":8,\"bullets\":[{\"text\":\"first angle, detailed\",\"refs\":[0,1]},{\"text\":\"second angle, detailed\",\"refs\":[2]}]}]}",
   ].join("\n");
 }
 
@@ -240,6 +256,15 @@ export async function generateTopSummary(
       refs: unknown;
       source_type: string;
       entities: string[];
+      /**
+       * Editorial importance 1-10 propagated from the LLM `importance`
+       * field via `analyzeWithAI` flatten. Same value across every row
+       * of a same-`title` run, so the UI can read it off the first
+       * bullet of the rendered group (mirroring how `title` is shared).
+       * NULL when migration 026 isn't applied yet (the helper drops
+       * the column on a 42703 retry) or when the LLM omitted the score.
+       */
+      importance_score: number | null;
     }> = [];
 
     for (let i = 0; i < bullets.length; i++) {
@@ -256,6 +281,8 @@ export async function generateTopSummary(
         ? `**${blt.title}**\n\n${blt.text}`
         : blt.text;
       const titleValue = blt.title ?? null;
+      const importanceValue =
+        typeof blt.importance === "number" ? blt.importance : null;
       if (topics.size === 0) {
         bulletRows.push({
           topic_id: null,
@@ -267,6 +294,7 @@ export async function generateTopSummary(
           refs: blt.refs,
           source_type: "top50",
           entities: [],
+          importance_score: importanceValue,
         });
       } else {
         for (const topicId of topics) {
@@ -280,6 +308,7 @@ export async function generateTopSummary(
             refs: blt.refs,
             source_type: "top50",
             entities: [],
+            importance_score: importanceValue,
           });
         }
       }

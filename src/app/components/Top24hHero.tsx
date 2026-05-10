@@ -4,6 +4,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { color, card, spinnerStyle } from "@/lib/theme";
 import { t, type Lang, dateLocale } from "@/lib/i18n";
 import type { AppNavPage } from "@/app/components/AppHeader";
+import { ScoreMeter } from "@/app/components/ScoreMeter";
 
 /**
  * Hero card pinned at the very top of `/app` (BriefingPage). Renders
@@ -31,6 +32,15 @@ interface Bullet {
   text: string;
   title?: string | null;
   refs: Array<{ title: string; link: string; source: string }>;
+  /**
+   * Editorial importance 1-10 propagated from the LLM `importance`
+   * field per group (mig. 026+, exposed by `/api/news/top-summary/latest`
+   * since v2.6.9). All bullets of a same-title run share the same value
+   * so the renderer can read it from `group.bullets[0]`. NULL on legacy
+   * snapshots and on environments where mig. 026 hasn't been applied —
+   * the meter is hidden in that case.
+   */
+  importanceScore?: number | null;
 }
 
 interface Snapshot {
@@ -346,18 +356,25 @@ export function Top24hHero({
                   >
                     <span style={{ color: color.gold, flexShrink: 0, fontSize: 18, lineHeight: 1 }}>•</span>
                     <span style={{ flex: 1, minWidth: 0 }}>{g.title}</span>
-                    {g.bullets.length > 1 && (
-                      <span
-                        style={{
-                          color: color.textDim,
-                          fontFamily: "ui-monospace, Menlo, monospace",
-                          fontSize: 11,
-                          flexShrink: 0,
-                        }}
-                      >
-                        {g.bullets.length}
-                      </span>
-                    )}
+                    {/* Editorial importance score 1-10 (mig. 026+).
+                        Read off the first bullet of the group — every
+                        bullet of a same-title run carries the same
+                        value (propagated by `analyzeWithAI` flatten).
+                        Hidden when the legacy column is missing or the
+                        LLM omitted the score. Replaces the previous
+                        paragraph-count badge in the same slot. */}
+                    {(() => {
+                      const score = g.bullets[0]?.importanceScore;
+                      if (typeof score !== "number") return null;
+                      return (
+                        <span
+                          style={{ flexShrink: 0, display: "inline-flex" }}
+                          aria-label={`Importance ${score}/10`}
+                        >
+                          <ScoreMeter score={score} width={60} align="end" />
+                        </span>
+                      );
+                    })()}
                     <span style={{ color: open ? color.gold : color.textMuted }}>
                       <Chevron open={open} />
                     </span>

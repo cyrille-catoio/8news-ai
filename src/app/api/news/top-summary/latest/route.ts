@@ -41,6 +41,9 @@ export async function GET(request: NextRequest) {
   // Strip the **Title** prefix re-injected at write time so the
   // `bullet.text` matches the raw LLM body. SummaryBox renders the
   // title separately from a dedicated `bullet.title` prop.
+  // `importanceScore` (mig. 026+) is propagated as-is — same value
+  // across every bullet of a same-`title` run, so the renderer can
+  // read it from the first bullet of each rendered group.
   const bullets = bulletRows.map((b) => {
     const text = b.title
       ? b.text.replace(new RegExp(`^\\*\\*${escapeRegExp(b.title)}\\*\\*\\s*\\n+`), "").trim()
@@ -49,6 +52,7 @@ export async function GET(request: NextRequest) {
       text,
       title: b.title,
       refs: b.refs ?? [],
+      importanceScore: b.importance_score,
     };
   });
 

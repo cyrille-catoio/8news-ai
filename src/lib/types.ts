@@ -50,6 +50,16 @@ export interface SummaryBullet {
    * and the renderer falls back to the previous bullet-only layout.
    */
   title?: string | null;
+  /**
+   * Editorial importance score 1-10 for the GROUP this bullet belongs
+   * to (Top 24h pipeline only, since v2.6.9). When the LLM returns the
+   * grouped shape with an `importance` field, the flatten step below
+   * propagates the value to every sub-bullet of the group, mirroring
+   * the existing propagation of `title`. UI then reads it from the
+   * first bullet of each rendered group. NULL on legacy rows and on
+   * non-grouped callers.
+   */
+  importance?: number | null;
 }
 
 export interface SummaryResponse {

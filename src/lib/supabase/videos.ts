@@ -573,6 +573,86 @@ export async function getRecentVideoPagesForTopic(
 }
 
 /**
+ * Pull every transcribed video for one (topic, date, lang) tuple — the
+ * list backing `/[topic]/videos/[date]` (v2.7.0+, drill-down from the
+ * unified /archives hub when a day shows « N transcribed videos »).
+ *
+ * Filtered the same way as `getRecentVideoPagesForTopic` (slug + date
+ * present so every row resolves to a real `/v/[topic]/[date]/[slug]`
+ * page) plus an exact `published_date = date` constraint. Returns
+ * `summary_score` so the list view can surface the meter; `title` and
+ * `title_localized` so the renderer can prefer the translated title.
+ *
+ * Same 42703 fallback as the recent-videos helper for environments
+ * where mig 023 / 021 hasn't been applied yet.
+ */
+export async function getVideoPagesForTopicDate(
+  topicId: string,
+  date: string,
+  lang: string,
+): Promise<
+  Array<{
+    video_id: string;
+    title: string;
+    title_localized: string | null;
+    published_date: string;
+    slug_keywords: string;
+    summary_score: number | null;
+  }>
+> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
+  try {
+    const supabase = await clientP;
+    const buildQuery = (columns: string) =>
+      supabase
+        .from("video_transcriptions")
+        .select(columns)
+        .eq("topic_id", topicId)
+        .eq("lang", lang)
+        .eq("published_date", date)
+        .not("slug_keywords", "is", null)
+        .order("created_at", { ascending: false });
+
+    const fullColumns =
+      "video_id, title, title_localized, published_date, slug_keywords, summary_score";
+    const withoutTitle =
+      "video_id, title, published_date, slug_keywords, summary_score";
+    const minimal = "video_id, title, published_date, slug_keywords";
+
+    let res = await buildQuery(fullColumns);
+    if (res.error && /title_localized/i.test(res.error.message ?? "")) {
+      res = await buildQuery(withoutTitle);
+    }
+    if (res.error && /summary_score/i.test(res.error.message ?? "")) {
+      res = await buildQuery(minimal);
+    }
+    if (res.error || !res.data) return [];
+
+    const rows = (res.data ?? []) as Array<
+      Partial<{
+        video_id: string;
+        title: string;
+        title_localized: string | null;
+        published_date: string;
+        slug_keywords: string;
+        summary_score: number | null;
+      }>
+    >;
+    return rows.map((r) => ({
+      video_id: r.video_id ?? "",
+      title: r.title ?? "",
+      title_localized: r.title_localized ?? null,
+      published_date: r.published_date ?? "",
+      slug_keywords: r.slug_keywords ?? "",
+      summary_score: typeof r.summary_score === "number" ? r.summary_score : null,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Fetch the alternate-language version of a video page (same `video_id`,
  * other `lang`). Returns its slug + published_date so the route can
  * build the hreflang URL `/{topic}/v/{date}/{slug-other-lang}`.

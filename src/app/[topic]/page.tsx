@@ -11,10 +11,24 @@ import {
 import { color, font } from "@/lib/theme";
 import { SeoNavBar } from "@/app/components/SeoNavBar";
 import { SeoGeneralMenu } from "@/app/components/GeneralMenu";
+import { TopDayPage } from "@/app/components/TopDayPage";
 import { resolveServerLang } from "@/lib/server-lang";
 import { summaryPath } from "@/lib/summary-routes";
 
 const PAGE_SIZE = 30;
+
+/**
+ * Date fork (v2.7.1+) — Next.js can't have two `/[seg]/` dynamic
+ * routes at the same level, so URLs like `/2026-05-10` are routed
+ * through the topic catch-all and intercepted here. When `params.topic`
+ * matches `^\d{4}-\d{2}-\d{2}$` we hand off to `<TopDayPage>` (the
+ * cross-topic Top 24h archive at the unified `/archives` hub). The
+ * trade-off: a topic ID that happened to look like a date would be
+ * shadowed — we reject those at create time in
+ * [src/app/api/topics/route.ts](src/app/api/topics/route.ts) so this
+ * is a hypothetical concern rather than an actual one.
+ */
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 interface PageProps {
   params: Promise<{ topic: string }>;
@@ -25,6 +39,35 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
   const { topic: topicId } = await params;
   const { lang: rawLang } = await searchParams;
   const lang = await resolveServerLang(rawLang);
+
+  // Top day archive metadata (date URL). We don't need to confirm
+  // the snapshot exists here; the page itself 404s when missing.
+  if (DATE_RE.test(topicId)) {
+    const dateLabel = new Date(`${topicId}T00:00:00`).toLocaleDateString(
+      lang === "fr" ? "fr-FR" : "en-US",
+      { day: "numeric", month: "long", year: "numeric" },
+    );
+    const title =
+      lang === "fr"
+        ? `Top articles 24h · ${dateLabel} — 8news.ai`
+        : `Top 24h articles · ${dateLabel} — 8news.ai`;
+    const description =
+      lang === "fr"
+        ? `Résumé IA cross-topic du top 50 articles tech, IA, crypto pour le ${dateLabel}.`
+        : `Cross-topic AI summary of the top 50 tech, AI, crypto articles for ${dateLabel}.`;
+    return {
+      title,
+      description,
+      alternates: {
+        canonical: `https://8news.ai/${topicId}?lang=${lang}`,
+        languages: {
+          en: `https://8news.ai/${topicId}?lang=en`,
+          fr: `https://8news.ai/${topicId}?lang=fr`,
+        },
+      },
+    };
+  }
+
   const topic = await getTopicById(topicId);
   if (!topic) return { title: "Not Found" };
 
@@ -51,6 +94,11 @@ export default async function TopicHubPage({ params, searchParams }: PageProps) 
   const lang = await resolveServerLang(rawLang);
   const locale = lang === "fr" ? "fr-FR" : "en-US";
   const page = Math.max(1, parseInt(rawPage ?? "1", 10) || 1);
+
+  // Date fork — see comment on DATE_RE above.
+  if (DATE_RE.test(topicId)) {
+    return <TopDayPage date={topicId} lang={lang} />;
+  }
 
   const topic = await getTopicById(topicId);
   if (!topic) notFound();
@@ -80,8 +128,8 @@ export default async function TopicHubPage({ params, searchParams }: PageProps) 
             {lang === "fr" ? "Accueil" : "Home"}
           </Link>
           <span style={{ color: color.textDim, margin: "0 8px" }}>/</span>
-          <Link href="/summaries" style={{ color: color.gold, textDecoration: "none" }}>
-            Summaries
+          <Link href="/archives" style={{ color: color.gold, textDecoration: "none" }}>
+            Archives
           </Link>
           <span style={{ color: color.textDim, margin: "0 8px" }}>/</span>
           <span style={{ color: color.textMuted }}>{topicLabel}</span>

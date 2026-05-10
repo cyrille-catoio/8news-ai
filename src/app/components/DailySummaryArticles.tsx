@@ -63,11 +63,9 @@ export function DailySummaryArticles({ articles, lang }: { articles: Article[]; 
             )}
           </a>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
-            <a href={art.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-              <span style={{ color: color.gold, fontSize: 13 }}>
-                {art.source} · {art.pubDate ? new Date(art.pubDate).toLocaleString(locale) : ""}
-              </span>
-            </a>
+            <span style={{ color: color.gold, fontSize: 13 }}>
+              {art.source} · {art.pubDate ? new Date(art.pubDate).toLocaleString(locale) : ""}
+            </span>
             <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
               <FavoriteButton
                 url={art.link}

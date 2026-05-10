@@ -133,8 +133,8 @@ export async function renderDailySummaryPage({
           <Link href="/app" style={{ color: color.gold, textDecoration: "none" }}>
             {lang === "fr" ? "Accueil" : "Home"}
           </Link>
-          <Link href="/summaries" style={{ color: color.gold, textDecoration: "none" }}>
-            Summaries
+          <Link href="/archives" style={{ color: color.gold, textDecoration: "none" }}>
+            Archives
           </Link>
           <a href={`/${topicId}`} style={{ color: color.gold, textDecoration: "none" }}>
             {topicLabel}

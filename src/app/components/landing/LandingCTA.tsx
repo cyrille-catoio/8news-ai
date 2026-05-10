@@ -11,7 +11,7 @@ export function LandingCTA({ lang }: { lang: LandingLang }) {
           <Link href="/app" className="btn-primary" style={{ padding: "16px 28px", fontSize: 15 }}>
             {c.primary[lang]}
           </Link>
-          <Link href="/summaries" className="btn-ghost" style={{ padding: "16px 28px", fontSize: 15 }}>
+          <Link href="/archives" className="btn-ghost" style={{ padding: "16px 28px", fontSize: 15 }}>
             {c.secondary[lang]}
           </Link>
         </div>

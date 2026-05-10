@@ -798,14 +798,9 @@ function HeroStory({
               letterSpacing: "-0.01em",
             }}
           >
-            <a
-              className="hero-story-title-link"
-              href={article.link}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
+            <span className="hero-story-title-link">
               {article.title}
-            </a>
+            </span>
           </h2>
           <span style={{ flexShrink: 0 }}>
             <ScoreMeter score={article.score} width={72} />
@@ -816,7 +811,8 @@ function HeroStory({
             {article.snippet}
           </p>
         )}
-        {/* Title + CTA both open the article; source stays non-link. */}
+        {/* Keep a single external click target per card so extensions and
+            browser click replays can't open duplicate tabs. */}
         <div style={{ display: "flex", marginTop: article.snippet ? 16 : 18, marginBottom: 14 }}>
           <a
             href={article.link}

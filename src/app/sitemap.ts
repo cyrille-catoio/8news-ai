@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import {
   getAllSummaryRoutes,
+  getAllTopSummaryRoutes,
   getAllVideoPageRoutes,
   getAllVideoRoundupRoutes,
   getActiveTopicIds,
@@ -19,26 +20,36 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 1,
   });
 
-  // Public hub for video briefings — drives crawl into the /r/ pages.
+  // Unified archives hub (v2.7.0+) — supersedes the previously parallel
+  // /summaries and /briefings hubs. Crawlers reach /archives, follow
+  // links to per-topic per-day article summaries (`/en|fr/[topic]/[date]/[slug]`),
+  // video roundups (`/[topic]/r/[date]/[slug]`), and per-day video
+  // listings (`/[topic]/videos/[date]`). The two legacy hubs 308-redirect
+  // here, so we don't list them in the sitemap to avoid Google
+  // showing the redirected page.
   entries.push({
-    url: `${BASE}/briefings`,
+    url: `${BASE}/archives`,
     lastModified: new Date(),
     changeFrequency: "daily",
     priority: 0.9,
   });
 
-  // Four parallel queries: active topic ids (for /{topic} hubs), the
+  // Five parallel queries: active topic ids (for /{topic} hubs), the
   // last 90 days of article daily summaries, the last 90 days of
-  // per-video SSR pages, and the last 90 days of per-topic-day video
-  // roundups. All summary sources are capped to ~9k URLs total to stay
-  // under Google's 50k-per-file sitemap limit — older content is still
-  // served and reachable via internal links.
-  const [topicIds, summaryRoutes, videoRoutes, roundupRoutes] = await Promise.all([
-    getActiveTopicIds(),
-    getAllSummaryRoutes(),
-    getAllVideoPageRoutes(),
-    getAllVideoRoundupRoutes(),
-  ]);
+  // per-video SSR pages, the last 90 days of per-topic-day video
+  // roundups, and (v2.7.1+) the last 90 days of cross-topic Top 24h
+  // snapshots that mount at `/{YYYY-MM-DD}`. All summary sources are
+  // capped by the SITEMAP_RECENT_DAYS window in supabase to stay
+  // under Google's 50k-per-file sitemap limit — older content is
+  // still served and reachable via internal links.
+  const [topicIds, summaryRoutes, videoRoutes, roundupRoutes, topDayRoutes] =
+    await Promise.all([
+      getActiveTopicIds(),
+      getAllSummaryRoutes(),
+      getAllVideoPageRoutes(),
+      getAllVideoRoundupRoutes(),
+      getAllTopSummaryRoutes(),
+    ]);
 
   for (const id of topicIds) {
     entries.push({
@@ -75,6 +86,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: new Date(r.roundup_date),
       changeFrequency: "monthly",
       priority: 0.6,
+    });
+  }
+
+  // Cross-topic Top 24h archive at `/{YYYY-MM-DD}`. One entry per
+  // (date, lang) — the same date in EN and FR has different content
+  // so they're separate canonical URLs.
+  for (const r of topDayRoutes) {
+    entries.push({
+      url: `${BASE}/${r.summary_date}?lang=${r.lang}`,
+      lastModified: new Date(r.summary_date),
+      // Snapshots are immutable once the cron has written them — the
+      // articles, bullets and md are all frozen.
+      changeFrequency: "monthly",
+      priority: 0.7,
     });
   }
 

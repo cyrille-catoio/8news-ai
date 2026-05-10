@@ -17,6 +17,7 @@ const SPA_PATHS = new Set([
   "/app/youtube-channels",
   "/app/top-articles",
   "/app/summaries-browse",
+  "/app/archives",
 ]);
 
 export async function middleware(request: NextRequest) {

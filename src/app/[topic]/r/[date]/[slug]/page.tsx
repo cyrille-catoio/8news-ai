@@ -221,8 +221,8 @@ export default async function VideoRoundupPage({ params }: PageProps) {
           <Link href="/app" style={{ color: color.gold, textDecoration: "none" }}>
             {lang === "fr" ? "Accueil" : "Home"}
           </Link>
-          <Link href="/briefings" style={{ color: color.gold, textDecoration: "none" }}>
-            {lang === "fr" ? "Briefings vidéo" : "Video briefings"}
+          <Link href="/archives?type=videos" style={{ color: color.gold, textDecoration: "none" }}>
+            {lang === "fr" ? "Archives" : "Archives"}
           </Link>
           <a href={`/${topicId}`} style={{ color: color.gold, textDecoration: "none" }}>
             {topicLabel}

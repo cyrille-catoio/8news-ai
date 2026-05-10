@@ -1101,12 +1101,16 @@ const strings = {
     en: "Today",
     fr: "Aujourd'hui",
   },
-  /** General menu pill for `/app/video-briefings` — AI-narrated daily video
-   *  recaps grouped by topic. Renamed in v2.5.17 from "Video briefings /
-   *  Briefings vidéo" to "Video recaps / Recaps vidéo" to (a) drop the
-   *  duplicate "briefing" word now that the homepage pill is "Today" and
-   *  (b) better describe what users actually get — an after-the-fact recap,
-   *  not a forward-looking briefing. */
+  /**
+   * General menu pill for the legacy `/briefings` route. **Removed
+   * from the visible nav in v2.7.0** — the unified `/archives` hub
+   * now covers both article daily summaries and video roundups in
+   * one place, so the pill was redundant. The string itself is
+   * retained as a translation alias because some changelog
+   * entries (v2.5.17, v2.6.0+) still reference it, and tightening
+   * the SPA's `AppNavPage` discriminator is left for a future cleanup.
+   * Safe to delete in v2.8 once no consumer links point at it.
+   */
   videoBriefingsBtn: {
     en: "Video recaps",
     fr: "Récaps vidéo",

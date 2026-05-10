@@ -42,14 +42,14 @@ import { isOwnerUser } from "@/lib/user-type";
 import { FavoriteButton } from "@/app/components/FavoriteButton";
 import { FavoritesPage } from "@/app/components/FavoritesPage";
 import { DailySummariesPage } from "@/app/components/DailySummariesPage";
-import { SummariesBrowsePage } from "@/app/components/SummariesBrowsePage";
+import { ArchivesBrowsePage } from "@/app/components/ArchivesBrowsePage";
 import { VideosPage } from "@/app/components/VideosPage";
 import { YouTubeChannelsPage } from "@/app/components/YouTubeChannelsPage";
 import { BriefingPage } from "@/app/components/BriefingPage";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.6.10";
+const APP_VERSION = "2.6.11";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 const NEWS_API_TRANSIENT_STATUSES = new Set([502, 503, 504]);
 const NEWS_API_RETRY_DELAY_MS = 750;
@@ -369,11 +369,9 @@ function ArticleCard({
         </p>
       </a>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
-        <a href={article.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-          <span style={{ color: color.gold, fontSize: 13 }}>
-            {article.source} · {article.pubDate ? new Date(article.pubDate).toLocaleString(locale) : ""}
-          </span>
-        </a>
+        <span style={{ color: color.gold, fontSize: 13 }}>
+          {article.source} · {article.pubDate ? new Date(article.pubDate).toLocaleString(locale) : ""}
+        </span>
         <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
           <FavoriteButton
             url={article.link}
@@ -671,7 +669,7 @@ export default function Home() {
     dailySummaries: "/app/daily-summaries",
     youtubeChannels: "/app/youtube-channels",
     topArticles: "/app/top-articles",
-    summaries: "/app/summaries-browse",
+    summaries: "/app/archives",
     // v2.5.17+ — placeholder route for the future SPA-internal landing
     // page; the public marketing landing lives at `/` and is rendered
     // by a separate Next route. Wired here so the AppNavPage discriminator
@@ -683,6 +681,11 @@ export default function Home() {
     // Briefing is the SPA's home: hard refresh on /app, on /, or on
     // /app/briefing all land here.
     if (path === "/" || path === "/app" || path === "/app/briefing") return "briefing";
+    // Legacy SPA path: /app/summaries-browse was renamed to /app/archives in
+    // v2.7.0. Keep the old path bookmark-friendly by mapping it to the same
+    // SPA page; the URL replaces itself with the canonical path on first
+    // render via setCurrentPage's pushState below.
+    if (path === "/app/summaries-browse") return "summaries";
     for (const [page, p] of Object.entries(PAGE_PATHS) as [AppNavPage, string][]) {
       if (p === path) return page;
     }
@@ -1239,7 +1242,7 @@ export default function Home() {
             )}
           </div>
         ) : currentPage === "summaries" ? (
-          <SummariesBrowsePage lang={lang} />
+          <ArchivesBrowsePage lang={lang} />
         ) : topicsLoading ? (
         <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "80px 0" }}>
           <span style={spinnerStyle(28)} />

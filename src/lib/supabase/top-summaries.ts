@@ -1,4 +1,4 @@
-import { getServerClient } from "./client";
+import { getServerClient, SITEMAP_RECENT_DAYS } from "./client";
 
 /**
  * Read/write helpers for the `top_summaries` table — the pre-computed
@@ -101,6 +101,74 @@ export async function getLatestTopSummary(
     return data as TopSummaryRow;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Fetch the snapshot for one specific (date, lang) tuple — drives the
+ * SSR `/{YYYY-MM-DD}` page (v2.7.0+, the « top day » archive view
+ * reachable from the gold box on `/archives`).
+ *
+ * Returns `null` when no row exists for that day in this lang. Same
+ * column shape as `getLatestTopSummary` so the consumer can share
+ * downstream rendering code (notably the article list + the markdown
+ * payload that `Top24hHero` accordion-renders).
+ */
+export async function getTopSummaryByDate(
+  lang: "en" | "fr",
+  summaryDate: string,
+): Promise<TopSummaryRow | null> {
+  const clientP = getServerClient();
+  if (!clientP) return null;
+
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("top_summaries")
+      .select("summary_date, lang, generated_at, model, articles, summary_md")
+      .eq("lang", lang)
+      .eq("summary_date", summaryDate)
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data) return null;
+    return data as TopSummaryRow;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * All `top_summaries` route triplets `(summary_date, lang)` from the
+ * last `SITEMAP_RECENT_DAYS` (90) days — used by `sitemap.ts` to expose
+ * `/{date}` URLs to crawlers. One row per (date, lang) — the SSR page
+ * forks on `?lang=`, so each lang has its own canonical URL.
+ *
+ * The lighter shape (just the two columns the sitemap needs) keeps the
+ * payload small even on large windows; the consumer maps each row to
+ * one absolute URL.
+ */
+export async function getAllTopSummaryRoutes(): Promise<
+  Array<{ summary_date: string; lang: "en" | "fr" }>
+> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
+
+  try {
+    const supabase = await clientP;
+    const sinceISO = new Date(Date.now() - SITEMAP_RECENT_DAYS * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    const { data, error } = await supabase
+      .from("top_summaries")
+      .select("summary_date, lang")
+      .gte("summary_date", sinceISO)
+      .order("summary_date", { ascending: false });
+
+    if (error || !data) return [];
+    return data as Array<{ summary_date: string; lang: "en" | "fr" }>;
+  } catch {
+    return [];
   }
 }
 

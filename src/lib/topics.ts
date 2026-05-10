@@ -21,6 +21,7 @@ const RESERVED_TOPIC_SLUGS = new Set([
   // Public hubs and SPA roots that already serve content under their
   // own paths and would 404 (or worse, render the hub) if a topic with
   // the same id existed.
+  "archives",
   "briefings",
   "summaries",
   "app",
@@ -29,6 +30,15 @@ const RESERVED_TOPIC_SLUGS = new Set([
   "top-articles",
   "favorites",
 ]);
+
+/**
+ * Date-shaped slugs (`YYYY-MM-DD`) shadow the v2.7.1+ Top 24h archive
+ * route at `/{date}` (mounted via the date-fork in
+ * [src/app/[topic]/page.tsx](src/app/[topic]/page.tsx)). A topic with
+ * such an id would either become inaccessible (the date fork wins) or
+ * silently route to the wrong content. We block it at create time.
+ */
+const DATE_SHAPED_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * Return true if `id` is reserved by the routing tree and must not be
@@ -44,5 +54,8 @@ const RESERVED_TOPIC_SLUGS = new Set([
  */
 export function isReservedTopicSlug(id: string): boolean {
   if (!id) return false;
-  return RESERVED_TOPIC_SLUGS.has(id.toLowerCase());
+  const lower = id.toLowerCase();
+  if (RESERVED_TOPIC_SLUGS.has(lower)) return true;
+  if (DATE_SHAPED_RE.test(lower)) return true;
+  return false;
 }

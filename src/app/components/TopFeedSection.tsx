@@ -97,48 +97,46 @@ export function TopFeedSection({
             </div>
           </a>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
-            <a href={art.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-              <span style={{ color: color.gold, fontSize: 13 }}>
-                {isNew(art.pubDate) && (
-                  <span
-                    style={{
-                      display: "inline-block",
-                      fontSize: 10,
-                      fontWeight: 700,
-                      color: "#000",
-                      background: "#22c55e",
-                      borderRadius: 4,
-                      padding: "1px 5px",
-                      marginRight: 6,
-                      verticalAlign: "middle",
-                      letterSpacing: 0.5,
-                    }}
-                  >
-                    {t("articleNewBadge", lang)}
-                  </span>
-                )}
-                {art.topic && (
-                  <span
-                    style={{
-                      display: "inline-block",
-                      fontSize: 10,
-                      fontWeight: 700,
-                      color: color.gold,
-                      border: `1px solid ${color.gold}`,
-                      borderRadius: 4,
-                      padding: "1px 5px",
-                      marginRight: 6,
-                      verticalAlign: "middle",
-                      letterSpacing: 0.3,
-                      opacity: 0.85,
-                    }}
-                  >
-                    {art.topic}
-                  </span>
-                )}
-                {art.source} · {art.pubDate ? new Date(art.pubDate).toLocaleString(locale, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}
-              </span>
-            </a>
+            <span style={{ color: color.gold, fontSize: 13 }}>
+              {isNew(art.pubDate) && (
+                <span
+                  style={{
+                    display: "inline-block",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: "#000",
+                    background: "#22c55e",
+                    borderRadius: 4,
+                    padding: "1px 5px",
+                    marginRight: 6,
+                    verticalAlign: "middle",
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  {t("articleNewBadge", lang)}
+                </span>
+              )}
+              {art.topic && (
+                <span
+                  style={{
+                    display: "inline-block",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: color.gold,
+                    border: `1px solid ${color.gold}`,
+                    borderRadius: 4,
+                    padding: "1px 5px",
+                    marginRight: 6,
+                    verticalAlign: "middle",
+                    letterSpacing: 0.3,
+                    opacity: 0.85,
+                  }}
+                >
+                  {art.topic}
+                </span>
+              )}
+              {art.source} · {art.pubDate ? new Date(art.pubDate).toLocaleString(locale, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}
+            </span>
             <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
               <FavoriteButton
                 url={art.link}

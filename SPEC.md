@@ -12,7 +12,7 @@
 1. **RSS articles** — fetched from 400+ curated feeds across **dynamic, database-driven topics**, pre-scored 1-10 with AI via scheduled Netlify cron jobs, stored in Supabase, and surfaced as a daily Top 50 (homepage feed) and per-topic SEO daily summary pages.
 2. **YouTube transcriptions** — for a curated set of channels, the cron pre-transcribes every "today's" video (≥ 120 s) in EN+FR, GPT-summarises each one into a Markdown article, and aggregates them per topic per day into structured 8-bullet "video roundup" briefings.
 
-Both pipelines feed into a hybrid rendering model: a black-and-gold **client-side SPA at `/app`** for the authenticated / power-user surface, plus a **server-rendered SEO surface** at `/`, `/briefings`, `/summaries`, `/[topic]`, `/[topic]/[date]/[slug]`, `/[topic]/v/[date]/[slug]` and `/[topic]/r/[date]/[slug]` for indexability.
+Both pipelines feed into a hybrid rendering model: a black-and-gold **client-side SPA at `/app`** for the authenticated / power-user surface, plus a **server-rendered SEO surface** at `/`, `/archives` (**v2.6.11+** unified hub, supersedes the previously parallel `/summaries` + `/briefings` which now 308-redirect here), `/[topic]`, `/[topic]/[date]/[slug]` (legacy article daily summary, redirects to `/en|fr/[topic]/[date]/[slug]`), `/[topic]/v/[date]/[slug]`, `/[topic]/r/[date]/[slug]` and `/[topic]/videos/[date]` (**v2.6.11+** drill-down from /archives) for indexability.
 
 **OpenAI models in use**:
 - `gpt-4.1-nano` — per-article scoring (1-10) and **v2.6.6+** per-topic AI analysis on `/app` (`/api/news` flow, swapped from `gpt-4.1-mini`).
@@ -31,8 +31,11 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 |---|---|---|
 | `/` | SSR | Marketing landing (hero, ticker, stats, YT, how-it-works, topics, pricing, FAQ, CTA, footer) |
 | `/app` and `/app/<page>` | Client SPA (rewritten via `next.config.ts`) | Briefing homepage + Top 50 / Videos / Stats / Crons / Topics / Settings / etc. |
-| `/briefings` | SSR | Public hub: every video roundup grouped by date desc |
-| `/summaries` | SSR + client | Public hub: daily SEO summaries explorer |
+| `/archives` | SSR + client | **v2.6.11+** Unified public hub: timeline by date desc, one row per (topic) per day with three slots — daily article summary, video roundup, count of transcribed videos. Filters: topic / type (all / articles / videos). 7-day pagination. |
+| `/briefings` | SSR | **v2.6.11+** 308-redirects to `/archives?type=videos`. URL kept for backlink preservation. |
+| `/summaries` | SSR | **v2.6.11+** 308-redirects to `/archives`. URL kept for backlink preservation. |
+| `/[topic]/videos/[date]` | SSR | **v2.6.11+** Drill-down list of every transcribed video for one (topic, date, lang) tuple, reached from the `/archives` timeline « N transcribed videos » counter. |
+| `/{YYYY-MM-DD}` | SSR | **v2.6.11+** Cross-topic Top 24h archive page for one specific date (e.g. `/2026-05-10`). Mounted via a date-fork in `/[topic]/page.tsx` because Next.js can't have two `/[seg]/` dynamic routes at the same level. Renders the full `Top24hHero` accordion (defaultOpen) + the 50-article frozen source list + adjacent-day links. Reached from the gold « ALL TOPICS » box on `/archives`. Topic ids matching `^\d{4}-\d{2}-\d{2}$` are rejected at create time. |
 | `/[topic]` | SSR | Per-topic hub (paginated daily summaries + recent video pages) |
 | `/[topic]/[date]/[slug]` | SSR | Daily SEO summary page (bullets + articles + JSON-LD + hreflang) |
 | `/[topic]/v/[date]/[slug]` | SSR | Per-video transcribed-summary page |
@@ -97,16 +100,20 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 │   │   ├── sitemap.ts                  # Dynamic sitemap.xml — every active topic hub, every daily summary, every roundup, every per-video page
 │   │   ├── app/
 │   │   │   └── page.tsx                # **The SPA**: client shell with currentPage router (Briefing → Top 50 → Videos → Stats → Crons → Topics → Settings → …). Default landing page is the **Briefing** (BriefingPage) since v2.x.
+│   │   ├── archives/
+│   │   │   └── page.tsx                # **v2.6.11+** SSR `/archives` unified hub (timeline by date desc, daily summary + video roundup + transcribed-videos count per topic per day). Replaces /briefings + /summaries which now 308-redirect here.
 │   │   ├── briefings/
-│   │   │   └── page.tsx                # SSR `/briefings` hub — every video roundup grouped by date desc, EN+FR
+│   │   │   └── page.tsx                # **v2.6.11+** 308 redirect to `/archives?type=videos`
 │   │   ├── summaries/
-│   │   │   └── page.tsx                # SSR `/summaries` hub — daily SEO summaries explorer (SSR section + client SummaryExplorer)
+│   │   │   └── page.tsx                # **v2.6.11+** 308 redirect to `/archives`
 │   │   ├── [topic]/
 │   │   │   ├── layout.tsx              # Minimal passthrough layout
 │   │   │   ├── page.tsx                # Topic hub: paginated daily summaries + recent video pages list
-│   │   │   ├── [date]/[slug]/page.tsx  # Daily summary page (bullets + articles + JSON-LD + hreflang + prev/next)
+│   │   │   ├── [date]/[slug]/page.tsx  # Daily summary page (legacy 308 → /en|fr/[topic]/[date]/[slug])
 │   │   │   ├── v/[date]/[slug]/page.tsx  # SSR per-video transcribed-summary page (with related videos block)
-│   │   │   └── r/[date]/[slug]/page.tsx  # SSR per-topic-per-day **video roundup** (8-bullet briefing + ItemList of covered videos)
+│   │   │   ├── r/[date]/[slug]/page.tsx  # SSR per-topic-per-day **video roundup** (8-bullet briefing + ItemList of covered videos)
+│   │   │   └── videos/[date]/page.tsx  # **v2.6.11+** Drill-down list of every transcribed video for one (topic, date) — reached from /archives « N transcribed videos » counter
+│   │   ├── /[topic]/page.tsx            # **v2.6.11+** Date fork: when params.topic matches `^\d{4}-\d{2}-\d{2}$` → renders the cross-topic Top 24h archive via `<TopDayPage>`. Otherwise the topic hub.
 │   │   ├── components/                 # Shared feature UI — see §3.1
 │   │   └── api/                        # API routes — see §3.2
 │   ├── hooks/
@@ -192,7 +199,7 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 
 **Video surface**: `VideosPage` (today / day-by-day video list with Shorts toggle), `VideoCard` (iframe embed with **v2.x+** localhost-aware `youtube-nocookie` swap to fix black-screen), `VideoPageAudio`, `DownloadTranscriptButton`.
 
-**SSR-page-specific**: `DailySummariesPage` (admin generator), `DailySummaryArticles`, `DailySummaryAudio`, `SummaryExplorer` (client-side embed inside `/summaries`), `YouTubeChannelsPage` (admin).
+**SSR-page-specific**: `DailySummariesPage` (admin generator), `DailySummaryArticles`, `DailySummaryAudio`, `SummaryExplorer` (kept on `/archives` as the « jump to one summary » quick-jump above the timeline), `YouTubeChannelsPage` (admin), **`ArchivesPage`** + **`ArchivesTimeline`** + **`ArchivesBrowsePage`** (**v2.6.11+** unified hub on `/archives` — SSR shell renders initial 7-day snapshot, the client hydrates filters + pagination; SPA mirror at `/app/archives`), **`TopDayPage`** (**v2.6.11+** cross-topic Top 24h archive at `/{YYYY-MM-DD}`, reuses `Top24hHero` with `defaultOpen + showSeeAllLink=false` and lists the 50 frozen sources with score / topic chip).
 
 **Landing only** (under `landing/`): `LandingNav`, `LandingHero`, `LandingTicker`, `LandingStats`, `LandingHow`, `LandingTopics`, `LandingYT`, `LandingPricing` (**v2.5.4+** monthly + annual price side-by-side via `.price-row` flex), `LandingFAQ`, `LandingCTA`, `LandingFooter`, `LandingConsole`.
 
@@ -287,7 +294,7 @@ Users can create new topics from the Topics page. Each topic includes:
 | `youtube_channels` | YouTube channel registry (channel_id, handle, title, thumbnail). Auto-refreshed when title/thumbnail are missing. |
 | `youtube_videos` | Cached video metadata from RSS (persists past-date lookups). **Includes `duration_sec`** (backfilled by `enrichDurations()` via YouTube Data API v3 — drives Shorts filtering in both the SPA and the cron) and **`topic_id`** (set when the parent channel belongs to a topic — required for `/v/` SSR slug). |
 | `video_transcriptions` | Full transcript text + AI Markdown summary per (video, lang). **v2.x+** `slug_keywords` + `published_date` columns + `idx_vt_route` (route resolution by `(topic_id, published_date, lang, slug_keywords)`) and `idx_vt_topic_recent` (recent-videos block) — migration 016. **Migration 021** adds `summary_score` (1-10) + `summary_scored_at` (filled by `cron-video-summary-score-background`). |
-| `video_roundups` | **v2.4+** Per-topic-per-day **video roundup** briefings (8-bullet structured Markdown). Columns: `topic_id`, `roundup_date`, `lang`, `slug_keywords`, `seo_title`, `seo_description`, `intro_md`, `video_ids TEXT[]` (ordered list of `video_transcriptions.video_id`). `UNIQUE(topic_id, roundup_date, lang)`. Drives `/{topic}/r/{date}/{slug}` and `/briefings`. Migration 017. |
+| `video_roundups` | **v2.4+** Per-topic-per-day **video roundup** briefings (8-bullet structured Markdown). Columns: `topic_id`, `roundup_date`, `lang`, `slug_keywords`, `seo_title`, `seo_description`, `intro_md`, `video_ids TEXT[]` (ordered list of `video_transcriptions.video_id`). `UNIQUE(topic_id, roundup_date, lang)`. Drives `/{topic}/r/{date}/{slug}` and the « video roundup » slot on the unified `/archives` timeline (**v2.6.11+**). Migration 017. |
 | `home_surface_queue` | **v2.6+** (migration 022) Round-robin queue feeding the home page TOP STORY (article) and TOP VIDEO (video) cards. One row per `(kind, ref_id, lang)` discriminated by `kind ∈ ('article', 'video')`. `score` is denormalized at insert time (article ≥ 7 → 2 rows EN+FR; video ≥ 7 → 1 row in its lang) and `display_count` is bumped atomically by the `pick_home_surface()` RPC each time the row wins a 10-min wall-clock bucket. Order for the live pick is `(display_count ASC, last_displayed_at ASC NULLS FIRST, inserted_at DESC)` — un-shown items first, then round-robin within a count, then freshest insertions. The history-mode read (chevron browse, **v2.6.1+**) uses a different ordering — `(last_displayed_at DESC NULLS LAST, inserted_at DESC)` — so the user walks back through the actual rotation chronology, then through never-displayed candidates by insertion freshness. RLS: service-role only. |
 
 ### 5.2 `topics` table
@@ -524,8 +531,9 @@ Kept for admin / curl replay after the v2.6.5 refactor; the UI no longer calls i
 | Route | Method | Description |
 |---|---|---|
 | `/api/summaries/generate` | POST | Generate (or regenerate) one daily SEO summary for `(topic, date, lang)`. Auth: cookie session **owner** OR header `Authorization: Bearer ${CRON_SECRET}` (used by the cron). Skip-if-exists guard unless `?force=1`. |
-| `/api/summaries/routes` | GET | All `daily_summaries` route triplets `(topic, date, slug)` × langs — used by the SPA's `SummariesBrowsePage` and by `sitemap.ts`. |
+| `/api/summaries/routes` | GET | **v2.6.11+** Legacy: all `daily_summaries` route triplets — only consumed by `sitemap.ts` now (the unified archives hub uses `/api/archives` instead). |
 | `/api/summaries/[topic]/[date]` | GET | Public read of one daily summary (bullets + articles + SEO metadata) — `?lang=` selects the variant. |
+| `/api/archives` | GET | **v2.6.11+** Unified read endpoint backing `/archives`. Params: `lang`, `from`, `to`, `topic?`, `type?` (`all` \| `articles` \| `videos`). Returns `{ days: [{ date, topics: [{ topic_id, dailySummary?, videoRoundup?, transcribedVideoCount }], hasTopSummary }], from, to, lang }`. **v2.6.11+** `hasTopSummary` per day flags the existence of a cross-topic snapshot in `top_summaries` so the client renders the gold « ALL TOPICS » box conditionally. Cached `s-maxage=300`. |
 
 #### Video Roundups API — v2.4+
 
@@ -533,7 +541,7 @@ Kept for admin / curl replay after the v2.6.5 refactor; the UI no longer calls i
 |---|---|---|
 | `/api/roundups/generate` | POST | Generate (or regenerate) one **video roundup** for `(topic, date, lang)`. Auth: cookie session **owner** OR header `Authorization: Bearer ${CRON_SECRET}`. Body: `{ topicId, date, lang, force? }`. Mirrors the 8 bullets into `summary_bullets` (silent best-effort if migration 018 is missing). |
 
-The matching SSR pages (`/briefings`, `/[topic]/r/[date]/[slug]`) read `video_roundups` directly via the service-role client in `lib/supabase.ts` (`getAllVideoRoundupRoutes`, `getVideoRoundupByRoute`) — no client API call required.
+The matching SSR pages (`/[topic]/r/[date]/[slug]` and the « video roundup » slot on `/archives`, **v2.6.11+**) read `video_roundups` directly via the service-role client in `lib/supabase.ts` (`getAllVideoRoundupRoutes`, `getVideoRoundupByRoute`) — no client API call required. The legacy `/briefings` hub 308-redirects to `/archives?type=videos`.
 
 #### Video transcription / video pages API
 
@@ -683,9 +691,9 @@ The app root is `src/app/page.tsx` (`"use client"`): **home** topic/period flow,
 The SPA at `/app` has 15+ pseudo-pages managed by `currentPage` state (`"briefing"` | `"home"` (= Top 50) | `"stats"` | `"crons"` | `"topics"` | `"feeds"` | `"categories"` | `"dailySummaries"` | `"favorites"` | `"topArticles"` | `"summaries"` | `"videos"` | `"youtubeChannels"` | `"changelog"` | `"settings"`). Route-mapped via `next.config.ts` rewrites for hard-refresh resilience. `topics`, `feeds`, `categories`, `dailySummaries`, `youtubeChannels` are owner-only. `favorites` requires any authenticated user.
 
 **General Menu** (`GeneralMenu`, visible on all SPA pages):
-- Persistent navigation bar (current pill labels, **v2.6.6**): **Today** (= Briefing, default), **All videos** (was « Videos / Vidéos », renamed in v2.6.6 to clarify it's the exhaustive archive vs. the new TOP VIDEO hero card on the home), **Video briefings** (`/briefings`), **Top articles 24h** (was « Top articles », renamed in v2.6.6 to mirror the home `Top24hHero` card and the page header), **Daily Summaries**, **My Favorites** (authenticated only)
+- Persistent navigation bar (current pill labels, **v2.6.11**): **Today** (= Briefing, default), **All videos** (renamed in v2.6.6 to clarify it's the exhaustive archive vs. the TOP VIDEO hero card on the home), **All topics** (renamed in v2.6.5 from « Articles » so the affordance reads as the entry point to browse every topic), **Top articles 24h** (mirrors the home `Top24hHero` card and the page header), **Archives** (the unified `/archives` hub — replaces the previous standalone « Daily Summaries » + « Video recaps » pills since v2.6.11), **My Favorites** (authenticated only)
 - Active button highlighted with gold border/background
-- SSR variant (`SeoGeneralMenu`) used on every SSR page (landing, briefings, summaries, `/[topic]/...`) with `<a>` links
+- SSR variant (`SeoGeneralMenu`) used on every SSR page (landing, archives, `/[topic]/...`) with `next/link` `<Link>` (v2.6.8+ for SPA-soft navigation)
 
 **Header** (`AppHeader`, shared across all SPA pages):
 - **Logo**: PNG image (`/logo-8news.png`), responsive height — **clicking logo resets to Briefing**
@@ -732,7 +740,7 @@ The dedicated « Top articles 24h » page (general menu pill renamed in v2.6.6 f
 
 **v1.96+**: Positioned **above** the topic grid on the per-topic AI analysis surface. Contains:
 - **Customize my topics** / **Edit my topics** (personalization mode toggle)
-- **Daily Summaries** (link to `/summaries` public page)
+- **Archives** (link to `/archives` public hub — was « Daily Summaries → /summaries » before v2.6.11)
 - When in personalization mode: **Done** button, **+ New topic** button, save status
 
 The « Analyze top 50 articles » CTA was removed in **v2.6.5** (the Top articles snapshot is now displayed automatically on `/top-articles` and on the home `Top24hHero`).
@@ -870,39 +878,62 @@ Admin page (owner-only) for generating SEO daily summaries:
 - Anti-doublon: skips already-generated summaries
 - Results display: generated/skipped/no_articles/error with links to SEO pages
 
-### 8.12 Daily Summaries Explorer (`/summaries`) — v1.96+
+### 8.12 Archives Hub (`/archives`) — v2.6.11+
 
-Public page at `/summaries`:
-- **SSR section** (crawlable by Google): grid of all active topics with links to hubs and recent summaries
-- **Client section** (`SummaryExplorer`): topic selector + date picker, fetches and displays summary inline
-- Link to full SEO page for each summary
+Public page at `/archives` (the unified hub that supersedes the previous `/summaries` + `/briefings` parallel routes — both now 308-redirect here, see §8.16). Single timeline grouped by date desc, each day card listing every active topic that has at least one of:
+- a daily article summary (link to `/en|fr/[topic]/[date]/[slug]`),
+- a video roundup (link to `/[topic]/r/[date]/[slug]`),
+- a count of transcribed videos (link to `/[topic]/videos/[date]`).
 
-### 8.13 SEO Daily Summary Pages — v1.95+
+A gold-bordered « ALL TOPICS / TOUS LES TOPICS » box is pinned at the top of each day card when a cross-topic Top 24h snapshot exists in `top_summaries` for that (date, lang) — the box links to the per-day archive page at `/{YYYY-MM-DD}` (see §8.13).
+
+**Filters** (sticky bar above the timeline): topic dropdown, type radio (all / articles / videos), 7-day window pagination via inline chevrons (`‹` newer, `›` older — same convention as the home heroes' history chevrons in v2.6.4). Empty slots render as muted « no coverage » so day-completeness is legible at a glance.
+
+**Components**: SSR shell at `src/app/archives/page.tsx` calls `getActiveTopics` + `getArchives({ from, to, lang })` to seed the initial 7-day window. The client `<ArchivesPage>` wraps the timeline with filter state + AbortController-aware fetches. The reusable `<ArchivesTimeline>` is pure presentation (data + topics dictionary in, JSX out). The SPA mirror at `/app/archives` mounts `<ArchivesBrowsePage>` which loads topics client-side then delegates to the same `<ArchivesPage>`.
+
+**Endpoint**: `GET /api/archives` (4 parallel SELECTs: `daily_summaries`, `video_roundups`, `video_transcriptions` count, `top_summaries` presence — see API table). Edge-cached `s-maxage=300`.
+
+**SummaryExplorer quick-jump** is kept above the timeline as the « jump to one summary » entry for visitors who already know the topic + date they want.
+
+### 8.13 Cross-Topic Top 24h Archive Page (`/{YYYY-MM-DD}`) — v2.6.11+
+
+SSR page rendering the cross-topic Top 24h snapshot for one specific date (e.g. `/2026-05-10`). Reached from the gold « ALL TOPICS » box on `/archives` and from the sitemap. Mounted via a date-fork in `[topic]/page.tsx` because Next.js cannot have two `/[seg]/` dynamic routes at the same level — when `params.topic` matches `^\d{4}-\d{2}-\d{2}$`, control passes to `<TopDayPage>`. Topic IDs that look like dates are rejected at create time in `isReservedTopicSlug` so they can never shadow this route.
+
+Renders:
+- A H1 « Top articles 24h · {date long} » + breadcrumb « Home → Archives → {date} ».
+- The full `<Top24hHero>` accordion (the same component used on the home and on `/top-articles`) reused with `data` (server-fetched snapshot) + `defaultOpen={true}` (every group open up front, the visitor came here for the brief) + `showSeeAllLink={false}` (no loop-back).
+- The frozen 50-article source list (score badge tier-colored, topic chip, title link to the source).
+- Adjacent-day chevrons « ← Older day / Newer day → » computed from `getAllTopSummaryRoutes()` — skips empty days so the visitor always lands on a snapshot.
+
+404 on direct hits to dates that have no `top_summaries` row. Hreflang en/fr to the same date in the other language.
+
+### 8.14 SEO Daily Summary Pages — v1.95+
 
 Server-rendered public pages for search engine indexing:
 - **Topic hub** (`/[topic]`): paginated list of all daily summaries for a topic + a "recent transcribed videos" sidebar
 - **Daily summary** (`/[topic]/[date]/[slug]`): full AI summary with bullets, articles, JSON-LD, hreflang, OG metadata, prev/next navigation
-- **Sitemap** (`/sitemap.xml`): dynamic, covers every active topic hub, every daily summary, every video roundup, every per-video page
-- URL format: `8news.ai/{topic}/{YYYY-MM-DD}/{keyword1-keyword2-keyword3}`
+- **Sitemap** (`/sitemap.xml`): dynamic, covers every active topic hub, every daily summary, every video roundup, every per-video page, **v2.6.11+** every cross-topic Top 24h archive page (`/{date}`)
+- URL format: `8news.ai/en|fr/{topic}/{YYYY-MM-DD}/{keyword1-keyword2-keyword3}` (lang-prefixed since v2.5+; legacy `/{topic}/{date}/{slug}` 308-redirects)
 - Generated via `gpt-4.1-mini` with 50 articles, top 10 displayed, enriched prompts for detailed bullets
 
-### 8.14 SEO Per-Video Pages — v2.x
+### 8.15 SEO Per-Video Pages — v2.x
 
-`/{topic}/v/{date}/{slug}` (e.g. `/ai/v/2026-04-25/sora-3-realtime-preview`). Server-rendered from `video_transcriptions` rows joined with `youtube_videos`, with the AI-generated Markdown summary, the embedded video, JSON-LD `VideoObject`, hreflang, and a "Latest videos transcribed in this topic" block driven by `idx_vt_topic_recent`.
+`/{topic}/v/{date}/{slug}` (e.g. `/ai/v/2026-04-25/sora-3-realtime-preview`). Server-rendered from `video_transcriptions` rows joined with `youtube_videos`, with the AI-generated Markdown summary, the embedded video, JSON-LD `VideoObject`, hreflang, and a "Latest videos transcribed in this topic" block driven by `idx_vt_topic_recent`. **v2.6.11+** the « N transcribed videos » counter on `/archives` rows links to `/[topic]/videos/[date]` (a per-day list view of these per-video pages).
 
-### 8.15 SEO Per-Topic-Per-Day Video Roundups — v2.4+
+### 8.16 SEO Per-Topic-Per-Day Video Roundups — v2.4+
 
 `/{topic}/r/{date}/{slug}` (e.g. `/ai/r/2026-04-24/foundation-models-launch-week`). Server-rendered from `video_roundups` rows. Renders:
 - `seo_title` (h1)
 - The structured 8-bullet `intro_md` Markdown (each bullet = bold journalistic title 3-8 words + 3-5 sentence body)
 - An `ItemList` of the underlying videos (`video_ids`) with thumbnails, titles, channels, durations, links to their `/v/` pages
 - JSON-LD `Article` + `ItemList`, hreflang to the EN/FR variant, OG metadata
+- **v2.6.11+** Surfaced on the unified `/archives` timeline as the « video roundup » slot of each topic row.
 
-### 8.16 Briefings Hub `/briefings` — v2.x
+### 8.17 Legacy hubs (`/summaries`, `/briefings`) — v2.6.11+
 
-Public SSR hub at `/briefings`. Lists every `video_roundups` row grouped by `roundup_date DESC` (filtered by resolved language). Each card links to the matching `/{topic}/r/{date}/{slug}`. Aligned with `/summaries` in pattern. URL is intentionally `/briefings` (no "video") so future briefing types can land here too.
+The previously-parallel `/summaries` (article daily summaries) and `/briefings` (video roundups) hubs are now thin permanent-redirect wrappers. `/summaries` 308-redirects to `/archives` (preserving any `?lang=` query); `/briefings` 308-redirects to `/archives?type=videos`. Both routes are intentionally kept around so external backlinks accumulated over the prior 18 months keep transferring authority into the unified hub instead of returning 404. The SPA's legacy `/app/summaries-browse` path is also kept as a back-compat alias by `pathToPage` and resolves to the same SPA page as `/app/archives`.
 
-### 8.17 Videos Page (`VideosPage`) — v1.99+, evolved through v2.x
+### 8.18 Videos Page (`VideosPage`) — v1.99+, evolved through v2.x
 
 Accessible via the General Menu "Videos" button (all users).
 
@@ -917,7 +948,7 @@ Accessible via the General Menu "Videos" button (all users).
 - **Cross-language optimization**: if a transcription exists in the other language, translates the existing summary instead of re-transcribing (saves 1 TranscriptAPI credit + ~80 % tokens)
 - **Video caching**: `youtube_videos` table persists metadata from RSS on each fetch, enabling past-date lookups; `enrichDurations()` backfills `duration_sec` (retry with @handle fallback)
 
-### 8.18 YouTube Channels Admin (`YouTubeChannelsPage`) — v1.99+
+### 8.19 YouTube Channels Admin (`YouTubeChannelsPage`) — v1.99+
 
 Owner-only page accessible via the user dropdown menu.
 
@@ -925,12 +956,12 @@ Owner-only page accessible via the user dropdown menu.
 - **Channel list**: table with thumbnail (or fallback icon), title, handle, channel ID, delete button
 - **Auto-refresh**: on page load, channels with missing title or thumbnail are automatically refreshed from TranscriptAPI with retry logic (channel_id → @handle fallback, 2 attempts each)
 
-### 8.19 Changelog page (`ChangelogPage`)
+### 8.20 Changelog page (`ChangelogPage`)
 
 - Loads **`GET /api/changelog`**
 - Lists version badge, date, bilingual title/body from **`changelog`** table
 
-### 8.20 Settings Page (`SettingsPage`)
+### 8.21 Settings Page (`SettingsPage`)
 
 Up to four sections depending on auth status:
 
@@ -950,7 +981,7 @@ Up to four sections depending on auth status:
 - Inline editing per row (first name, last name, user type dropdown) via `PATCH /api/users/[id]`
 - Data fetched from `GET /api/users` (service role)
 
-### 8.21 Audio Player (`AudioPlayer`)
+### 8.22 Audio Player (`AudioPlayer`)
 
 Text-to-Speech player for the global summary, using ElevenLabs API.
 
@@ -975,7 +1006,7 @@ Text-to-Speech player for the global summary, using ElevenLabs API.
 | `thomas` | Thomas | FR | `GBv7mTt0atIp3Br8iCZE` |
 | `callum` | Callum | FR | `N2lVS1w4EtoT3dr4eOWO` |
 
-### 8.22 Auto-Update Banner
+### 8.23 Auto-Update Banner
 
 The SPA checks `public/version.json` every **5 minutes**. If the version string **differs** from the bundled `APP_VERSION` constant, a gold banner appears at the **top-right** (copy: `homeNewVersionBanner` in `i18n.ts`). Clicking reloads the page. No auto-reload.
 
@@ -984,7 +1015,7 @@ The SPA checks `public/version.json` every **5 minutes**. If the version string 
 2. Add an entry to `src/lib/changelog-entries.ts` (auto-synced to the `changelog` DB table on first `/api/changelog` after deploy)
 3. Commit + push
 
-### 8.23 Version Footer
+### 8.24 Version Footer
 
 Fixed bottom-right: `v{APP_VERSION}`, kept in sync by `scripts/release.mjs` so it always matches `version.json`.
 
@@ -1199,9 +1230,11 @@ User opens /app       → client SPA → BriefingPage (default, v2.6.6 order)
                                   reads pre-computed `top_summaries` row
                                   (articles list + bullets) — no LLM at request time
 
-User opens /briefings, /summaries, /[topic], /[topic]/[date]/[slug],
-           /[topic]/v/[date]/[slug], /[topic]/r/[date]/[slug]
+User opens /archives, /[topic], /[topic]/[date]/[slug],
+           /[topic]/v/[date]/[slug], /[topic]/r/[date]/[slug],
+           /[topic]/videos/[date], /{YYYY-MM-DD}
        → SSR via lib/supabase.ts (service-role read), no AI call at request time
+       (legacy /summaries and /briefings 308-redirect to /archives, v2.6.11+)
 ```
 
 ---
@@ -1280,6 +1313,10 @@ The topic immediately appears in the homepage topic selector, stats page, and cr
 Release history is maintained in **`src/lib/changelog-entries.ts`** and auto-synced to the `changelog` DB table on first `GET /api/changelog` call after deploy. The in-app Changelog page displays all entries. This SPEC does not duplicate the changelog — see the source file or the in-app page for the full history.
 
 **Recent (v2.x highlights)**:
+- **v2.6.11** — Unified `/archives` hub replaces the previously parallel `/summaries` (article daily summaries) and `/briefings` (video roundups) — both now 308-redirect to `/archives`. Single timeline grouped by date desc, topic + type filters, sticky chevron pagination. Per-day video drill-down at `/[topic]/videos/[date]`. Cross-topic Top 24h archive at `/{YYYY-MM-DD}` (mounted via a date-fork in `[topic]/page.tsx`). Gold « ALL TOPICS » box pinned at the top of each archives day card when a `top_summaries` snapshot exists. Click-target dedup on HeroStory + DailySummaryArticles + TopFeedSection. Sitemap: drops `/briefings`, advertises `/archives` and `/{date}` instead.
+- **v2.6.10** — Video recap scoring rewritten: composite « importance × quality » prompt with frontier-AI / Big Tech major-player whitelist + anti-cluster directive + concrete anchors per integer step; default model upgraded `gpt-4.1-nano → gpt-4.1-mini` for editorial-nuance discrimination; `temperature: 0` for run-to-run reproducibility. Cross-topic dedup on home « your topics » strips.
+- **v2.6.9** — Per-group editorial importance score 1-10 on the Top 24h (mig 026 adds `summary_bullets.importance_score`); the `gpt-5.5` generator emits the score inline (zero extra LLM round-trip), `analyzeWithAI` propagates it across same-`title` runs, `Top24hHero` renders a `ScoreMeter` next to each group title (replaces the previous paragraph counter). Home heroes (`/api/news/top-story`, `/api/videos/top`) now scan the `home_surface_queue` in round-robin order and keep only entries whose `pub_date` falls inside the last 24 h.
+- **v2.6.4 → v2.6.8** — Cron transcribe self-sufficient (RSS refresh in step 0); landing hero refocus + DB-backed topics ticker; chevron mental model inverted on home heroes; `Top24hHero` shared across home + `/top-articles`; `<a>` → `<Link>` across menus.
 - **v2.5.4** — Hybrid OpenAI strategy: synchronous video transcription stays on `gpt-4.1-mini` (sub-30 s budget), pre-warm cron upgraded to `gpt-5.3-chat-latest` with a 180 s OpenAI timeout (cron `SAFETY_MS = 200_000`). Landing pricing: annual price for Pro displayed side-by-side with monthly via `.price-row`; "Choose 8 topics out of 36 available, powered by 400+ RSS feeds"; merged Top 50 + favorites + archive lines for Free; removed ElevenLabs / Webhooks-API / Priority-scoring lines; "Morning email digest covering all your topics".
 - **v2.5.3** — Language persistence: SSR pages now resolve via `resolveServerLang()` (query → `preferred_lang` → cookie → default); SPA + `SeoNavBar` write `preferred_lang` to `user_metadata` on every toggle; introduced `src/lib/server-lang.ts`.
 - **v2.5.2** — Briefing's "All transcribed videos" pagination = 1 day per page, default = today, section stays visible if today is empty; PostgREST `PGRST204` on missing `summary_bullets.video_roundup_id` logged as a single WARN (run migration 018).

@@ -88,9 +88,6 @@ export function GeneralMenu({
       >
         {t("videosBtn", lang)}
       </button>
-      <Link href="/briefings" style={base}>
-        {t("videoBriefingsBtn", lang)}
-      </Link>
       <button
         type="button"
         onClick={onNavigateHome}
@@ -106,6 +103,11 @@ export function GeneralMenu({
       >
         {t("analyzeTopArticlesBtn", lang)}
       </button>
+      {/* « Archives » pill (v2.7.0+) — points at the unified /archives
+          hub (SPA route /app/archives). Replaces the previous separate
+          « Récaps vidéo » pill that pointed at /briefings — that route
+          308-redirects here with `?type=videos` so the bookmark still
+          works without burning a nav slot. */}
       <button
         type="button"
         onClick={onNavigateSummaries}
@@ -133,6 +135,7 @@ export function SeoGeneralMenu({
   activePage,
 }: {
   lang: Lang;
+  /** `videoBriefings` kept as an alias of `summaries` so the (now-redirected) /briefings legacy callers don't fail typecheck — both surface the unified Archives pill since v2.7.0. */
   activePage?: "briefing" | "home" | "favorites" | "topArticles" | "summaries" | "videos" | "videoBriefings";
 }) {
   const { session } = useAuth();
@@ -146,16 +149,16 @@ export function SeoGeneralMenu({
       <Link href="/app/videos" style={activePage === "videos" ? activeStyle : base}>
         {t("videosBtn", lang)}
       </Link>
-      <Link href="/briefings" style={activePage === "videoBriefings" ? activeStyle : base}>
-        {t("videoBriefingsBtn", lang)}
-      </Link>
       <Link href="/app/articles" style={activePage === "home" ? activeStyle : base}>
         {t("generalMenuArticlesBtn", lang)}
       </Link>
       <Link href="/app/top-articles" style={activePage === "topArticles" ? activeStyle : base}>
         {t("analyzeTopArticlesBtn", lang)}
       </Link>
-      <Link href="/summaries" style={activePage === "summaries" ? activeStyle : base}>
+      {/* « Archives » SSR link (v2.7.0+) — points at the unified
+          /archives hub. The previous /summaries route 308-redirects
+          here, and /briefings → /archives?type=videos. */}
+      <Link href="/archives" style={activePage === "summaries" ? activeStyle : base}>
         {t("dailySummaryBtn", lang)}
       </Link>
       {authed && (

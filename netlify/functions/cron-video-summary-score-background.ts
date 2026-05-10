@@ -31,7 +31,13 @@ const BATCH_SIZE = Number(process.env.VIDEO_SUMMARY_SCORE_BATCH_SIZE ?? 8);
 const BATCH_CAP = Number(process.env.VIDEO_SUMMARY_SCORE_BATCH_CAP ?? 12);
 const OPENAI_TIMEOUT_MS = Number(process.env.VIDEO_SUMMARY_SCORE_OPENAI_TIMEOUT_MS ?? 20_000);
 const MAX_CHARS = Number(process.env.VIDEO_SUMMARY_SCORE_MAX_CHARS ?? 3500);
-const MODEL = process.env.VIDEO_SUMMARY_SCORE_MODEL ?? "gpt-4.1-nano";
+// Default upgraded from `gpt-4.1-nano` to `gpt-4.1-mini` in v2.6.10:
+// nano consistently picked the central 7-8 values on editorial nuance,
+// so the score lost its discriminative power. mini spreads scores
+// nettement better against the new composite prompt (importance ×
+// quality with major-player anchor) for ~5x a baseline cost that's
+// still negligible (~$0.005 / 100 recaps at the default batch size).
+const MODEL = process.env.VIDEO_SUMMARY_SCORE_MODEL ?? "gpt-4.1-mini";
 
 async function runCron(): Promise<void> {
   const apiKey = process.env.OPENAI_API_KEY;

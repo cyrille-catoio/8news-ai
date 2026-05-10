@@ -304,9 +304,25 @@ export function BriefingPage({
       ),
     ).then((results) => {
       if (cancelled) return;
+      // Cross-topic dedup by `link`: a single article often scores high
+      // on multiple of the user's preferred topics (e.g. an OpenAI paper
+      // hits "AI", "OpenAI" and "Tech"), and it would otherwise render
+      // identically in N strips back-to-back. The user previously read
+      // that as « clicking opens 3 tabs on the same article » because
+      // they tapped each duplicate in turn. We process strips in
+      // preferred-topic order and drop any article whose link was
+      // already claimed by an earlier strip — first-strip-wins keeps
+      // the assignment intuitive (the article stays in the topic the
+      // user prioritized highest).
+      const seen = new Set<string>();
       const map: Record<string, MiniArticle[]> = {};
       for (const { id, articles } of results) {
-        if (articles.length > 0) map[id] = articles.slice(0, 3);
+        const unique = articles.filter((a) => {
+          if (!a.link || seen.has(a.link)) return false;
+          seen.add(a.link);
+          return true;
+        });
+        if (unique.length > 0) map[id] = unique.slice(0, 3);
       }
       setYourTopicArticles(map);
     });

@@ -16,9 +16,38 @@ export type ScoreVideoSummaryBatchOptions = {
 };
 
 /**
- * Batched 1-10 quality score for AI-generated video recap Markdown.
- * Uses a single JSON response to maximize throughput in cron (15 min wall).
- * Default model: gpt-4.1-nano (fast, cheap; override via env in caller).
+ * Batched 1-10 score for AI-generated video recap Markdown.
+ *
+ * Two composing factors (multiplicative-ish, see prompt below):
+ *  1. **Topic importance** — historical impact on the tech industry,
+ *     with a hard bonus when the recap covers a frontier-AI / Big Tech
+ *     major player (OpenAI, Anthropic, Google/DeepMind, Meta AI, xAI,
+ *     Microsoft AI, NVIDIA, Apple, Amazon, Tesla/SpaceX/Neuralink,
+ *     Mistral, Hugging Face, Cohere, Perplexity…). The intuition is
+ *     that a 30-min interview with Sam Altman or Dario Amodei is
+ *     intrinsically more impactful for the reader than a tutorial on a
+ *     niche library — even if both are equally well-written.
+ *  2. **Recap quality** — structure, density of named facts, useful
+ *     numbers, names, dates. The pipeline already produces clean
+ *     markdown with `gpt-5.3-chat-latest`, so most recaps clear the
+ *     bar; this dimension prevents thin / vague summaries from
+ *     borrowing a high score solely from a hot topic.
+ *
+ * The previous prompt (v2.6.7-) only scored quality — and since the
+ * pipeline writes consistently-structured markdown, scores clustered
+ * around 7-8 with no genuine 10s and no spread. The rewrite below
+ * gives explicit calibration anchors per integer step + an anti-cluster
+ * directive + a major-actor whitelist so the model can actually
+ * discriminate « historic news from a frontier lab » from « interesting
+ * tech recap from a generalist channel ».
+ *
+ * Default model: gpt-4.1-mini. Upgraded from gpt-4.1-nano in v2.6.10
+ * because nano consistently picked the central 7-8 values on editorial
+ * nuance. mini discriminates nettement better; cost is still negligible
+ * (~$0.005 / 100 recaps with cap 12 / batch 8). Override via env.
+ *
+ * `temperature: 0` is set for run-to-run reproducibility — scoring is a
+ * numeric task, no creative variation wanted.
  */
 export async function scoreVideoSummaryBatch(
   rows: VideoSummaryScoreInput[],
@@ -27,7 +56,7 @@ export async function scoreVideoSummaryBatch(
 ): Promise<{ id: number; score: number }[]> {
   if (rows.length === 0) return [];
 
-  const model = opts.model ?? "gpt-4.1-nano";
+  const model = opts.model ?? "gpt-4.1-mini";
   const maxChars = opts.maxCharsPerSummary ?? 3500;
   const openai = new OpenAI({
     apiKey,
@@ -36,14 +65,42 @@ export async function scoreVideoSummaryBatch(
   });
 
   const system = [
-    "You rate AI-generated video recap summaries (Markdown) for a tech news product.",
-    "For each item, output one integer score from 1 to 10:",
-    "10 = excellent: clear structure, specific facts, high signal, useful for a professional reader.",
-    "5 = average: acceptable but generic or thin.",
-    "1 = poor: vague, misleading, messy, or very low information value.",
-    "Score the written recap only (not the video). Be consistent across items in the batch.",
+    "You are an editorial scorer for an AI tech-news product. You rate AI-generated video recap markdowns 1-10.",
+    "",
+    "SCORING IS COMPOSITE — combine TWO signals:",
+    "  A) IMPORTANCE — historical impact on the tech industry. Be demanding: « important » means « will still matter in 12 months », not just « interesting today ».",
+    "     Hard signal-bumper: the recap covers a FRONTIER PLAYER actively shaping AI / tech in 2026. Whitelist (non-exhaustive):",
+    "       - Frontier-AI labs: OpenAI, Anthropic, Google DeepMind, Meta AI / FAIR, xAI, Mistral, Cohere, Perplexity, Hugging Face, Stability AI",
+    "       - Big Tech AI surfaces: Microsoft (Copilot, Azure AI), Apple Intelligence, Amazon (AWS Bedrock, Anthropic stake), NVIDIA (chips, CUDA, Blackwell)",
+    "       - Crypto majors: Bitcoin, Ethereum, Solana, Coinbase, Binance, BlackRock ETFs",
+    "       - Robotics / mobility: Tesla, SpaceX, Neuralink, Boston Dynamics, Figure, Unitree",
+    "       - Semis: TSMC, ASML, Intel, AMD, ARM",
+    "     A 60-min interview WITH a CEO/founder of one of these (Altman, Amodei, Hassabis, Musk, Huang, Zuckerberg, Pichai, Mensch, Karpathy…) → score floor ≥ 8.",
+    "     A 5-min explainer ABOUT one of these from a generalist YouTuber → no floor; quality decides.",
+    "     A niche library tutorial / generalist topic with no major-player anchor → cap ≤ 7.",
+    "",
+    "  B) QUALITY — recap-only signals (the underlying video is unseen): named entities density, concrete numbers (raises, valuations, benchmarks, percents), dates, named products/models. Penalize vague paragraphs, marketing fluff, missing facts.",
+    "",
+    "TARGET DISTRIBUTION across a typical batch (use this to sanity-check yourself before emitting):",
+    "  - About 5-10% of recaps SHOULD score 9-10 → genuinely industry-defining, frontier-player, breaking or strategic.",
+    "  - About 20-30% in 7-8 → solid major-player coverage that's notable but not landmark.",
+    "  - About 30-40% in 5-6 → decent recap of medium-importance news.",
+    "  - About 20-30% in 3-4 → opinion / generalist takes / niche tutorials.",
+    "  - About 5-10% in 1-2 → vague / off-topic / promotional / very thin.",
+    "DO NOT cluster scores around 7-8 « to play safe » — that defeats the ranking. If you hesitate between 7 and 8, look at the major-player anchor: if absent, drop to 5-6.",
+    "",
+    "ANCHOR EXAMPLES (calibrate against these):",
+    "  10 → OpenAI announces GPT-5 with new benchmarks; Anthropic raises $20B at $250B valuation; Bitcoin spot ETF approved; an AGI breakthrough demo from a frontier lab. Recap covers it densely with names + numbers.",
+    "  9  → Google DeepMind releases a new frontier model; Sam Altman 90-min interview on AI strategy; NVIDIA quarterly results breaking $40B revenue; Anthropic-Amazon $4B deal expansion. Solid frontier-player coverage.",
+    "  8  → A major-player product update (new Claude version, new Gemini API), a notable acquisition $500M-$1B, a strategic partnership between named majors. Well-written.",
+    "  7  → A solid recap of a notable but non-frontier story (e.g. mid-tier startup raise, vertical-AI release), OR a frontier-player story poorly covered.",
+    "  5-6 → Decent generalist coverage with some facts; no major-player anchor OR major-player anchor but thin facts.",
+    "  3-4 → Opinion piece, prediction without data, recap of a niche YouTuber take, content with little named entity density.",
+    "  1-2 → Vague, promotional, off-topic, content marketing, unsubstantiated rumor.",
+    "",
+    "Score the WRITTEN RECAP only (not the video). Be consistent across items in the same batch — relative ranking matters.",
     "Reply with JSON only, no markdown fences.",
-  ].join(" ");
+  ].join("\n");
 
   const blocks = rows.map((r, i) => {
     const body =
@@ -54,7 +111,9 @@ export async function scoreVideoSummaryBatch(
   });
 
   const user = [
-    `There are ${rows.length} recaps, indices 0..${rows.length - 1}.`,
+    `There are ${rows.length} recaps to score, indices 0..${rows.length - 1}.`,
+    "Apply the COMPOSITE scoring above (importance × quality, anchored on major-player presence).",
+    "Use the FULL 1-10 range — most batches should NOT be a 7-8 cluster.",
     "Return exactly: {\"scores\":[{\"index\":0,\"score\":7},...]} with one entry per index present.",
     "Each score must be an integer 1-10.",
     "",
@@ -68,6 +127,10 @@ export async function scoreVideoSummaryBatch(
       { role: "user", content: user },
     ],
     response_format: { type: "json_object" },
+    // Numeric scoring task — keep the answer reproducible across runs.
+    // Without this, two ticks over the same backlog can give two
+    // different score distributions just from sampling noise.
+    temperature: 0,
   });
 
   const raw = completion.choices[0]?.message?.content;

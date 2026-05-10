@@ -1230,7 +1230,7 @@ User opens /briefings, /summaries, /[topic], /[topic]/[date]/[slug],
 | `TRANSCRIPT_API_KEY` | Yes | TranscriptAPI key for YouTube video transcription |
 | `YOUTUBE_API_KEY` | No | YouTube Data API v3 key — only used to backfill `youtube_videos.duration_sec` so the Shorts filter is reliable. When unset, `enrichDurations()` is a silent no-op (videos display as-is and Shorts filtering falls back to RSS metadata only). |
 | `CRON_SECRET` | Yes | Bearer token used by cron-job.org for `/api/fetch-feeds`, `/api/test-score`, `/api/summaries/generate`, `/api/roundups/generate`, and the Netlify cron function URLs (pass as `?secret=`). |
-| `VIDEO_SUMMARY_SCORE_MODEL` | No | OpenAI model for video recap scoring (`cron-video-summary-score-background`). Default `gpt-4.1-nano`. |
+| `VIDEO_SUMMARY_SCORE_MODEL` | No | OpenAI model for video recap scoring (`cron-video-summary-score-background`). Default `gpt-4.1-mini` (**v2.6.10+** — was `gpt-4.1-nano`; upgraded because nano clustered around 7-8 with no spread on the composite importance × quality prompt). |
 | `VIDEO_SUMMARY_SCORE_BATCH_SIZE` | No | Recaps per OpenAI JSON call. Default `8` (capped by `VIDEO_SUMMARY_SCORE_BATCH_CAP`). |
 | `VIDEO_SUMMARY_SCORE_BATCH_CAP` | No | Hard max recaps per request. Default `12` (safety for context size). |
 | `VIDEO_SUMMARY_SCORE_MAX_CHARS` | No | Truncate each `summary_md` in the prompt. Default `3500`. |

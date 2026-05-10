@@ -9,10 +9,10 @@ import { getHiddenTopicIds } from "@/lib/supabase";
  *
  * Returns ONE article suitable for the Briefing's "Top story · maintenant"
  * hero card. Backed by `home_surface_queue` (migration 022): every
- * article scored ≥ 7 is inserted into the queue at scoring time, the
- * pick is the row with the lowest `display_count` matching the
- * visitor's threshold, and `display_count` is bumped atomically by the
- * `pick_home_surface()` Postgres function.
+ * article scored ≥ 7 is inserted into the queue at scoring time. The
+ * route scans queue candidates in round-robin order, hydrates the
+ * backing article, keeps only publications from the last 24h, then
+ * bumps `display_count` on the selected fresh row.
  *
  * Per-user thresholds
  * -------------------
@@ -39,11 +39,15 @@ import { getHiddenTopicIds } from "@/lib/supabase";
  */
 
 const ROTATION_BUCKET_MS = 10 * 60 * 1000;
+const FRESH_WINDOW_MS = 24 * 60 * 60 * 1000;
+const QUEUE_SCAN_BATCH_SIZE = 100;
+const QUEUE_SCAN_MAX_ROWS = 1000;
 const DEFAULT_MIN_SCORE = 9;
 const SELECT_COLS =
-  "title, link, source, topic, pub_date, fetched_at, relevance_score, snippet, content, snippet_ai_en, snippet_ai_fr, title_ai_en, title_ai_fr";
+  "id, title, link, source, topic, pub_date, fetched_at, relevance_score, snippet, content, snippet_ai_en, snippet_ai_fr, title_ai_en, title_ai_fr";
 
 interface TopStoryRow {
+  id: number;
   title: string;
   link: string;
   source: string;
@@ -133,23 +137,24 @@ function jsonResponse(
 }
 
 interface QueueRow {
+  id: number;
   ref_id: number;
+  display_count: number | null;
 }
 
-async function hydrateArticle(
-  db: SupabaseClient,
-  refId: number,
-  lang: Lang,
-): Promise<HeroArticle | null> {
-  const { data: articleRows, error } = await db
-    .from("articles")
-    .select(SELECT_COLS)
-    .eq("id", refId)
-    .limit(1);
+interface FreshArticleCandidate {
+  queue: QueueRow;
+  article: HeroArticle;
+}
 
-  if (error || !articleRows || articleRows.length === 0) return null;
+function isFreshPublication(iso: string | null | undefined, now: number): boolean {
+  if (!iso) return false;
+  const publishedAt = new Date(iso).getTime();
+  if (!Number.isFinite(publishedAt)) return false;
+  return publishedAt <= now && now - publishedAt < FRESH_WINDOW_MS;
+}
 
-  const row = articleRows[0] as TopStoryRow;
+function toHeroArticle(row: TopStoryRow, lang: Lang): HeroArticle {
   return {
     title: pickTitle(row, lang),
     snippet: pickSnippet(row, lang),
@@ -161,13 +166,116 @@ async function hydrateArticle(
   };
 }
 
+async function getFreshArticleCandidates(
+  db: SupabaseClient,
+  {
+    lang,
+    threshold,
+    hiddenTopics,
+    now,
+    mode,
+    offset,
+  }: {
+    lang: Lang;
+    threshold: number;
+    hiddenTopics: string[];
+    now: number;
+    mode: "live" | "history";
+    offset: number;
+  },
+): Promise<FreshArticleCandidate[]> {
+  const cutoffIso = new Date(now - FRESH_WINDOW_MS).toISOString();
+  const nowIso = new Date(now).toISOString();
+  const fresh: FreshArticleCandidate[] = [];
+  let scanned = 0;
+
+  while (scanned < QUEUE_SCAN_MAX_ROWS && fresh.length < offset + 2) {
+    const from = scanned;
+    const to = Math.min(scanned + QUEUE_SCAN_BATCH_SIZE, QUEUE_SCAN_MAX_ROWS) - 1;
+    let q = db
+      .from("home_surface_queue")
+      .select("id, ref_id, display_count")
+      .eq("kind", "article")
+      .eq("lang", lang)
+      .gte("score", threshold);
+
+    if (mode === "live") {
+      q = q
+        .order("display_count", { ascending: true })
+        .order("last_displayed_at", { ascending: true, nullsFirst: true })
+        .order("inserted_at", { ascending: false });
+    } else {
+      q = q
+        .order("last_displayed_at", { ascending: false, nullsFirst: false })
+        .order("inserted_at", { ascending: false });
+    }
+
+    if (hiddenTopics.length > 0) {
+      q = q.not("topic_id", "in", `(${hiddenTopics.map((id) => `"${id}"`).join(",")})`);
+    }
+
+    const { data: queueData, error: queueErr } = await q.range(from, to);
+    if (queueErr) {
+      console.error(`[/api/news/top-story] queue SELECT error: ${queueErr.message}`);
+      return [];
+    }
+
+    const queueRows = (queueData ?? []) as QueueRow[];
+    if (queueRows.length === 0) break;
+
+    const refIds = queueRows.map((row) => row.ref_id);
+    const { data: articleData, error: articleErr } = await db
+      .from("articles")
+      .select(SELECT_COLS)
+      .in("id", refIds)
+      .gte("pub_date", cutoffIso)
+      .lte("pub_date", nowIso);
+
+    if (articleErr) {
+      console.error(`[/api/news/top-story] fresh article SELECT error: ${articleErr.message}`);
+      return [];
+    }
+
+    const articleById = new Map<number, TopStoryRow>();
+    for (const row of (articleData ?? []) as TopStoryRow[]) {
+      articleById.set(row.id, row);
+    }
+
+    for (const queueRow of queueRows) {
+      const article = articleById.get(queueRow.ref_id);
+      if (!article) continue;
+      fresh.push({ queue: queueRow, article: toHeroArticle(article, lang) });
+      if (fresh.length >= offset + 2) break;
+    }
+
+    if (queueRows.length < QUEUE_SCAN_BATCH_SIZE) break;
+    scanned += queueRows.length;
+  }
+
+  return fresh.slice(offset, offset + 2);
+}
+
+async function markArticleDisplayed(db: SupabaseClient, queue: QueueRow, now: number): Promise<void> {
+  const { error } = await db
+    .from("home_surface_queue")
+    .update({
+      display_count: (queue.display_count ?? 0) + 1,
+      last_displayed_at: new Date(now).toISOString(),
+    })
+    .eq("id", queue.id);
+
+  if (error) {
+    console.error(`[/api/news/top-story] display_count update error: ${error.message}`);
+  }
+}
+
 export async function GET(request: NextRequest) {
   const lang = parseLang(request.nextUrl.searchParams.get("lang"));
   const threshold = parseThreshold(
     request.cookies.get("homeMinScoreArticle")?.value,
     DEFAULT_MIN_SCORE,
   );
-  // `offset=0` (or absent) → live mode: pick the next row + bump display_count.
+  // `offset=0` (or absent) → live mode: pick the next fresh row + bump display_count.
   // `offset>0` → history mode: read-only SELECT, ordered by last_displayed_at DESC.
   // History never mutates the queue, so the user can scroll back through
   // earlier picks (the discreet ‹ chevron on the home hero card) without
@@ -183,11 +291,14 @@ export async function GET(request: NextRequest) {
 
   // ── Module cache (live mode only) ─────────────────────────
   // History requests skip the module cache because each (lang, threshold,
-  // offset) combo is small and short-lived, but the CDN still caches by
-  // URL via the Cache-Control header below.
+  // offset) combo is small and short-lived.
   if (isLive) {
     const cached = heroCache.get(cacheKey);
-    if (cached && cached.bucket === bucket) {
+    if (
+      cached
+      && cached.bucket === bucket
+      && isFreshPublication(cached.payload.article?.pubDate, now)
+    ) {
       return jsonResponse(cached.payload, bucket, now);
     }
   }
@@ -203,99 +314,55 @@ export async function GET(request: NextRequest) {
   const hiddenTopics = await getHiddenTopicIds();
 
   if (isLive) {
-    // Atomic SELECT + display_count++ via the SQL function from migration 022.
-    const { data: pickRows, error: pickErr } = await db.rpc("pick_home_surface", {
-      p_kind: "article",
-      p_lang: lang,
-      p_min_score: threshold,
-      p_excluded_topics: hiddenTopics,
+    const candidates = await getFreshArticleCandidates(db, {
+      lang,
+      threshold,
+      hiddenTopics,
+      now,
+      mode: "live",
+      offset: 0,
     });
-
-    if (pickErr) {
-      console.error(`[/api/news/top-story] pick_home_surface error: ${pickErr.message}`);
-      const empty: HeroPayload = { article: null, hasOlder: false, offset };
-      return jsonResponse(empty, bucket, now);
-    }
-
-    const picked = Array.isArray(pickRows) && pickRows.length > 0
-      ? (pickRows[0] as { id: number; ref_id: number; score: number })
-      : null;
-
+    const picked = candidates[0];
     if (!picked) {
       const empty: HeroPayload = { article: null, hasOlder: false, offset };
-      heroCache.set(cacheKey, { bucket, payload: empty });
       return jsonResponse(empty, bucket, now);
     }
 
-    const article = await hydrateArticle(db, picked.ref_id, lang);
-    if (!article) {
-      const empty: HeroPayload = { article: null, hasOlder: false, offset };
-      heroCache.set(cacheKey, { bucket, payload: empty });
-      return jsonResponse(empty, bucket, now);
-    }
+    await markArticleDisplayed(db, picked.queue, now);
 
-    // Probe whether at least one OTHER candidate row exists for the same
-    // filter (i.e. would `offset = 1` return something). We deliberately
-    // include rows that haven't been displayed yet — the chevron is meant
-    // to walk through the rotation pool, not just the strict display
-    // history, which would leave the controls permanently disabled until
-    // the queue had cycled through ≥ 2 distinct picks.
-    let countQ = db
-      .from("home_surface_queue")
-      .select("id", { count: "exact", head: true })
-      .eq("kind", "article")
-      .eq("lang", lang)
-      .gte("score", threshold)
-      .neq("ref_id", picked.ref_id);
-    if (hiddenTopics.length > 0) {
-      countQ = countQ.not("topic_id", "in", `(${hiddenTopics.map((id) => `"${id}"`).join(",")})`);
-    }
-    const { count: olderCount } = await countQ;
-    const hasOlder = (olderCount ?? 0) > 0;
-
-    const payload: HeroPayload = { article, hasOlder, offset };
+    const payload: HeroPayload = {
+      article: picked.article,
+      hasOlder: candidates.length > 1,
+      offset,
+    };
     heroCache.set(cacheKey, { bucket, payload });
     return jsonResponse(payload, bucket, now);
   }
 
   // ── History mode (offset > 0) ──────────────────────────────
-  // Read-only: pull two rows starting at the requested offset so we know
-  // whether an even older one exists without a second round trip.
+  // Read-only: pull two fresh rows starting at the requested fresh offset
+  // so we know whether an even older one exists without a second round trip.
   // Order: most-recently-displayed first (the previous bucket's pick),
   // then never-displayed rows by insertion freshness. NULLS LAST keeps
   // unshown candidates available when the live rotation hasn't yet
   // walked through the entire queue.
-  let q = db
-    .from("home_surface_queue")
-    .select("ref_id")
-    .eq("kind", "article")
-    .eq("lang", lang)
-    .gte("score", threshold)
-    .order("last_displayed_at", { ascending: false, nullsFirst: false })
-    .order("inserted_at", { ascending: false })
-    .range(offset, offset + 1);
+  const candidates = await getFreshArticleCandidates(db, {
+    lang,
+    threshold,
+    hiddenTopics,
+    now,
+    mode: "history",
+    offset,
+  });
 
-  if (hiddenTopics.length > 0) {
-    q = q.not("topic_id", "in", `(${hiddenTopics.map((id) => `"${id}"`).join(",")})`);
-  }
-
-  const { data: histRows, error: histErr } = await q;
-  if (histErr) {
-    console.error(`[/api/news/top-story] history SELECT error: ${histErr.message}`);
-    const empty: HeroPayload = { article: null, hasOlder: false, offset };
-    return jsonResponse(empty, bucket, now);
-  }
-  const rows = (histRows ?? []) as QueueRow[];
-  if (rows.length === 0) {
+  if (candidates.length === 0) {
     const empty: HeroPayload = { article: null, hasOlder: false, offset };
     return jsonResponse(empty, bucket, now);
   }
 
-  const article = await hydrateArticle(db, rows[0].ref_id, lang);
-  const hasOlder = rows.length > 1;
   const payload: HeroPayload = {
-    article: article ?? null,
-    hasOlder,
+    article: candidates[0].article,
+    hasOlder: candidates.length > 1,
     offset,
   };
   return jsonResponse(payload, bucket, now);

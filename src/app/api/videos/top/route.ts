@@ -11,9 +11,9 @@ import { getHiddenTopicIds } from "@/lib/supabase";
  * "TOP VIDEO · MAINTENANT" card. Backed by `home_surface_queue`
  * (migration 022): every video transcription scored ≥ 7 with topic /
  * slug / published_date set is inserted into the queue at scoring
- * time, and the pick is the row with the lowest `display_count`
- * matching the visitor's threshold (`pick_home_surface()` bumps
- * display_count atomically).
+ * time. The route scans queue candidates in round-robin order, hydrates
+ * the backing video/transcription, keeps only YouTube publications from
+ * the last 24h, then bumps `display_count` on the selected fresh row.
  *
  * Per-user thresholds
  * -------------------
@@ -37,6 +37,9 @@ import { getHiddenTopicIds } from "@/lib/supabase";
  */
 
 const ROTATION_BUCKET_MS = 10 * 60 * 1000;
+const FRESH_WINDOW_MS = 24 * 60 * 60 * 1000;
+const QUEUE_SCAN_BATCH_SIZE = 100;
+const QUEUE_SCAN_MAX_ROWS = 1000;
 const DEFAULT_MIN_SCORE = 8;
 
 interface VideoTopItem {
@@ -103,6 +106,7 @@ function jsonResponse(
 }
 
 interface TranscriptionRow {
+  id: number;
   video_id: string;
   summary_md: string | null;
   topic_id: string | null;
@@ -126,49 +130,29 @@ interface YoutubeVideoRow {
   link: string;
 }
 
-async function hydrateVideo(
-  db: SupabaseClient,
-  refId: number,
+interface QueueRow {
+  id: number;
+  ref_id: number;
+  display_count: number | null;
+}
+
+interface FreshVideoCandidate {
+  queue: QueueRow;
+  video: VideoTopItem;
+}
+
+function isFreshPublication(iso: string | null | undefined, now: number): boolean {
+  if (!iso) return false;
+  const publishedAt = new Date(iso).getTime();
+  if (!Number.isFinite(publishedAt)) return false;
+  return publishedAt <= now && now - publishedAt < FRESH_WINDOW_MS;
+}
+
+function toVideoTopItem(
+  tr: TranscriptionRow,
+  yv: YoutubeVideoRow,
   lang: Lang,
-): Promise<VideoTopItem | null> {
-  // `title_localized` is added by migration 023; gracefully fall back to
-  // the pre-023 column list if the env hasn't been migrated yet so the
-  // home keeps rendering with the YouTube title.
-  const fullColumns =
-    "video_id, summary_md, topic_id, slug_keywords, published_date, summary_score, title_localized";
-  const baseColumns =
-    "video_id, summary_md, topic_id, slug_keywords, published_date, summary_score";
-  const runTr = (columns: string) =>
-    db
-      .from("video_transcriptions")
-      .select(columns)
-      .eq("id", refId)
-      .limit(1);
-
-  let trRes = await runTr(fullColumns);
-  if (trRes.error && /title_localized/i.test(trRes.error.message ?? "")) {
-    trRes = await runTr(baseColumns);
-  }
-  if (trRes.error || !trRes.data || trRes.data.length === 0) return null;
-  const tr = trRes.data[0] as unknown as Partial<TranscriptionRow> & {
-    video_id: string;
-    summary_md: string | null;
-    topic_id: string | null;
-    slug_keywords: string | null;
-    published_date: string | null;
-    summary_score: number | null;
-  };
-
-  const { data: yvData, error: yvError } = await db
-    .from("youtube_videos")
-    .select(
-      "video_id, title, description, channel_title, channel_id, published, thumbnail, view_count, duration_sec, link",
-    )
-    .eq("video_id", tr.video_id)
-    .limit(1);
-  if (yvError || !yvData || yvData.length === 0) return null;
-  const yv = yvData[0] as YoutubeVideoRow;
-
+): VideoTopItem {
   const summaryMd = tr.summary_md
     ? normalizeSummaryHeadings(tr.summary_md, lang)
     : null;
@@ -192,13 +176,176 @@ async function hydrateVideo(
   };
 }
 
+async function fetchTranscriptionsById(
+  db: SupabaseClient,
+  refIds: number[],
+): Promise<Map<number, TranscriptionRow> | null> {
+  // `title_localized` is added by migration 023; gracefully fall back to
+  // the pre-023 column list if the env hasn't been migrated yet so the
+  // home keeps rendering with the YouTube title.
+  const fullColumns =
+    "id, video_id, summary_md, topic_id, slug_keywords, published_date, summary_score, title_localized";
+  const baseColumns =
+    "id, video_id, summary_md, topic_id, slug_keywords, published_date, summary_score";
+  const runTr = (columns: string) =>
+    db
+      .from("video_transcriptions")
+      .select(columns)
+      .in("id", refIds);
+
+  let trRes = await runTr(fullColumns);
+  if (trRes.error && /title_localized/i.test(trRes.error.message ?? "")) {
+    trRes = await runTr(baseColumns);
+  }
+  if (trRes.error) {
+    console.error(`[/api/videos/top] transcription SELECT error: ${trRes.error.message}`);
+    return null;
+  }
+
+  const byId = new Map<number, TranscriptionRow>();
+  for (const row of (trRes.data ?? []) as unknown as Array<Partial<TranscriptionRow> & {
+    id: number;
+    video_id: string;
+    summary_md: string | null;
+    topic_id: string | null;
+    slug_keywords: string | null;
+    published_date: string | null;
+    summary_score: number | null;
+  }>) {
+    byId.set(row.id, {
+      id: row.id,
+      video_id: row.video_id,
+      summary_md: row.summary_md,
+      topic_id: row.topic_id,
+      slug_keywords: row.slug_keywords,
+      published_date: row.published_date,
+      summary_score: row.summary_score,
+      title_localized: row.title_localized ?? null,
+    });
+  }
+  return byId;
+}
+
+async function getFreshVideoCandidates(
+  db: SupabaseClient,
+  {
+    lang,
+    threshold,
+    hiddenTopics,
+    now,
+    mode,
+    offset,
+  }: {
+    lang: Lang;
+    threshold: number;
+    hiddenTopics: string[];
+    now: number;
+    mode: "live" | "history";
+    offset: number;
+  },
+): Promise<FreshVideoCandidate[]> {
+  const cutoffIso = new Date(now - FRESH_WINDOW_MS).toISOString();
+  const nowIso = new Date(now).toISOString();
+  const fresh: FreshVideoCandidate[] = [];
+  let scanned = 0;
+
+  while (scanned < QUEUE_SCAN_MAX_ROWS && fresh.length < offset + 2) {
+    const from = scanned;
+    const to = Math.min(scanned + QUEUE_SCAN_BATCH_SIZE, QUEUE_SCAN_MAX_ROWS) - 1;
+    let q = db
+      .from("home_surface_queue")
+      .select("id, ref_id, display_count")
+      .eq("kind", "video")
+      .eq("lang", lang)
+      .gte("score", threshold);
+
+    if (mode === "live") {
+      q = q
+        .order("display_count", { ascending: true })
+        .order("last_displayed_at", { ascending: true, nullsFirst: true })
+        .order("inserted_at", { ascending: false });
+    } else {
+      q = q
+        .order("last_displayed_at", { ascending: false, nullsFirst: false })
+        .order("inserted_at", { ascending: false });
+    }
+
+    if (hiddenTopics.length > 0) {
+      q = q.not("topic_id", "in", `(${hiddenTopics.map((id) => `"${id}"`).join(",")})`);
+    }
+
+    const { data: queueData, error: queueErr } = await q.range(from, to);
+    if (queueErr) {
+      console.error(`[/api/videos/top] queue SELECT error: ${queueErr.message}`);
+      return [];
+    }
+
+    const queueRows = (queueData ?? []) as QueueRow[];
+    if (queueRows.length === 0) break;
+
+    const refIds = queueRows.map((row) => row.ref_id);
+    const transcriptionsById = await fetchTranscriptionsById(db, refIds);
+    if (!transcriptionsById) return [];
+
+    const videoIds = Array.from(new Set(
+      Array.from(transcriptionsById.values()).map((row) => row.video_id),
+    ));
+    const { data: videoData, error: videoErr } = await db
+      .from("youtube_videos")
+      .select(
+        "video_id, title, description, channel_title, channel_id, published, thumbnail, view_count, duration_sec, link",
+      )
+      .in("video_id", videoIds)
+      .gte("published", cutoffIso)
+      .lte("published", nowIso);
+
+    if (videoErr) {
+      console.error(`[/api/videos/top] fresh youtube_videos SELECT error: ${videoErr.message}`);
+      return [];
+    }
+
+    const videoById = new Map<string, YoutubeVideoRow>();
+    for (const row of (videoData ?? []) as YoutubeVideoRow[]) {
+      videoById.set(row.video_id, row);
+    }
+
+    for (const queueRow of queueRows) {
+      const tr = transcriptionsById.get(queueRow.ref_id);
+      if (!tr) continue;
+      const yv = videoById.get(tr.video_id);
+      if (!yv) continue;
+      fresh.push({ queue: queueRow, video: toVideoTopItem(tr, yv, lang) });
+      if (fresh.length >= offset + 2) break;
+    }
+
+    if (queueRows.length < QUEUE_SCAN_BATCH_SIZE) break;
+    scanned += queueRows.length;
+  }
+
+  return fresh.slice(offset, offset + 2);
+}
+
+async function markVideoDisplayed(db: SupabaseClient, queue: QueueRow, now: number): Promise<void> {
+  const { error } = await db
+    .from("home_surface_queue")
+    .update({
+      display_count: (queue.display_count ?? 0) + 1,
+      last_displayed_at: new Date(now).toISOString(),
+    })
+    .eq("id", queue.id);
+
+  if (error) {
+    console.error(`[/api/videos/top] display_count update error: ${error.message}`);
+  }
+}
+
 export async function GET(request: NextRequest) {
   const lang = parseLang(request.nextUrl.searchParams.get("lang"));
   const threshold = parseThreshold(
     request.cookies.get("homeMinScoreVideo")?.value,
     DEFAULT_MIN_SCORE,
   );
-  // `offset=0` (or absent) → live mode (atomic pick + display_count++).
+  // `offset=0` (or absent) → live mode (fresh pick + display_count++).
   // `offset>0` → history mode (read-only, ordered by last_displayed_at DESC).
   const offset = Math.max(
     0,
@@ -211,7 +358,11 @@ export async function GET(request: NextRequest) {
 
   if (isLive) {
     const cached = cache.get(cacheKey);
-    if (cached && cached.bucket === bucket) {
+    if (
+      cached
+      && cached.bucket === bucket
+      && isFreshPublication(cached.payload.video?.published, now)
+    ) {
       return jsonResponse(cached.payload, bucket, now);
     }
   }
@@ -227,55 +378,27 @@ export async function GET(request: NextRequest) {
   const hiddenTopics = await getHiddenTopicIds();
 
   if (isLive) {
-    const { data: pickRows, error: pickErr } = await db.rpc("pick_home_surface", {
-      p_kind: "video",
-      p_lang: lang,
-      p_min_score: threshold,
-      p_excluded_topics: hiddenTopics,
+    const candidates = await getFreshVideoCandidates(db, {
+      lang,
+      threshold,
+      hiddenTopics,
+      now,
+      mode: "live",
+      offset: 0,
     });
-
-    if (pickErr) {
-      console.error(`[/api/videos/top] pick_home_surface error: ${pickErr.message}`);
-      const empty: TopVideoPayload = { video: null, hasOlder: false, offset };
-      return jsonResponse(empty, bucket, now);
-    }
-
-    const picked = Array.isArray(pickRows) && pickRows.length > 0
-      ? (pickRows[0] as { id: number; ref_id: number; score: number })
-      : null;
-
+    const picked = candidates[0];
     if (!picked) {
       const empty: TopVideoPayload = { video: null, hasOlder: false, offset };
-      cache.set(cacheKey, { bucket, payload: empty });
       return jsonResponse(empty, bucket, now);
     }
 
-    const video = await hydrateVideo(db, picked.ref_id, lang);
-    if (!video) {
-      const empty: TopVideoPayload = { video: null, hasOlder: false, offset };
-      cache.set(cacheKey, { bucket, payload: empty });
-      return jsonResponse(empty, bucket, now);
-    }
+    await markVideoDisplayed(db, picked.queue, now);
 
-    // Probe for at least one OTHER candidate row, including rows that
-    // haven't been displayed yet — the chevron walks through the
-    // rotation pool, not just the strict display history. Otherwise the
-    // chevron stays disabled until the queue has cycled through 2+
-    // distinct picks, which is rarely true right after a deploy.
-    let countQ = db
-      .from("home_surface_queue")
-      .select("id", { count: "exact", head: true })
-      .eq("kind", "video")
-      .eq("lang", lang)
-      .gte("score", threshold)
-      .neq("ref_id", picked.ref_id);
-    if (hiddenTopics.length > 0) {
-      countQ = countQ.not("topic_id", "in", `(${hiddenTopics.map((id) => `"${id}"`).join(",")})`);
-    }
-    const { count: olderCount } = await countQ;
-    const hasOlder = (olderCount ?? 0) > 0;
-
-    const payload: TopVideoPayload = { video, hasOlder, offset };
+    const payload: TopVideoPayload = {
+      video: picked.video,
+      hasOlder: candidates.length > 1,
+      offset,
+    };
     cache.set(cacheKey, { bucket, payload });
     return jsonResponse(payload, bucket, now);
   }
@@ -284,38 +407,25 @@ export async function GET(request: NextRequest) {
   // Same ordering rationale as /api/news/top-story: most-recently-
   // displayed first (= previous bucket's pick), then never-displayed
   // rows by insertion freshness. NULLS LAST keeps unshown candidates
-  // accessible from the chevron browse.
-  let q = db
-    .from("home_surface_queue")
-    .select("ref_id")
-    .eq("kind", "video")
-    .eq("lang", lang)
-    .gte("score", threshold)
-    .order("last_displayed_at", { ascending: false, nullsFirst: false })
-    .order("inserted_at", { ascending: false })
-    .range(offset, offset + 1);
+  // accessible from the chevron browse. Offset is applied after the 24h
+  // freshness filter, so chevrons never land on stale videos.
+  const candidates = await getFreshVideoCandidates(db, {
+    lang,
+    threshold,
+    hiddenTopics,
+    now,
+    mode: "history",
+    offset,
+  });
 
-  if (hiddenTopics.length > 0) {
-    q = q.not("topic_id", "in", `(${hiddenTopics.map((id) => `"${id}"`).join(",")})`);
-  }
-
-  const { data: histRows, error: histErr } = await q;
-  if (histErr) {
-    console.error(`[/api/videos/top] history SELECT error: ${histErr.message}`);
-    const empty: TopVideoPayload = { video: null, hasOlder: false, offset };
-    return jsonResponse(empty, bucket, now);
-  }
-  const rows = (histRows ?? []) as Array<{ ref_id: number }>;
-  if (rows.length === 0) {
+  if (candidates.length === 0) {
     const empty: TopVideoPayload = { video: null, hasOlder: false, offset };
     return jsonResponse(empty, bucket, now);
   }
 
-  const video = await hydrateVideo(db, rows[0].ref_id, lang);
-  const hasOlder = rows.length > 1;
   const payload: TopVideoPayload = {
-    video: video ?? null,
-    hasOlder,
+    video: candidates[0].video,
+    hasOlder: candidates.length > 1,
     offset,
   };
   return jsonResponse(payload, bucket, now);

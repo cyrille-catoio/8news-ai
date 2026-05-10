@@ -437,6 +437,17 @@ Canonical implementations live in `src/lib/`:
 - Bootstrap after first deploy: `curl https://<host>/.netlify/functions/cron-top-summary-background` so the page has a row to render before the next scheduled tick.
 - Read path: `GET /api/news/top-summary/latest?lang=…` returns the latest available row (transparent fallback to yesterday if today's tick hasn't landed). The /top-articles page AND the home `Top24hHero` accordion read exclusively from this endpoint; **no on-demand LLM call from any user-facing surface anymore**.
 
+#### `cron-newsletter-daily-background.ts` — Daily Top 24h newsletter (v2.6.12+)
+
+- Triggered **once a day** by cron-job.org (suggested `30 6 * * *` UTC — ~30 min after `cron-top-summary-background`'s suggested `0 6 * * *` so the day's snapshot is freshly written before we read it). One tick processes both langs.
+- Pipeline:
+  1. Read the latest snapshot per lang via `getLatestTopSummary(lang)` + `getTopSummaryBulletsByDate(lang, date)` — same source of truth as `/top-articles` and the home `Top24hHero` accordion. Degrades gracefully to yesterday's brief when today's tick hasn't run yet, rather than silently skipping the send.
+  2. Page through `supabase.auth.admin.listUsers({ perPage: 1000 })` and bucket subscribers (`user_metadata.daily_newsletter === true`) by `user_metadata.preferred_lang` (fallback `"en"`; if a lang's snapshot is missing, the bucket falls back to the other lang's snapshot rather than dropping the user).
+  3. Render once per lang via `src/lib/email/render-daily-newsletter.ts` — pure function producing `{ subject, html, text }` from the snapshot + bullets. The HTML mirrors the website's `Top24hHero` register (gold serif group titles, white body, gold pill chips for source refs) using **inline styles + a 600px wrapper `<table>`** (no `<style>` blocks, no flex/grid — Gmail/Outlook safe in 2026). The full `snapshot.articles` array is intentionally NOT rendered — the user explicitly asked for the grouped bullets + refs only, to keep the email scannable on mobile.
+  4. Ship in 100-recipient chunks via Resend's `POST /emails/batch` endpoint with a `List-Unsubscribe: <mailto:…>` header (RFC 8058) and a `List-Unsubscribe-Post` companion so Gmail surfaces one-click unsubscribe. Per-batch try/catch — a failed batch doesn't abort the run.
+- Required env: `RESEND_API_KEY`. Optional: `RESEND_FROM_ADDRESS` (default `"8news <newsletter@8news.ai>"` — the domain must be verified in Resend), `NEWSLETTER_UNSUBSCRIBE_MAILTO` (default `unsubscribe@8news.ai`), `NEWSLETTER_PUBLIC_ORIGIN` (default `https://8news.ai`, used for the « Read online » CTA pointing at `/{summary_date}`).
+- No auth check on the URL (URL obscurity — same convention as the other `cron-*-background.ts` siblings). Idempotency: there is no built-in dedup, so triggering the cron twice in a day will send twice. Trust the scheduler.
+
 **Scoring criteria** (stored in `topics` table, used by `gpt-4.1-nano` scoring runs):
 - **9-10**: Major breaking news
 - **7-8**: Significant development
@@ -1246,7 +1257,7 @@ User opens /archives, /[topic], /[topic]/[date]/[slug],
 - **Build command**: `npm run build`
 - **Publish directory**: `.next`
 - **Plugin**: `@netlify/plugin-nextjs`
-- **Background functions**: 7 cron jobs — `cron-fetching-background`, `cron-scoring-background`, `cron-daily-summary-background`, `cron-video-roundup-background`, `cron-video-transcribe-background`, `cron-video-summary-score-background` (batched 1-10 quality score for `video_transcriptions.summary_md`; same 15 min wall as other long crons; trigger on your cadence, e.g. every 15 min — no auth, URL-obscurity like the other background crons), and **`cron-top-summary-background`** — daily Top articles AI summary snapshot (suggested cadence `0 2 * * *` UTC; one tick per day produces the EN+FR rows in `top_summaries`; bootstrap manually after first deploy with `curl https://<host>/.netlify/functions/cron-top-summary-background`).
+- **Background functions**: 8 cron jobs — `cron-fetching-background`, `cron-scoring-background`, `cron-daily-summary-background`, `cron-video-roundup-background`, `cron-video-transcribe-background`, `cron-video-summary-score-background` (batched 1-10 quality score for `video_transcriptions.summary_md`; same 15 min wall as other long crons; trigger on your cadence, e.g. every 15 min — no auth, URL-obscurity like the other background crons), **`cron-top-summary-background`** — daily Top articles AI summary snapshot (suggested cadence `0 2 * * *` UTC; one tick per day produces the EN+FR rows in `top_summaries`; bootstrap manually after first deploy with `curl https://<host>/.netlify/functions/cron-top-summary-background`), and **v2.6.12+ `cron-newsletter-daily-background`** — daily Top 24h newsletter (suggested cadence `30 6 * * *` UTC, runs 30 min after the snapshot cron; reads the latest `top_summaries` snapshot per lang + buckets opted-in subscribers by `user_metadata.preferred_lang`; ships in 100-recipient chunks via Resend's `POST /emails/batch`; details in § Cron jobs → `cron-newsletter-daily-background.ts`).
 - **Rewrites**: every `/app/*` SPA pseudo-route is rewritten to `/app` via `next.config.ts.beforeFiles` (hard-refresh resilience for the SPA)
 - **Domain**: `8news.ai`
 - **Redirect**: `8news.netlify.app/*` → `8news.ai/:splat` (301)
@@ -1271,6 +1282,10 @@ User opens /archives, /[topic], /[topic]/[date]/[slug],
 | `VIDEO_SUMMARY_SCORE_OPENAI_MAX_RETRIES` | No | SDK retries. Default `0` (fail fast; next cron tick retries backlog). |
 | `CRON_VIDEO_SUMMARY_SCORE_WALL_MS` | No | Hard wall for the function. Default `840000` (14 min). |
 | `CRON_VIDEO_SUMMARY_SCORE_BUDGET_MS` | No | Effective run budget. Default `810000`. |
+| `RESEND_API_KEY` | **v2.6.12+** Required to enable the daily newsletter | Resend API key used by `cron-newsletter-daily-background`. Get one at https://resend.com/api-keys. When unset the cron logs a single warning and skips the send — the rest of the app keeps working. |
+| `RESEND_FROM_ADDRESS` | No | « From » envelope for the newsletter, format `Display name <local@domain>`. Default `8news <newsletter@8news.ai>`. The domain MUST be verified in your Resend account (https://resend.com/domains) before mails will deliver. |
+| `NEWSLETTER_UNSUBSCRIBE_MAILTO` | No | mailto target injected into the `List-Unsubscribe` header (RFC 8058). Default `unsubscribe@8news.ai`. Doesn't currently auto-unsubscribe — you'll get a reply and toggle the user manually from `<UsersSection>` until a self-serve opt-out lands on the SettingsPage. |
+| `NEWSLETTER_PUBLIC_ORIGIN` | No | Absolute origin used to build the « Read online » CTA inside the newsletter (`${origin}/${summary_date}`). Default `https://8news.ai`. |
 | `CRON_VIDEO_SUMMARY_SCORE_SAFETY_MS` | No | Reserve before deadline — stop launching new batches. Default `45000`. |
 
 ---

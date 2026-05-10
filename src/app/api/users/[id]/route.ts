@@ -18,11 +18,27 @@ export async function PATCH(
   const { id } = await params;
   const body = await req.json();
 
-  const patch: Record<string, string> = {};
+  // `user_metadata` is `Record<string, unknown>` in Supabase Auth, so
+  // the patch accumulator is the same — `first_name` / `last_name` /
+  // `user_type` / `preferred_lang` are strings, `daily_newsletter`
+  // (v2.6.12+) is a boolean. Keeping the merge generic prevents
+  // future scalar flags from forcing another type widening.
+  const patch: Record<string, unknown> = {};
   if (typeof body.firstName === "string") patch.first_name = body.firstName.trim();
   if (typeof body.lastName === "string") patch.last_name = body.lastName.trim();
   if (body.userType === "owner" || body.userType === "member") {
     patch.user_type = body.userType;
+  }
+  if (typeof body.dailyNewsletter === "boolean") {
+    patch.daily_newsletter = body.dailyNewsletter;
+  }
+  // Default UI language (v2.6.12+) — writes the same `preferred_lang`
+  // key consumed by `resolveServerLang()` and the SPA's
+  // session-arrival reconciliation, so an admin override takes effect
+  // on the user's next page load. Always a concrete value; clearing
+  // the field is intentionally not exposed here.
+  if (body.preferredLang === "en" || body.preferredLang === "fr") {
+    patch.preferred_lang = body.preferredLang;
   }
 
   if (Object.keys(patch).length === 0) {

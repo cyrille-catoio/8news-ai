@@ -812,6 +812,29 @@ const strings = {
     en: "Registered",
     fr: "Inscrit le",
   },
+  /**
+   * v2.6.12+ — Daily Newsletter opt-in flag rendered as a checkbox
+   * in the admin Users table. Stored in
+   * `auth.users.user_metadata.daily_newsletter` (boolean). The owner
+   * toggles it during the pencil-edit flow alongside firstName /
+   * lastName / userType, no dedicated row save.
+   */
+  usersDailyNewsletter: {
+    en: "Daily Newsletter",
+    fr: "Newsletter quotidienne",
+  },
+  /**
+   * v2.6.12+ — Default UI language the user lands on after sign-in.
+   * Stored in `auth.users.user_metadata.preferred_lang` (the same key
+   * read by `resolveServerLang()` and written by the SPA's
+   * `handleLangChange` since v2.5.3). The owner overrides it during
+   * the pencil-edit flow; on next sign-in the user's SPA reconciles
+   * the value into local `lang` state.
+   */
+  usersLanguage: {
+    en: "Language",
+    fr: "Langue",
+  },
   usersActions: {
     en: "Edit",
     fr: "Modifier",
@@ -875,13 +898,27 @@ const strings = {
     en: "Top articles · 24h",
     fr: "Top articles · 24h",
   },
+  /**
+   * Default title rendered by the base `<Top24hHero>` component AND
+   * by its `<TopArticlesTop24hHero>` wrapper (the dedicated
+   * `/top-articles` surface). The home wrapper `<HomeTop24hHero>`
+   * overrides via `top24hHeroHomeTitle` so the two surfaces can
+   * diverge editorially without affecting each other.
+   */
   top24hHeroTitle: {
-    en: "Top articles 24 hours",
-    fr: "Top articles 24 heures",
+    en: "Top 24h articles",
+    fr: "Top articles 24h",
   },
-  top24hHeroSubtitle: {
-    en: "Click a headline to read the full angle.",
-    fr: "Clique sur un titre pour lire l'analyse détaillée.",
+  /**
+   * Title used by `<HomeTop24hHero>` (the home BriefingPage card).
+   * Distinct from `top24hHeroTitle` since v2.6.12 — the home reads as
+   * « Podcast du jour » so the audio-first framing the player above
+   * suggests is reinforced, while `/top-articles` keeps the
+   * descriptive « Top articles 24h » that matches its URL slug.
+   */
+  top24hHeroHomeTitle: {
+    en: "Daily podcast",
+    fr: "Podcast du jour",
   },
   top24hHeroSeeAll: {
     en: "Read the full briefing →",
@@ -1166,6 +1203,32 @@ const strings = {
   dailySummaryViewFull: {
     en: "View full page",
     fr: "Voir la page complète",
+  },
+
+  // --- Daily newsletter (cron-newsletter-daily-background, v2.6.12+) ---
+  // Rendered into the email subject + body by
+  // `src/lib/email/render-daily-newsletter.ts`. Kept in the shared
+  // i18n table so the same wording shows up on the homepage Top24h
+  // card (`top24hHeroTitle`) and in the email envelope.
+  newsletterSubjectPrefix: {
+    en: "Top 24h articles",
+    fr: "Top articles 24h",
+  },
+  newsletterIntro: {
+    en: "Here's your daily AI-curated brief of the most important stories from the last 24 hours.",
+    fr: "Voici votre brief quotidien : les actualités les plus importantes des 24 dernières heures, sélectionnées par l'IA.",
+  },
+  newsletterReadOnline: {
+    en: "Read the full briefing online",
+    fr: "Lire le briefing complet en ligne",
+  },
+  newsletterFooterReason: {
+    en: "You're receiving this email because the daily newsletter is enabled on your 8news account.",
+    fr: "Vous recevez cet email parce que la newsletter quotidienne est activée sur votre compte 8news.",
+  },
+  newsletterFooterUnsubscribe: {
+    en: "Sign in to update your preferences",
+    fr: "Connectez-vous pour modifier vos préférences",
   },
 } as const;
 

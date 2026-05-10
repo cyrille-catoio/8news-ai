@@ -9,7 +9,7 @@ import { ScoreMeter } from "@/app/components/ScoreMeter";
 import { CopyLinkButton } from "@/app/components/CopyLinkButton";
 import { FavoriteButton } from "@/app/components/FavoriteButton";
 import { VideoCard, type VideoItem } from "@/app/components/VideoCard";
-import { Top24hHero } from "@/app/components/Top24hHero";
+import { HomeTop24hHero } from "@/app/components/HomeTop24hHero";
 import type { TopicLabel } from "@/lib/types";
 import type { AppNavPage } from "@/app/components/AppHeader";
 import { summaryPath } from "@/lib/summary-routes";
@@ -506,7 +506,7 @@ export function BriefingPage({
               at the very top. Self-fetches the latest snapshot so its
               loading / error / 404 states stay fully isolated from the
               rest of the home (a missing snapshot just hides the card). */}
-          <Top24hHero lang={lang} onNavigate={onNavigate} />
+          <HomeTop24hHero lang={lang} onNavigate={onNavigate} />
 
           {/* Top articles 24h hero, TOP VIDEO, Top story, puis « Toutes les vidéos transcrites », Tendances, résumé du jour, top 5, … */}
           {videosLoading ? (

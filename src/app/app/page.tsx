@@ -23,7 +23,7 @@ import { FeedsAdminPage } from "@/app/components/FeedsAdminPage";
 import { CategoriesPage } from "@/app/components/CategoriesPage";
 import { SettingsPage } from "@/app/components/SettingsPage";
 import { SummaryBox } from "@/app/components/SummaryBox";
-import { Top24hHero } from "@/app/components/Top24hHero";
+import { TopArticlesTop24hHero } from "@/app/components/TopArticlesTop24hHero";
 import { AllArticlesTab, type AllArticleEntry } from "@/app/components/AllArticlesTab";
 import { StatsPage } from "@/app/components/StatsPage";
 import { CronMonitorPage } from "@/app/components/CronMonitorPage";
@@ -49,7 +49,7 @@ import { BriefingPage } from "@/app/components/BriefingPage";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.6.11";
+const APP_VERSION = "2.6.12";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 const NEWS_API_TRANSIENT_STATUSES = new Set([502, 503, 504]);
 const NEWS_API_RETRY_DELAY_MS = 750;
@@ -1193,21 +1193,17 @@ export default function Home() {
               </div>
             ) : topSummary ? (
               <>
-                {/* Same accordion experience as the home `Top24hHero` —
-                    homogeneous gold chrome, group titles only by default…
-                    except here we **open every group** (`defaultOpen`) so
-                    the dedicated /top-articles surface preserves the prior
-                    « full briefing visible at a glance » feel. The user
-                    can still collapse a group by clicking its title.
+                {/* Dedicated /top-articles wrapper around the shared
+                    <Top24hHero> base (v2.6.12+). Same accordion chrome
+                    as the home, except `defaultOpen` keeps every group
+                    expanded for the « full briefing visible at a glance »
+                    feel of this surface, and `showSeeAllLink={false}`
+                    avoids a footer link looping back here. The user can
+                    still collapse a group by clicking its title.
                     `showSeeAllLink={false}` because we ARE the see-all
                     surface; `data` is the snapshot the parent already
                     fetched (no double network call). */}
-                <Top24hHero
-                  lang={lang}
-                  data={topSummary}
-                  showSeeAllLink={false}
-                  defaultOpen
-                />
+                <TopArticlesTop24hHero lang={lang} data={topSummary} />
                 <TopFeedSection
                   articles={topFeed}
                   loading={false}

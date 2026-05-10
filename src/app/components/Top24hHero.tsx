@@ -5,6 +5,7 @@ import { color, card, spinnerStyle } from "@/lib/theme";
 import { t, type Lang, dateLocale } from "@/lib/i18n";
 import type { AppNavPage } from "@/app/components/AppHeader";
 import { ScoreMeter } from "@/app/components/ScoreMeter";
+import { Top24hAudio } from "@/app/components/Top24hAudio";
 
 /**
  * Hero card pinned at the very top of `/app` (BriefingPage). Renders
@@ -151,6 +152,7 @@ export function Top24hHero({
   data: externalData,
   showSeeAllLink = true,
   defaultOpen = false,
+  title,
 }: {
   lang: Lang;
   /** Required when `showSeeAllLink` is `true` (default). The footer
@@ -174,6 +176,16 @@ export function Top24hHero({
    *  briefing — opening every group up front matches the prior
    *  SummaryBox layout that page replaced. */
   defaultOpen?: boolean;
+  /**
+   * Override the H2 title rendered next to the « Generated on … »
+   * stamp. Defaults to `t("top24hHeroTitle")` so legacy callers that
+   * don't pass this prop keep their previous label. v2.6.12+ the
+   * dedicated wrappers `<HomeTop24hHero>` / `<TopArticlesTop24hHero>`
+   * pass their own title so the home (« Podcast du jour ») and the
+   * dedicated page (« Top articles 24h ») can diverge without
+   * touching the base component again.
+   */
+  title?: string;
 }) {
   const isSelfFetched = externalData === undefined;
   const [snapInternal, setSnapInternal] = useState<Snapshot | null>(null);
@@ -298,7 +310,7 @@ export function Top24hHero({
               letterSpacing: "-0.01em",
             }}
           >
-            {t("top24hHeroTitle", lang)}
+            {title ?? t("top24hHeroTitle", lang)}
           </h2>
           <div style={{ color: color.textDim, fontSize: 12, letterSpacing: "0.02em" }}>
             {t("topSummaryGeneratedOn", lang).replace(
@@ -308,16 +320,18 @@ export function Top24hHero({
           </div>
         </div>
 
-        <div
-          style={{
-            color: color.textMuted,
-            fontSize: 13,
-            marginBottom: 14,
-            fontStyle: "italic",
-          }}
-        >
-          {t("top24hHeroSubtitle", lang)}
-        </div>
+        {/* TTS audio player — same UX register as `/[topic]/[date]/[slug]`
+            and `/[topic]/r/[date]/[slug]` (DailySummaryAudio /
+            VideoRoundupAudio). Reads the user's persisted speed + voice
+            cookies; gracefully no-ops when bullets are empty. The
+            previous « Click a headline to read the full angle » sub-line
+            was removed in v2.6.12 — the player above and the chevron-
+            decorated rows below are self-explanatory. */}
+        <Top24hAudio
+          bullets={snap.bullets}
+          lang={lang}
+          date={snap.summaryDate}
+        />
 
         <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none", borderTop: `1px solid ${color.border}` }}>
           {groups.map((g, i) => {

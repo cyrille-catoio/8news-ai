@@ -11,6 +11,19 @@ interface UserRow {
   firstName: string;
   lastName: string;
   userType: AppUserType;
+  /**
+   * v2.6.12+ — default UI language used on the user's next sign-in.
+   * Source of truth: `auth.users.user_metadata.preferred_lang`. `null`
+   * when no preference has been saved yet (the user falls back through
+   * `resolveServerLang()`'s default chain: cookie → app default).
+   */
+  preferredLang: "en" | "fr" | null;
+  /**
+   * v2.6.12+ — opt-in for the morning daily newsletter. Source of
+   * truth: `auth.users.user_metadata.daily_newsletter` (boolean,
+   * defaults to false when unset).
+   */
+  dailyNewsletter: boolean;
   createdAt: string;
 }
 
@@ -112,6 +125,8 @@ export function UsersSection({ lang }: { lang: Lang }) {
   const [editFirstName, setEditFirstName] = useState("");
   const [editLastName, setEditLastName] = useState("");
   const [editType, setEditType] = useState<AppUserType>("member");
+  const [editLang, setEditLang] = useState<"en" | "fr">("en");
+  const [editDailyNewsletter, setEditDailyNewsletter] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const locale = dateLocale(lang);
@@ -140,6 +155,11 @@ export function UsersSection({ lang }: { lang: Lang }) {
     setEditFirstName(u.firstName);
     setEditLastName(u.lastName);
     setEditType(u.userType);
+    // Default to "en" when the user has no saved preference — the
+    // dropdown is binary, no « auto » option exposed to the admin
+    // (matches the API which also accepts en|fr only).
+    setEditLang(u.preferredLang ?? "en");
+    setEditDailyNewsletter(u.dailyNewsletter);
   }
 
   function cancelEdit() {
@@ -157,6 +177,8 @@ export function UsersSection({ lang }: { lang: Lang }) {
           firstName: editFirstName,
           lastName: editLastName,
           userType: editType,
+          preferredLang: editLang,
+          dailyNewsletter: editDailyNewsletter,
         }),
       });
       if (!res.ok) throw new Error();
@@ -191,6 +213,8 @@ export function UsersSection({ lang }: { lang: Lang }) {
                   <th style={thStyle}>{t("usersFirstName", lang)}</th>
                   <th style={thStyle}>{t("usersEmail", lang)}</th>
                   <th style={thStyle}>{t("usersType", lang)}</th>
+                  <th style={{ ...thStyle, textAlign: "center" }}>{t("usersLanguage", lang)}</th>
+                  <th style={{ ...thStyle, textAlign: "center" }}>{t("usersDailyNewsletter", lang)}</th>
                   <th style={thStyle}>{t("usersCreatedAt", lang)}</th>
                   <th style={{ ...thStyle, textAlign: "center", width: 60 }}>{t("usersActions", lang)}</th>
                 </tr>
@@ -251,6 +275,78 @@ export function UsersSection({ lang }: { lang: Lang }) {
                             {u.userType}
                           </span>
                         )}
+                      </td>
+                      <td style={{ ...tdStyle, textAlign: "center" }}>
+                        {isEditing ? (
+                          <select
+                            value={editLang}
+                            onChange={(e) => setEditLang(e.target.value as "en" | "fr")}
+                            style={selectStyle}
+                            disabled={saving}
+                            aria-label={t("usersLanguage", lang)}
+                          >
+                            <option value="en">EN</option>
+                            <option value="fr">FR</option>
+                          </select>
+                        ) : (
+                          // `—` for users who never picked a language —
+                          // `resolveServerLang()` will fall back to
+                          // cookie / app default until the admin (or
+                          // the user themselves via the SeoNavBar /
+                          // SPA toggle) writes one.
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 600,
+                              padding: "2px 8px",
+                              borderRadius: 4,
+                              background: u.preferredLang
+                                ? "rgba(201,162,39,0.10)"
+                                : "transparent",
+                              color: u.preferredLang ? color.gold : color.textMuted,
+                              border: `1px solid ${
+                                u.preferredLang ? color.gold : color.border
+                              }`,
+                              letterSpacing: "0.04em",
+                              textTransform: "uppercase",
+                              fontFamily: "ui-monospace, Menlo, monospace",
+                            }}
+                          >
+                            {u.preferredLang ?? "—"}
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ ...tdStyle, textAlign: "center" }}>
+                        {/* Single checkbox for both read and edit modes.
+                            The `disabled` attribute gates writes to the
+                            edit flow (matches the existing pencil → save
+                            convention used by the other columns); the
+                            checked state always reflects the latest
+                            persisted value when not editing, or the
+                            draft state while editing. Hidden label kept
+                            for screen readers. */}
+                        <label
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            cursor: isEditing && !saving ? "pointer" : "default",
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isEditing ? editDailyNewsletter : u.dailyNewsletter}
+                            onChange={(e) => setEditDailyNewsletter(e.target.checked)}
+                            disabled={!isEditing || saving}
+                            aria-label={t("usersDailyNewsletter", lang)}
+                            style={{
+                              width: 16,
+                              height: 16,
+                              accentColor: color.gold,
+                              cursor: isEditing && !saving ? "pointer" : "default",
+                              opacity: isEditing ? 1 : 0.85,
+                            }}
+                          />
+                        </label>
                       </td>
                       <td style={{ ...tdStyle, color: color.textMuted, fontSize: 12, whiteSpace: "nowrap" }}>
                         {new Date(u.createdAt).toLocaleDateString(locale)}

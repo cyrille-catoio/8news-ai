@@ -117,6 +117,10 @@ async function runCron(): Promise<void> {
     process.env.NEWSLETTER_PUBLIC_ORIGIN?.trim() || DEFAULT_PUBLIC_ORIGIN
   ).replace(/\/+$/, "");
 
+  console.log(
+    `[cron-newsletter] [start] env_resend=${apiKey ? "yes" : "NO"} env_supabase_url=${url ? "yes" : "NO"} env_supabase_srk=${key ? "yes" : "NO"} from=${fromAddress} origin=${publicOrigin}`,
+  );
+
   if (!apiKey) {
     console.error(
       "[cron-newsletter] RESEND_API_KEY not configured — aborting (set it in Netlify env vars)",

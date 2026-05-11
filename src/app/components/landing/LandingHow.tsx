@@ -9,10 +9,14 @@ const FETCH_FEEDS: Array<{ name: string; t: number }> = [
   { name: "reuters.com", t: 17 },
 ];
 
+// v2.6.14+ 4-tier illustrative distribution, aligned with the
+// `ScoreMeter` color ladder (green ≥ 8, gold ≥ 5, orange ≥ 3, red < 3)
+// and with the API's `pct8_10 / pct5_7 / pct3_4 / pct1_2` buckets. The
+// percentages remain static / illustrative — this is a marketing
+// landing block, not live data.
 const SCORE_DIST: Array<{ tier: string; pct: number; clr: string }> = [
-  { tier: "9-10", pct: 8, clr: "var(--green)" },
-  { tier: "7-8", pct: 18, clr: "var(--gold)" },
-  { tier: "5-6", pct: 32, clr: "var(--gold)" },
+  { tier: "8-10", pct: 14, clr: "var(--green)" },
+  { tier: "5-7", pct: 44, clr: "var(--gold)" },
   { tier: "3-4", pct: 28, clr: "var(--orange)" },
   { tier: "1-2", pct: 14, clr: "var(--red)" },
 ];

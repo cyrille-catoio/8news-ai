@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { type CSSProperties, useState, useEffect, useCallback, useRef } from "react";
 import type {
   SummaryResponse,
   ArticleSummary,
@@ -34,7 +34,7 @@ import { TopFeedSection } from "@/app/components/TopFeedSection";
 import { TopicPersonalizationBar } from "@/app/components/TopicPersonalizationBar";
 import { GeneralMenu } from "@/app/components/GeneralMenu";
 import { TopicOnboardingModal } from "@/app/components/TopicOnboardingModal";
-import type { TopFeedArticle } from "@/hooks/useTopFeed";
+import { useTopFeed } from "@/hooks/useTopFeed";
 import { useUserTopics } from "@/hooks/useUserTopics";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useAuth } from "@/app/providers";
@@ -49,7 +49,7 @@ import { BriefingPage } from "@/app/components/BriefingPage";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.6.13";
+const APP_VERSION = "2.6.14";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 const NEWS_API_TRANSIENT_STATUSES = new Set([502, 503, 504]);
 const NEWS_API_RETRY_DELAY_MS = 750;
@@ -783,27 +783,6 @@ export default function Home() {
   const [periodToast, setPeriodToast] = useState<string | null>(null);
   const periodToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  /**
-   * /top-articles snapshot: pre-computed once a day by
-   * `cron-top-summary-background`, served by GET
-   * `/api/news/top-summary/latest`. The page no longer triggers any
-   * LLM call in real time — visiting the page just reads the latest
-   * row (today's if the cron has run, yesterday's otherwise).
-   */
-  type TopSummarySnapshot = SummaryResponse & {
-    summaryDate: string;
-    generatedAt: string;
-  };
-  const [topSummary, setTopSummary] = useState<TopSummarySnapshot | null>(null);
-  const [topSummaryLoading, setTopSummaryLoading] = useState(false);
-  /**
-   * `null` while the first fetch is in flight, `true` once a snapshot
-   * has been delivered, `false` after a 404 (no row yet — typically
-   * before the first cron tick on a fresh deploy). Drives the empty
-   * state rendering vs. the loaded card.
-   */
-  const [topSummaryAvailable, setTopSummaryAvailable] = useState<boolean | null>(null);
-
   // Topics to display: all in personalization mode (so user can toggle any),
   // filtered by committed prefs otherwise (no change until "Done" is clicked)
   const displayedTopicLabels: TopicLabel[] = isPersonalizationMode
@@ -814,66 +793,26 @@ export default function Home() {
 
   const isTopArticlesPage = currentPage === "topArticles";
 
-  // Map the snapshot's frozen 50-article list to the shape expected by
-  // `<TopFeedSection>` / `TopFeedArticle`. Keeps the displayed list
-  // strictly aligned with what the LLM read, so each bullet's `refs`
-  // always points to a card visible just below.
-  const topFeed: TopFeedArticle[] = useMemo(() => {
-    if (!topSummary) return [];
-    type SnapshotArticle = TopSummarySnapshot["articles"][number] & {
-      topic?: string;
-      score?: number | null;
-      imageUrl?: string | null;
-    };
-    return topSummary.articles.map((raw) => {
-      const a = raw as SnapshotArticle;
-      return {
-        title: a.title,
-        snippet: a.snippet,
-        link: a.link,
-        source: a.source,
-        pubDate: a.pubDate,
-        topic: a.topic ?? "",
-        score: typeof a.score === "number" ? a.score : 0,
-        imageUrl: a.imageUrl ?? null,
-      };
-    });
-  }, [topSummary]);
-
-  // Pre-computed snapshot fetch. Re-fires when the user lands on the
-  // page or switches lang. Cancellation guard avoids a stale response
-  // overwriting a newer one if the user toggles lang twice in a row.
-  useEffect(() => {
-    if (!isTopArticlesPage) return;
-    let cancelled = false;
-    setTopSummaryLoading(true);
-    fetch(`/api/news/top-summary/latest?lang=${lang}`, { cache: "no-store" })
-      .then(async (r) => {
-        if (cancelled) return null;
-        if (r.status === 404) {
-          setTopSummary(null);
-          setTopSummaryAvailable(false);
-          return null;
-        }
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return (await r.json()) as TopSummarySnapshot;
-      })
-      .then((json) => {
-        if (cancelled || !json) return;
-        setTopSummary(json);
-        setTopSummaryAvailable(true);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setTopSummaryAvailable(false);
-      })
-      .finally(() => {
-        if (!cancelled) setTopSummaryLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isTopArticlesPage, lang]);
+  // v2.6.15+ — `/top-articles` is now a live « top 50, last 24 h » feed.
+  // The page used to render the cron-frozen snapshot from `top_summaries`
+  // (paired with an accordion AI briefing), but once the briefing moved
+  // exclusively to the home `Top24hHero`, the only content left here is
+  // the article list itself — so we drive it from the live
+  // `useTopFeed` hook instead of a stale daily snapshot. Background
+  // poll runs every 5 min while the page is mounted; toggling lang
+  // refetches immediately. The hook self-disables when the user is on
+  // any other SPA page (`enabled: isTopArticlesPage`), so no waste on
+  // the rest of the app.
+  const {
+    articles: topFeed,
+    loading: topFeedLoading,
+    lastUpdatedAt: topFeedUpdatedAt,
+  } = useTopFeed({
+    poll: true,
+    lang,
+    preferredTopics: preferredTopicIds,
+    enabled: isTopArticlesPage,
+  });
 
   useEffect(() => {
     const check = async () => {
@@ -987,9 +926,6 @@ export default function Home() {
     setError(null);
     setAllArticles([]);
     setAllArticlesLoading(false);
-    setTopSummary(null);
-    setTopSummaryLoading(false);
-    setTopSummaryAvailable(null);
   }
 
   function handleReset() {
@@ -1002,9 +938,6 @@ export default function Home() {
     setResultTab("relevant");
     setAllArticles([]);
     setAllArticlesLoading(false);
-    setTopSummary(null);
-    setTopSummaryLoading(false);
-    setTopSummaryAvailable(null);
   }
 
   function showSelectTopicToast() {
@@ -1058,7 +991,7 @@ export default function Home() {
           lang={lang}
           currentPage={currentPage}
           isAuthenticated={isAuthenticated}
-          analyzeTopLoading={topSummaryLoading}
+          analyzeTopLoading={isTopArticlesPage && topFeedLoading && topFeed.length === 0}
           onNavigateBriefing={() => { setCurrentPage("briefing"); handleReset(); }}
           onNavigateHome={() => { setCurrentPage("home"); handleReset(); }}
           onNavigateFavorites={() => setCurrentPage("favorites")}
@@ -1189,6 +1122,7 @@ export default function Home() {
             onHomeMinScoreArticleChange={updateHomeMinScoreArticle}
             homeMinScoreVideo={homeMinScoreVideo}
             onHomeMinScoreVideoChange={updateHomeMinScoreVideo}
+            onRequestAuth={() => setAuthModalOpen(true)}
           />
         ) : currentPage === "favorites" ? (
           authLoading ? (
@@ -1206,23 +1140,31 @@ export default function Home() {
           ) : null
         ) : currentPage === "topArticles" ? (
           <div>
-            {topSummaryLoading && !topSummary ? (
+            {topFeedLoading && topFeed.length === 0 ? (
               <div style={{ textAlign: "center", padding: "40px 0" }}>
                 <span style={spinnerStyle(24)} />
               </div>
-            ) : topSummary ? (
+            ) : topFeed.length > 0 ? (
+              // v2.6.15+ — live « top 50 / 24 h » feed (was a cron-frozen
+              // snapshot from `top_summaries`). The `lastUpdatedAt` chip
+              // in TopFeedSection now reflects the actual most-recent
+              // pull, not yesterday's cron tick.
               <TopFeedSection
                 articles={topFeed}
-                loading={false}
+                loading={topFeedLoading}
                 lang={lang}
                 locale={locale}
-                lastUpdatedAt={null}
+                lastUpdatedAt={topFeedUpdatedAt}
                 favoriteUrls={favoriteUrls}
                 onToggleFavorite={toggleFavorite}
                 isAuthenticated={isAuthenticated}
                 onRequestAuth={() => setAuthModalOpen(true)}
               />
-            ) : topSummaryAvailable === false ? (
+            ) : (
+              // Empty state: hook returned an empty array (no scored
+              // articles in the rolling 24 h window). Rare in steady
+              // state — happens mostly on a fresh deploy before the
+              // first scoring cron tick has caught up.
               <div
                 style={{
                   border: `1px solid ${color.border}`,
@@ -1235,11 +1177,7 @@ export default function Home() {
                   lineHeight: 1.5,
                 }}
               >
-                {t("topSummaryNotYet", lang)}
-              </div>
-            ) : (
-              <div style={{ textAlign: "center", padding: "40px 0" }}>
-                <span style={spinnerStyle(24)} />
+                {t("topArticlesEmpty", lang)}
               </div>
             )}
           </div>

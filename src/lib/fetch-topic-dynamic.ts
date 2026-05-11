@@ -11,6 +11,24 @@ type RssSourceField =
       $?: { url?: string };
     };
 
+/** Shape of a Media RSS attribute-bearing tag (`<media:thumbnail url=… />`,
+ *  `<media:content url=… type=… medium=…>`, etc.) once `rss-parser` has
+ *  parsed it. The attribute bag sits under `$`; the optional text body
+ *  (rare for media tags) lands in `_`. */
+interface RssMediaTag {
+  $?: { url?: string; type?: string; medium?: string; width?: string; height?: string };
+  _?: string;
+}
+
+interface RssItunesImage {
+  $?: { href?: string };
+}
+
+interface RssMediaGroup {
+  "media:content"?: RssMediaTag | RssMediaTag[];
+  "media:thumbnail"?: RssMediaTag | RssMediaTag[];
+}
+
 interface RssItem {
   title?: string;
   link?: string;
@@ -20,12 +38,40 @@ interface RssItem {
   contentSnippet?: string;
   source?: RssSourceField;
   enclosure?: { url?: string; type?: string };
+  /** v2.6.15+ — Media RSS + iTunes namespaces, wired through the parser
+   *  below as custom fields. Each is optional and may be absent on
+   *  feeds that only ship one of the legacy patterns (`enclosure` or
+   *  HTML `<img>`). */
+  mediaThumbnail?: RssMediaTag | RssMediaTag[];
+  mediaContent?: RssMediaTag | RssMediaTag[];
+  mediaGroup?: RssMediaGroup;
+  itunesImage?: RssItunesImage | string;
+  /** `<content:encoded>` exposed as its own field so we can fall back
+   *  on it independently of the `content` field, which `rss-parser`
+   *  sometimes populates with the shorter `<description>` instead. */
+  contentEncoded?: string;
 }
 
 const rssParser: Parser<Record<string, never>, RssItem> = new Parser({
   timeout: 5_000,
   customFields: {
-    item: [["source", "source"]],
+    item: [
+      ["source", "source"],
+      // `keepArray: true` is critical for media:thumbnail / media:content
+      // because mainstream feeds (Reuters, BBC, NYT, Engadget) ship
+      // multiple resolutions per item — the default would silently drop
+      // every variant except the last one.
+      ["media:thumbnail", "mediaThumbnail", { keepArray: true }],
+      ["media:content", "mediaContent", { keepArray: true }],
+      ["media:group", "mediaGroup"],
+      ["itunes:image", "itunesImage"],
+      // `<content:encoded>` is the long-form CDATA HTML body. We keep
+      // it as a separate field (rather than relying on rss-parser's
+      // default merge into `content`) because some feeds put a short
+      // text-only `<description>` in `content` and the richer body
+      // — the one with `<img>` tags — only in `<content:encoded>`.
+      ["content:encoded", "contentEncoded"],
+    ],
   },
 });
 const FETCH_TIMEOUT_MS = 5_000;
@@ -86,17 +132,109 @@ function hostLabel(url: string): string | null {
   }
 }
 
-/** Best-effort RSS artwork: enclosure (image/*), else first <img> in body. */
+function ensureArray<T>(value: T | T[] | undefined | null): T[] {
+  if (value == null) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+/** Accept `https?://` and protocol-relative `//host/path` (rewrite to
+ *  https). Reject `data:`, `blob:`, relative paths and empty strings. */
+function normalizeImageUrl(raw: string | undefined | null): string | null {
+  if (!raw) return null;
+  const url = raw.trim();
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  if (url.startsWith("//")) return `https:${url}`;
+  return null;
+}
+
+/** Best-effort RSS artwork extraction. Tries every common pattern in
+ *  preference order so we don't have to second-guess each publisher's
+ *  feed format:
+ *
+ *   1. `<media:content medium="image" url="…">` — Media RSS, the
+ *      modern standard. Preferred because the publisher explicitly
+ *      tags it as the article hero.
+ *   2. `<media:thumbnail url="…">` — same namespace, often used by
+ *      Yahoo / BBC / NYT / Reuters / Engadget alongside or instead
+ *      of media:content.
+ *   3. `<media:group>` wrapper containing the above (Google News).
+ *   4. `<enclosure url="…" type="image/…">` — RSS 2.0 legacy. Many
+ *      WordPress feeds still rely exclusively on this.
+ *   5. `<itunes:image href="…">` — podcast namespace but sometimes
+ *      crossed over on cross-posted content.
+ *   6. First `<img src="…">` inside `<content:encoded>` (CDATA body).
+ *   7. First `<img src="…">` inside `<description>` (`content` field).
+ *
+ *  Returns `null` when none of the patterns yields a parseable URL —
+ *  consumers should fall back to the generic source / favicon they
+ *  already use today. */
 function extractRssImageUrl(item: RssItem): string | null {
-  const enclosureUrl = item.enclosure?.url?.trim();
-  if (enclosureUrl && /^https?:\/\//i.test(enclosureUrl)) {
+  // 1. media:content — pick the first explicitly-image one. We also
+  //    accept untagged entries (`!medium && !type`) because some
+  //    publishers ship raw media:content without any classifier.
+  for (const mc of ensureArray(item.mediaContent)) {
+    const url = normalizeImageUrl(mc?.$?.url);
+    if (!url) continue;
+    const medium = (mc?.$?.medium ?? "").toLowerCase();
+    const type = (mc?.$?.type ?? "").toLowerCase();
+    if (medium === "image" || type.startsWith("image/") || (!medium && !type)) {
+      return url;
+    }
+  }
+
+  // 2. media:thumbnail — pure preview tag, always implicitly an image.
+  for (const mt of ensureArray(item.mediaThumbnail)) {
+    const url = normalizeImageUrl(mt?.$?.url);
+    if (url) return url;
+  }
+
+  // 3. media:group — Google News and a handful of others wrap their
+  //    media:thumbnail / media:content inside a group element.
+  const group = item.mediaGroup;
+  if (group) {
+    for (const mc of ensureArray(group["media:content"])) {
+      const url = normalizeImageUrl(mc?.$?.url);
+      if (!url) continue;
+      const medium = (mc?.$?.medium ?? "").toLowerCase();
+      const type = (mc?.$?.type ?? "").toLowerCase();
+      if (medium === "image" || type.startsWith("image/") || (!medium && !type)) {
+        return url;
+      }
+    }
+    for (const mt of ensureArray(group["media:thumbnail"])) {
+      const url = normalizeImageUrl(mt?.$?.url);
+      if (url) return url;
+    }
+  }
+
+  // 4. enclosure — accept when the type is image/* or completely absent
+  //    (WordPress and similar drop the type attribute frequently).
+  const enclosureUrl = normalizeImageUrl(item.enclosure?.url);
+  if (enclosureUrl) {
     const type = (item.enclosure?.type ?? "").toLowerCase();
     if (!type || type.startsWith("image/")) return enclosureUrl;
   }
-  const html = item.content ?? "";
-  const match = html.match(/<img\b[^>]*\bsrc=["']([^"']+)["']/i);
-  const src = match?.[1]?.trim();
-  if (src && /^https?:\/\//i.test(src)) return src;
+
+  // 5. itunes:image — `<itunes:image href="…">` for attribute form,
+  //    plain string when the feed inlines the URL as element text.
+  const itunes = item.itunesImage;
+  if (itunes) {
+    const url = typeof itunes === "string"
+      ? normalizeImageUrl(itunes)
+      : normalizeImageUrl(itunes.$?.href);
+    if (url) return url;
+  }
+
+  // 6-7. HTML body fallback — try the long-form `content:encoded`
+  //      first (richest), then the shorter `content` field.
+  for (const html of [item.contentEncoded, item.content]) {
+    if (!html) continue;
+    const match = html.match(/<img\b[^>]*\bsrc=["']([^"']+)["']/i);
+    const url = normalizeImageUrl(match?.[1]);
+    if (url) return url;
+  }
+
   return null;
 }
 

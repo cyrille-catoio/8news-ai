@@ -312,14 +312,15 @@ function originFromUrl(archiveUrl: string): string {
 
 /** Importance score badge — colored mono pill rendered next to each
  *  group title. Replicates the website `ScoreMeter` tier colors
- *  (green 9-10 / gold 5-8 / orange 3-4 / red 1-2) with an email-safe
- *  pill (no SVG, no flex). The `clamped/10` text stays mono for the
- *  same instant-recognition register used everywhere else on the
- *  product (article badges, video recap scores, daily summary scores). */
+ *  (green 8-10 / gold 5-7 / orange 3-4 / red 1-2 since v2.6.14) with
+ *  an email-safe pill (no SVG, no flex). The `clamped/10` text stays
+ *  mono for the same instant-recognition register used everywhere else
+ *  on the product (article badges, video recap scores, daily summary
+ *  scores). */
 function renderScoreBadgeHtml(score: number): string {
   const clamped = Math.max(0, Math.min(10, Math.round(score)));
   const tier =
-    clamped >= 9
+    clamped >= 8
       ? { fg: "#22c55e", bg: "rgba(34,197,94,0.12)", border: "rgba(34,197,94,0.45)" }
       : clamped >= 5
         ? { fg: COLOR.gold, bg: COLOR.goldSoft, border: COLOR.goldRing }
@@ -334,9 +335,10 @@ function renderGroupHtml(g: Group): string {
   if (!first) return "";
 
   // Importance score badge (1-10) — mirrors the website's `ScoreMeter`
-  // tier coloring (green 9-10 / gold 5-8 / orange 3-4 / red 1-2) but
-  // rendered as a simple mono pill since SVG bars don't survive most
-  // email clients. Hidden when null (legacy snapshots, missing mig 026).
+  // tier coloring (green 8-10 / gold 5-7 / orange 3-4 / red 1-2 since
+  // v2.6.14) but rendered as a simple mono pill since SVG bars don't
+  // survive most email clients. Hidden when null (legacy snapshots,
+  // missing mig 026).
   const score =
     typeof first.importance_score === "number" ? first.importance_score : null;
   const scoreBadgeHtml = score !== null ? renderScoreBadgeHtml(score) : "";

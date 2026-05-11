@@ -74,7 +74,31 @@ export async function getGlobalKpis(): Promise<GlobalKpis> {
   };
 }
 
-export async function getAllArticlesForStats(): Promise<StatsArticleRow[]> {
+/**
+ * Stats dataset loader for `/api/stats`.
+ *
+ * v2.6.14+: accepts optional `topic` + `days` filters that are pushed
+ * down to Postgres via `WHERE topic = $1 AND pub_date >= $2`. Without
+ * these, the helper still does what its name says and pulls the entire
+ * `articles` table — historically used by the cross-topic comparison
+ * block on the stats page.
+ *
+ * Why this matters: with no filter on a production DB the table easily
+ * sits in the 50K-row range and Supabase serializes everything (~1.5 MB
+ * JSON), making the « pick a topic + last 24 h » drill-down feel sluggish
+ * even though the filtered dataset is two orders of magnitude smaller.
+ * Pushing the filter down lets the planner use the `articles_topic_idx`
+ * / `articles_pub_date_idx` indexes and ships back a small payload.
+ */
+export interface StatsArticlesQuery {
+  topic?: string | null;
+  /** Period window in days. 0 / undefined = no time filter. */
+  days?: number;
+}
+
+export async function getAllArticlesForStats(
+  query: StatsArticlesQuery = {},
+): Promise<StatsArticleRow[]> {
   const clientP = getServerClient();
   if (!clientP) return [];
 
@@ -84,10 +108,19 @@ export async function getAllArticlesForStats(): Promise<StatsArticleRow[]> {
     const allRows: StatsArticleRow[] = [];
     let offset = 0;
 
+    const since =
+      query.days && query.days > 0
+        ? new Date(Date.now() - query.days * 86_400_000).toISOString()
+        : null;
+
     while (true) {
-      const { data, error } = await supabase
+      let q = supabase
         .from("articles")
-        .select("source, topic, relevance_score, pub_date, scored_at")
+        .select("source, topic, relevance_score, pub_date, scored_at");
+      if (query.topic) q = q.eq("topic", query.topic);
+      if (since) q = q.gte("pub_date", since);
+
+      const { data, error } = await q
         .order("id", { ascending: true })
         .range(offset, offset + PAGE_SIZE - 1);
 

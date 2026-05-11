@@ -724,6 +724,10 @@ const strings = {
     en: "No topics",
     fr: "Aucun topic",
   },
+  headerProCta: {
+    en: "Try Pro",
+    fr: "Essayer Pro",
+  },
   authSignIn: {
     en: "Sign in",
     fr: "Connexion",
@@ -737,8 +741,8 @@ const strings = {
     fr: "Connexion",
   },
   authModalTitleSignUp: {
-    en: "Create account",
-    fr: "Créer un compte",
+    en: "Start your free account",
+    fr: "Démarrer votre compte gratuit",
   },
   authEmail: {
     en: "Email",
@@ -761,12 +765,12 @@ const strings = {
     fr: "Se connecter",
   },
   authSubmitSignUp: {
-    en: "Register",
-    fr: "S'inscrire",
+    en: "Start free",
+    fr: "Commencer gratuitement",
   },
   authSwitchToSignUp: {
-    en: "No account? Register",
-    fr: "Pas de compte ? S'inscrire",
+    en: "No account? Start free",
+    fr: "Pas de compte ? Commencer gratuitement",
   },
   authSwitchToSignIn: {
     en: "Already have an account? Sign in",
@@ -785,12 +789,12 @@ const strings = {
     fr: "Consultez vos e-mails pour confirmer votre compte, puis connectez-vous.",
   },
   authWelcomeTitle: {
-    en: "Welcome to 8news",
-    fr: "Bienvenue sur 8news",
+    en: "Your 8news cockpit is ready",
+    fr: "Votre cockpit 8news est prêt",
   },
   authWelcomeBody: {
-    en: "8news is going to evolve very quickly in the coming weeks. Your feedback is essential to help the team improve the product. Don't hesitate to share what could be better.",
-    fr: "8news va évoluer très rapidement dans les semaines à venir. Vos retours sont essentiels pour aider l'équipe à améliorer le produit. N'hésitez pas à nous faire part des points à améliorer.",
+    en: "Pick your topics, enable the daily brief, and reserve Founder Pro from Settings if 8news becomes part of your morning routine.",
+    fr: "Choisissez vos topics, activez le brief quotidien, et réservez le Pro fondateur depuis les paramètres si 8news entre dans votre routine du matin.",
   },
   authWelcomeClose: {
     en: "Close",
@@ -920,9 +924,13 @@ const strings = {
     en: "Generated on {date}",
     fr: "Généré le {date}",
   },
-  topSummaryNotYet: {
-    en: "Today's AI summary is not available yet — it will appear automatically after the next scheduled run.",
-    fr: "Le résumé IA du jour n'est pas encore disponible — il apparaîtra automatiquement après le prochain passage du cron.",
+  /** Empty-state copy for `/top-articles` when the live « top 50 /
+   *  24 h » feed returns zero rows. Rare in steady state — most often
+   *  hit on a fresh deploy before the first scoring cron tick has
+   *  populated the table. */
+  topArticlesEmpty: {
+    en: "No top articles in the last 24 hours yet — fresh stories are being scored and will appear here automatically.",
+    fr: "Aucun top article sur les 24 dernières heures pour le moment — les articles en cours de scoring apparaîtront ici automatiquement.",
   },
   top24hHeroKicker: {
     en: "Top articles · 24h",

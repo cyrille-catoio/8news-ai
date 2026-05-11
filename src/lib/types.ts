@@ -178,9 +178,11 @@ export interface StatsResponse {
     scored: number;
     avgScore: number;
     hitRate: number;
-    pct9_10: number;
-    pct7_8: number;
-    pct5_6: number;
+    /** v2.6.14+ 4-bucket score distribution aligned with `ScoreMeter`'s
+     *  color tiers (green ≥ 8, gold ≥ 5, orange ≥ 3, red < 3). Replaces
+     *  the prior 5-bucket ladder (9-10 / 7-8 / 5-6 / 3-4 / 1-2). */
+    pct8_10: number;
+    pct5_7: number;
     pct3_4: number;
     pct1_2: number;
   }>;

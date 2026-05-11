@@ -1,11 +1,19 @@
 "use client";
 
-import { type CSSProperties, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useState } from "react";
 import { t, type Lang } from "@/lib/i18n";
 import { color } from "@/lib/theme";
 import { VoiceAccordion, TTS_VOICES_EN, TTS_VOICES_FR } from "@/app/components/VoiceAccordion";
 import { useAuth } from "@/app/providers";
 import { MyAccountSection } from "@/app/components/MyAccountSection";
+import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
+
+type MonetizationMetadata = {
+  plan_intent?: unknown;
+  pro_interest?: unknown;
+  pro_interest_at?: unknown;
+  daily_newsletter?: unknown;
+};
 
 export function SettingsPage({
   lang,
@@ -21,6 +29,7 @@ export function SettingsPage({
   onHomeMinScoreArticleChange,
   homeMinScoreVideo,
   onHomeMinScoreVideoChange,
+  onRequestAuth,
 }: {
   lang: Lang;
   maxArticles: number;
@@ -35,6 +44,7 @@ export function SettingsPage({
   onHomeMinScoreArticleChange: (v: number) => void;
   homeMinScoreVideo: number;
   onHomeMinScoreVideoChange: (v: number) => void;
+  onRequestAuth?: () => void;
 }) {
   const { session } = useAuth();
   const user = session?.user ?? null;
@@ -66,6 +76,8 @@ export function SettingsPage({
       <h2 style={{ color: color.gold, fontSize: 20, fontWeight: 600, marginBottom: 20, marginTop: 0 }}>
         {t("settingsTitle", lang)}
       </h2>
+
+          <SubscriptionPanel lang={lang} onRequestAuth={onRequestAuth} />
 
           {/* ── My account (signed-in users) ─────────────── */}
           {isSignedIn && <MyAccountSection lang={lang} />}
@@ -231,5 +243,247 @@ export function SettingsPage({
               info, max articles, home thresholds, voice). */}
 
     </div>
+  );
+}
+
+function SubscriptionPanel({
+  lang,
+  onRequestAuth,
+}: {
+  lang: Lang;
+  onRequestAuth?: () => void;
+}) {
+  const { session } = useAuth();
+  const user = session?.user ?? null;
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const [reserved, setReserved] = useState(false);
+  const [newsletterEnabled, setNewsletterEnabled] = useState(false);
+  const [busy, setBusy] = useState<"reserve" | "newsletter" | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const meta = (user?.user_metadata ?? {}) as MonetizationMetadata;
+    setReserved(meta.plan_intent === "pro" || meta.pro_interest === true);
+    setNewsletterEnabled(meta.daily_newsletter === true);
+  }, [user?.id, user?.user_metadata]);
+
+  const persistMetadata = useCallback(
+    async (patch: Record<string, unknown>) => {
+      if (!user) {
+        onRequestAuth?.();
+        return false;
+      }
+
+      const { error } = await supabase.auth.updateUser({
+        data: { ...(user.user_metadata ?? {}), ...patch },
+      });
+      if (error) throw error;
+      return true;
+    },
+    [onRequestAuth, supabase, user],
+  );
+
+  const reservePro = useCallback(async () => {
+    if (!user) {
+      onRequestAuth?.();
+      return;
+    }
+    setBusy("reserve");
+    setMessage(null);
+    try {
+      await persistMetadata({
+        plan_intent: "pro",
+        pro_interest: true,
+        pro_interest_at: new Date().toISOString(),
+        daily_newsletter: true,
+      });
+      setReserved(true);
+      setNewsletterEnabled(true);
+      setMessage(
+        lang === "fr"
+          ? "Pro fondateur réservé. Aucun paiement ne sera lancé sans validation."
+          : "Founder Pro reserved. No payment will start without your confirmation.",
+      );
+    } catch {
+      setMessage(lang === "fr" ? "Impossible d'enregistrer la réservation." : "Could not save the reservation.");
+    } finally {
+      setBusy(null);
+    }
+  }, [lang, onRequestAuth, persistMetadata, user]);
+
+  const toggleNewsletter = useCallback(async () => {
+    if (!user) {
+      onRequestAuth?.();
+      return;
+    }
+    const next = !newsletterEnabled;
+    setBusy("newsletter");
+    setMessage(null);
+    try {
+      await persistMetadata({ daily_newsletter: next });
+      setNewsletterEnabled(next);
+      setMessage(
+        next
+          ? lang === "fr"
+            ? "Brief quotidien activé."
+            : "Daily brief enabled."
+          : lang === "fr"
+          ? "Brief quotidien désactivé."
+          : "Daily brief disabled.",
+      );
+    } catch {
+      setMessage(lang === "fr" ? "Impossible de mettre à jour le brief." : "Could not update the brief.");
+    } finally {
+      setBusy(null);
+    }
+  }, [lang, newsletterEnabled, onRequestAuth, persistMetadata, user]);
+
+  const panelStyle: CSSProperties = {
+    background:
+      "linear-gradient(180deg, rgba(201,162,39,0.10), rgba(201,162,39,0.02) 42%, rgba(255,255,255,0.02)), #111",
+    border: `1px solid ${reserved ? color.gold : "rgba(201,162,39,0.34)"}`,
+    borderRadius: 8,
+    padding: "18px 20px",
+    marginBottom: 16,
+  };
+
+  const eyebrowStyle: CSSProperties = {
+    color: color.gold,
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: "0.09em",
+    textTransform: "uppercase",
+    marginBottom: 8,
+  };
+
+  const titleStyle: CSSProperties = {
+    color: color.text,
+    fontFamily: "ui-serif, Georgia, serif",
+    fontSize: 24,
+    fontWeight: 400,
+    lineHeight: 1.16,
+    letterSpacing: 0,
+    margin: 0,
+  };
+
+  const primaryButton: CSSProperties = {
+    border: "none",
+    borderRadius: 6,
+    background: reserved ? "rgba(74,222,128,0.16)" : color.gold,
+    color: reserved ? "#4ade80" : "#000",
+    cursor: busy ? "wait" : reserved ? "default" : "pointer",
+    fontSize: 13,
+    fontWeight: 700,
+    padding: "10px 14px",
+    whiteSpace: "nowrap",
+  };
+
+  const secondaryButton: CSSProperties = {
+    border: `1px solid ${newsletterEnabled ? color.gold : color.border}`,
+    borderRadius: 6,
+    background: newsletterEnabled ? "rgba(201,162,39,0.12)" : "transparent",
+    color: newsletterEnabled ? color.gold : color.textMuted,
+    cursor: busy ? "wait" : "pointer",
+    fontSize: 12,
+    fontWeight: 700,
+    padding: "9px 12px",
+    whiteSpace: "nowrap",
+  };
+
+  const benefits =
+    lang === "fr"
+      ? [
+          "Prix fondateur 8 €/mois ou 88 €/an.",
+          "Topics sur mesure avec découverte IA des flux.",
+          "Plus de résumés YouTube et suivi de chaînes favorites.",
+          "Brief matinal activable dès maintenant.",
+        ]
+      : [
+          "Founder price at $8/month or $88/year.",
+          "Custom topics with AI feed discovery.",
+          "More YouTube summaries and favorite channel monitoring.",
+          "Morning brief can be enabled today.",
+        ];
+
+  return (
+    <section style={panelStyle}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 18, alignItems: "flex-start", flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 320px", minWidth: 0 }}>
+          <div style={eyebrowStyle}>{lang === "fr" ? "Abonnement" : "Subscription"}</div>
+          <h3 style={titleStyle}>
+            {lang === "fr" ? "Réservez le Pro fondateur." : "Reserve Founder Pro."}
+          </h3>
+          <p style={{ color: color.textSecondary, fontSize: 14, lineHeight: 1.55, margin: "10px 0 0", maxWidth: 680 }}>
+            {lang === "fr"
+              ? "Le gratuit reste parfait pour tester. Pro est pensé pour ceux qui veulent faire de 8news leur cockpit quotidien de veille."
+              : "Free is perfect for trying the product. Pro is for people who want 8news as their daily intelligence cockpit."}
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <button
+            type="button"
+            onClick={() => void reservePro()}
+            disabled={busy !== null || reserved}
+            style={primaryButton}
+          >
+            {reserved
+              ? lang === "fr"
+                ? "Pro réservé"
+                : "Pro reserved"
+              : busy === "reserve"
+              ? lang === "fr"
+                ? "Réservation..."
+                : "Reserving..."
+              : lang === "fr"
+              ? "Réserver Pro"
+              : "Reserve Pro"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void toggleNewsletter()}
+            disabled={busy !== null}
+            style={secondaryButton}
+          >
+            {newsletterEnabled
+              ? lang === "fr"
+                ? "Brief quotidien ON"
+                : "Daily brief ON"
+              : lang === "fr"
+              ? "Activer le brief quotidien"
+              : "Enable daily brief"}
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 8, marginTop: 16 }}>
+        {benefits.map((benefit) => (
+          <div
+            key={benefit}
+            style={{
+              border: `1px solid ${color.border}`,
+              borderRadius: 8,
+              background: "rgba(255,255,255,0.03)",
+              color: color.textSecondary,
+              fontSize: 12,
+              lineHeight: 1.4,
+              padding: "10px 11px",
+            }}
+          >
+            {benefit}
+          </div>
+        ))}
+      </div>
+
+      <p style={{ color: color.textMuted, fontSize: 12, lineHeight: 1.45, margin: "12px 0 0" }}>
+        {message ??
+          (user
+            ? lang === "fr"
+              ? "Réserver inscrit votre intérêt dans le compte. Aucune carte bancaire n'est demandée aujourd'hui."
+              : "Reserving stores your interest on the account. No card is requested today."
+            : lang === "fr"
+            ? "Connectez-vous ou créez un compte pour réserver votre place Pro."
+            : "Sign in or create an account to reserve your Pro spot.")}
+      </p>
+    </section>
   );
 }

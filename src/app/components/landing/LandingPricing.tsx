@@ -32,18 +32,32 @@ export function LandingPricing({ lang }: { lang: LandingLang }) {
                 )}
               </div>
               <div className="desc">{pl.desc}</div>
+              {pl.featured && (
+                <div className="plan-proof">
+                  {lang === "fr"
+                    ? "Pensé pour les utilisateurs qui lisent 8news tous les matins."
+                    : "Built for people who open 8news every morning."}
+                </div>
+              )}
               <ul>
                 {pl.features.map((f, j) => (
                   <li key={j}>{f}</li>
                 ))}
               </ul>
               <Link
-                href="/app"
+                href={pl.featured ? "/app/settings" : "/app"}
                 className={`btn-${pl.featured ? "primary" : "ghost"} cta`}
                 style={{ padding: 14, fontSize: 14 }}
               >
                 {pl.cta}
               </Link>
+              {pl.featured && (
+                <div className="plan-note">
+                  {lang === "fr"
+                    ? "Aucune carte bancaire aujourd'hui. On enregistre votre intérêt Pro."
+                    : "No card today. We only record your Pro interest."}
+                </div>
+              )}
             </div>
           ))}
         </div>

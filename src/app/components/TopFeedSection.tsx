@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useState } from "react";
 import { color, card, sectionHeading } from "@/lib/theme";
 import { t, type Lang } from "@/lib/i18n";
 import { CopyLinkButton } from "@/app/components/CopyLinkButton";
@@ -33,6 +34,24 @@ export function TopFeedSection({
   isAuthenticated: boolean;
   onRequestAuth: () => void;
 }) {
+  // v2.6.15+ — broken-image guard. Some feeds advertise `image_url`
+  // values that 404 (CDN expiration, paywalled CMS, hot-linked-and-
+  // pulled assets) or serve a non-image MIME the browser refuses. We
+  // catch the `<img>` onError once, memoize the failing URL in this
+  // session set, and skip the `<img>` slot on the next render — the
+  // parent flex layout naturally reclaims the space so the title fills
+  // the row like for an article that never had an image. State is
+  // per-mount of TopFeedSection (~per `/top-articles` visit), so a
+  // refresh gives images a fresh chance in case the CDN recovers.
+  const [brokenImages, setBrokenImages] = useState<Set<string>>(new Set());
+  const markImageBroken = useCallback((url: string) => {
+    setBrokenImages((prev) => {
+      if (prev.has(url)) return prev;
+      const next = new Set(prev);
+      next.add(url);
+      return next;
+    });
+  }, []);
   const sorted = [...articles].sort((a, b) => {
     const aNew = isNew(a.pubDate) ? 1 : 0;
     const bNew = isNew(b.pubDate) ? 1 : 0;
@@ -61,11 +80,20 @@ export function TopFeedSection({
             style={{ textDecoration: "none", color: "inherit", display: "block" }}
           >
             <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
-              {art.imageUrl ? (
+              {art.imageUrl && !brokenImages.has(art.imageUrl) ? (
                 <img
                   src={art.imageUrl}
                   alt=""
                   loading="lazy"
+                  // `referrerPolicy="no-referrer"` is a small reliability
+                  // win: some hot-linked CDNs (Cloudfront-backed
+                  // newsroom assets in particular) 403 when the
+                  // referrer doesn't match the publisher's own domain.
+                  // Stripping it gets us a green light from most of
+                  // those configs without losing anything we'd care
+                  // about analytics-wise on an article thumbnail.
+                  referrerPolicy="no-referrer"
+                  onError={() => markImageBroken(art.imageUrl!)}
                   style={{
                     width: 104,
                     height: 72,

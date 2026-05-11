@@ -25,8 +25,11 @@ export function ScoreMeter({
   const clamped = Math.max(0, Math.min(10, score));
   const ratio = clamped / 10;
   const scoreLabel = `${clamped}/10`;
+  // v2.6.14+ green tier lowered 9 → 8 to recognize "strong signal"
+  // editorial bullets and high-relevance articles that were previously
+  // stuck in gold. Other thresholds unchanged.
   const tierColor =
-    clamped >= 9 ? "#22c55e"        // green
+    clamped >= 8 ? "#22c55e"        // green
       : clamped >= 5 ? color.gold     // gold
       : clamped >= 3 ? "#f97316"      // orange
       : "#ef4444";                    // red

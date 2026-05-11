@@ -7,10 +7,13 @@ import { color, scoreClr, hitClr, covClr, spinnerStyle, sectionCard, formSection
 import { CopyLinkButton } from "@/app/components/CopyLinkButton";
 import { FavoriteButton } from "@/app/components/FavoriteButton";
 
+// v2.6.14+ 4-tier ladder, strictly aligned with the per-article
+// `ScoreMeter` palette: green ≥ 8, gold ≥ 5, orange ≥ 3, red < 3.
+// Replaces the prior 5-bucket map (9-10 / 7-8 / 5-6 / 3-4 / 1-2)
+// that pre-dated the v2.6.14 color rework.
 const TIER_COLORS: Record<string, string> = {
-  "9-10": "#22c55e",
-  "7-8": "#c9a227",
-  "5-6": "#eab308",
+  "8-10": "#22c55e",
+  "5-7": "#c9a227",
   "3-4": "#f97316",
   "1-2": "#ef4444",
 };
@@ -390,9 +393,8 @@ export function StatsPage({
                   <th className="sc" onClick={() => handleSort("scored")}>{t("scored", lang)}{sortArrow("scored")}</th>
                   <th className="sc" onClick={() => handleSort("avgScore")}>{t("average", lang)}{sortArrow("avgScore")}</th>
                   <th className="sc" onClick={() => handleSort("hitRate")}>≥ 7{sortArrow("hitRate")}</th>
-                  <th className="sc" onClick={() => handleSort("pct9_10")}>9-10{sortArrow("pct9_10")}</th>
-                  <th className="sc" onClick={() => handleSort("pct7_8")}>7-8{sortArrow("pct7_8")}</th>
-                  <th>5-6</th>
+                  <th className="sc" onClick={() => handleSort("pct8_10")}>8-10{sortArrow("pct8_10")}</th>
+                  <th className="sc" onClick={() => handleSort("pct5_7")}>5-7{sortArrow("pct5_7")}</th>
                   <th>3-4</th>
                   <th>1-2</th>
                 </tr>
@@ -427,9 +429,8 @@ export function StatsPage({
                       <div style={{ height: 3, borderRadius: 2, marginTop: 2, background: scoreClr(f.avgScore), width: `${(f.avgScore / 10) * 100}%`, opacity: 0.5 }} />
                     </td>
                     <td style={{ color: hitClr(f.hitRate), fontWeight: 600 }}>{f.hitRate}%</td>
-                    <td style={{ background: heatmapBg(f.pct9_10, "9-10"), textAlign: "center", borderRadius: 3 }}>{f.pct9_10 > 0 ? `${f.pct9_10}%` : "—"}</td>
-                    <td style={{ background: heatmapBg(f.pct7_8, "7-8"), textAlign: "center", borderRadius: 3 }}>{f.pct7_8 > 0 ? `${f.pct7_8}%` : "—"}</td>
-                    <td style={{ background: heatmapBg(f.pct5_6, "5-6"), textAlign: "center", borderRadius: 3 }}>{f.pct5_6 > 0 ? `${f.pct5_6}%` : "—"}</td>
+                    <td style={{ background: heatmapBg(f.pct8_10, "8-10"), textAlign: "center", borderRadius: 3 }}>{f.pct8_10 > 0 ? `${f.pct8_10}%` : "—"}</td>
+                    <td style={{ background: heatmapBg(f.pct5_7, "5-7"), textAlign: "center", borderRadius: 3 }}>{f.pct5_7 > 0 ? `${f.pct5_7}%` : "—"}</td>
                     <td style={{ background: heatmapBg(f.pct3_4, "3-4"), textAlign: "center", borderRadius: 3 }}>{f.pct3_4 > 0 ? `${f.pct3_4}%` : "—"}</td>
                     <td style={{ background: heatmapBg(f.pct1_2, "1-2"), textAlign: "center", borderRadius: 3 }}>{f.pct1_2 > 0 ? `${f.pct1_2}%` : "—"}</td>
                   </tr>
@@ -458,7 +459,10 @@ export function StatsPage({
               <span style={{
                 display: "inline-block", padding: "2px 8px", borderRadius: 4,
                 fontSize: 13, fontWeight: 700, color: "#000", flexShrink: 0,
-                background: a.score >= 9 ? "#22c55e" : a.score >= 7 ? color.gold : a.score >= 5 ? "#eab308" : "#f97316",
+                // v2.6.14+ green threshold lowered 9 → 8 to align with
+                // ScoreMeter. Intermediate gold (≥ 7) and yellow (≥ 5)
+                // levels kept so the badge ladder still spreads 4 tiers.
+                background: a.score >= 8 ? "#22c55e" : a.score >= 7 ? color.gold : a.score >= 5 ? "#eab308" : "#f97316",
               }}>
                 {a.score}/10
               </span>

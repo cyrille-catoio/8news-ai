@@ -18,10 +18,16 @@ function pctOf(count: number, total: number): number {
 }
 
 function buildScoreDistribution(scored: StatsArticleRow[]): StatsResponse["scoreDistribution"] {
+  // v2.6.14+ collapsed the historical 5-bucket ladder (9-10 / 7-8 / 5-6 /
+  // 3-4 / 1-2) down to the same 4 tiers `ScoreMeter` actually paints
+  // — green ≥ 8, gold ≥ 5, orange ≥ 3, red < 3 — so the analytics
+  // heatmap mirrors the per-article badge colors visitors see in the
+  // product. Note: `topics.scoringTier1..5` (the LLM scoring rubric
+  // for owners) is intentionally NOT collapsed — that 5-tier rubric
+  // is editorial prompt text for the model, not a UI palette.
   const tiers: Array<{ label: string; min: number; max: number }> = [
-    { label: "9-10", min: 9, max: 10 },
-    { label: "7-8", min: 7, max: 8 },
-    { label: "5-6", min: 5, max: 6 },
+    { label: "8-10", min: 8, max: 10 },
+    { label: "5-7", min: 5, max: 7 },
     { label: "3-4", min: 3, max: 4 },
     { label: "1-2", min: 1, max: 2 },
   ];
@@ -76,9 +82,12 @@ function buildFeedRanking(
         scored: f.scored,
         avgScore: roundOne(avg),
         hitRate: pctOf(sc.filter((s) => s >= 7).length, len),
-        pct9_10: pctOf(sc.filter((s) => s >= 9).length, len),
-        pct7_8: pctOf(sc.filter((s) => s >= 7 && s <= 8).length, len),
-        pct5_6: pctOf(sc.filter((s) => s >= 5 && s <= 6).length, len),
+        // v2.6.14+ 4-bucket ladder aligned with ScoreMeter (green ≥ 8,
+        // gold ≥ 5, orange ≥ 3, red < 3). `hitRate` keeps its historical
+        // ≥ 7 threshold — it represents "interesting articles" for
+        // editorial / feed quality and predates the color ladder.
+        pct8_10: pctOf(sc.filter((s) => s >= 8).length, len),
+        pct5_7: pctOf(sc.filter((s) => s >= 5 && s <= 7).length, len),
         pct3_4: pctOf(sc.filter((s) => s >= 3 && s <= 4).length, len),
         pct1_2: pctOf(sc.filter((s) => s <= 2).length, len),
       };
@@ -160,21 +169,37 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Invalid topic" }, { status: 400 });
   }
 
-  const [allArticles, topArticles, activeFeeds] = await Promise.all([
-    getAllArticlesForStats(),
-    getTopArticlesForStats(topic === "all" ? null : topic, days, 500),
+  const isTopicAll = topic === "all";
+
+  // v2.6.14+ — push topic + days filters down to Postgres for the
+  // primary dataset so a « pick a topic + last 24 h » drill-down doesn't
+  // pay the whole-table scan tax. Two key savings:
+  //  1. The cross-topic comparison block is only rendered when
+  //     `topic === "all"` (see `StatsPage.tsx`), so we skip its
+  //     unfiltered scan when the user has already drilled down.
+  //  2. The primary dataset is now narrowed at the DB level — for a
+  //     typical « AI + last 24 h » filter that goes from ~50K rows
+  //     to a few hundred, an order-of-magnitude latency win.
+  //
+  // The cross-topic comparison keeps its unfiltered behavior (all-time
+  // totals per topic) when `topic === "all"` — the period only filters
+  // the headline KPIs / feed ranking / score distribution.
+  const [filteredArticles, allArticlesForComparison, topArticles, activeFeeds] = await Promise.all([
+    getAllArticlesForStats({
+      topic: isTopicAll ? null : topic,
+      days,
+    }),
+    isTopicAll
+      ? getAllArticlesForStats()
+      : Promise.resolve([] as StatsArticleRow[]),
+    getTopArticlesForStats(isTopicAll ? null : topic, days, 500),
     getActiveFeedsForStats(),
   ]);
 
   const now = Date.now();
 
-  // ── Filtered dataset (topic + period) ──
-  let filtered = allArticles;
-  if (topic !== "all") filtered = filtered.filter((a) => a.topic === topic);
-  if (days > 0) {
-    const since = new Date(now - days * 86_400_000).toISOString();
-    filtered = filtered.filter((a) => a.pub_date >= since);
-  }
+  // ── Filtered dataset (topic + period — already filtered at the DB) ──
+  const filtered = filteredArticles;
   const filteredScored = filtered.filter((a) => a.relevance_score !== null);
 
   // ── KPIs (from filtered dataset) ──
@@ -227,7 +252,12 @@ export async function GET(req: NextRequest) {
       score: a.relevance_score,
       reason: a.score_reason ?? "",
     })),
-    topicComparison: buildTopicComparison(allArticles, feedCounts),
+    // Empty when a specific topic is selected — the StatsPage hides
+    // the cross-topic comparison block in that case so we save the
+    // unfiltered scan above. Always populated for `topic === "all"`.
+    topicComparison: isTopicAll
+      ? buildTopicComparison(allArticlesForComparison, feedCounts)
+      : [],
   };
 
   return NextResponse.json(response, {

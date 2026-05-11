@@ -64,7 +64,8 @@ function escapeRegExp(s: string): string {
 
 function topicTierColor(score: number | null | undefined): string {
   if (typeof score !== "number") return color.textDim;
-  if (score >= 9) return "#22c55e";
+  // v2.6.14+ green threshold lowered 9 → 8 — mirrors ScoreMeter.
+  if (score >= 8) return "#22c55e";
   if (score >= 5) return color.gold;
   if (score >= 3) return "#f97316";
   return "#ef4444";

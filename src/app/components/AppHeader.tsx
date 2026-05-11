@@ -261,6 +261,12 @@ export function AppHeader({
     fontFamily: "inherit",
   };
 
+  const proBtnStyle: CSSProperties = {
+    ...authBtnStyle,
+    background: color.gold,
+    color: "#000",
+  };
+
   // The CryptoTicker is fully unmounted on the future `/landing` route
   // (no DOM, no hook, no polling) — same exclusion the spec asks for.
   // Everywhere else in the SPA we mount it AND let it poll; if we ever
@@ -383,6 +389,19 @@ export function AppHeader({
           />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {!authLoading && (
+            <button
+              type="button"
+              onClick={() => {
+                if (authed) onNavigate("settings");
+                else onAuthModalChange(true);
+              }}
+              style={proBtnStyle}
+              aria-label={t("headerProCta", lang)}
+            >
+              {t("headerProCta", lang)}
+            </button>
+          )}
           {!authLoading && !authed && (
             <button type="button" onClick={() => onAuthModalChange(true)} style={authBtnStyle}>
               {t("authSignIn", lang)}

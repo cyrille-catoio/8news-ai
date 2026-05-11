@@ -1157,7 +1157,7 @@ interface SummaryResponse {
 interface StatsResponse {
   global: { totalArticles, scoredArticles, pctScored, avgScore, new24h, new7d, scored24h };
   scoreDistribution: Array<{ tier, count, pct }>;
-  feedRanking: Array<{ source, topic, total, scored, avgScore, hitRate, pct9_10..pct1_2 }>;
+  feedRanking: Array<{ source, topic, total, scored, avgScore, hitRate, pct8_10, pct5_7, pct3_4, pct1_2 }>;
   topArticles: Array<{ title, link, source, topic, pubDate, score, reason }>;
   topicComparison: Array<{ topic, total, scored, pctScored, avgScore, hitRate, activeSources, totalFeeds }>;
 }

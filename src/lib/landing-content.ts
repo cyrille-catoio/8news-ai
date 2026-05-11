@@ -204,17 +204,17 @@ export const LANDING_CONTENT: LandingContent = {
   pricing: {
     kicker: { en: "Pricing", fr: "Tarifs" },
     title: {
-      en: "Free today. <em>Pro is coming.</em>",
-      fr: "Gratuit aujourd'hui. <em>Pro arrive bientôt.</em>",
+      en: "Start free. <em>Reserve the founder Pro plan.</em>",
+      fr: "Commencez gratuitement. <em>Réservez le Pro fondateur.</em>",
     },
     plans: {
       en: [
-        { tag: "CURRENT", name: "Free", price: "$0", per: "/forever", desc: "Everything we shipped in v2.6.13. No credit card, no waitlist.", features: ["Choose 8 topics out of the 36 available.", "Top daily articles and videos with AI summary + sources.", "YouTube transcription and video summaries.", "Morning email digest covering your topics.", "Bilingual EN / FR"], cta: "Try it now", featured: false },
-        { tag: "COMING SOON", name: "Pro", price: "$8", per: "/month", priceYear: "$88", perYear: "/year", saveLabel: "−8% per year", desc: "For founders, analysts and builders who need custom topics and higher limits.", features: ["Unlimited custom topics with AI feed discovery", "Unlimited YouTube transcriptions, add your favorite YouTube channels", "Email alert when an article or a videoscores 9 or 10 in one of your selected topics"], cta: "Join the waitlist", featured: true },
+        { tag: "FREE PREVIEW", name: "Free", price: "$0", per: "/start", desc: "Use the core product while 8news is still in beta. No card required.", features: ["Top 24h articles and videos with AI summary + sources.", "Default tech, AI and crypto topics.", "Archives, favorites and bilingual EN / FR reading.", "Enough to see if 8news becomes part of your daily routine."], cta: "Start free", featured: false },
+        { tag: "FOUNDER PRICE", name: "Pro", price: "$8", per: "/month", priceYear: "$88", perYear: "/year", saveLabel: "−8% per year", desc: "For founders, analysts and builders who want 8news tuned to their exact watchlist.", features: ["Custom topics with AI feed discovery.", "More YouTube summaries and favorite channel monitoring.", "Morning email brief for the topics you care about.", "Reserve now, pay only when checkout opens."], cta: "Reserve Pro", featured: true },
       ],
       fr: [
-        { tag: "ACTUEL", name: "Gratuit", price: "0 €", per: "/à vie", desc: "Tout ce qu'on a livré en v2.6.13. Sans carte bancaire, sans liste d'attente.", features: ["Choisissez 8 topics parmi les 36 disponibles.", "Top des articles et videos quotidiens avec résumé IA + sources.", "Transcription YouTube et résumé des vidéos.", "Newsletter matinale reprenant vos topics.", "Bilingue EN / FR"], cta: "Essayer", featured: false },
-        { tag: "BIENTÔT", name: "Pro", price: "8 €", per: "/mois", priceYear: "88 €", perYear: "/an", saveLabel: "−8 % à l'année", desc: "Pour fondateurs, analystes et builders qui veulent des topics sur mesure et plus de volume.", features: ["Topics personnalisés illimités avec découverte IA des flux", "Transcriptions YouTube illimitées, ajout de vos chaînes YouTube favorites", "Alerte email quand un article ou une vidéo a un score >=9 pour un de vos topics."], cta: "Rejoindre la liste", featured: true },
+        { tag: "APERÇU GRATUIT", name: "Gratuit", price: "0 €", per: "/départ", desc: "Utilisez le cœur du produit pendant que 8news est encore en bêta. Sans carte bancaire.", features: ["Top articles et vidéos 24h avec résumé IA + sources.", "Topics tech, IA et crypto par défaut.", "Archives, favoris et lecture bilingue EN / FR.", "Assez pour savoir si 8news devient un réflexe quotidien."], cta: "Commencer", featured: false },
+        { tag: "PRIX FONDATEUR", name: "Pro", price: "8 €", per: "/mois", priceYear: "88 €", perYear: "/an", saveLabel: "−8 % à l'année", desc: "Pour fondateurs, analystes et builders qui veulent une veille réglée sur leur watchlist exacte.", features: ["Topics sur mesure avec découverte IA des flux.", "Plus de résumés YouTube et suivi de chaînes favorites.", "Brief matinal sur les topics qui comptent pour vous.", "Réservez maintenant, paiement seulement à l'ouverture."], cta: "Réserver Pro", featured: true },
       ],
     },
   },

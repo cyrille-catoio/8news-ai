@@ -17,7 +17,10 @@ import { stripEmoji } from "@/lib/html";
 
 /** Tier color for an inline 1-10 score badge. Mirrors `ScoreMeter`. */
 function scoreTierColor(score: number): string {
-  if (score >= 9) return "#22c55e"; // green
+  // Keep aligned with `ScoreMeter`'s tier ladder so an inline numeric
+  // badge and a ScoreMeter rendered side-by-side never disagree on color.
+  // v2.6.14+ green threshold lowered 9 → 8.
+  if (score >= 8) return "#22c55e"; // green
   if (score >= 5) return color.gold; // gold
   if (score >= 3) return "#f97316"; // orange
   return "#ef4444"; // red

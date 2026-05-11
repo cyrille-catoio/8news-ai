@@ -42,6 +42,13 @@ export async function GET(request: NextRequest) {
     topic: r.topic,
     pubDate: r.pub_date,
     score: r.relevance_score,
+    // v2.6.15+ — wire the RSS artwork from mig. 027 through the live
+    // Top 50 feed. The DB column already came along on the SELECT in
+    // both `getTopArticlesForStats` and `getTopArticlesForTopics`; this
+    // route was the missing link. `TopFeedSection` renders an
+    // `<img loading="lazy">` when the field is non-null and skips it
+    // gracefully on legacy rows whose `image_url` is still NULL.
+    imageUrl: r.image_url ?? null,
   }));
 
   return NextResponse.json({ articles }, {

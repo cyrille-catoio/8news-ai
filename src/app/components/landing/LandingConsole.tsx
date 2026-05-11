@@ -176,18 +176,18 @@ export async function LandingConsole({ lang }: { lang: LandingLang }) {
       <div className="console-body">
         {rows.map((r, i) => {
           const w = r.score / 10;
+          // v2.6.14+ green threshold lowered 9 → 8 to mirror ScoreMeter.
+          // Default tier collapses to 5-7 (gold), green now spans 8-10.
           const barClass =
-            r.score >= 9
+            r.score >= 8
               ? "bar-green"
               : r.score >= 5
               ? ""
               : r.score >= 3
               ? "bar-orange"
               : "bar-red";
-          // Number color matches the bar tier so the score + bar read as
-          // one unit. Default tier (5-8) uses gold, same as the default bar.
           const meterColor =
-            r.score >= 9
+            r.score >= 8
               ? "var(--green)"
               : r.score >= 5
               ? "var(--gold)"

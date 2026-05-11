@@ -60,7 +60,14 @@ interface Group {
 /** Fold consecutive bullets that share the same title into a single
  *  thematic group. Bullets without a title each become their own
  *  empty-titled group so they keep their place in the list without
- *  pretending to be collapsible. */
+ *  pretending to be collapsible.
+ *
+ *  v2.6.13+ groups are then sorted by descending `importanceScore`
+ *  (first bullet of each group, which carries the LLM's group-level
+ *  score thanks to the flatten in `ai-analyze.ts`). Bullets without
+ *  a score fall back to 0 → drift to the bottom. Bullet order WITHIN
+ *  a group is preserved (it's a narrative, not a ranking). The sort
+ *  is stable so equal-score groups keep their LLM emission order. */
 function groupBullets(bullets: Bullet[]): Group[] {
   const out: Group[] = [];
   for (const b of bullets) {
@@ -73,7 +80,16 @@ function groupBullets(bullets: Bullet[]): Group[] {
     if (last && last.title === t) last.bullets.push(b);
     else out.push({ title: t, bullets: [b] });
   }
-  return out;
+  // Stable sort by importance DESC; legacy groups without a score
+  // (NULL on snapshots predating mig 026) treat as 0 so they sink
+  // below scored groups instead of arbitrarily intermixing.
+  const decorated = out.map((g, i) => ({
+    g,
+    i,
+    s: g.bullets[0]?.importanceScore ?? 0,
+  }));
+  decorated.sort((a, b) => (b.s - a.s) || (a.i - b.i));
+  return decorated.map((d) => d.g);
 }
 
 /** Number of groups produced by `groupBullets` without allocating the
@@ -136,6 +152,36 @@ function Chevron({ open }: { open: boolean }) {
   );
 }
 
+/** Double-chevron glyph used by the « expand/collapse all » master
+ *  toggle pinned at the top-right of the hero. Two stacked chevrons
+ *  read as « all rows » where the single-chevron pattern on each row
+ *  reads as « this row only » — distinct affordance for distinct
+ *  scope. Rotates 180° when every group is open so the same SVG
+ *  serves both directions, animated for continuity. */
+function DoubleChevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.25"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{
+        flexShrink: 0,
+        transform: open ? "rotate(180deg)" : "rotate(0deg)",
+        transition: "transform 220ms ease",
+      }}
+      aria-hidden
+    >
+      <polyline points="7 13 12 18 17 13" />
+      <polyline points="7 6 12 11 17 6" />
+    </svg>
+  );
+}
+
 function RefIcon() {
   return (
     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: "middle", opacity: 0.6 }}>
@@ -146,6 +192,15 @@ function RefIcon() {
   );
 }
 
+function formatSummaryDayLabel(dateISO: string, lang: Lang): string {
+  const d = new Date(`${dateISO}T12:00:00Z`);
+  return new Intl.DateTimeFormat(dateLocale(lang), {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(d);
+}
+
 export function Top24hHero({
   lang,
   onNavigate,
@@ -153,6 +208,7 @@ export function Top24hHero({
   showSeeAllLink = true,
   defaultOpen = false,
   title,
+  appendSummaryDateToTitle = false,
 }: {
   lang: Lang;
   /** Required when `showSeeAllLink` is `true` (default). The footer
@@ -186,6 +242,11 @@ export function Top24hHero({
    * touching the base component again.
    */
   title?: string;
+  /** When true, appends ` — {summaryDate}` to the H2 using the
+   *  snapshot's `summaryDate` (not wall-clock « today »). v2.6.13+
+   *  home wrapper only — keeps `/top-articles` and archive pages
+   *  unchanged. */
+  appendSummaryDateToTitle?: boolean;
 }) {
   const isSelfFetched = externalData === undefined;
   const [snapInternal, setSnapInternal] = useState<Snapshot | null>(null);
@@ -285,6 +346,10 @@ export function Top24hHero({
   };
 
   const locale = dateLocale(lang);
+  const baseTitle = title ?? t("top24hHeroTitle", lang);
+  const headingTitle = appendSummaryDateToTitle
+    ? `${baseTitle} — ${formatSummaryDayLabel(snap.summaryDate, lang)}`
+    : baseTitle;
 
   return (
     <section style={{ marginBottom: 36 }}>
@@ -298,7 +363,7 @@ export function Top24hHero({
             "linear-gradient(180deg, rgba(201,162,39,0.04), transparent 60%), " + color.surface,
         }}
       >
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 14 }}>
           <h2
             style={{
               fontFamily: "ui-serif, Georgia, serif",
@@ -310,13 +375,81 @@ export function Top24hHero({
               letterSpacing: "-0.01em",
             }}
           >
-            {title ?? t("top24hHeroTitle", lang)}
+            {headingTitle}
           </h2>
-          <div style={{ color: color.textDim, fontSize: 12, letterSpacing: "0.02em" }}>
-            {t("topSummaryGeneratedOn", lang).replace(
-              "{date}",
-              new Date(snap.generatedAt).toLocaleString(locale),
-            )}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-end",
+              gap: 6,
+            }}
+          >
+            {/* Master toggle. `allOpen` reflects « every group is
+                expanded »; clicking flips the whole set in one
+                update. Title attribute doubles as a tooltip for the
+                desktop hover affordance. The button sits at the
+                visual top-right of the card per the v2.6.13+ spec —
+                same gold hover treatment as the per-row chevrons so
+                the affordance reads as a single interaction family. */}
+            {(() => {
+              const allOpen = groups.length > 0 && groups.every((_, i) => openIdx.has(i));
+              const label = allOpen
+                ? t("top24hHeroCollapseAll", lang)
+                : t("top24hHeroExpandAll", lang);
+              return (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (allOpen) setOpenIdx(new Set());
+                    else
+                      setOpenIdx(
+                        new Set(
+                          Array.from({ length: groups.length }, (_, i) => i),
+                        ),
+                      );
+                  }}
+                  aria-label={label}
+                  aria-expanded={allOpen}
+                  title={label}
+                  // Icon-only button. `aria-label` + `title` still
+                  // expose the label to assistive tech and as a hover
+                  // tooltip; the visible text was redundant once the
+                  // double-chevron glyph carried enough meaning on its
+                  // own. Padding stays symmetrical so the button reads
+                  // as a square hit-target (≈ 30×30 px) instead of a
+                  // wide pill.
+                  style={{
+                    background: "transparent",
+                    border: `1px solid ${color.border}`,
+                    color: color.textMuted,
+                    cursor: "pointer",
+                    padding: "5px 8px",
+                    borderRadius: 6,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transition: "color 140ms ease, border-color 140ms ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = color.gold;
+                    e.currentTarget.style.borderColor = color.gold;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = color.textMuted;
+                    e.currentTarget.style.borderColor = color.border;
+                  }}
+                >
+                  <DoubleChevron open={allOpen} />
+                </button>
+              );
+            })()}
+            <div style={{ color: color.textDim, fontSize: 12, letterSpacing: "0.02em" }}>
+              {t("topSummaryGeneratedOn", lang).replace(
+                "{date}",
+                new Date(snap.generatedAt).toLocaleString(locale),
+              )}
+            </div>
           </div>
         </div>
 

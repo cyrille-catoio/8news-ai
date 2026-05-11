@@ -27,7 +27,8 @@ import { Top24hHero } from "@/app/components/Top24hHero";
  *   - **« Read full briefing → » footer link** kept (`showSeeAllLink`
  *     defaults to true on the base) so a click navigates to
  *     `/top-articles` for the deep dive.
- *   - **Title « Podcast du jour »** via `t("top24hHeroHomeTitle")`.
+ *   - **Title « Podcast du jour »** via `t("top24hHeroHomeTitle")`,
+ *     suffixed with ` — {summaryDate}` from the loaded snapshot.
  */
 export function HomeTop24hHero({
   lang,
@@ -41,6 +42,7 @@ export function HomeTop24hHero({
       lang={lang}
       onNavigate={onNavigate}
       title={t("top24hHeroHomeTitle", lang)}
+      appendSummaryDateToTitle
     />
   );
 }

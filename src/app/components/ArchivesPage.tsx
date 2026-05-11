@@ -6,64 +6,68 @@ import { type Lang, dateLocale } from "@/lib/i18n";
 import type { TopicItem } from "@/lib/types";
 import type { ArchivesPayload } from "@/lib/supabase/archives";
 import { ArchivesTimeline } from "./ArchivesTimeline";
-import { SummaryExplorer } from "./SummaryExplorer";
 
 /**
- * Client orchestrator for the unified `/archives` hub (v2.7.0+).
+ * Client orchestrator for the unified `/archives` hub.
  *
- * Responsibilities:
- *  - Filter state (topic, type article|video|all) — `lang` is owned by
- *    the parent, never touched here.
- *  - 7-day window pagination via [Older | Newer] buttons that shift
- *    `from` / `to` by 7 days on each click. The deepest reachable
- *    window is bounded to ~12 weeks so a user can't keep scrolling
- *    indefinitely past data the cron has produced.
- *  - Fetch on filter / window change, with `AbortController` so a
- *    rapid sequence of filter clicks never lets a stale response
- *    overwrite the current one.
- *  - Renders the SummaryExplorer at the top (quick-jump to one
- *    article daily summary), the filter bar, the day-grouped
- *    timeline, then the prev/next pager.
- *
- * Used twice:
- *  - In `src/app/archives/page.tsx` (SSR) — receives `initialData`
- *    rendered server-side so SEO crawlers see the timeline; the
- *    client takes over for filter / pagination interactions.
- *  - In `src/app/app/page.tsx` SPA route `/app/archives` — no
- *    `initialData`, so the component fetches on mount.
+ * The component owns the browsing state only: topic filter, media type
+ * filter and 7-day window pagination. Per-item paths are composed in
+ * `ArchivesTimeline` and intentionally remain the current SEO routes.
  */
 
 const DAY_MS = 86_400_000;
 const PAGE_DAYS = 7;
 const MAX_WEEKS_BACK = 12;
 
+type TypeFilter = "all" | "articles" | "videos";
+
 export interface ArchivesPageProps {
   lang: Lang;
-  /** Active topics for label resolution + filter dropdown. Caller passes the same `getActiveTopics(false)` result it used to seed `initialData.topics`. */
   topics: TopicItem[];
-  /** Server-rendered initial payload for SEO. When omitted (SPA usage), the component fetches on mount. */
   initialData?: ArchivesPayload;
-  /** Hide the SummaryExplorer quick-jump (not always wanted on the SPA which already has its own search/topic dropdown elsewhere). */
-  hideExplorer?: boolean;
 }
 
 function toIso(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function ArchivesPage({ lang, topics, initialData, hideExplorer }: ArchivesPageProps) {
+function countStats(data: ArchivesPayload | null) {
+  let topicRows = 0;
+  let articleSummaries = 0;
+  let videoRecaps = 0;
+  let transcribedVideos = 0;
+  let topSummaries = 0;
+
+  for (const day of data?.days ?? []) {
+    if (day.hasTopSummary) topSummaries += 1;
+    for (const row of day.topics) {
+      topicRows += 1;
+      if (row.dailySummary) articleSummaries += 1;
+      if (row.videoRoundup) videoRecaps += 1;
+      transcribedVideos += row.transcribedVideoCount;
+    }
+  }
+
+  return {
+    days: data?.days.length ?? 0,
+    topicRows,
+    articleSummaries,
+    videoRecaps,
+    transcribedVideos,
+    topSummaries,
+  };
+}
+
+export function ArchivesPage({ lang, topics, initialData }: ArchivesPageProps) {
   const today = useMemo(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
     return d;
   }, []);
 
-  // Window state: [from, to] inclusive, both YYYY-MM-DD. Default = last
-  // 7 days ending today. We expose them to the client URL as query
-  // params for deep-linkability (« share this archive view »).
   const [windowEnd, setWindowEnd] = useState<Date>(() => today);
   const [topicFilter, setTopicFilter] = useState<string>("");
-  const [typeFilter, setTypeFilter] = useState<"all" | "articles" | "videos">("all");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
 
   const [data, setData] = useState<ArchivesPayload | null>(initialData ?? null);
   const [loading, setLoading] = useState<boolean>(initialData == null);
@@ -81,12 +85,17 @@ export function ArchivesPage({ lang, topics, initialData, hideExplorer }: Archiv
     [today],
   );
 
-  /**
-   * Fetch the archives feed for the current filter + window. We send
-   * `cache: "no-store"` so a freshly-shipped daily summary appears
-   * within a minute of its cron tick — the API itself is also
-   * `s-maxage=300` for the unauthenticated baseline.
-   */
+  const topicOptions = useMemo(
+    () => [...topics].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)),
+    [topics],
+  );
+
+  const selectedTopicLabel = useMemo(() => {
+    if (!topicFilter) return lang === "fr" ? "Tous les topics" : "All topics";
+    const topic = topicOptions.find((tp) => tp.id === topicFilter);
+    return topic ? (lang === "fr" ? topic.labelFr : topic.labelEn) : topicFilter;
+  }, [lang, topicFilter, topicOptions]);
+
   const fetchArchives = useCallback(
     async (signal: AbortSignal) => {
       setLoading(true);
@@ -104,8 +113,7 @@ export function ArchivesPage({ lang, topics, initialData, hideExplorer }: Archiv
           signal,
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = (await res.json()) as ArchivesPayload;
-        setData(json);
+        setData((await res.json()) as ArchivesPayload);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
         setError(err instanceof Error ? err.message : "Failed");
@@ -117,13 +125,12 @@ export function ArchivesPage({ lang, topics, initialData, hideExplorer }: Archiv
   );
 
   useEffect(() => {
-    // Skip the very first fetch when SSR seeded the initial payload AND
-    // the filter window is the default — no need to round-trip on mount
-    // for a payload we already have.
     const isDefaultWindow =
       windowEnd.getTime() === today.getTime() && !topicFilter && typeFilter === "all";
     if (initialData && isDefaultWindow) {
+      setData(initialData);
       setLoading(false);
+      setError(null);
       return;
     }
     const controller = new AbortController();
@@ -157,78 +164,64 @@ export function ArchivesPage({ lang, topics, initialData, hideExplorer }: Archiv
       month: "short",
       year: "numeric",
     });
-    return `${fromLabel} → ${toLabel}`;
+    return `${fromLabel} -> ${toLabel}`;
   }, [fromDate, windowEnd, locale]);
 
-  // Compose the sticky filter bar. Plain inputs/selects styled with the
-  // shared theme — keeps the visual register identical to the topics
-  // admin and stats pages.
-  const filterBarStyle: CSSProperties = {
-    display: "flex",
-    flexWrap: "wrap",
-    alignItems: "center",
-    gap: 12,
-    padding: "12px 14px",
-    background: color.surface,
-    border: `1px solid ${color.border}`,
-    borderRadius: 10,
-    marginBottom: 18,
-    position: "sticky",
-    top: 0,
-    zIndex: 10,
-  };
+  const stats = useMemo(() => countStats(data), [data]);
 
-  // Inline chevron buttons rendered next to the date range inside the
-  // sticky filter bar — keeps « plus ancien / plus récent » always
-  // reachable without scrolling to the bottom of the timeline.
-  // Mental model: « ‹ = newer (toward today) », « › = older (back in
-  // time) », same direction as the home heroes' history chevrons
-  // (mirror of v2.6.4's « right = past » convention).
-  const chevronBtn: CSSProperties = {
-    background: "transparent",
-    border: "none",
-    color: color.textDim,
-    fontSize: 22,
-    lineHeight: 1,
-    fontFamily: "inherit",
-    padding: "0 4px",
-    cursor: "pointer",
-    transition: "color 120ms ease, opacity 120ms ease",
-    position: "relative",
-    top: 1,
+  const typeTabs: Array<{ value: TypeFilter; label: string }> = [
+    { value: "all", label: lang === "fr" ? "Tout" : "All" },
+    { value: "articles", label: lang === "fr" ? "Articles" : "Articles" },
+    { value: "videos", label: lang === "fr" ? "Vidéos" : "Videos" },
+  ];
+
+  const compactSelectStyle: CSSProperties = {
+    ...formInputStyle,
+    minHeight: 38,
+    fontSize: 13,
+    padding: "7px 9px",
+    background: "#090909",
   };
 
   return (
     <div>
-      {!hideExplorer && (
-        <section style={{ marginBottom: 28 }}>
-          <h2
-            style={{
-              color: color.gold,
-              fontSize: 13,
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-              marginBottom: 14,
-              marginTop: 0,
-            }}
-          >
-            {lang === "fr" ? "Accès direct à un résumé" : "Jump to a summary"}
+      <section className="archives-overview" aria-label={lang === "fr" ? "Vue d'ensemble" : "Overview"}>
+        <div className="archives-overview-main">
+          <div className="archives-eyebrow">
+            {lang === "fr" ? "Chronologie éditoriale" : "Editorial timeline"}
+          </div>
+          <h2 className="archives-overview-title">
+            {lang === "fr"
+              ? "Une semaine de signaux, classée par jour et par topic."
+              : "A week of signals, organized by day and topic."}
           </h2>
-          <SummaryExplorer lang={lang} />
-        </section>
-      )}
+          <p className="archives-overview-copy">
+            {lang === "fr"
+              ? "Les journées récentes sont servies en premier, avec les signaux articles et vidéo côte à côte pour repérer vite ce qui mérite d'être relu."
+              : "Recent days come first, with article and video signals side by side so it is easy to spot what deserves another look."}
+          </p>
+        </div>
 
-      <div style={filterBarStyle}>
-        <label style={{ fontSize: 12, color: color.textMuted, fontWeight: 600 }}>
+        <div className="archives-overview-side" aria-live="polite">
+          <div className="archives-metrics">
+            <Metric value={stats.days} label={lang === "fr" ? "jours avec contenu" : "content days"} />
+            <Metric value={stats.topicRows} label={lang === "fr" ? "topics couverts" : "topic rows"} />
+            <Metric value={stats.articleSummaries + stats.topSummaries} label={lang === "fr" ? "résumés articles" : "article briefs"} />
+            <Metric value={stats.videoRecaps + stats.transcribedVideos} label={lang === "fr" ? "entrées vidéo" : "video entries"} />
+          </div>
+        </div>
+      </section>
+
+      <div className="archives-filter-bar">
+        <label className="archives-field-label">
           {lang === "fr" ? "Topic" : "Topic"}
           <select
             value={topicFilter}
             onChange={(e) => setTopicFilter(e.target.value)}
-            style={{ ...formInputStyle, marginLeft: 6, fontSize: 13, padding: "6px 8px" }}
+            style={compactSelectStyle}
           >
-            <option value="">{lang === "fr" ? "Tous" : "All"}</option>
-            {topics.map((tp) => (
+            <option value="">{lang === "fr" ? "Tous les topics" : "All topics"}</option>
+            {topicOptions.map((tp) => (
               <option key={tp.id} value={tp.id}>
                 {lang === "fr" ? tp.labelFr : tp.labelEn}
               </option>
@@ -236,86 +229,47 @@ export function ArchivesPage({ lang, topics, initialData, hideExplorer }: Archiv
           </select>
         </label>
 
-        <label style={{ fontSize: 12, color: color.textMuted, fontWeight: 600 }}>
-          {lang === "fr" ? "Type" : "Type"}
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}
-            style={{ ...formInputStyle, marginLeft: 6, fontSize: 13, padding: "6px 8px" }}
-          >
-            <option value="all">{lang === "fr" ? "Tout" : "All"}</option>
-            <option value="articles">{lang === "fr" ? "Articles" : "Articles"}</option>
-            <option value="videos">{lang === "fr" ? "Vidéos" : "Videos"}</option>
-          </select>
-        </label>
+        <div className="archives-type-tabs" role="group" aria-label={lang === "fr" ? "Type d'archive" : "Archive type"}>
+          {typeTabs.map((tab) => (
+            <button
+              key={tab.value}
+              type="button"
+              className="archives-type-tab"
+              data-active={typeFilter === tab.value}
+              aria-pressed={typeFilter === tab.value}
+              onClick={() => setTypeFilter(tab.value)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-        <div
-          style={{
-            marginLeft: "auto",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 4,
-          }}
-        >
-          {/* Left chevron walks toward « now » (newer) — disabled at
-              the present-day boundary. Same convention as the home
-              hero chevrons (v2.6.4). */}
+        <div className="archives-range-control">
           <button
             type="button"
+            className="archives-chevron"
             onClick={handleNewer}
             disabled={!canGoNewer}
             aria-label={lang === "fr" ? "Plus récent" : "Newer"}
-            style={{
-              ...chevronBtn,
-              opacity: canGoNewer ? 0.7 : 0.2,
-              cursor: canGoNewer ? "pointer" : "not-allowed",
-            }}
-            onMouseEnter={(e) => {
-              if (canGoNewer) (e.currentTarget as HTMLButtonElement).style.color = color.gold;
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color = color.textDim;
-            }}
           >
             ‹
           </button>
-          <span
-            style={{
-              fontSize: 12,
-              color: color.textDim,
-              minWidth: 140,
-              textAlign: "center",
-            }}
-          >
-            {rangeLabel}
-          </span>
-          {/* Right chevron walks toward the past (older) — disabled
-              when the next page would cross the 12-week wall. */}
+          <span className="archives-range-label">{rangeLabel}</span>
           <button
             type="button"
+            className="archives-chevron"
             onClick={handleOlder}
             disabled={!canGoOlder}
             aria-label={lang === "fr" ? "Plus ancien" : "Older"}
-            style={{
-              ...chevronBtn,
-              opacity: canGoOlder ? 0.7 : 0.2,
-              cursor: canGoOlder ? "pointer" : "not-allowed",
-            }}
-            onMouseEnter={(e) => {
-              if (canGoOlder) (e.currentTarget as HTMLButtonElement).style.color = color.gold;
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color = color.textDim;
-            }}
           >
             ›
           </button>
-          {loading && <span style={spinnerStyle(14)} aria-hidden />}
+          {loading && <span style={spinnerStyle(14, { marginLeft: 4 })} aria-hidden />}
         </div>
       </div>
 
       {error && (
-        <p style={{ color: "#ef4444", fontSize: 13, marginBottom: 12 }}>
+        <p style={{ color: color.errorText, fontSize: 13, marginBottom: 12 }}>
           {lang === "fr" ? `Erreur : ${error}` : `Error: ${error}`}
         </p>
       )}
@@ -329,7 +283,21 @@ export function ArchivesPage({ lang, topics, initialData, hideExplorer }: Archiv
           sort_order: t.sortOrder,
         }))}
         lang={lang}
+        emptyMessage={
+          lang === "fr"
+            ? `Aucune archive pour ${selectedTopicLabel} sur cette période.`
+            : `No archive for ${selectedTopicLabel} in this range.`
+        }
       />
+    </div>
+  );
+}
+
+function Metric({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="archives-metric">
+      <div className="archives-metric-value">{value.toLocaleString()}</div>
+      <div className="archives-metric-label">{label}</div>
     </div>
   );
 }

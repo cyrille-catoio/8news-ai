@@ -15,6 +15,7 @@ const SPA_PATHS = new Set([
   "/app/daily-summaries",
   "/app/videos",
   "/app/youtube-channels",
+  "/app/users",
   "/app/top-articles",
   "/app/summaries-browse",
   "/app/archives",

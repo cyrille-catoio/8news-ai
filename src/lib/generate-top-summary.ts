@@ -176,6 +176,7 @@ export async function generateTopSummary(
         snippet: base.slice(0, SNIPPET_MAX),
         topic: r.topic,
         score: r.relevance_score,
+        imageUrl: r.image_url ?? null,
       };
     });
   }

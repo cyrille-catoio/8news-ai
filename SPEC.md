@@ -199,7 +199,7 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 
 **Video surface**: `VideosPage` (today / day-by-day video list with Shorts toggle), `VideoCard` (iframe embed with **v2.x+** localhost-aware `youtube-nocookie` swap to fix black-screen), `VideoPageAudio`, `DownloadTranscriptButton`.
 
-**SSR-page-specific**: `DailySummariesPage` (admin generator), `DailySummaryArticles`, `DailySummaryAudio`, `SummaryExplorer` (kept on `/archives` as the « jump to one summary » quick-jump above the timeline), `YouTubeChannelsPage` (admin), **`ArchivesPage`** + **`ArchivesTimeline`** + **`ArchivesBrowsePage`** (**v2.6.11+** unified hub on `/archives` — SSR shell renders initial 7-day snapshot, the client hydrates filters + pagination; SPA mirror at `/app/archives`), **`TopDayPage`** (**v2.6.11+** cross-topic Top 24h archive at `/{YYYY-MM-DD}`, reuses `Top24hHero` with `defaultOpen + showSeeAllLink=false` and lists the 50 frozen sources with score / topic chip).
+**SSR-page-specific**: `DailySummariesPage` (admin generator), `DailySummaryArticles`, `DailySummaryAudio`, `SummaryExplorer` (legacy quick-jump component; no longer mounted on `/archives` since v2.6.13 — kept in the tree for potential reuse but currently orphaned), `YouTubeChannelsPage` (admin), **`ArchivesPage`** + **`ArchivesTimeline`** + **`ArchivesBrowsePage`** (**v2.6.11+** unified hub on `/archives` — SSR shell renders initial 7-day snapshot, the client hydrates filters + pagination; SPA mirror at `/app/archives`), **`TopDayPage`** (**v2.6.11+** cross-topic Top 24h archive at `/{YYYY-MM-DD}`, reuses `Top24hHero` with `defaultOpen + showSeeAllLink=false` and lists the 50 frozen sources with score / topic chip).
 
 **Landing only** (under `landing/`): `LandingNav`, `LandingHero`, `LandingTicker`, `LandingStats`, `LandingHow`, `LandingTopics`, `LandingYT`, `LandingPricing` (**v2.5.4+** monthly + annual price side-by-side via `.price-row` flex), `LandingFAQ`, `LandingCTA`, `LandingFooter`, `LandingConsole`.
 
@@ -904,7 +904,7 @@ A gold-bordered « ALL TOPICS / TOUS LES TOPICS » box is pinned at the top of e
 
 **Endpoint**: `GET /api/archives` (4 parallel SELECTs: `daily_summaries`, `video_roundups`, `video_transcriptions` count, `top_summaries` presence — see API table). Edge-cached `s-maxage=300`.
 
-**SummaryExplorer quick-jump** is kept above the timeline as the « jump to one summary » entry for visitors who already know the topic + date they want.
+**v2.6.13**: the `<SummaryExplorer>` quick-jump card (« Accès direct / Quick jump ») was removed from `/archives` — the timeline + topic/type filters above are sufficient and the duplicate entry point added noise. The component itself stays in the tree for potential reuse elsewhere.
 
 ### 8.13 Cross-Topic Top 24h Archive Page (`/{YYYY-MM-DD}`) — v2.6.11+
 

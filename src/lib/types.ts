@@ -24,6 +24,8 @@ export interface ParsedArticle {
   content: string;
   snippet: string;
   fetched_at: string;
+  /** RSS enclosure / media thumbnail / first <img> in item body (mig. 027+). */
+  image_url?: string | null;
 }
 
 export interface ArticleSummary {

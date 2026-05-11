@@ -19,6 +19,7 @@ interface RssItem {
   content?: string;
   contentSnippet?: string;
   source?: RssSourceField;
+  enclosure?: { url?: string; type?: string };
 }
 
 const rssParser: Parser<Record<string, never>, RssItem> = new Parser({
@@ -83,6 +84,20 @@ function hostLabel(url: string): string | null {
   } catch {
     return null;
   }
+}
+
+/** Best-effort RSS artwork: enclosure (image/*), else first <img> in body. */
+function extractRssImageUrl(item: RssItem): string | null {
+  const enclosureUrl = item.enclosure?.url?.trim();
+  if (enclosureUrl && /^https?:\/\//i.test(enclosureUrl)) {
+    const type = (item.enclosure?.type ?? "").toLowerCase();
+    if (!type || type.startsWith("image/")) return enclosureUrl;
+  }
+  const html = item.content ?? "";
+  const match = html.match(/<img\b[^>]*\bsrc=["']([^"']+)["']/i);
+  const src = match?.[1]?.trim();
+  if (src && /^https?:\/\//i.test(src)) return src;
+  return null;
 }
 
 function getGoogleNewsArticleId(link: string): string | null {
@@ -258,6 +273,7 @@ async function fetchFeedsAndStore(
           : feed.name;
         const rawContent = decodeHtmlEntities(item.content ?? "");
         const rawSnippet = decodeHtmlEntities(item.contentSnippet ?? "");
+        const imageUrl = extractRssImageUrl(item);
 
         articles.push({
           topic: topicId,
@@ -268,6 +284,7 @@ async function fetchFeedsAndStore(
           content: rawContent.slice(0, SNIPPET_MAX),
           snippet: rawSnippet.slice(0, SNIPPET_MAX),
           fetched_at: fetchedAt,
+          image_url: imageUrl,
         });
       }
     }),

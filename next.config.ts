@@ -18,6 +18,7 @@ const SPA_ROUTES = [
   "/app/favorites",
   "/app/daily-summaries",
   "/app/youtube-channels",
+  "/app/users",
   "/app/top-articles",
   "/app/summaries-browse",
 ];

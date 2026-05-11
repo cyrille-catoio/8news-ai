@@ -261,6 +261,39 @@ export async function removeUserFavorite(userId: string, articleUrl: string): Pr
  * Fetches top articles restricted to a specific set of topic IDs.
  * Used when a user has personalized their topic list.
  */
+/** Lookup RSS artwork by canonical article URL — used to backfill
+ *  `imageUrl` on frozen `top_summaries` snapshots written before
+ *  mig. 027 or before the next cron tick. */
+export async function getArticleImageUrlsByLinks(
+  links: string[],
+): Promise<Map<string, string>> {
+  const clientP = getServerClient();
+  if (!clientP || links.length === 0) return new Map();
+
+  const unique = Array.from(new Set(links.map((l) => l.trim()).filter(Boolean)));
+  if (unique.length === 0) return new Map();
+
+  try {
+    const supabase = await clientP;
+    let res = await supabase
+      .from("articles")
+      .select("link, image_url")
+      .in("link", unique);
+    if (res.error && /image_url/i.test(res.error.message ?? "")) {
+      return new Map();
+    }
+    if (res.error || !res.data) return new Map();
+    const out = new Map<string, string>();
+    for (const row of res.data as Array<{ link: string; image_url: string | null }>) {
+      const url = row.image_url?.trim();
+      if (url) out.set(row.link, url);
+    }
+    return out;
+  } catch {
+    return new Map();
+  }
+}
+
 export async function getTopArticlesForTopics(
   topicIds: string[],
   days: number,
@@ -271,27 +304,39 @@ export async function getTopArticlesForTopics(
 
   try {
     const supabase = await clientP;
-    let query = supabase
-      .from("articles")
-      .select(
-        "title, link, source, topic, pub_date, relevance_score, score_reason, snippet, content, snippet_ai_en, snippet_ai_fr",
-      )
-      .not("relevance_score", "is", null)
-      .in("topic", topicIds);
+    const fullColumns =
+      "title, link, source, topic, pub_date, relevance_score, score_reason, snippet, content, snippet_ai_en, snippet_ai_fr, image_url";
+    const baseColumns =
+      "title, link, source, topic, pub_date, relevance_score, score_reason, snippet, content, snippet_ai_en, snippet_ai_fr";
 
-    if (days > 0) {
-      const since = new Date(Date.now() - days * 86_400_000).toISOString();
-      query = query.gte("pub_date", since);
+    const buildQuery = (columns: string) => {
+      let q = supabase
+        .from("articles")
+        .select(columns)
+        .not("relevance_score", "is", null)
+        .in("topic", topicIds);
+      if (days > 0) {
+        const since = new Date(Date.now() - days * 86_400_000).toISOString();
+        q = q.gte("pub_date", since);
+      }
+      return q
+        .order("relevance_score", { ascending: false })
+        .order("pub_date", { ascending: false })
+        .order("link", { ascending: true })
+        .limit(limit);
+    };
+
+    let res = await buildQuery(fullColumns);
+    if (res.error && /image_url/i.test(res.error.message ?? "")) {
+      res = await buildQuery(baseColumns);
     }
-
-    const { data, error } = await query
-      .order("relevance_score", { ascending: false })
-      .order("pub_date", { ascending: false })
-      .order("link", { ascending: true })
-      .limit(limit);
-
-    if (error || !data) return [];
-    return data as TopArticleRow[];
+    if (res.error || !res.data) return [];
+    return (res.data as unknown as Array<Omit<TopArticleRow, "image_url"> & { image_url?: string | null }>).map(
+      (row) => ({
+        ...row,
+        image_url: row.image_url ?? null,
+      }),
+    ) as TopArticleRow[];
   } catch {
     return [];
   }

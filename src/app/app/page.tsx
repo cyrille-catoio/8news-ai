@@ -22,8 +22,8 @@ import { ChangelogPage } from "@/app/components/ChangelogPage";
 import { FeedsAdminPage } from "@/app/components/FeedsAdminPage";
 import { CategoriesPage } from "@/app/components/CategoriesPage";
 import { SettingsPage } from "@/app/components/SettingsPage";
+import { UsersSection } from "@/app/components/UsersSection";
 import { SummaryBox } from "@/app/components/SummaryBox";
-import { TopArticlesTop24hHero } from "@/app/components/TopArticlesTop24hHero";
 import { AllArticlesTab, type AllArticleEntry } from "@/app/components/AllArticlesTab";
 import { StatsPage } from "@/app/components/StatsPage";
 import { CronMonitorPage } from "@/app/components/CronMonitorPage";
@@ -49,7 +49,7 @@ import { BriefingPage } from "@/app/components/BriefingPage";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.6.12";
+const APP_VERSION = "2.6.13";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 const NEWS_API_TRANSIENT_STATUSES = new Set([502, 503, 504]);
 const NEWS_API_RETRY_DELAY_MS = 750;
@@ -668,6 +668,7 @@ export default function Home() {
     favorites: "/app/favorites",
     dailySummaries: "/app/daily-summaries",
     youtubeChannels: "/app/youtube-channels",
+    users: "/app/users",
     topArticles: "/app/top-articles",
     summaries: "/app/archives",
     // v2.5.17+ — placeholder route for the future SPA-internal landing
@@ -822,6 +823,7 @@ export default function Home() {
     type SnapshotArticle = TopSummarySnapshot["articles"][number] & {
       topic?: string;
       score?: number | null;
+      imageUrl?: string | null;
     };
     return topSummary.articles.map((raw) => {
       const a = raw as SnapshotArticle;
@@ -833,6 +835,7 @@ export default function Home() {
         pubDate: a.pubDate,
         topic: a.topic ?? "",
         score: typeof a.score === "number" ? a.score : 0,
+        imageUrl: a.imageUrl ?? null,
       };
     });
   }, [topSummary]);
@@ -1155,6 +1158,22 @@ export default function Home() {
           ) : authOwner ? (
             <YouTubeChannelsPage lang={lang} />
           ) : null
+        ) : currentPage === "users" ? (
+          // Owner-only admin page. Moved out of SettingsPage in v2.7.x —
+          // Settings is now strictly per-account preferences, while the
+          // multi-user management lives in the AppHeader's user-menu
+          // dropdown alongside Topics / Feeds / Categories / Daily
+          // Summaries / YouTube Channels. Same auth-loading + owner
+          // gate as the other admin routes so a non-owner hitting
+          // /app/users directly via URL sees a no-op render (the menu
+          // itself won't surface the link for them).
+          authLoading ? (
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "80px 0" }}>
+              <span style={spinnerStyle(28)} />
+            </div>
+          ) : authOwner ? (
+            <UsersSection lang={lang} />
+          ) : null
         ) : currentPage === "settings" ? (
           <SettingsPage
             lang={lang}
@@ -1192,30 +1211,17 @@ export default function Home() {
                 <span style={spinnerStyle(24)} />
               </div>
             ) : topSummary ? (
-              <>
-                {/* Dedicated /top-articles wrapper around the shared
-                    <Top24hHero> base (v2.6.12+). Same accordion chrome
-                    as the home, except `defaultOpen` keeps every group
-                    expanded for the « full briefing visible at a glance »
-                    feel of this surface, and `showSeeAllLink={false}`
-                    avoids a footer link looping back here. The user can
-                    still collapse a group by clicking its title.
-                    `showSeeAllLink={false}` because we ARE the see-all
-                    surface; `data` is the snapshot the parent already
-                    fetched (no double network call). */}
-                <TopArticlesTop24hHero lang={lang} data={topSummary} />
-                <TopFeedSection
-                  articles={topFeed}
-                  loading={false}
-                  lang={lang}
-                  locale={locale}
-                  lastUpdatedAt={null}
-                  favoriteUrls={favoriteUrls}
-                  onToggleFavorite={toggleFavorite}
-                  isAuthenticated={isAuthenticated}
-                  onRequestAuth={() => setAuthModalOpen(true)}
-                />
-              </>
+              <TopFeedSection
+                articles={topFeed}
+                loading={false}
+                lang={lang}
+                locale={locale}
+                lastUpdatedAt={null}
+                favoriteUrls={favoriteUrls}
+                onToggleFavorite={toggleFavorite}
+                isAuthenticated={isAuthenticated}
+                onRequestAuth={() => setAuthModalOpen(true)}
+              />
             ) : topSummaryAvailable === false ? (
               <div
                 style={{

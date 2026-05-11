@@ -108,11 +108,66 @@ function CheckIcon() {
   );
 }
 
-function XIcon() {
+function XIcon({ stroke = color.textMuted }: { stroke?: string }) {
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color.textMuted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <line x1="18" y1="6" x2="6" y2="18" />
       <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+}
+
+/** Daily newsletter opt-in status: green check when enabled, red X
+ *  when disabled. Replaces the previous checkbox in read mode; in
+ *  edit mode the same glyph is clickable to flip the draft value. */
+function DailyNewsletterStatus({
+  enabled,
+  interactive,
+  onToggle,
+  ariaLabel,
+}: {
+  enabled: boolean;
+  interactive?: boolean;
+  onToggle?: () => void;
+  ariaLabel: string;
+}) {
+  const glyph = enabled ? <CheckIcon /> : <XIcon stroke="#ef4444" />;
+  if (!interactive) {
+    return (
+      <span
+        role="img"
+        aria-label={ariaLabel}
+        style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+      >
+        {glyph}
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label={ariaLabel}
+      aria-pressed={enabled}
+      style={{
+        ...iconBtnStyle,
+        padding: 2,
+        borderRadius: 4,
+      }}
+    >
+      {glyph}
+    </button>
+  );
+}
+
+/** Paper-plane glyph used by the « send latest newsletter » action
+ *  (v2.6.13+). Same outline weight as the pencil so the row of icons
+ *  reads as a single visual family despite the colour differences. */
+function PaperPlaneIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color.gold} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="22" y1="2" x2="11" y2="13" />
+      <polygon points="22 2 15 22 11 13 2 9 22 2" />
     </svg>
   );
 }
@@ -128,6 +183,15 @@ export function UsersSection({ lang }: { lang: Lang }) {
   const [editLang, setEditLang] = useState<"en" | "fr">("en");
   const [editDailyNewsletter, setEditDailyNewsletter] = useState(false);
   const [saving, setSaving] = useState(false);
+  /** Per-row spinner for the « send newsletter » action — the row's
+   *  paper-plane icon spins while the request is in flight so the
+   *  operator can't double-fire. */
+  const [sendingId, setSendingId] = useState<string | null>(null);
+  /** Transient banner displayed above the table after a send completes.
+   *  Self-clears after 6 s. `tone` drives the color. */
+  const [notice, setNotice] = useState<
+    { tone: "ok" | "error"; message: string } | null
+  >(null);
 
   const locale = dateLocale(lang);
 
@@ -164,6 +228,61 @@ export function UsersSection({ lang }: { lang: Lang }) {
 
   function cancelEdit() {
     setEditingId(null);
+  }
+
+  /** Owner-only test send: POST /api/users/[id]/send-newsletter. Fires
+   *  the same renderer as the daily cron against a real inbox.
+   *  Confirm-gated so a misclick doesn't email the user. The notice
+   *  banner shows for 6 s, then fades. */
+  async function sendTestNewsletter(u: UserRow) {
+    if (sendingId) return;
+    const ok = window.confirm(
+      t("usersSendNewsletterConfirm", lang).replace("{email}", u.email),
+    );
+    if (!ok) return;
+    setSendingId(u.id);
+    setNotice(null);
+    try {
+      const res = await fetch(`/api/users/${u.id}/send-newsletter`, {
+        method: "POST",
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        summaryDate?: string;
+        error?: string;
+      };
+      if (!res.ok || !json.ok) {
+        const detail = json.error || `HTTP ${res.status}`;
+        setNotice({
+          tone: "error",
+          message: t("usersSendNewsletterError", lang).replace(
+            "{detail}",
+            detail,
+          ),
+        });
+      } else {
+        setNotice({
+          tone: "ok",
+          message: t("usersSendNewsletterSuccess", lang)
+            .replace("{email}", u.email)
+            .replace("{date}", json.summaryDate ?? "—"),
+        });
+      }
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : "unknown";
+      setNotice({
+        tone: "error",
+        message: t("usersSendNewsletterError", lang).replace(
+          "{detail}",
+          detail,
+        ),
+      });
+    } finally {
+      setSendingId(null);
+      // Self-clear after 6 s so a stale banner doesn't linger when the
+      // operator moves on to other rows.
+      window.setTimeout(() => setNotice(null), 6_000);
+    }
   }
 
   async function saveEdit(id: string) {
@@ -205,6 +324,31 @@ export function UsersSection({ lang }: { lang: Lang }) {
       ) : (
         <>
           {error && <p style={{ color: color.errorText, fontSize: 13, marginBottom: 8 }}>{error}</p>}
+          {notice && (
+            <div
+              role="status"
+              style={{
+                marginBottom: 10,
+                padding: "8px 12px",
+                borderRadius: 6,
+                fontSize: 13,
+                lineHeight: 1.4,
+                color:
+                  notice.tone === "ok" ? "#4ade80" : color.errorText,
+                background:
+                  notice.tone === "ok"
+                    ? "rgba(74, 222, 128, 0.08)"
+                    : "rgba(239, 68, 68, 0.08)",
+                border: `1px solid ${
+                  notice.tone === "ok"
+                    ? "rgba(74, 222, 128, 0.35)"
+                    : "rgba(239, 68, 68, 0.35)"
+                }`,
+              }}
+            >
+              {notice.message}
+            </div>
+          )}
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
@@ -216,7 +360,7 @@ export function UsersSection({ lang }: { lang: Lang }) {
                   <th style={{ ...thStyle, textAlign: "center" }}>{t("usersLanguage", lang)}</th>
                   <th style={{ ...thStyle, textAlign: "center" }}>{t("usersDailyNewsletter", lang)}</th>
                   <th style={thStyle}>{t("usersCreatedAt", lang)}</th>
-                  <th style={{ ...thStyle, textAlign: "center", width: 60 }}>{t("usersActions", lang)}</th>
+                  <th style={{ ...thStyle, textAlign: "center", width: 88 }}>{t("usersActions", lang)}</th>
                 </tr>
               </thead>
               <tbody>
@@ -317,36 +461,16 @@ export function UsersSection({ lang }: { lang: Lang }) {
                         )}
                       </td>
                       <td style={{ ...tdStyle, textAlign: "center" }}>
-                        {/* Single checkbox for both read and edit modes.
-                            The `disabled` attribute gates writes to the
-                            edit flow (matches the existing pencil → save
-                            convention used by the other columns); the
-                            checked state always reflects the latest
-                            persisted value when not editing, or the
-                            draft state while editing. Hidden label kept
-                            for screen readers. */}
-                        <label
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            cursor: isEditing && !saving ? "pointer" : "default",
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isEditing ? editDailyNewsletter : u.dailyNewsletter}
-                            onChange={(e) => setEditDailyNewsletter(e.target.checked)}
-                            disabled={!isEditing || saving}
-                            aria-label={t("usersDailyNewsletter", lang)}
-                            style={{
-                              width: 16,
-                              height: 16,
-                              accentColor: color.gold,
-                              cursor: isEditing && !saving ? "pointer" : "default",
-                              opacity: isEditing ? 1 : 0.85,
-                            }}
-                          />
-                        </label>
+                        <DailyNewsletterStatus
+                          enabled={isEditing ? editDailyNewsletter : u.dailyNewsletter}
+                          interactive={isEditing && !saving}
+                          onToggle={
+                            isEditing && !saving
+                              ? () => setEditDailyNewsletter((v) => !v)
+                              : undefined
+                          }
+                          ariaLabel={t("usersDailyNewsletter", lang)}
+                        />
                       </td>
                       <td style={{ ...tdStyle, color: color.textMuted, fontSize: 12, whiteSpace: "nowrap" }}>
                         {new Date(u.createdAt).toLocaleDateString(locale)}
@@ -374,14 +498,51 @@ export function UsersSection({ lang }: { lang: Lang }) {
                             </button>
                           </div>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => startEdit(u)}
-                            aria-label={t("usersActions", lang)}
-                            style={iconBtnStyle}
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 4,
+                              justifyContent: "center",
+                              alignItems: "center",
+                            }}
                           >
-                            <PencilIcon />
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => startEdit(u)}
+                              aria-label={t("usersActions", lang)}
+                              style={iconBtnStyle}
+                            >
+                              <PencilIcon />
+                            </button>
+                            {/* Test send: only enabled when the user has an
+                                email on file (auth users without one are
+                                technically possible via OAuth-only flows).
+                                Spinner replaces the icon while the request
+                                is in flight; disabled to prevent double
+                                fires. */}
+                            <button
+                              type="button"
+                              onClick={() => void sendTestNewsletter(u)}
+                              disabled={!u.email || sendingId === u.id}
+                              aria-label={t("usersSendNewsletterIconTitle", lang)}
+                              title={t("usersSendNewsletterIconTitle", lang)}
+                              style={{
+                                ...iconBtnStyle,
+                                opacity:
+                                  !u.email || sendingId === u.id ? 0.5 : 1,
+                                cursor:
+                                  !u.email || sendingId === u.id
+                                    ? "default"
+                                    : "pointer",
+                              }}
+                            >
+                              {sendingId === u.id ? (
+                                <span style={spinnerStyle(13)} />
+                              ) : (
+                                <PaperPlaneIcon />
+                              )}
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>

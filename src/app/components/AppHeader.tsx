@@ -22,6 +22,7 @@ export type AppNavPage =
   | "dailySummaries"
   | "videos"
   | "youtubeChannels"
+  | "users"
   | "topArticles"
   | "summaries"
   /** v2.5.17+ — anticipated route for a future SPA-internal landing page
@@ -117,7 +118,13 @@ function UserMenu({
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const isAdminPage = currentPage === "topics" || currentPage === "feeds" || currentPage === "categories" || currentPage === "dailySummaries" || currentPage === "youtubeChannels";
+  const isAdminPage =
+    currentPage === "topics" ||
+    currentPage === "feeds" ||
+    currentPage === "categories" ||
+    currentPage === "dailySummaries" ||
+    currentPage === "youtubeChannels" ||
+    currentPage === "users";
 
   const menuItemStyle: CSSProperties = {
     display: "block",
@@ -191,6 +198,9 @@ function UserMenu({
               </button>
               <button type="button" onClick={() => { onNavigate("youtubeChannels"); setOpen(false); }} style={adminItemStyle("youtubeChannels")}>
                 YouTube Channels
+              </button>
+              <button type="button" onClick={() => { onNavigate("users"); setOpen(false); }} style={adminItemStyle("users")}>
+                {t("usersAdminAria", lang)}
               </button>
               <div style={{ height: 1, background: color.border, margin: "4px 0" }} />
             </>

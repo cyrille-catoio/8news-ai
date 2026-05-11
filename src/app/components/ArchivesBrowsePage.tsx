@@ -51,9 +51,12 @@ export function ArchivesBrowsePage({ lang }: { lang: Lang }) {
     <div>
       <h1
         style={{
-          color: color.gold,
-          fontSize: 22,
-          fontWeight: 700,
+          color: color.text,
+          fontFamily: "ui-serif, Georgia, serif",
+          fontSize: 30,
+          fontWeight: 400,
+          lineHeight: 1.14,
+          letterSpacing: 0,
           marginBottom: 8,
           marginTop: 0,
         }}
@@ -66,7 +69,8 @@ export function ArchivesBrowsePage({ lang }: { lang: Lang }) {
           fontSize: 14,
           marginTop: 0,
           marginBottom: 28,
-          lineHeight: 1.5,
+          lineHeight: 1.6,
+          maxWidth: 680,
         }}
       >
         {lang === "fr"

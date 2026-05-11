@@ -29,6 +29,8 @@ export interface TopSummaryArticle {
   snippet: string;
   topic?: string;
   score?: number | null;
+  /** RSS artwork when known at snapshot time (mig. 027+). */
+  imageUrl?: string | null;
 }
 
 export interface TopSummaryRow {

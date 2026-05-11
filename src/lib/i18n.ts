@@ -670,8 +670,8 @@ const strings = {
     fr: "Sélectionner une durée pour lancer l'analyse IA",
   },
   homeTop20Subtitle: {
-    en: "Sources: Top 50 Articles from the last 24h",
-    fr: "Sources : Top 50 Articles des dernières 24h",
+    en: "Top 50 Articles from the last 24h",
+    fr: "Top 50 Articles des dernières 24h",
   },
   actionRefresh: {
     en: "Refresh",
@@ -703,6 +703,14 @@ const strings = {
   navTopicsAria: {
     en: "Topics",
     fr: "Topics",
+  },
+  /** Label of the owner-only « Users » entry in the AppHeader user
+   *  menu (moved out of SettingsPage in v2.7.x). Distinct from
+   *  `myAccountSection`, which only edits the current user's own
+   *  profile. */
+  usersAdminAria: {
+    en: "Users",
+    fr: "Utilisateurs",
   },
   navStatsAria: {
     en: "Stats",
@@ -859,6 +867,28 @@ const strings = {
     en: "Failed to save changes.",
     fr: "Impossible d'enregistrer les modifications.",
   },
+  // --- Send newsletter test action (v2.6.13+) -----------------------
+  // Owner-only icon in the actions cell that fires
+  // `POST /api/users/[id]/send-newsletter` so the operator can
+  // validate the rendering / deliverability against a real inbox
+  // without flipping the user's `daily_newsletter` flag and waiting
+  // for the cron tick.
+  usersSendNewsletterIconTitle: {
+    en: "Send the latest newsletter",
+    fr: "Envoyer la dernière newsletter",
+  },
+  usersSendNewsletterConfirm: {
+    en: "Send the latest Top 24h newsletter to {email}?",
+    fr: "Envoyer la dernière newsletter Top 24h à {email} ?",
+  },
+  usersSendNewsletterSuccess: {
+    en: "Newsletter sent to {email} (snapshot {date}).",
+    fr: "Newsletter envoyée à {email} (snapshot {date}).",
+  },
+  usersSendNewsletterError: {
+    en: "Failed to send newsletter — {detail}.",
+    fr: "Échec de l'envoi de la newsletter — {detail}.",
+  },
   myAccountSection: {
     en: "My account",
     fr: "Mon compte",
@@ -921,8 +951,20 @@ const strings = {
     fr: "Podcast du jour",
   },
   top24hHeroSeeAll: {
-    en: "Read the full briefing →",
-    fr: "Lire le briefing complet →",
+    en: "See all articles →",
+    fr: "Voir tous les articles →",
+  },
+  // Master « expand / collapse all » toggle pinned at the top-right
+  // of the Top 24h hero (home + /top-articles + /{date}). v2.6.13+.
+  // Label is short on purpose so the button fits next to the H2 on
+  // mobile without forcing a wrap.
+  top24hHeroExpandAll: {
+    en: "Expand all",
+    fr: "Tout déplier",
+  },
+  top24hHeroCollapseAll: {
+    en: "Collapse all",
+    fr: "Tout replier",
   },
   myTopicsEdit: {
     en: "Edit",

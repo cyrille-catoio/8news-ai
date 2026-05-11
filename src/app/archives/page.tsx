@@ -85,7 +85,7 @@ export default async function ArchivesIndexPage({
     <div
       style={{ minHeight: "100vh", background: color.bg, color: color.text, fontFamily: font.base }}
     >
-      <div style={{ maxWidth: 916, margin: "0 auto", padding: "40px 20px" }}>
+      <div style={{ maxWidth: 1080, margin: "0 auto", padding: "40px 20px" }}>
         <SeoNavBar
           lang={safeLang}
           altLangUrl={`/archives?lang=${safeLang === "fr" ? "en" : "fr"}`}
@@ -105,9 +105,12 @@ export default async function ArchivesIndexPage({
 
         <h1
           style={{
-            color: color.gold,
-            fontSize: 24,
-            fontWeight: 700,
+            color: color.text,
+            fontFamily: "ui-serif, Georgia, serif",
+            fontSize: 34,
+            fontWeight: 400,
+            letterSpacing: 0,
+            lineHeight: 1.12,
             marginBottom: 8,
             marginTop: 0,
           }}
@@ -120,7 +123,8 @@ export default async function ArchivesIndexPage({
             fontSize: 15,
             marginTop: 0,
             marginBottom: 32,
-            lineHeight: 1.5,
+            lineHeight: 1.6,
+            maxWidth: 700,
           }}
         >
           {lang === "fr"

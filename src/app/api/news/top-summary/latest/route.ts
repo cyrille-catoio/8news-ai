@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  getArticleImageUrlsByLinks,
   getLatestTopSummary,
   getTopSummaryBulletsByDate,
+  type TopSummaryArticle,
 } from "@/lib/supabase";
 import type { Lang } from "@/lib/i18n";
 
@@ -45,8 +47,14 @@ export async function GET(request: NextRequest) {
   // across every bullet of a same-`title` run, so the renderer can
   // read it from the first bullet of each rendered group.
   const bullets = bulletRows.map((b) => {
+    // Permissive trailing-whitespace match so we catch both the
+    // canonical `**Title**\n\nbody` separator the cron writes and
+    // any space-only variant. Prior regex required at least one `\n`,
+    // which silently failed when an LLM emitted `**Title** body` on
+    // a single line (the bolded prefix then leaked into the rendered
+    // body alongside the dedicated title heading above it).
     const text = b.title
-      ? b.text.replace(new RegExp(`^\\*\\*${escapeRegExp(b.title)}\\*\\*\\s*\\n+`), "").trim()
+      ? b.text.replace(new RegExp(`^\\*\\*${escapeRegExp(b.title)}\\*\\*[\\s\\n]*`), "").trim()
       : b.text.trim();
     return {
       text,
@@ -56,7 +64,16 @@ export async function GET(request: NextRequest) {
     };
   });
 
-  const articles = (snapshot.articles ?? []).map((a) => ({
+  const rawArticles = (snapshot.articles ?? []) as TopSummaryArticle[];
+  const linksNeedingImage = rawArticles
+    .filter((a) => !a.imageUrl)
+    .map((a) => a.link);
+  const imageByLink =
+    linksNeedingImage.length > 0
+      ? await getArticleImageUrlsByLinks(linksNeedingImage)
+      : new Map<string, string>();
+
+  const articles = rawArticles.map((a) => ({
     title: a.title,
     link: a.link,
     source: a.source,
@@ -64,6 +81,7 @@ export async function GET(request: NextRequest) {
     snippet: a.snippet,
     topic: a.topic,
     score: a.score ?? null,
+    imageUrl: a.imageUrl ?? imageByLink.get(a.link) ?? null,
   }));
 
   return NextResponse.json(

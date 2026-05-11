@@ -11,6 +11,7 @@ export type TopFeedArticle = {
   topic: string;
   pubDate: string;
   score: number;
+  imageUrl?: string | null;
 };
 
 const POLL_MS = 5 * 60_000;

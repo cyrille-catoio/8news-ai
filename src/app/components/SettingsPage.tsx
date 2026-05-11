@@ -5,8 +5,6 @@ import { t, type Lang } from "@/lib/i18n";
 import { color } from "@/lib/theme";
 import { VoiceAccordion, TTS_VOICES_EN, TTS_VOICES_FR } from "@/app/components/VoiceAccordion";
 import { useAuth } from "@/app/providers";
-import { isOwnerUser } from "@/lib/user-type";
-import { UsersSection } from "@/app/components/UsersSection";
 import { MyAccountSection } from "@/app/components/MyAccountSection";
 
 export function SettingsPage({
@@ -40,7 +38,6 @@ export function SettingsPage({
 }) {
   const { session } = useAuth();
   const user = session?.user ?? null;
-  const showUsers = isOwnerUser(user);
   const isSignedIn = Boolean(user);
   const [voiceEnOpen, setVoiceEnOpen] = useState(false);
   const [voiceFrOpen, setVoiceFrOpen] = useState(false);
@@ -228,8 +225,10 @@ export function SettingsPage({
             />
           </div>
 
-          {/* ── Users section (owner only) ──────────────────── */}
-          {showUsers && <UsersSection lang={lang} />}
+          {/* Users admin moved to its own owner-only SPA page in v2.7.x —
+              reachable from the AppHeader's user-menu dropdown. Keeping the
+              Settings page focused on per-account preferences (account
+              info, max articles, home thresholds, voice). */}
 
     </div>
   );

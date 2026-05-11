@@ -50,7 +50,15 @@ export function Top24hAudio({
   lang,
   date,
 }: {
-  bullets: Array<{ text: string; title?: string | null }>;
+  bullets: Array<{
+    text: string;
+    title?: string | null;
+    /** Per-group editorial importance (1-10). Optional for legacy
+     *  callers / snapshots predating mig 026. v2.6.13+ used to keep
+     *  the TTS narration ordered like the visible accordion (sorted
+     *  by importance DESC). */
+    importanceScore?: number | null;
+  }>;
   lang: Lang;
   /** YYYY-MM-DD — the snapshot's `summary_date`. Used in the spoken intro. */
   date: string;
@@ -64,13 +72,25 @@ export function Top24hAudio({
   // the TTS announces each group title once before its paragraphs —
   // mirrors the visual fold in `groupBullets` (Top24hHero.tsx). An
   // empty title means « no group header », bullet body alone.
-  const groups: Array<{ title: string; bullets: string[] }> = [];
+  const groups: Array<{ title: string; bullets: string[]; score: number }> = [];
   for (const b of bullets) {
     const t = (b.title ?? "").trim();
     const last = groups[groups.length - 1];
     if (last && last.title === t) last.bullets.push(b.text);
-    else groups.push({ title: t, bullets: [b.text] });
+    else
+      groups.push({
+        title: t,
+        bullets: [b.text],
+        score: typeof b.importanceScore === "number" ? b.importanceScore : 0,
+      });
   }
+
+  // Sort groups by importance DESC to match the visible accordion
+  // order (v2.6.13+). Stable: tied scores keep LLM emission order so
+  // narrative continuity inside the brief is preserved.
+  const decorated = groups.map((g, i) => ({ g, i }));
+  decorated.sort((a, b) => (b.g.score - a.g.score) || (a.i - b.i));
+  const orderedGroups = decorated.map((d) => d.g);
 
   const dateLabel = new Date(`${date}T00:00:00`).toLocaleDateString(
     dateLocale(lang),
@@ -84,7 +104,7 @@ export function Top24hAudio({
   const outro =
     lang === "fr" ? "... ... Analyse terminée." : "... ... That's all folks!";
 
-  const body = groups
+  const body = orderedGroups
     .map((g) => {
       const header = g.title ? `${g.title}.` : "";
       const bul = g.bullets.map((t) => `• ${t}`).join(" ... ");

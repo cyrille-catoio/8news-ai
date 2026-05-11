@@ -27,6 +27,7 @@ export interface TopArticleRow {
   content: string | null;
   snippet_ai_en: string | null;
   snippet_ai_fr: string | null;
+  image_url: string | null;
 }
 
 export interface StatsFeedRow {
@@ -113,30 +114,42 @@ export async function getTopArticlesForStats(
 
   try {
     const supabase = await clientP;
-    let query = supabase
-      .from("articles")
-      .select(
-        "title, link, source, topic, pub_date, relevance_score, score_reason, snippet, content, snippet_ai_en, snippet_ai_fr",
-      )
-      .not("relevance_score", "is", null);
+    const fullColumns =
+      "title, link, source, topic, pub_date, relevance_score, score_reason, snippet, content, snippet_ai_en, snippet_ai_fr, image_url";
+    const baseColumns =
+      "title, link, source, topic, pub_date, relevance_score, score_reason, snippet, content, snippet_ai_en, snippet_ai_fr";
 
-    if (topic && topic !== "all") query = query.eq("topic", topic);
-    if (excludeTopics && excludeTopics.length > 0) {
-      query = query.not("topic", "in", `(${excludeTopics.join(",")})`);
+    const buildQuery = (columns: string) => {
+      let q = supabase
+        .from("articles")
+        .select(columns)
+        .not("relevance_score", "is", null);
+      if (topic && topic !== "all") q = q.eq("topic", topic);
+      if (excludeTopics && excludeTopics.length > 0) {
+        q = q.not("topic", "in", `(${excludeTopics.join(",")})`);
+      }
+      if (days > 0) {
+        const since = new Date(Date.now() - days * 86_400_000).toISOString();
+        q = q.gte("pub_date", since);
+      }
+      return q
+        .order("relevance_score", { ascending: false })
+        .order("pub_date", { ascending: false })
+        .order("link", { ascending: true })
+        .limit(limit);
+    };
+
+    let res = await buildQuery(fullColumns);
+    if (res.error && /image_url/i.test(res.error.message ?? "")) {
+      res = await buildQuery(baseColumns);
     }
-    if (days > 0) {
-      const since = new Date(Date.now() - days * 86_400_000).toISOString();
-      query = query.gte("pub_date", since);
-    }
-
-    const { data, error } = await query
-      .order("relevance_score", { ascending: false })
-      .order("pub_date", { ascending: false })
-      .order("link", { ascending: true })
-      .limit(limit);
-
-    if (error || !data) return [];
-    return data as TopArticleRow[];
+    if (res.error || !res.data) return [];
+    return (res.data as unknown as Array<Omit<TopArticleRow, "image_url"> & { image_url?: string | null }>).map(
+      (row) => ({
+        ...row,
+        image_url: row.image_url ?? null,
+      }),
+    ) as TopArticleRow[];
   } catch {
     return [];
   }

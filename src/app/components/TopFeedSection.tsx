@@ -60,7 +60,23 @@ export function TopFeedSection({
             rel="noopener noreferrer"
             style={{ textDecoration: "none", color: "inherit", display: "block" }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+              {art.imageUrl ? (
+                <img
+                  src={art.imageUrl}
+                  alt=""
+                  loading="lazy"
+                  style={{
+                    width: 104,
+                    height: 72,
+                    objectFit: "cover",
+                    borderRadius: 8,
+                    flexShrink: 0,
+                    background: color.border,
+                  }}
+                />
+              ) : null}
+              <div style={{ display: "flex", flex: 1, minWidth: 0, justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 {lang === "fr" && art.snippet ? (
                   <>
@@ -94,6 +110,7 @@ export function TopFeedSection({
               <span style={{ marginLeft: 12, flexShrink: 0 }}>
                 <ScoreMeter score={art.score} />
               </span>
+              </div>
             </div>
           </a>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>

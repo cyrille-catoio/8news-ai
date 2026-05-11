@@ -13,7 +13,7 @@ import type { Lang } from "../../src/lib/i18n";
  * opted-in user via Resend.
  *
  * Trigger ONCE a day from cron-job.org GET:
- *   /.netlify/functions/cron-newsletter-daily-background
+ *   /.netlify/functions/cron-newsletter-daily-background?secret=$CRON_SECRET
  * Recommended schedule: `30 6 * * *` UTC — runs ~30 min after the
  * `cron-top-summary-background` tick (suggested `0 6 * * *`) so the
  * day's snapshot is freshly written before we read it.
@@ -51,10 +51,11 @@ import type { Lang } from "../../src/lib/i18n";
  *     handled out-of-band (the user toggles their preference in the
  *     admin or the future SettingsPage opt-out).
  *
- * Why no auth check on the URL: same convention as the other
- * `cron-*-background.ts` siblings (URL obscurity, see SPEC § Cron jobs).
- * Returning a bare `void` matches Netlify Functions v2 — any other
- * shape ("statusCode/body") crashes the runtime with
+ * Auth: unlike internal-only crons, this endpoint has a large external
+ * side effect (email every opted-in subscriber), so it fails closed
+ * unless `CRON_SECRET` is configured and supplied as `?secret=` or
+ * `x-cron-secret`. Returning a bare `void` matches Netlify Functions v2
+ * — plain `{ statusCode, body }` objects crash the runtime with
  * "Function returned an unsupported value".
  */
 
@@ -84,6 +85,24 @@ interface ResendBatchEmail {
 interface ResendBatchResponse {
   data?: Array<{ id: string }>;
   error?: { message: string; name?: string };
+}
+
+function getSuppliedCronSecret(request: Request | undefined): string | null {
+  if (!request) return null;
+  const headerSecret = request.headers.get("x-cron-secret")?.trim();
+  if (headerSecret) return headerSecret;
+
+  try {
+    return new URL(request.url).searchParams.get("secret")?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+function isAuthorizedCronRequest(request: Request | undefined): boolean {
+  const expected = process.env.CRON_SECRET?.trim();
+  const supplied = getSuppliedCronSecret(request);
+  return Boolean(expected && supplied && supplied === expected);
 }
 
 async function runCron(): Promise<void> {
@@ -329,6 +348,13 @@ async function runCron(): Promise<void> {
   console.log(lines.join("\n"));
 }
 
-export default async (): Promise<void> => {
+export default async (request?: Request): Promise<void> => {
+  if (!isAuthorizedCronRequest(request)) {
+    console.error(
+      `[cron-newsletter] Unauthorized cron trigger — CRON_SECRET ${process.env.CRON_SECRET ? "configured" : "missing"}`,
+    );
+    return;
+  }
+
   await runCron();
 };

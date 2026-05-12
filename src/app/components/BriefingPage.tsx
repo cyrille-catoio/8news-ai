@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Lang } from "@/lib/i18n";
-import { dateLocale } from "@/lib/i18n";
+import { dateLocale, t } from "@/lib/i18n";
 import { color, card, spinnerStyle } from "@/lib/theme";
 import { useTopFeed, type TopFeedArticle } from "@/hooks/useTopFeed";
 import { ScoreMeter } from "@/app/components/ScoreMeter";
@@ -15,6 +15,9 @@ import type { AppNavPage } from "@/app/components/AppHeader";
 import { summaryPath } from "@/lib/summary-routes";
 import { stripEmoji } from "@/lib/html";
 import { getCookie, setCookie } from "@/lib/cookies";
+import { useAuth } from "@/app/providers";
+import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
+import { isOwnerUser } from "@/lib/user-type";
 
 /** Cookie key for the home « Top 24h podcast » read state. Value =
  *  UTC date string (`YYYY-MM-DD`) of the day on which the user marked
@@ -101,6 +104,153 @@ function relativeTime(pubDate: string, lang: Lang): string {
 
 function toISODate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function NewsletterSignupPrompt({
+  lang,
+  onRequestAuth,
+}: {
+  lang: Lang;
+  onRequestAuth: () => void;
+}) {
+  const { session, loading } = useAuth();
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const user = session?.user ?? null;
+  const isOwner = isOwnerUser(user);
+  const [subscribed, setSubscribed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSubscribed(user?.user_metadata?.daily_newsletter === true);
+  }, [user?.id, user?.user_metadata]);
+
+  if (loading || isOwner || subscribed) return null;
+
+  async function subscribe() {
+    if (!user) {
+      onRequestAuth();
+      return;
+    }
+    setBusy(true);
+    setMessage(null);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          ...(user.user_metadata ?? {}),
+          daily_newsletter: true,
+        },
+      });
+      if (error) throw error;
+      setSubscribed(true);
+      setMessage(t("newsletterSignupSuccess", lang));
+    } catch {
+      setMessage(t("newsletterSignupError", lang));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const anonymous = !user;
+
+  return (
+    <section
+      style={{
+        ...card,
+        marginBottom: 24,
+        padding: "14px 16px",
+        borderColor: "rgba(201,162,39,0.40)",
+        background:
+          "linear-gradient(90deg, rgba(201,162,39,0.12), rgba(201,162,39,0.03) 55%, transparent), " +
+          color.surface,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 14,
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ flex: "1 1 320px", minWidth: 0 }}>
+          <div
+            style={{
+              color: color.gold,
+              fontSize: 11,
+              fontWeight: 800,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              marginBottom: 4,
+            }}
+          >
+            {t("newsletterSignupKicker", lang)}
+          </div>
+          <div
+            style={{
+              color: color.text,
+              fontFamily: "ui-serif, Georgia, serif",
+              fontSize: 18,
+              lineHeight: 1.2,
+              marginBottom: 4,
+            }}
+          >
+            {t("newsletterSignupTitle", lang)}
+          </div>
+          <div style={{ color: color.textMuted, fontSize: 13, lineHeight: 1.45 }}>
+            {t(
+              anonymous
+                ? "newsletterSignupBodyAnonymous"
+                : "newsletterSignupBodyMember",
+              lang,
+            )}
+          </div>
+          {message && (
+            <div
+              style={{
+                color: message === t("newsletterSignupSuccess", lang)
+                  ? "#4ade80"
+                  : color.errorText,
+                fontSize: 12,
+                marginTop: 8,
+              }}
+            >
+              {message}
+            </div>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => void subscribe()}
+          disabled={busy}
+          style={{
+            border: "none",
+            borderRadius: 999,
+            background: color.gold,
+            color: "#000",
+            cursor: busy ? "wait" : "pointer",
+            fontSize: 13,
+            fontWeight: 800,
+            padding: "10px 14px",
+            whiteSpace: "nowrap",
+            minWidth: 150,
+          }}
+        >
+          {busy ? (
+            <span style={spinnerStyle(13)} />
+          ) : (
+            t(
+              anonymous
+                ? "newsletterSignupButtonAnonymous"
+                : "newsletterSignupButtonMember",
+              lang,
+            )
+          )}
+        </button>
+      </div>
+    </section>
+  );
 }
 
 export function BriefingPage({
@@ -563,6 +713,11 @@ export function BriefingPage({
               onToggleRead={onToggleTopHeroRead}
             />
           )}
+
+          <NewsletterSignupPrompt
+            lang={lang}
+            onRequestAuth={onRequestAuth}
+          />
 
           {/* Top articles 24h hero, TOP VIDEO, Top story, puis « Toutes les vidéos transcrites », Tendances, résumé du jour, top 5, … */}
           {videosLoading ? (
@@ -1465,7 +1620,6 @@ function RecentVideoPagesSection({
           ...card,
           display: "block",
           padding: undefined,
-          borderColor: color.gold,
           background:
             "linear-gradient(180deg, rgba(201,162,39,0.04), transparent 60%), " + color.surface,
         }}

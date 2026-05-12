@@ -835,6 +835,58 @@ const strings = {
     en: "Daily Newsletter",
     fr: "Newsletter quotidienne",
   },
+  usersNewsletterSubscribeButton: {
+    en: "Subscribe",
+    fr: "Inscrire",
+  },
+  usersNewsletterSubscribeAria: {
+    en: "Subscribe {email} to the daily newsletter",
+    fr: "Inscrire {email} à la newsletter quotidienne",
+  },
+  usersNewsletterSubscribed: {
+    en: "On",
+    fr: "ON",
+  },
+  usersNewsletterSubscribeSuccess: {
+    en: "{email} is now subscribed to the daily newsletter.",
+    fr: "{email} est maintenant inscrit à la newsletter quotidienne.",
+  },
+  usersNewsletterSubscribeError: {
+    en: "Failed to subscribe user — {detail}.",
+    fr: "Impossible d'inscrire l'utilisateur — {detail}.",
+  },
+  newsletterSignupKicker: {
+    en: "Free morning brief",
+    fr: "Brief matinal gratuit",
+  },
+  newsletterSignupTitle: {
+    en: "Get the Top 24h brief in your inbox.",
+    fr: "Recevez le brief Top 24h dans votre boîte mail.",
+  },
+  newsletterSignupBodyAnonymous: {
+    en: "Create a free account to receive the daily AI briefing on the topics that matter.",
+    fr: "Créez un compte gratuit pour recevoir chaque jour le brief IA sur les sujets qui comptent.",
+  },
+  newsletterSignupBodyMember: {
+    en: "One click enables the daily newsletter for your account. You can disable it from Settings anytime.",
+    fr: "Un clic active la newsletter quotidienne sur votre compte. Vous pouvez la désactiver depuis les paramètres à tout moment.",
+  },
+  newsletterSignupButtonAnonymous: {
+    en: "Create account",
+    fr: "Créer un compte",
+  },
+  newsletterSignupButtonMember: {
+    en: "Enable newsletter",
+    fr: "Activer la newsletter",
+  },
+  newsletterSignupSuccess: {
+    en: "Daily newsletter enabled.",
+    fr: "Newsletter quotidienne activée.",
+  },
+  newsletterSignupError: {
+    en: "Could not enable the newsletter.",
+    fr: "Impossible d'activer la newsletter.",
+  },
   /**
    * v2.6.12+ — Default UI language the user lands on after sign-in.
    * Stored in `auth.users.user_metadata.preferred_lang` (the same key
@@ -968,7 +1020,7 @@ const strings = {
    *  the rest of the home without the briefing crowding the top. */
   top24hHeroReadLabel: {
     en: "Read",
-    fr: "Lue",
+    fr: "Lu",
   },
   // Master « expand / collapse all » toggle pinned at the top-right
   // of the Top 24h hero (home + /top-articles + /{date}). v2.6.13+.

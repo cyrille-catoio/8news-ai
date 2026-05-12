@@ -20,7 +20,11 @@ export function LandingPricing({ lang }: { lang: LandingLang }) {
               <div className="price-row">
                 <div className="price">
                   {pl.price}
-                  <small>{pl.per}</small>
+                  {pl.per ? (
+                    <small className={pl.featured ? "price-period-annual" : "price-period"}>
+                      {pl.per}
+                    </small>
+                  ) : null}
                 </div>
                 {pl.priceYear && (
                   <div className="price-year">

@@ -183,6 +183,11 @@ export function UsersSection({ lang }: { lang: Lang }) {
   const [editLang, setEditLang] = useState<"en" | "fr">("en");
   const [editDailyNewsletter, setEditDailyNewsletter] = useState(false);
   const [saving, setSaving] = useState(false);
+  /** One-click newsletter opt-in from the read-mode newsletter cell.
+   *  Keeps the common path (subscribe a user) out of the heavier
+   *  pencil-edit flow while preserving edit mode for full metadata
+   *  changes and unsubscribe. */
+  const [enrollingNewsletterId, setEnrollingNewsletterId] = useState<string | null>(null);
   /** Per-row spinner for the « send newsletter » action — the row's
    *  paper-plane icon spins while the request is in flight so the
    *  operator can't double-fire. */
@@ -281,6 +286,44 @@ export function UsersSection({ lang }: { lang: Lang }) {
       setSendingId(null);
       // Self-clear after 6 s so a stale banner doesn't linger when the
       // operator moves on to other rows.
+      window.setTimeout(() => setNotice(null), 6_000);
+    }
+  }
+
+  async function enrollNewsletter(u: UserRow) {
+    if (u.dailyNewsletter || enrollingNewsletterId) return;
+    setEnrollingNewsletterId(u.id);
+    setNotice(null);
+    try {
+      const res = await fetch(`/api/users/${u.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dailyNewsletter: true }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setUsers((cur) =>
+        cur.map((row) =>
+          row.id === u.id ? { ...row, dailyNewsletter: true } : row,
+        ),
+      );
+      setNotice({
+        tone: "ok",
+        message: t("usersNewsletterSubscribeSuccess", lang).replace(
+          "{email}",
+          u.email,
+        ),
+      });
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : "unknown";
+      setNotice({
+        tone: "error",
+        message: t("usersNewsletterSubscribeError", lang).replace(
+          "{detail}",
+          detail,
+        ),
+      });
+    } finally {
+      setEnrollingNewsletterId(null);
       window.setTimeout(() => setNotice(null), 6_000);
     }
   }
@@ -461,16 +504,70 @@ export function UsersSection({ lang }: { lang: Lang }) {
                         )}
                       </td>
                       <td style={{ ...tdStyle, textAlign: "center" }}>
-                        <DailyNewsletterStatus
-                          enabled={isEditing ? editDailyNewsletter : u.dailyNewsletter}
-                          interactive={isEditing && !saving}
-                          onToggle={
-                            isEditing && !saving
-                              ? () => setEditDailyNewsletter((v) => !v)
-                              : undefined
-                          }
-                          ariaLabel={t("usersDailyNewsletter", lang)}
-                        />
+                        <div
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 8,
+                          }}
+                        >
+                          <DailyNewsletterStatus
+                            enabled={isEditing ? editDailyNewsletter : u.dailyNewsletter}
+                            interactive={isEditing && !saving}
+                            onToggle={
+                              isEditing && !saving
+                                ? () => setEditDailyNewsletter((v) => !v)
+                                : undefined
+                            }
+                            ariaLabel={t("usersDailyNewsletter", lang)}
+                          />
+                          {!isEditing && u.dailyNewsletter && (
+                            <span
+                              style={{
+                                color: "#4ade80",
+                                fontSize: 11,
+                                fontWeight: 700,
+                                letterSpacing: "0.04em",
+                                textTransform: "uppercase",
+                              }}
+                            >
+                              {t("usersNewsletterSubscribed", lang)}
+                            </span>
+                          )}
+                          {!isEditing && !u.dailyNewsletter && (
+                            <button
+                              type="button"
+                              onClick={() => void enrollNewsletter(u)}
+                              disabled={enrollingNewsletterId === u.id}
+                              aria-label={t("usersNewsletterSubscribeAria", lang).replace(
+                                "{email}",
+                                u.email,
+                              )}
+                              style={{
+                                border: `1px solid ${color.gold}`,
+                                borderRadius: 999,
+                                background: "rgba(201,162,39,0.10)",
+                                color: color.gold,
+                                cursor:
+                                  enrollingNewsletterId === u.id
+                                    ? "wait"
+                                    : "pointer",
+                                fontSize: 11,
+                                fontWeight: 700,
+                                lineHeight: 1,
+                                padding: "5px 9px",
+                                minWidth: 66,
+                              }}
+                            >
+                              {enrollingNewsletterId === u.id ? (
+                                <span style={spinnerStyle(11)} />
+                              ) : (
+                                t("usersNewsletterSubscribeButton", lang)
+                              )}
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td style={{ ...tdStyle, color: color.textMuted, fontSize: 12, whiteSpace: "nowrap" }}>
                         {new Date(u.createdAt).toLocaleDateString(locale)}

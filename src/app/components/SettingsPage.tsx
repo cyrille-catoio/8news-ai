@@ -393,16 +393,14 @@ function SubscriptionPanel({
   const benefits =
     lang === "fr"
       ? [
-          "Prix fondateur 8 €/mois ou 88 €/an.",
+          "Prix fondateur 88 € / an, facturation annuelle uniquement.",
           "Topics sur mesure avec découverte IA des flux.",
           "Plus de résumés YouTube et suivi de chaînes favorites.",
-          "Brief matinal activable dès maintenant.",
         ]
       : [
-          "Founder price at $8/month or $88/year.",
+          "Founder price $88/year, annual billing only.",
           "Custom topics with AI feed discovery.",
           "More YouTube summaries and favorite channel monitoring.",
-          "Morning brief can be enabled today.",
         ];
 
   return (

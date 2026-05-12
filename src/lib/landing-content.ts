@@ -94,16 +94,16 @@ export const LANDING_CONTENT: LandingContent = {
   hero: {
     kicker: { en: "Tech · AI · Crypto", fr: "Tech · IA · Crypto" },
     headline: {
-      en: "AI scores videos first.<br /><em>Articles too.</em>",
-      fr: "L'IA note les vidéos d'abord.<br /><em>Les articles aussi.</em>",
+      en: "Stop scrolling.<br /><em>Read the top 10%.</em>",
+      fr: "Arrête de scroller.<br /><em>Lis les 10% qui comptent.</em>",
     },
     sub: {
       // Folded the « YouTube intelligence » section copy into the hero
       // so the visitor gets the full pitch in the first viewport
       // (LandingYT was removed in v2.6.4 — its standalone visual
       // becomes the hero illustration).
-      en: "AI scores both videos and articles so you know what deserves your time. Start with the videos that matter: 8news ingests the YouTube channels you follow, transcribes long podcasts, scores their importance and turns them into structured Markdown summaries. Around them, 400+ curated RSS feeds continuously score the best articles in tech, AI and crypto. One product for video intelligence and article monitoring, bilingual EN / FR.",
-      fr: "L'IA note à la fois les vidéos et les articles pour vous dire ce qui mérite votre temps. Commencez par les vidéos qui comptent : 8news récupère les chaînes YouTube que vous suivez, transcrit les longs podcasts, note leur importance et les transforme en résumés Markdown structurés. Autour, 400+ flux RSS curés scorent en continu les meilleurs articles tech, IA et crypto. Un seul produit pour la veille vidéo et la veille articles, bilingue EN / FR.",
+      en: "AI scores every YouTube video and every RSS article from 1 to 10. You only read what scores 9 or 10.",
+      fr: "L'IA note chaque vidéo YouTube et chaque article RSS de 1 à 10. Tu ne lis que ce qui est noté 9 ou 10.",
     },
     ctaPrimary: { en: "Try it now →", fr: "Essayer →" },
     ctaSecondary: { en: "See a daily summary", fr: "Voir un résumé du jour" },

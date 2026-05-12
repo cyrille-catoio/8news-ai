@@ -9,6 +9,16 @@ export interface ChangelogEntryDef {
 
 export const CHANGELOG_ENTRIES: ChangelogEntryDef[] = [
   {
+    version: "2.7.2",
+    title_en: "v2.7.2: sharper marketing hero around AI scoring and top 10% reading",
+    title_fr: "v2.7.2 : hero marketing resserré sur le scoring IA et les 10 % à lire",
+    body_en:
+      "**Marketing hero copy tightened.** The landing H1 now leads with the value proposition: \"Stop scrolling. Read the top 10%.\" The subcopy says exactly how 8news earns that promise: AI scores every YouTube video and every RSS article from 1 to 10, and the reader only spends time on items scored 9 or 10.\n\n**Release.** Bump 2.7.1 → 2.7.2. No DB migration.",
+    body_fr:
+      "**Copy du hero marketing resserrée.** Le H1 de la landing expose maintenant directement la proposition de valeur : « Arrête de scroller. Lis les 10% qui comptent. » Le sous-texte explique précisément comment 8news tient cette promesse : l'IA note chaque vidéo YouTube et chaque article RSS de 1 à 10, et le lecteur ne passe du temps que sur les contenus notés 9 ou 10.\n\n**Release.** Bump 2.7.1 → 2.7.2. Pas de migration DB.",
+    created_at: "2026-05-12T15:21:00Z",
+  },
+  {
     version: "2.7.1",
     title_en: "v2.7.1: AI-forward marketing hero + 9/10 score badge + videos-and-articles scoring copy",
     title_fr: "v2.7.1 : hero marketing centré IA + badge 9/10 + copy scoring vidéos et articles",

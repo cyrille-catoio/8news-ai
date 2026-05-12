@@ -49,7 +49,7 @@ import { BriefingPage } from "@/app/components/BriefingPage";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.7.1";
+const APP_VERSION = "2.7.2";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 const NEWS_API_TRANSIENT_STATUSES = new Set([502, 503, 504]);
 const NEWS_API_RETRY_DELAY_MS = 750;

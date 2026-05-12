@@ -275,7 +275,7 @@ export async function getArticleImageUrlsByLinks(
 
   try {
     const supabase = await clientP;
-    let res = await supabase
+    const res = await supabase
       .from("articles")
       .select("link, image_url")
       .in("link", unique);

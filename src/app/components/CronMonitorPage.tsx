@@ -50,10 +50,9 @@ export function CronMonitorPage({ lang }: { lang: Lang }) {
 
   function reasonLabel(status: string, reason: string | undefined): string {
     if (status === "ok" || !reason) return "";
-    const threshold = status === "high" ? "30m" : "15m";
     if (reason === "backlog") return status === "high" ? "backlog > 200" : "backlog ≥ 50";
-    if (reason === "fetch") return `fetch > ${threshold}`;
-    return `score > ${threshold}`;
+    if (reason === "fetch") return status === "high" ? "fetch > 40m" : "fetch > 20m";
+    return status === "high" ? "score > 45m" : "score > 30m";
   }
 
   function kpiColor(val: number, thresholds: [number, number], invert = false): string {

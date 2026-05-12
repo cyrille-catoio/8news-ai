@@ -9,6 +9,16 @@ export interface ChangelogEntryDef {
 
 export const CHANGELOG_ENTRIES: ChangelogEntryDef[] = [
   {
+    version: "2.7.3",
+    title_en: "v2.7.3: 10-minute RSS fetching cadence with safer background claims",
+    title_fr: "v2.7.3 : cadence RSS 10 minutes avec claims background plus sûrs",
+    body_en:
+      "**RSS fetching tuned for a 10-minute scheduler.** `cron-fetching-background` now defaults to a 10-minute staleness window, a 14.5-minute internal budget under Netlify's 15-minute background-function wall, and a single pass per scheduled tick. `FETCH_MAX_PASSES=0` remains available for an explicit catch-up run that loops until the budget guard.\n\n**Safer concurrent runs.** Before fetching a topic, the cron now claims it with a conditional `last_fetched_at` update. If another background invocation already claimed the same stale topic, the current run skips it and logs `claim_skipped` instead of duplicating RSS work.\n\n**Cron monitor aligned.** `/api/cron-stats` and the Cron Monitor reason labels now match the 10-minute fetch cadence: fetch is `slow` after 20 minutes and `high` after 40 minutes. Scoring keeps the 15-minute cadence-derived thresholds.\n\n**Docs and marketing copy refreshed.** `SPEC.md` and the landing \"How it works\" copy now describe the 10-minute fetch cadence instead of the old minute-based wording.\n\n**Release.** Bump 2.7.2 → 2.7.3. No DB migration.",
+    body_fr:
+      "**Fetching RSS réglé pour un scheduler 10 minutes.** `cron-fetching-background` utilise maintenant par défaut une fenêtre de fraîcheur de 10 minutes, un budget interne de 14,5 minutes sous la limite Netlify background de 15 minutes, et un seul pass par tick planifié. `FETCH_MAX_PASSES=0` reste disponible pour un run de rattrapage explicite qui boucle jusqu'au garde-fou de budget.\n\n**Runs concurrents plus sûrs.** Avant de fetcher un topic, le cron le claim via une mise à jour conditionnelle de `last_fetched_at`. Si une autre invocation background a déjà claim le même topic stale, le run courant le skip et log `claim_skipped` au lieu de dupliquer le travail RSS.\n\n**Cron Monitor aligné.** `/api/cron-stats` et les labels de raison du Cron Monitor correspondent maintenant à la cadence fetch 10 minutes : le fetch passe en `slow` après 20 minutes et en `high` après 40 minutes. Le scoring conserve ses seuils dérivés de la cadence 15 minutes.\n\n**Docs et copy marketing rafraîchies.** `SPEC.md` et la section landing « Fonctionnement » décrivent maintenant la cadence fetch 10 minutes au lieu de l'ancien wording à la minute.\n\n**Release.** Bump 2.7.2 → 2.7.3. Pas de migration DB.",
+    created_at: "2026-05-12T20:23:28Z",
+  },
+  {
     version: "2.7.2",
     title_en: "v2.7.2: sharper marketing hero around AI scoring and top 10% reading",
     title_fr: "v2.7.2 : hero marketing resserré sur le scoring IA et les 10 % à lire",

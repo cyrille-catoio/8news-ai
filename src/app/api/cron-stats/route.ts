@@ -23,9 +23,12 @@ function percentile(values: number[], p: number): number {
 }
 
 const SCORING_CRON_INTERVAL_MINUTES = 15;
+const FETCH_CRON_INTERVAL_MINUTES = 10;
 const FRESH_BACKLOG_WINDOW_MINUTES = SCORING_CRON_INTERVAL_MINUTES;
 const SCORE_SLOW_AFTER_MINUTES = SCORING_CRON_INTERVAL_MINUTES * 2;
 const SCORE_HIGH_AFTER_MINUTES = SCORING_CRON_INTERVAL_MINUTES * 3;
+const FETCH_SLOW_AFTER_MINUTES = FETCH_CRON_INTERVAL_MINUTES * 2;
+const FETCH_HIGH_AFTER_MINUTES = FETCH_CRON_INTERVAL_MINUTES * 4;
 const FETCH_TO_SCORE_SLA_MINUTES = SCORING_CRON_INTERVAL_MINUTES;
 
 export async function GET() {
@@ -161,13 +164,13 @@ export async function GET() {
     let statusReason = "";
     if (backlog > 200) {
       status = "high"; statusReason = "backlog";
-    } else if (fetchAge > 30) {
+    } else if (fetchAge > FETCH_HIGH_AFTER_MINUTES) {
       status = "high"; statusReason = "fetch";
     } else if (backlog > 0 && scoreAge > SCORE_HIGH_AFTER_MINUTES) {
       status = "high"; statusReason = "score";
     } else if (backlog >= 50) {
       status = "slow"; statusReason = "backlog";
-    } else if (fetchAge > 15) {
+    } else if (fetchAge > FETCH_SLOW_AFTER_MINUTES) {
       status = "slow"; statusReason = "fetch";
     } else if (backlog > 0 && scoreAge > SCORE_SLOW_AFTER_MINUTES) {
       status = "slow"; statusReason = "score";

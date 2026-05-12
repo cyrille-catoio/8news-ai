@@ -169,12 +169,12 @@ export const LANDING_CONTENT: LandingContent = {
     },
     steps: {
       en: [
-        { num: "01", title: "Fetch", body: "Every minute, scheduled Netlify functions poll 400+ RSS feeds across 36 topics. Duplicates are dropped. 4,284 articles land in Supabase on an average day.", viz: "fetch" },
+        { num: "01", title: "Fetch", body: "Every 10 minutes, Netlify background functions poll 400+ RSS feeds across 36 topics. Duplicates are dropped. 4,284 articles land in Supabase on an average day.", viz: "fetch" },
         { num: "02", title: "Score", body: "GPT-4.1-nano rates each article 1–10 against the topic's custom scoring tiers. Only 5+ gets summarized. Fresh articles are prioritized with an adaptive budget.", viz: "score" },
         { num: "03", title: "Summarize", body: "The latest OpenAI models read the top 20–50 pre-scored articles and return eight bullet points with source refs. ElevenLabs reads it aloud if you want.", viz: "summary" },
       ],
       fr: [
-        { num: "01", title: "Collecte", body: "Chaque minute, des fonctions Netlify interrogent 400+ flux RSS sur 36 topics. Les doublons sont écartés. 4 284 articles atterrissent dans Supabase un jour moyen.", viz: "fetch" },
+        { num: "01", title: "Collecte", body: "Toutes les 10 minutes, des fonctions Netlify background interrogent 400+ flux RSS sur 36 topics. Les doublons sont écartés. 4 284 articles atterrissent dans Supabase un jour moyen.", viz: "fetch" },
         { num: "02", title: "Scoring", body: "GPT-4.1-nano note chaque article de 1 à 10 selon les paliers de scoring du topic. Seuls les 5+ sont résumés. Les articles frais sont priorisés.", viz: "score" },
         { num: "03", title: "Résumé", body: "Les derniers modèles OpenAI lisent les 20–50 meilleurs articles pré-scorés et renvoient huit puces avec sources. ElevenLabs peut vous le lire à voix haute.", viz: "summary" },
       ],

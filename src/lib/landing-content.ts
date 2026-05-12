@@ -94,16 +94,16 @@ export const LANDING_CONTENT: LandingContent = {
   hero: {
     kicker: { en: "Tech · AI · Crypto", fr: "Tech · IA · Crypto" },
     headline: {
-      en: "Two hours of YouTube,<br /><em>read in 8 minutes.</em>",
-      fr: "2 heures de YouTube,<br /><em>lues en 8 minutes.</em>",
+      en: "AI scores videos first.<br /><em>Articles too.</em>",
+      fr: "L'IA note les vidéos d'abord.<br /><em>Les articles aussi.</em>",
     },
     sub: {
       // Folded the « YouTube intelligence » section copy into the hero
       // so the visitor gets the full pitch in the first viewport
       // (LandingYT was removed in v2.6.4 — its standalone visual
       // becomes the hero illustration).
-      en: "A 2-hour podcast, summarized in 8 key points. Pick the YouTube channels you follow. 8news ingests daily uploads, transcribes the ones you click, and returns a structured Markdown summary. Smart bilingual: summary in English and translated to French in under 10 seconds. Download the full transcript as a .txt file or the summary as .md in one click.",
-      fr: "Un podcast de 2 heures, résumé en 8 points clés. Choisissez les chaînes YouTube que vous suivez. 8news récupère les uploads du jour, transcrit celles que vous cliquez, et renvoie un résumé Markdown structuré. Bilingue intelligent, résumé en anglais et traduit en français en moins de 10 secondes. Téléchargez la transcription complète au format .txt ou le résumé au format .md en un clic.",
+      en: "AI scores both videos and articles so you know what deserves your time. Start with the videos that matter: 8news ingests the YouTube channels you follow, transcribes long podcasts, scores their importance and turns them into structured Markdown summaries. Around them, 400+ curated RSS feeds continuously score the best articles in tech, AI and crypto. One product for video intelligence and article monitoring, bilingual EN / FR.",
+      fr: "L'IA note à la fois les vidéos et les articles pour vous dire ce qui mérite votre temps. Commencez par les vidéos qui comptent : 8news récupère les chaînes YouTube que vous suivez, transcrit les longs podcasts, note leur importance et les transforme en résumés Markdown structurés. Autour, 400+ flux RSS curés scorent en continu les meilleurs articles tech, IA et crypto. Un seul produit pour la veille vidéo et la veille articles, bilingue EN / FR.",
     },
     ctaPrimary: { en: "Try it now →", fr: "Essayer →" },
     ctaSecondary: { en: "See a daily summary", fr: "Voir un résumé du jour" },
@@ -127,12 +127,12 @@ export const LANDING_CONTENT: LandingContent = {
   scoringSection: {
     kicker: { en: "Live · scoring console", fr: "Live · console de scoring" },
     title: {
-      en: "Every RSS article scored <em>1 to 10</em> the second it lands.",
-      fr: "Chaque article RSS noté <em>1 à 10</em> à la seconde où il tombe.",
+      en: "Every article and video scored by AI <em>1 to 10</em>.",
+      fr: "Chaque article et chaque vidéo notés par l'IA <em>1 à 10</em>.",
     },
     sub: {
-      en: "400+ feeds, refreshed every minute. Below is the live ladder of what the AI just scored — same scoring you see inside the app.",
-      fr: "400+ flux, rafraîchis chaque minute. Ci-dessous l'échelle live de ce que l'IA vient de scorer — exactement le même score que dans l'app.",
+      en: "400+ RSS feeds and your YouTube channels feed the same AI scoring layer. Below is the live ladder of what the AI just scored — the same signal you see inside the app for articles and video recaps.",
+      fr: "400+ flux RSS et vos chaînes YouTube alimentent la même couche de scoring IA. Ci-dessous l'échelle live de ce que l'IA vient de noter — le même signal que dans l'app pour les articles et les récaps vidéo.",
     },
   },
   ticker: {
@@ -171,12 +171,12 @@ export const LANDING_CONTENT: LandingContent = {
       en: [
         { num: "01", title: "Fetch", body: "Every minute, scheduled Netlify functions poll 400+ RSS feeds across 36 topics. Duplicates are dropped. 4,284 articles land in Supabase on an average day.", viz: "fetch" },
         { num: "02", title: "Score", body: "GPT-4.1-nano rates each article 1–10 against the topic's custom scoring tiers. Only 5+ gets summarized. Fresh articles are prioritized with an adaptive budget.", viz: "score" },
-        { num: "03", title: "Summarize", body: "GPT-5.3-chat-latest reads the top 20–50 pre-scored articles and returns eight bullet points with source refs. ElevenLabs reads it aloud if you want.", viz: "summary" },
+        { num: "03", title: "Summarize", body: "The latest OpenAI models read the top 20–50 pre-scored articles and return eight bullet points with source refs. ElevenLabs reads it aloud if you want.", viz: "summary" },
       ],
       fr: [
         { num: "01", title: "Collecte", body: "Chaque minute, des fonctions Netlify interrogent 400+ flux RSS sur 36 topics. Les doublons sont écartés. 4 284 articles atterrissent dans Supabase un jour moyen.", viz: "fetch" },
         { num: "02", title: "Scoring", body: "GPT-4.1-nano note chaque article de 1 à 10 selon les paliers de scoring du topic. Seuls les 5+ sont résumés. Les articles frais sont priorisés.", viz: "score" },
-        { num: "03", title: "Résumé", body: "GPT-5.3-chat-latest lit les 20–50 meilleurs articles pré-scorés et renvoie huit puces avec sources. ElevenLabs peut vous le lire à voix haute.", viz: "summary" },
+        { num: "03", title: "Résumé", body: "Les derniers modèles OpenAI lisent les 20–50 meilleurs articles pré-scorés et renvoient huit puces avec sources. ElevenLabs peut vous le lire à voix haute.", viz: "summary" },
       ],
     },
   },

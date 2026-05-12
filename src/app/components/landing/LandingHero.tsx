@@ -53,6 +53,10 @@ export function LandingHero({ lang }: { lang: LandingLang }) {
                 "0 20px 60px -20px rgba(201, 162, 39, 0.15), 0 0 0 1px rgba(255,255,255,0.02) inset",
             }}
           />
+          <div className="hero-ai-score-badge" aria-label={lang === "fr" ? "Note IA 9 sur 10" : "AI score 9 out of 10"}>
+            <span>{lang === "fr" ? "Note IA" : "AI score"}</span>
+            <strong>9/10</strong>
+          </div>
         </div>
       </div>
     </section>

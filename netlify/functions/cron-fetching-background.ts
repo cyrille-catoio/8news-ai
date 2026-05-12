@@ -6,21 +6,23 @@ import { fetchAndStoreTopicDynamic } from "./shared/fetch-topic";
 // by cron-scoring-background.ts so each function stays specialized.
 const CRON_TIMEOUT_MS = Number(process.env.CRON_BACKGROUND_FETCH_TIMEOUT_MS ?? 15 * 60_000);
 const CRON_BUDGET_MS = Number(process.env.CRON_BACKGROUND_FETCH_BUDGET_MS ?? 14.5 * 60_000);
-const CRON_INTERVAL_MS = Number(process.env.CRON_BACKGROUND_FETCH_INTERVAL_MS ?? 10 * 60_000);
+const CRON_INTERVAL_MS = Number(process.env.CRON_BACKGROUND_FETCH_INTERVAL_MS ?? 15 * 60_000);
 const CRON_SAFETY_RESERVE_MS = Number(process.env.CRON_BACKGROUND_FETCH_SAFETY_RESERVE_MS ?? 15_000);
 const FETCH_TOPIC_START_MIN_REMAINING_MS = Number(
   process.env.FETCH_TOPIC_START_MIN_REMAINING_MS ?? 45_000,
 );
-// Default to one pass for a 10-minute external cadence. The previous
+// Default to one pass for a 15-minute external cadence. The previous
 // multi-pass default was useful for a shorter trigger, but with
 // background functions allowed to overlap it could refetch a topic inside
 // the same invocation. Set FETCH_MAX_PASSES=0 to restore "until budget"
 // behavior for a catch-up run.
 const FETCH_MAX_PASSES = Number(process.env.FETCH_MAX_PASSES ?? 1);
 // A topic is stale if it hasn't been claimed/fetched in this many ms.
-// last_fetched_at doubles as a lightweight claim timestamp, so the
-// default follows the external cron interval.
-const STALE_THRESHOLD_MS = Number(process.env.FETCH_STALE_THRESHOLD_MS ?? CRON_INTERVAL_MS);
+// Keep the default below the 15-minute scheduler interval: topics claimed
+// a few minutes into the previous run are still eligible on the next tick,
+// while the conditional claim below prevents concurrent duplicate work.
+const DEFAULT_STALE_THRESHOLD_MS = Math.min(CRON_INTERVAL_MS, 10 * 60_000);
+const STALE_THRESHOLD_MS = Number(process.env.FETCH_STALE_THRESHOLD_MS ?? DEFAULT_STALE_THRESHOLD_MS);
 
 function isStale(lastFetchedAt: string | null, nowMs: number): boolean {
   if (!lastFetchedAt) return true;
@@ -65,7 +67,7 @@ export default async () => {
   const maxPasses = FETCH_MAX_PASSES <= 0 ? Number.POSITIVE_INFINITY : FETCH_MAX_PASSES;
 
   // Each pass picks topics that went stale since the last fetch. With a
-  // 10-minute external trigger the default is a single pass; concurrent
+  // 15-minute external trigger the default is a single pass; concurrent
   // background invocations coordinate through the conditional claim below.
   while (totalPasses < maxPasses && budgetRemaining() > CRON_SAFETY_RESERVE_MS) {
     totalPasses += 1;

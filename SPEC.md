@@ -71,7 +71,7 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 | Database | Supabase (PostgreSQL) | via `@supabase/supabase-js` ^2.99.2 |
 | Auth (session cookies) | Supabase Auth + `@supabase/ssr` ^0.10.2 — browser anon client + `middleware.ts` refresh + `resolveServerLang()` SSR helper | — |
 | Hosting | Netlify | via `@netlify/plugin-nextjs` ^5.15.8 |
-| Cron Jobs | Netlify Background Functions (15 min budget) triggered every 10 min for fetching, every 15 min for scoring/transcribe/summary/roundup/video-summary-score, and **once a day** for `cron-top-summary-background` by **cron-job.org** | `@netlify/functions` ^5.1.4 |
+| Cron Jobs | Netlify Background Functions (15 min budget) triggered every 15 min for fetching/scoring/transcribe/summary/roundup/video-summary-score, and **once a day** for `cron-top-summary-background` by **cron-job.org** | `@netlify/functions` ^5.1.4 |
 | Domain | 8news.ai (redirect from 8news.netlify.app) | |
 
 ---
@@ -152,7 +152,7 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 │       │   ├── fetch-topic.ts                  # Re-exports `@/lib/fetch-topic-dynamic` for cron bundling
 │       │   ├── score-topic.ts                  # Re-exports `@/lib/score-topic-dynamic` for cron bundling
 │       │   └── transcribe-video.ts             # **v2.5+**: Re-exports `@/lib/transcribe-video` for cron bundling
-│       ├── cron-fetching-background.ts         # Claimed RSS fetch (15 min wall budget, every 10 min)
+│       ├── cron-fetching-background.ts         # Claimed RSS fetch (15 min wall budget, every 15 min)
 │       ├── cron-scoring-background.ts          # Multi-pass AI scoring (15 min wall budget, every 15 min)
 │       ├── cron-daily-summary-background.ts    # Daily SEO summary generation (every 15 min, all topics × EN+FR, skip-if-exists)
 │       ├── cron-video-roundup-background.ts    # **v2.4+**: Per-topic-per-day roundups, **v2.4.1+** 48 h source window
@@ -360,7 +360,7 @@ Entries are defined in **`src/lib/changelog-entries.ts`** and auto-synced to the
 
 ### 6.1 Netlify Background Functions (Cron Jobs)
 
-All cron functions run as **Netlify background functions** (15 min wall budget). Triggers come from **cron-job.org** (POST every 10 min for fetching, every 15 min for the heavier scoring/transcribe/summary jobs — Netlify's own scheduling is not used so the cadence stays decoupled from the deploy). Background functions return 202 immediately; cron-job.org accepts that as success.
+All cron functions run as **Netlify background functions** (15 min wall budget). Triggers come from **cron-job.org** (POST every 15 min for fetching and the heavier scoring/transcribe/summary jobs — Netlify's own scheduling is not used so the cadence stays decoupled from the deploy). Background functions return 202 immediately; cron-job.org accepts that as success.
 
 Canonical implementations live in `src/lib/`:
 - `fetch-topic-dynamic.ts` (`fetchAndStoreTopicDynamic`, returns `FetchResult`)
@@ -373,10 +373,11 @@ Canonical implementations live in `src/lib/`:
 
 #### `cron-fetching-background.ts` — RSS fetching
 
-- Triggered every 10 min by cron-job.org
-- Default timing: `CRON_BACKGROUND_FETCH_TIMEOUT_MS = 900_000`, `CRON_BACKGROUND_FETCH_BUDGET_MS = 870_000`, `CRON_BACKGROUND_FETCH_INTERVAL_MS = 600_000`, `CRON_BACKGROUND_FETCH_SAFETY_RESERVE_MS = 15_000`
+- Triggered every 15 min by cron-job.org
+- Default timing: `CRON_BACKGROUND_FETCH_TIMEOUT_MS = 900_000`, `CRON_BACKGROUND_FETCH_BUDGET_MS = 870_000`, `CRON_BACKGROUND_FETCH_INTERVAL_MS = 900_000`, `FETCH_STALE_THRESHOLD_MS = 600_000`, `CRON_BACKGROUND_FETCH_SAFETY_RESERVE_MS = 15_000`
 - Loads active topics ordered by oldest `last_fetched_at` (nulls first)
-- Single-pass by default (`FETCH_MAX_PASSES = 1`) for the 10-min cadence; set `FETCH_MAX_PASSES = 0` for a one-off catch-up run that keeps looping until budget guard
+- Single-pass by default (`FETCH_MAX_PASSES = 1`) for the 15-min cadence; set `FETCH_MAX_PASSES = 0` for a one-off catch-up run that keeps looping until budget guard
+- The stale threshold intentionally defaults to 10 min, below the 15-min scheduler interval, so topics claimed a few minutes into the previous run remain eligible on the next tick.
 - `last_fetched_at` doubles as a lightweight claim timestamp. Each topic claim is an `UPDATE ... WHERE last_fetched_at IS NULL OR last_fetched_at < cutoff`, so overlapping background invocations skip topics already claimed by another run.
 - For each claimed topic: fetches all active RSS feeds, parses, upserts into `articles`
 - Emits structured run metrics (elapsed, inserted, claim skips, deadline stops)
@@ -575,7 +576,7 @@ Cron monitoring endpoint. Returns real-time statistics about fetch and scoring j
 - `topics[]`: per-topic status (id, label, lastFetchedAt, lastScoredAt, backlog, status: ok/slow/high, optional **statusReason**: `"backlog"` \| `"fetch"` \| `"score"` for slow/high — used in the Topic Status table **Reason** column)
 - `timeline[]`: hourly buckets (hour, fetched, scored) for the last 24h
 
-**Status rules**: `high` if backlog >200, fetch age >40min, or (backlog >0 **and** score age >45min); `slow` if backlog ≥50, fetch age >20min, or (backlog >0 **and** score age >30min); `ok` otherwise. **v1.82+**: score age is only penalized when there are unscored articles to process.
+**Status rules**: `high` if backlog >200, fetch age >60min, or (backlog >0 **and** score age >45min); `slow` if backlog ≥50, fetch age >30min, or (backlog >0 **and** score age >30min); `ok` otherwise. **v1.82+**: score age is only penalized when there are unscored articles to process.
 
 Uses **pagination in 1000-row batches** (PostgREST max rows per response) so counts and timelines include all matching rows, not only the first page.
 
@@ -1195,7 +1196,7 @@ interface CronStatsResponse {
           ┌────────────────────────────────────────────────────────────┐
           │  BACKGROUND (Netlify Background Functions, cron-job.org)   │
           │                                                            │
-          │  cron-fetching-background.ts        (every 10 min)         │
+          │  cron-fetching-background.ts        (every 15 min)         │
           │  - Claim stale active topics (oldest last_fetched_at)      │
           │  - RSS → parse → upsert `articles`                         │
           │                                                            │
@@ -1256,7 +1257,7 @@ User opens /archives, /[topic], /[topic]/[date]/[slug],
 - **Build command**: `npm run build`
 - **Publish directory**: `.next`
 - **Plugin**: `@netlify/plugin-nextjs`
-- **Background functions**: 8 cron jobs — `cron-fetching-background` (suggested cadence every 10 min), `cron-scoring-background`, `cron-daily-summary-background`, `cron-video-roundup-background`, `cron-video-transcribe-background`, `cron-video-summary-score-background` (batched 1-10 quality score for `video_transcriptions.summary_md`; same 15 min wall as other long crons; trigger on your cadence, e.g. every 15 min — no auth, URL-obscurity like the other background crons), **`cron-top-summary-background`** — daily Top articles AI summary snapshot (suggested cadence `0 2 * * *` UTC; one tick per day produces the EN+FR rows in `top_summaries`; bootstrap manually after first deploy with `curl https://<host>/.netlify/functions/cron-top-summary-background`), and **v2.6.12+ `cron-newsletter-daily-background`** — daily Top 24h newsletter (suggested cadence `30 6 * * *` UTC, runs 30 min after the snapshot cron; reads the latest `top_summaries` snapshot per lang + buckets opted-in subscribers by `user_metadata.preferred_lang`; ships in 100-recipient chunks via Resend's `POST /emails/batch`; details in § Cron jobs → `cron-newsletter-daily-background.ts`).
+- **Background functions**: 8 cron jobs — `cron-fetching-background` (suggested cadence every 15 min), `cron-scoring-background`, `cron-daily-summary-background`, `cron-video-roundup-background`, `cron-video-transcribe-background`, `cron-video-summary-score-background` (batched 1-10 quality score for `video_transcriptions.summary_md`; same 15 min wall as other long crons; trigger on your cadence, e.g. every 15 min — no auth, URL-obscurity like the other background crons), **`cron-top-summary-background`** — daily Top articles AI summary snapshot (suggested cadence `0 2 * * *` UTC; one tick per day produces the EN+FR rows in `top_summaries`; bootstrap manually after first deploy with `curl https://<host>/.netlify/functions/cron-top-summary-background`), and **v2.6.12+ `cron-newsletter-daily-background`** — daily Top 24h newsletter (suggested cadence `30 6 * * *` UTC, runs 30 min after the snapshot cron; reads the latest `top_summaries` snapshot per lang + buckets opted-in subscribers by `user_metadata.preferred_lang`; ships in 100-recipient chunks via Resend's `POST /emails/batch`; details in § Cron jobs → `cron-newsletter-daily-background.ts`).
 - **Rewrites**: every `/app/*` SPA pseudo-route is rewritten to `/app` via `next.config.ts.beforeFiles` (hard-refresh resilience for the SPA)
 - **Domain**: `8news.ai`
 - **Redirect**: `8news.netlify.app/*` → `8news.ai/:splat` (301)

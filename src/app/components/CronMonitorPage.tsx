@@ -36,6 +36,12 @@ export function CronMonitorPage({ lang }: { lang: Lang }) {
     return `${hours} ${t("hoursAgo", lang)}`;
   }
 
+  function ageMinutes(iso: string | null, nowMs: number): number | null {
+    if (!iso) return null;
+    const ms = nowMs - new Date(iso).getTime();
+    return Number.isFinite(ms) ? Math.floor(ms / 60_000) : null;
+  }
+
   function statusIcon(s: "ok" | "slow" | "high"): string {
     if (s === "ok") return "✅";
     if (s === "slow") return "⚠️";
@@ -51,7 +57,7 @@ export function CronMonitorPage({ lang }: { lang: Lang }) {
   function reasonLabel(status: string, reason: string | undefined): string {
     if (status === "ok" || !reason) return "";
     if (reason === "backlog") return status === "high" ? "backlog > 200" : "backlog ≥ 50";
-    if (reason === "fetch") return status === "high" ? "fetch > 40m" : "fetch > 20m";
+    if (reason === "fetch") return status === "high" ? "fetch > 60m" : "fetch > 30m";
     return status === "high" ? "score > 45m" : "score > 30m";
   }
 
@@ -186,11 +192,32 @@ export function CronMonitorPage({ lang }: { lang: Lang }) {
               </tr>
             </thead>
             <tbody>
-              {data.topics.map((tp) => (
+              {data.topics.map((tp) => {
+                const fetchAgeMinutes = ageMinutes(tp.lastFetchedAt, generatedAtMs);
+                const scoreAgeMinutes = ageMinutes(tp.lastScoredAt, generatedAtMs);
+                const fetchIsLate = fetchAgeMinutes !== null && fetchAgeMinutes > 30;
+                const scoreIsLate = scoreAgeMinutes !== null && scoreAgeMinutes > 60;
+                return (
                 <tr key={tp.id}>
                   <td style={{ ...tdStyle, fontWeight: 600 }}>{tp.label}</td>
-                  <td style={tdStyle}>{timeAgo(tp.lastFetchedAt, generatedAtMs)}</td>
-                  <td style={tdStyle}>{timeAgo(tp.lastScoredAt, generatedAtMs)}</td>
+                  <td
+                    style={{
+                      ...tdStyle,
+                      color: fetchIsLate ? "#ef4444" : color.text,
+                      fontWeight: fetchIsLate ? 700 : undefined,
+                    }}
+                  >
+                    {timeAgo(tp.lastFetchedAt, generatedAtMs)}
+                  </td>
+                  <td
+                    style={{
+                      ...tdStyle,
+                      color: scoreIsLate ? "#ef4444" : color.text,
+                      fontWeight: scoreIsLate ? 700 : undefined,
+                    }}
+                  >
+                    {timeAgo(tp.lastScoredAt, generatedAtMs)}
+                  </td>
                   <td style={{
                     ...tdStyle,
                     textAlign: "right",
@@ -200,7 +227,8 @@ export function CronMonitorPage({ lang }: { lang: Lang }) {
                   <td style={tdStyle}>{statusIcon(tp.status)} {statusLabel(tp.status)}</td>
                   <td style={{ ...tdStyle, color: color.textDim, fontSize: 12 }}>{reasonLabel(tp.status, tp.statusReason)}</td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

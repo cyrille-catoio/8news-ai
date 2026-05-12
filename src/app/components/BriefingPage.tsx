@@ -14,6 +14,21 @@ import type { TopicLabel } from "@/lib/types";
 import type { AppNavPage } from "@/app/components/AppHeader";
 import { summaryPath } from "@/lib/summary-routes";
 import { stripEmoji } from "@/lib/html";
+import { getCookie, setCookie } from "@/lib/cookies";
+
+/** Cookie key for the home « Top 24h podcast » read state. Value =
+ *  UTC date string (`YYYY-MM-DD`) of the day on which the user marked
+ *  the hero as read. We compare to `todayUtc()` at mount so a stale
+ *  cookie from yesterday is automatically treated as « unread » — no
+ *  need to expire it explicitly, and a fresh briefing always promotes
+ *  the hero back to the top of the home regardless of past sessions.
+ *  Stored as a cookie (not localStorage) so the value survives
+ *  cross-tab + private browsing per the user's request. */
+const TOP24H_READ_COOKIE = "top24hRead";
+
+function todayUtcDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 /** Tier color for an inline 1-10 score badge. Mirrors `ScoreMeter`. */
 function scoreTierColor(score: number): string {
@@ -264,6 +279,30 @@ export function BriefingPage({
     return summaryRoutes.find((r) => r.lang === lang) ?? null;
   }, [summaryRoutes, lang]);
 
+  // ─── Top 24h podcast « lue » toggle ─────────────────────────────────
+  // v2.6.15+ — small checkbox at the bottom of the home `Top24hHero`.
+  // Initial state is read from a cookie that stores the UTC date the
+  // user last marked « lue »; if the cookie matches today's UTC date,
+  // the hero is « read » and we demote the card below the transcribed-
+  // videos list. Stale cookies (yesterday's, or never set) read as
+  // unread → hero stays pinned at the top of the home as before.
+  const [topHeroRead, setTopHeroRead] = useState(false);
+  useEffect(() => {
+    setTopHeroRead(getCookie(TOP24H_READ_COOKIE) === todayUtcDate());
+  }, []);
+  const onToggleTopHeroRead = useCallback(() => {
+    setTopHeroRead((prev) => {
+      const next = !prev;
+      if (next) {
+        setCookie(TOP24H_READ_COOKIE, todayUtcDate(), 7);
+      } else {
+        // `days=0` zeroes `max-age` → browser drops the cookie.
+        setCookie(TOP24H_READ_COOKIE, "", 0);
+      }
+      return next;
+    });
+  }, []);
+
   // ─── Trending topics (powered by /api/topics/trending) ──────────────
   const [trending, setTrending] = useState<TrendingTopic[]>([]);
   useEffect(() => {
@@ -506,10 +545,24 @@ export function BriefingPage({
       ) : (
         <>
           {/* Top articles 24h hero — pre-computed daily briefing pinned
-              at the very top. Self-fetches the latest snapshot so its
-              loading / error / 404 states stay fully isolated from the
-              rest of the home (a missing snapshot just hides the card). */}
-          <HomeTop24hHero lang={lang} onNavigate={onNavigate} />
+              at the very top by default. Self-fetches the latest
+              snapshot so its loading / error / 404 states stay fully
+              isolated from the rest of the home (a missing snapshot
+              just hides the card).
+              v2.6.15+ — the user can mark today's briefing as « lue »
+              via the bottom-left checkbox, which sets a cookie. When
+              checked, we skip the card here and re-emit it after the
+              `<RecentVideoPagesSection>` block below so the briefing
+              stays accessible but doesn't crowd the top of the home
+              once the visitor has already consumed it. */}
+          {!topHeroRead && (
+            <HomeTop24hHero
+              lang={lang}
+              onNavigate={onNavigate}
+              isRead={topHeroRead}
+              onToggleRead={onToggleTopHeroRead}
+            />
+          )}
 
           {/* Top articles 24h hero, TOP VIDEO, Top story, puis « Toutes les vidéos transcrites », Tendances, résumé du jour, top 5, … */}
           {videosLoading ? (
@@ -561,6 +614,20 @@ export function BriefingPage({
             topicLabels={topicLabels}
             lang={lang}
           />
+
+          {/* v2.6.15+ — demoted slot for the Top 24h hero when the user
+              has ticked « Lue » on the card above. The card stays
+              identical (checkbox + accordion + see-all link), just no
+              longer above the fold. Unchecking the box reverts to the
+              top placement on the next render. */}
+          {topHeroRead && (
+            <HomeTop24hHero
+              lang={lang}
+              onNavigate={onNavigate}
+              isRead={topHeroRead}
+              onToggleRead={onToggleTopHeroRead}
+            />
+          )}
 
           {trending.length > 0 && (
             <TrendingStrip
@@ -1308,10 +1375,6 @@ function RecentVideoPagesSection({
   const [page, setPage] = useState(1);
   const [data, setData] = useState<RecentVideoPagesResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  /** videoId of the row currently under the mouse — drives the hover
-   *  highlight so the user can visually pair a title with its score. */
-  const [hoveredVideoId, setHoveredVideoId] = useState<string | null>(null);
-
   // Refetch whenever the page or lang changes. AbortController prevents
   // an in-flight response from a stale page from racing the latest one.
   useEffect(() => {
@@ -1390,20 +1453,18 @@ function RecentVideoPagesSection({
 
   return (
     <section style={{ marginBottom: 36 }}>
-      <div style={{
-        display: "flex", justifyContent: "space-between", alignItems: "baseline",
-        marginBottom: 12, flexWrap: "wrap", gap: 8,
-      }}>
-        <div style={{ ...kicker(color.gold) }}>
+      <div className="recent-video-section-head">
+        <div className="recent-video-heading" style={{ ...kicker(color.gold) }}>
           {lang === "fr" ? "Toutes les vidéos transcrites" : "All transcribed videos"}
         </div>
       </div>
 
       <div
+        className="recent-video-panel"
         style={{
           ...card,
           display: "block",
-          padding: "12px 16px",
+          padding: undefined,
           borderColor: color.gold,
           background:
             "linear-gradient(180deg, rgba(201,162,39,0.04), transparent 60%), " + color.surface,
@@ -1420,89 +1481,37 @@ function RecentVideoPagesSection({
               : "No transcribed videos yet."}
           </div>
         ) : (
-          <ul style={{ listStyle: "none", padding: 0, margin: 0, opacity: loading ? 0.6 : 1, transition: "opacity 120ms ease" }}>
+          <ul className="recent-video-list" style={{ opacity: loading ? 0.6 : 1 }}>
             {items.map((p) => {
               const cleanTitle = stripEmoji(p.title);
               const hasScore =
                 typeof p.summaryScore === "number"
                 && p.summaryScore >= 1
                 && p.summaryScore <= 10;
-              const isHovered = hoveredVideoId === p.videoId;
               const formattedDate = p.publishedDate
                 ? new Date(`${p.publishedDate}T00:00:00`).toLocaleDateString(locale, dateFmt)
                 : "";
               return (
-                <li key={p.videoId} style={{ marginBottom: 2 }}>
+                <li key={p.videoId} className="recent-video-item">
                   <a
                     href={`/${p.topicId}/v/${p.publishedDate}/${p.slug}`}
-                    onMouseEnter={() => setHoveredVideoId(p.videoId)}
-                    onMouseLeave={() =>
-                      setHoveredVideoId((cur) => (cur === p.videoId ? null : cur))
-                    }
-                    onFocus={() => setHoveredVideoId(p.videoId)}
-                    onBlur={() =>
-                      setHoveredVideoId((cur) => (cur === p.videoId ? null : cur))
-                    }
-                    style={{
-                      display: "flex",
-                      alignItems: "baseline",
-                      gap: 8,
-                      color: color.text,
-                      textDecoration: "none",
-                      fontSize: 14,
-                      lineHeight: 1.4,
-                      padding: "4px 8px",
-                      margin: "0 -8px",
-                      borderRadius: 4,
-                      background: isHovered ? "#252525" : "transparent",
-                      borderLeft: isHovered
-                        ? `3px solid ${color.gold}`
-                        : "3px solid transparent",
-                      paddingLeft: 6,
-                      transition: "background 120ms ease, border-color 120ms ease",
-                    }}
+                    className="recent-video-link"
                   >
-                    <span style={{
-                      fontSize: 10, fontWeight: 700, color: color.gold,
-                      border: `1px solid ${color.gold}`, borderRadius: 3,
-                      padding: "1px 5px", letterSpacing: "0.03em",
-                      textTransform: "uppercase",
-                      flexShrink: 0,
-                      // Top-aligned next to the first line of a multi-line
-                      // title (parent's baseline alignment would let the
-                      // badge drop too low when the title wraps). The 2px
-                      // top margin lines the badge's top edge up with the
-                      // visual top of the title's first line at 14px / 1.4.
-                      alignSelf: "flex-start",
-                      marginTop: 2,
-                    }}>
+                    <span className="recent-video-topic">
                       {labelById.get(p.topicId) ?? p.topicId}
                     </span>
-                    <span style={{ flex: "1 1 auto", minWidth: 0 }}>{cleanTitle}</span>
+                    <span className="recent-video-title">{cleanTitle}</span>
                     {formattedDate && (
-                      <span
-                        style={{
-                          flexShrink: 0,
-                          color: color.textMuted,
-                          fontSize: 12,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {`— ${formattedDate}`}
+                      <span className="recent-video-date">
+                        {formattedDate}
                       </span>
                     )}
                     <span
+                      className="recent-video-score"
                       aria-label={hasScore ? `Score ${p.summaryScore}/10` : undefined}
                       aria-hidden={hasScore ? undefined : true}
                       style={{
-                        flexShrink: 0,
-                        fontFamily: "ui-monospace, Menlo, monospace",
-                        fontSize: 12,
-                        fontWeight: 700,
                         color: hasScore ? scoreTierColor(p.summaryScore as number) : "transparent",
-                        whiteSpace: "nowrap",
-                        minWidth: 36,
-                        textAlign: "right",
                       }}
                     >
                       {hasScore ? `${p.summaryScore}/10` : "—/10"}
@@ -1519,10 +1528,7 @@ function RecentVideoPagesSection({
           during `loading` (only dimmed) so rapid taps compose; only
           logical boundaries (page 1 / totalPages) actually disable. */}
       {totalPages > 1 && (
-        <div style={{
-          display: "flex", justifyContent: "space-between", alignItems: "center",
-          marginTop: 10,
-        }}>
+        <div className="recent-video-pager">
           <button
             type="button"
             onClick={onPrev}
@@ -1536,7 +1542,7 @@ function RecentVideoPagesSection({
           >
             {lang === "fr" ? "‹ Précédent" : "‹ Previous"}
           </button>
-          <div style={{ color: color.textDim, fontSize: 11 }}>
+          <div className="recent-video-page-label">
             {lang === "fr" ? `Page ${page} / ${totalPages}` : `Page ${page} of ${totalPages}`}
           </div>
           <button

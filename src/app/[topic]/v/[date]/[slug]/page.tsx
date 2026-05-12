@@ -13,6 +13,7 @@ import { normalizeSummaryHeadings } from "@/lib/summary-headings";
 import { SeoNavBar } from "@/app/components/SeoNavBar";
 import { SeoGeneralMenu } from "@/app/components/GeneralMenu";
 import { VideoPageAudio } from "@/app/components/VideoPageAudio";
+import { VideoPageFavoriteButton } from "@/app/components/VideoPageFavoriteButton";
 import type { Lang } from "@/lib/i18n";
 
 // react-markdown is imported directly for SSR — the SPA's VideosPage uses
@@ -210,6 +211,9 @@ export default async function VideoSeoPage({ params }: PageProps) {
   const durationLabel = formatDuration(page.video?.duration_sec ?? null);
   /** Per-lang translated title (mig. 023) → YouTube title → stored fallback. */
   const videoTitle = page.title_localized ?? page.video?.title ?? page.title;
+  const favoriteUrl = page.video?.link ?? `https://www.youtube.com/watch?v=${page.video_id}`;
+  const favoriteSource = page.video?.channel_title ?? topicLabel;
+  const favoritePubDate = page.video?.published ?? `${date}T00:00:00Z`;
 
   // JSON-LD: VideoObject (rich snippet on Google) + Article (so the page
   // qualifies for News-style boxes too). Both schemas reference the
@@ -282,10 +286,23 @@ export default async function VideoSeoPage({ params }: PageProps) {
                 {page.video.channel_title}
               </span>
             )}
-            <span style={{ color: color.textMuted, fontSize: 13 }}>
-              {new Date(page.video?.published ?? `${date}T00:00:00Z`).toLocaleDateString(locale, {
-                day: "numeric", month: "long", year: "numeric",
-              })}
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+              <span style={{ color: color.textMuted, fontSize: 13 }}>
+                {new Date(favoritePubDate).toLocaleString(locale, {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
+              <VideoPageFavoriteButton
+                url={favoriteUrl}
+                title={videoTitle}
+                source={favoriteSource}
+                pubDate={favoritePubDate}
+                lang={lang}
+              />
             </span>
             {durationLabel && (
               <span style={{ color: color.textMuted, fontSize: 13 }}>

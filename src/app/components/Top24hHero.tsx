@@ -209,12 +209,23 @@ export function Top24hHero({
   defaultOpen = false,
   title,
   appendSummaryDateToTitle = false,
+  isRead,
+  onToggleRead,
 }: {
   lang: Lang;
   /** Required when `showSeeAllLink` is `true` (default). The footer
    *  « Read the full briefing → » button calls `onNavigate("topArticles")`
    *  to switch the SPA to the dedicated /top-articles page. */
   onNavigate?: (page: AppNavPage) => void;
+  /** Controlled « read » state of the hero. When `onToggleRead` is
+   *  also provided (parent-controlled, v2.6.15+), the bottom-left of
+   *  the card renders a compact « Lue / Read » checkbox. Currently
+   *  driven by `BriefingPage` so it can demote the hero below the
+   *  transcribed-videos list once the user checks it; other consumers
+   *  (`/top-articles`, archive pages) leave both props undefined and
+   *  the checkbox stays hidden. */
+  isRead?: boolean;
+  onToggleRead?: () => void;
   /** When provided (even as `null`), the component skips its self-fetch
    *  and uses the parent's snapshot directly. Lets the /top-articles
    *  page pass its own already-fetched snapshot so we don't duplicate
@@ -363,8 +374,10 @@ export function Top24hHero({
             "linear-gradient(180deg, rgba(201,162,39,0.04), transparent 60%), " + color.surface,
         }}
       >
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 14 }}>
+        <div className="top24h-hero-header" style={{ marginBottom: 14 }}>
+          <div className="top24h-hero-heading-row">
           <h2
+            className="top24h-hero-title"
             style={{
               fontFamily: "ui-serif, Georgia, serif",
               fontSize: "clamp(20px, 2.6vw, 26px)",
@@ -377,14 +390,6 @@ export function Top24hHero({
           >
             {headingTitle}
           </h2>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "flex-end",
-              gap: 6,
-            }}
-          >
             {/* Master toggle. `allOpen` reflects « every group is
                 expanded »; clicking flips the whole set in one
                 update. Title attribute doubles as a tooltip for the
@@ -400,6 +405,7 @@ export function Top24hHero({
               return (
                 <button
                   type="button"
+                  className="top24h-hero-toggle"
                   onClick={() => {
                     if (allOpen) setOpenIdx(new Set());
                     else
@@ -444,12 +450,15 @@ export function Top24hHero({
                 </button>
               );
             })()}
-            <div style={{ color: color.textDim, fontSize: 12, letterSpacing: "0.02em" }}>
-              {t("topSummaryGeneratedOn", lang).replace(
-                "{date}",
-                new Date(snap.generatedAt).toLocaleString(locale),
-              )}
-            </div>
+          </div>
+          <div
+            className="top24h-hero-generated"
+            style={{ color: color.textDim, fontSize: 12, letterSpacing: "0.02em" }}
+          >
+            {t("topSummaryGeneratedOn", lang).replace(
+              "{date}",
+              new Date(snap.generatedAt).toLocaleString(locale),
+            )}
           </div>
         </div>
 
@@ -629,24 +638,79 @@ export function Top24hHero({
           })}
         </ul>
 
-        {showSeeAllLink && onNavigate && (
-          <div style={{ marginTop: 14, textAlign: "right" }}>
-            <button
-              type="button"
-              onClick={() => onNavigate("topArticles")}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: color.gold,
-                cursor: "pointer",
-                fontSize: 13,
-                fontWeight: 600,
-                padding: "4px 0",
-                letterSpacing: "0.01em",
-              }}
-            >
-              {t("top24hHeroSeeAll", lang)}
-            </button>
+        {/* Bottom action row: « Lue » checkbox on the left (when the
+            parent opted in by passing `isRead` + `onToggleRead`) and
+            the « Read the full briefing → » link on the right. Rendered
+            as a single flex row so the two affordances sit side-by-side
+            on a wide card; the row gracefully collapses when only one
+            is present, keeping spacing balanced. */}
+        {(onToggleRead || (showSeeAllLink && onNavigate)) && (
+          <div
+            style={{
+              marginTop: 14,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            {onToggleRead ? (
+              <label
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  cursor: "pointer",
+                  color: isRead ? color.gold : color.textMuted,
+                  fontSize: 13,
+                  fontWeight: 500,
+                  userSelect: "none",
+                  transition: "color 140ms ease",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={isRead ?? false}
+                  onChange={onToggleRead}
+                  // Pure native checkbox with the gold tint via
+                  // `accentColor` — keeps the OS focus ring + a11y
+                  // semantics without re-implementing a custom toggle.
+                  style={{
+                    width: 14,
+                    height: 14,
+                    margin: 0,
+                    accentColor: color.gold,
+                    cursor: "pointer",
+                  }}
+                />
+                {t("top24hHeroReadLabel", lang)}
+              </label>
+            ) : (
+              // Placeholder spacer so the see-all link stays right-aligned
+              // when the checkbox is intentionally hidden (e.g. on
+              // /top-articles). Zero-width div keeps `space-between`
+              // semantics intact without altering the visual layout.
+              <span />
+            )}
+            {showSeeAllLink && onNavigate && (
+              <button
+                type="button"
+                onClick={() => onNavigate("topArticles")}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: color.gold,
+                  cursor: "pointer",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  padding: "4px 0",
+                  letterSpacing: "0.01em",
+                }}
+              >
+                {t("top24hHeroSeeAll", lang)}
+              </button>
+            )}
           </div>
         )}
       </div>

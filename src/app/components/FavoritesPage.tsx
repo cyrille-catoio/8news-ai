@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, type CSSProperties } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { t, dateLocale, type Lang } from "@/lib/i18n";
 import { color, sectionCard, spinnerStyle } from "@/lib/theme";
 import { CopyLinkButton } from "@/app/components/CopyLinkButton";
@@ -43,6 +44,7 @@ interface FavoriteItem {
   createdAt: string;
   videoId: string | null;
   hasTranscription: boolean;
+  internalPath: string | null;
 }
 
 type FilterType = "all" | "article" | "video";
@@ -81,6 +83,22 @@ function summaryMdToTtsText(summaryMd: string, videoTitle: string, lang: Lang): 
   const maxBody = 4800 - intro.length;
   const body = plain.length > maxBody ? plain.slice(0, maxBody) + "…" : plain;
   return body.length > 0 ? `${intro} ${body}` : "";
+}
+
+function isYouTubeFavoriteUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, "");
+    return host === "youtu.be" || host === "youtube.com" || host.endsWith(".youtube.com");
+  } catch {
+    return false;
+  }
+}
+
+function favoriteVideoHref(fav: FavoriteItem, lang: Lang): string {
+  if (fav.internalPath) {
+    return lang === "fr" ? `${fav.internalPath}?lang=fr` : fav.internalPath;
+  }
+  return "/app/videos";
 }
 
 export function FavoritesPage({
@@ -211,7 +229,17 @@ export function FavoritesPage({
           {filtered.map((fav, i) => {
             let domain = "";
             try { domain = new URL(fav.url).hostname.replace("www.", ""); } catch { /* */ }
-            const isVideo = (fav.sourceType || "article") === "video";
+            const isVideo =
+              (fav.sourceType || "article") === "video" || isYouTubeFavoriteUrl(fav.url);
+            const titleHref = isVideo ? favoriteVideoHref(fav, lang) : fav.url;
+            const openTitleExternally = !isVideo;
+            const titleStyle = {
+              textDecoration: "none",
+              color: color.text,
+              fontWeight: 500,
+              fontSize: 14,
+              lineHeight: 1.4,
+            } as const;
 
             return (
               <div
@@ -245,14 +273,20 @@ export function FavoritesPage({
                   </svg>
                 </button>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <a
-                    href={fav.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ textDecoration: "none", color: color.text, fontWeight: 500, fontSize: 14, lineHeight: 1.4 }}
-                  >
-                    {fav.title}
-                  </a>
+                  {openTitleExternally ? (
+                    <a
+                      href={titleHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={titleStyle}
+                    >
+                      {fav.title}
+                    </a>
+                  ) : (
+                    <Link href={titleHref} style={titleStyle}>
+                      {fav.title}
+                    </Link>
+                  )}
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
                     <span style={{ color: color.textDim, fontSize: 12 }}>
                       <span style={{ color: color.gold, fontWeight: 600, marginRight: 4 }}>{isVideo ? "VIDEO" : "ARTICLE"}</span>

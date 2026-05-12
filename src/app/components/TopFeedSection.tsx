@@ -82,6 +82,7 @@ export function TopFeedSection({
             <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
               {art.imageUrl && !brokenImages.has(art.imageUrl) ? (
                 <img
+                  className="top-feed-thumb"
                   src={art.imageUrl}
                   alt=""
                   loading="lazy"

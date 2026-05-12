@@ -33,9 +33,19 @@ import { Top24hHero } from "@/app/components/Top24hHero";
 export function HomeTop24hHero({
   lang,
   onNavigate,
+  isRead,
+  onToggleRead,
 }: {
   lang: Lang;
   onNavigate: (page: AppNavPage) => void;
+  /** v2.6.15+ — parent (`BriefingPage`) controls a « Lue / Read »
+   *  checkbox via a cookie. When checked, BriefingPage demotes this
+   *  hero below the transcribed-videos list, so the parent owns the
+   *  state. We just forward the props to the base; if either is
+   *  undefined the checkbox is hidden (e.g. on `/top-articles` or
+   *  archive surfaces that don't pass them). */
+  isRead?: boolean;
+  onToggleRead?: () => void;
 }) {
   return (
     <Top24hHero
@@ -43,6 +53,8 @@ export function HomeTop24hHero({
       onNavigate={onNavigate}
       title={t("top24hHeroHomeTitle", lang)}
       appendSummaryDateToTitle
+      isRead={isRead}
+      onToggleRead={onToggleRead}
     />
   );
 }

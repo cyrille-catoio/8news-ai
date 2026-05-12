@@ -6,6 +6,7 @@ import {
   addUserFavorite,
   removeUserFavorite,
   getVideoIdsWithTranscription,
+  getVideoPagePathsByVideoIds,
 } from "@/lib/supabase";
 
 export async function GET(req: NextRequest) {
@@ -22,9 +23,8 @@ export async function GET(req: NextRequest) {
   const lang = req.nextUrl.searchParams.get("lang") ?? "en";
   const favorites = await getUserFavorites(auth.user.id);
 
-  const videoFavs = favorites.filter((f) => (f.source_type || "article") === "video");
   const videoIdMap = new Map<string, string>();
-  for (const f of videoFavs) {
+  for (const f of favorites) {
     const vid = extractYouTubeVideoId(f.article_url);
     if (vid) videoIdMap.set(f.article_url, vid);
   }
@@ -32,6 +32,10 @@ export async function GET(req: NextRequest) {
   const transcribedIds = videoIdMap.size > 0
     ? await getVideoIdsWithTranscription([...videoIdMap.values()], lang === "fr" ? "fr" : "en")
     : new Set<string>();
+  const pageLang = lang === "fr" ? "fr" : "en";
+  const internalPaths = videoIdMap.size > 0
+    ? await getVideoPagePathsByVideoIds([...videoIdMap.values()], pageLang)
+    : new Map<string, string>();
 
   return NextResponse.json(
     {
@@ -47,6 +51,7 @@ export async function GET(req: NextRequest) {
           createdAt: f.created_at,
           videoId: vid ?? null,
           hasTranscription: vid ? transcribedIds.has(vid) : false,
+          internalPath: vid ? (internalPaths.get(vid) ?? null) : null,
         };
       }),
     },

@@ -726,3 +726,54 @@ export async function getVideoIdsWithTranscription(
     return new Set();
   }
 }
+
+/** Resolve each `video_id` to its in-app SSR page path
+ *  `/{topic}/v/{date}/{slug}` for the requested UI lang. Rows missing
+ *  `topic_id`, `published_date` or `slug_keywords` are omitted so the
+ *  caller can fall back to the stored YouTube URL. */
+export async function getVideoPagePathsByVideoIds(
+  videoIds: string[],
+  lang: string,
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (videoIds.length === 0) return out;
+  const clientP = getServerClient();
+  if (!clientP) return out;
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("video_transcriptions")
+      .select("video_id, topic_id, published_date, slug_keywords, lang")
+      .in("video_id", videoIds)
+      .not("topic_id", "is", null)
+      .not("published_date", "is", null)
+      .not("slug_keywords", "is", null);
+    if (error || !data) return out;
+    const preferredLang = lang === "fr" ? "fr" : "en";
+    const rows = (data as Array<{
+      video_id: string;
+      topic_id: string;
+      published_date: string;
+      slug_keywords: string;
+      lang: string;
+    }>).slice();
+    rows.sort((a, b) => {
+      const aPreferred = a.lang === preferredLang ? 0 : 1;
+      const bPreferred = b.lang === preferredLang ? 0 : 1;
+      return aPreferred - bPreferred;
+    });
+    for (const row of rows) {
+      if (!row.video_id || !row.topic_id || !row.published_date || !row.slug_keywords) {
+        continue;
+      }
+      if (out.has(row.video_id)) continue;
+      out.set(
+        row.video_id,
+        `/${row.topic_id}/v/${row.published_date}/${row.slug_keywords}`,
+      );
+    }
+    return out;
+  } catch {
+    return out;
+  }
+}

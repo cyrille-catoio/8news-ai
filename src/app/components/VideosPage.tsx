@@ -293,6 +293,7 @@ export function VideosPage({
     <div>
       <h2 style={{ color: color.gold, fontSize: 20, fontWeight: 600, marginBottom: 12, marginTop: 16 }}>
         {lang === "fr" ? "Vidéos du jour" : "Videos of the day"}
+        {!loading && ` (${visibleVideos.length})`}
       </h2>
 
       {/* ── Date row: navigation left, Shorts toggle right (aligned with video cards) ── */}

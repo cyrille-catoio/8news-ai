@@ -51,7 +51,7 @@ export default function LegalNoticePage() {
             fontWeight: 700,
           }}
         >
-          ← Retour à l'accueil
+          ← Retour à l&apos;accueil
         </Link>
 
         <section style={{ ...cardStyle, marginTop: 22 }}>
@@ -98,7 +98,7 @@ export default function LegalNoticePage() {
 
           <p style={{ color: "#8a8a8a", fontSize: 13, marginBottom: 0 }}>
             Pour toute question relative au site, à son contenu ou à son exploitation,
-            vous pouvez contacter l'éditeur à l'adresse email ci-dessus.
+            vous pouvez contacter l&apos;éditeur à l&apos;adresse email ci-dessus.
           </p>
         </section>
       </div>

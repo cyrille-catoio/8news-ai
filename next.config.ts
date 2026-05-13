@@ -7,6 +7,7 @@ import type { NextConfig } from "next";
 const SPA_ROUTES = [
   "/app",
   "/app/articles",
+  "/app/my-topics",
   "/app/videos",
   "/app/stats",
   "/app/crons",

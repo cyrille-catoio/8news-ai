@@ -158,6 +158,35 @@ export function AuthModal({
     fontFamily: font.base,
   };
 
+  /** Full-width CTA to switch to sign-up — intentionally high-contrast vs. text link. */
+  const btnSignUpCta: CSSProperties = {
+    width: "100%",
+    marginTop: 18,
+    padding: "12px 16px",
+    borderRadius: 8,
+    border: `2px solid ${color.gold}`,
+    background: "rgba(201,162,39,0.14)",
+    color: color.gold,
+    fontWeight: 700,
+    fontSize: 15,
+    letterSpacing: "0.01em",
+    cursor: "pointer",
+    fontFamily: font.base,
+    transition: "background 0.15s, transform 0.15s",
+  };
+
+  const linkToOtherMode: CSSProperties = {
+    marginTop: 14,
+    width: "100%",
+    border: "none",
+    background: "transparent",
+    color: color.textMuted,
+    fontSize: 13,
+    cursor: "pointer",
+    textDecoration: "underline",
+    fontFamily: font.base,
+  };
+
   return (
     <div
       role="dialog"
@@ -300,27 +329,31 @@ export function AuthModal({
               </button>
             </form>
 
-            <button
-              type="button"
-              onClick={() => {
-                setMode(mode === "signin" ? "signup" : "signin");
-                setError(null);
-                setInfo(null);
-              }}
-              style={{
-                marginTop: 14,
-                width: "100%",
-                border: "none",
-                background: "transparent",
-                color: color.gold,
-                fontSize: 13,
-                cursor: "pointer",
-                textDecoration: "underline",
-                fontFamily: font.base,
-              }}
-            >
-              {mode === "signin" ? t("authSwitchToSignUp", lang) : t("authSwitchToSignIn", lang)}
-            </button>
+            {mode === "signin" ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("signup");
+                  setError(null);
+                  setInfo(null);
+                }}
+                style={btnSignUpCta}
+              >
+                {t("authSwitchToSignUp", lang)}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("signin");
+                  setError(null);
+                  setInfo(null);
+                }}
+                style={linkToOtherMode}
+              >
+                {t("authSwitchToSignIn", lang)}
+              </button>
+            )}
           </>
         )}
       </div>

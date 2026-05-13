@@ -76,8 +76,10 @@ export function useUserTopics(isAuthenticated: boolean) {
     }, 300);
   }, []);
 
-  // Toggle a single topic in/out of the DRAFT (live during edit mode).
-  // Saves to DB immediately but does NOT update preferredTopicIds → no feed refresh.
+  // Toggle a single topic in/out. Since v2.7.6 the dedicated "Mes topics"
+  // page is auto-save: updating the draft also commits immediately so
+  // "Ma veille", Top articles and newsletter use the new watchlist without
+  // a separate "Done" button.
   const toggleTopicPreference = useCallback(
     (topicId: string, allTopics: TopicItem[]) => {
       setDraftTopicIds((prev) => {
@@ -86,6 +88,7 @@ export function useUserTopics(isAuthenticated: boolean) {
         const next = current.includes(topicId)
           ? current.filter((id) => id !== topicId)
           : [...current, topicId];
+        setPreferredTopicIds(next);
         savePreferences(next);
         return next;
       });

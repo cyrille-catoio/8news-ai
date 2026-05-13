@@ -9,6 +9,16 @@ export interface ChangelogEntryDef {
 
 export const CHANGELOG_ENTRIES: ChangelogEntryDef[] = [
   {
+    version: "2.7.6",
+    title_en: "v2.7.6: My briefing vs My topics split + Favorites for guests + clearer auth signup",
+    title_fr: "v2.7.6 : Ma veille / Mes topics + Favoris invités + inscription plus visible",
+    body_en:
+      "**My briefing vs My topics.** The general menu splits consumption and configuration: **My briefing** (`/app/articles`) is for instant AI summaries from followed topics; **My topics** (`/app/my-topics`) is dedicated to choosing which topics you follow. Topic toggles on the settings page auto-save on each click. SPA routing, `next.config` rewrites, and `middleware` include the new path.\n\n**Favorites before sign-in.** The Favorites pill stays visible for anonymous visitors; clicking it opens the sign-in / sign-up modal instead of navigating away. A direct visit to `/app/favorites` while signed out returns to the briefing and opens the same modal. The SSR `SeoGeneralMenu` always shows the Favorites link to `/app/favorites` (the `useAuth` gate was removed). `GeneralMenu` now correctly destructures `onRequestAuth`, which was previously passed but ignored.\n\n**Auth modal.** The path from sign-in to create-account is a full-width gold-outlined CTA button instead of a small underlined text link; switching back to sign-in from the sign-up form stays a compact text control.\n\n**Release.** Bump 2.7.5 → 2.7.6. No DB migration.",
+    body_fr:
+      "**Ma veille vs Mes topics.** Le menu général sépare lecture et configuration : **Ma veille** (`/app/articles`) pour les résumés IA instantanés à partir des topics suivis ; **Mes topics** (`/app/my-topics`) pour choisir les topics suivis. Les bascules sur la page de paramétrage enregistrent à chaque clic. Routage SPA, rewrites `next.config` et `middleware` incluent le nouveau chemin.\n\n**Favoris sans connexion.** Le pill Favoris reste visible pour les visiteurs anonymes ; un clic ouvre la modale connexion / création de compte. Une visite directe sur `/app/favorites` sans session renvoie vers le briefing et ouvre la même modale. Le `SeoGeneralMenu` affiche toujours le lien Favoris vers `/app/favorites` (suppression du garde-fou `useAuth`). `GeneralMenu` reçoit correctement `onRequestAuth`, auparavant passé mais non utilisé.\n\n**Modale d'auth.** Le passage de la connexion à la création de compte est un bouton CTA pleine largeur bordé or plutôt qu'un petit lien souligné ; le retour « déjà un compte » depuis le formulaire d'inscription reste un lien texte compact.\n\n**Release.** Bump 2.7.5 → 2.7.6. Pas de migration DB.",
+    created_at: "2026-05-14T12:00:00Z",
+  },
+  {
     version: "2.7.5",
     title_en: "v2.7.5: Top 24h podcast history arrows + clearer video channel badges + legal notice page + sharper FAQ",
     title_fr: "v2.7.5 : historique du podcast Top 24h + chaînes vidéo plus visibles + mentions légales + FAQ plus vendeuse",

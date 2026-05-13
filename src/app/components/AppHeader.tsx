@@ -23,6 +23,7 @@ export type AppNavPage =
   | "videos"
   | "youtubeChannels"
   | "users"
+  | "myTopics"
   | "topArticles"
   | "summaries"
   /** v2.5.17+ — anticipated route for a future SPA-internal landing page

@@ -4,6 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 const SPA_PATHS = new Set([
   "/app",
   "/app/articles",
+  "/app/my-topics",
   "/app/stats",
   "/app/crons",
   "/app/topics",

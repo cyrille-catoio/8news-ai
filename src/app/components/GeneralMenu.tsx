@@ -5,7 +5,6 @@ import Link from "next/link";
 import { color } from "@/lib/theme";
 import { t, type Lang } from "@/lib/i18n";
 import type { AppNavPage } from "@/app/components/AppHeader";
-import { useAuth } from "@/app/providers";
 
 /* ── Shared styles ─────────────────────────────────────────────────── */
 
@@ -59,6 +58,8 @@ export function GeneralMenu({
   onAnalyzeTop,
   onNavigateSummaries,
   onNavigateVideos,
+  onNavigateMyTopics,
+  onRequestAuth,
 }: {
   lang: Lang;
   currentPage: AppNavPage;
@@ -70,6 +71,7 @@ export function GeneralMenu({
   onAnalyzeTop: () => void;
   onNavigateSummaries: () => void;
   onNavigateVideos: () => void;
+  onNavigateMyTopics: () => void;
   onRequestAuth?: () => void;
 }) {
   return (
@@ -83,17 +85,17 @@ export function GeneralMenu({
       </button>
       <button
         type="button"
-        onClick={onNavigateVideos}
-        style={currentPage === "videos" ? activeStyle : base}
-      >
-        {t("videosBtn", lang)}
-      </button>
-      <button
-        type="button"
         onClick={onNavigateHome}
         style={currentPage === "home" ? activeStyle : base}
       >
         {t("generalMenuArticlesBtn", lang)}
+      </button>
+      <button
+        type="button"
+        onClick={onNavigateVideos}
+        style={currentPage === "videos" ? activeStyle : base}
+      >
+        {t("videosBtn", lang)}
       </button>
       <button
         type="button"
@@ -115,15 +117,23 @@ export function GeneralMenu({
       >
         {t("dailySummaryBtn", lang)}
       </button>
-      {isAuthenticated && (
-        <button
-          type="button"
-          onClick={onNavigateFavorites}
-          style={currentPage === "favorites" ? activeStyle : base}
-        >
-          {t("myFavoritesBtn", lang)}
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={() => {
+          if (isAuthenticated) onNavigateFavorites();
+          else onRequestAuth?.();
+        }}
+        style={currentPage === "favorites" ? activeStyle : base}
+      >
+        {t("myFavoritesBtn", lang)}
+      </button>
+      <button
+        type="button"
+        onClick={onNavigateMyTopics}
+        style={currentPage === "myTopics" ? activeStyle : base}
+      >
+        {t("myTopicsMenuBtn", lang)}
+      </button>
     </div>
   );
 }
@@ -136,21 +146,18 @@ export function SeoGeneralMenu({
 }: {
   lang: Lang;
   /** `videoBriefings` kept as an alias of `summaries` so the (now-redirected) /briefings legacy callers don't fail typecheck — both surface the unified Archives pill since v2.7.0. */
-  activePage?: "briefing" | "home" | "favorites" | "topArticles" | "summaries" | "videos" | "videoBriefings";
+  activePage?: "briefing" | "home" | "favorites" | "myTopics" | "topArticles" | "summaries" | "videos" | "videoBriefings";
 }) {
-  const { session } = useAuth();
-  const authed = Boolean(session?.user);
-
   return (
     <div style={barWrap}>
       <Link href="/app" style={activePage === "briefing" ? activeStyle : base}>
         {t("briefingBtn", lang)}
       </Link>
-      <Link href="/app/videos" style={activePage === "videos" ? activeStyle : base}>
-        {t("videosBtn", lang)}
-      </Link>
       <Link href="/app/articles" style={activePage === "home" ? activeStyle : base}>
         {t("generalMenuArticlesBtn", lang)}
+      </Link>
+      <Link href="/app/videos" style={activePage === "videos" ? activeStyle : base}>
+        {t("videosBtn", lang)}
       </Link>
       <Link href="/app/top-articles" style={activePage === "topArticles" ? activeStyle : base}>
         {t("analyzeTopArticlesBtn", lang)}
@@ -161,11 +168,12 @@ export function SeoGeneralMenu({
       <Link href="/archives" style={activePage === "summaries" ? activeStyle : base}>
         {t("dailySummaryBtn", lang)}
       </Link>
-      {authed && (
-        <Link href="/app/favorites" style={activePage === "favorites" ? activeStyle : base}>
-          {t("myFavoritesBtn", lang)}
-        </Link>
-      )}
+      <Link href="/app/favorites" style={activePage === "favorites" ? activeStyle : base}>
+        {t("myFavoritesBtn", lang)}
+      </Link>
+      <Link href="/app/my-topics" style={activePage === "myTopics" ? activeStyle : base}>
+        {t("myTopicsMenuBtn", lang)}
+      </Link>
     </div>
   );
 }

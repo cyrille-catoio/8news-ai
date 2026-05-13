@@ -689,16 +689,40 @@ const strings = {
     en: "Home",
     fr: "Accueil",
   },
-  /** General menu: goes to the topic-grouped article flow (`/app/articles`).
-   *  Renamed from "Topics" to "Articles" in v2.5.17, then to "All topics"
-   *  / "Tous les topics" in v2.6.5 to make the affordance clearer — the
-   *  page is, in practice, the entry point to browse every topic the
-   *  visitor has access to (with an article-list per topic). The key
-   *  name `generalMenuArticlesBtn` is kept as a compatibility alias to
-   *  avoid a sweep across 14 unrelated callsites. */
+  /** General menu: goes to the instant topic briefing flow (`/app/articles`).
+   *  The key name `generalMenuArticlesBtn` is kept as a compatibility
+   *  alias to avoid a sweep across unrelated callsites. */
   generalMenuArticlesBtn: {
-    en: "All topics",
-    fr: "Tous les topics",
+    en: "My briefing",
+    fr: "Ma veille",
+  },
+  myTopicsMenuBtn: {
+    en: "My topics",
+    fr: "Mes topics",
+  },
+  myBriefingTitle: {
+    en: "My AI briefing",
+    fr: "Ma veille IA",
+  },
+  myBriefingSubtitle: {
+    en: "Generate an instant summary from the topics you follow. Select a topic and click a time period to analyze the news.",
+    fr: "Générez un résumé instantané à partir de vos topics suivis. Sélectionnez un sujet et cliquez sur une période pour analyser les actualités.",
+  },
+  myTopicsPageTitle: {
+    en: "My topics",
+    fr: "Mes topics",
+  },
+  myTopicsPageSubtitle: {
+    en: "Choose the topics that power your briefing, Top articles and newsletter.",
+    fr: "Choisissez les sujets qui alimentent votre veille, votre top articles et votre newsletter.",
+  },
+  myTopicsSignInTitle: {
+    en: "Sign in to choose your topics",
+    fr: "Connectez-vous pour choisir vos topics",
+  },
+  myTopicsSignInBody: {
+    en: "Your topic watchlist is saved to your account and reused across your briefing, Top articles and newsletter.",
+    fr: "Votre watchlist de topics est liée à votre compte et réutilisée dans votre veille, votre Top articles et votre newsletter.",
   },
   navTopicsAria: {
     en: "Topics",
@@ -1262,17 +1286,10 @@ const strings = {
     en: "Video recaps",
     fr: "Récaps vidéo",
   },
-  /** General menu pill for `/app/videos` — today's videos feed.
-   *  Renamed in v2.6.6 from "Videos / Vidéos" to "All videos / Toutes les
-   *  vidéos" once the home gained a dedicated TOP VIDEO hero card: the
-   *  longer label clarifies that this pill is the exhaustive archive
-   *  view, not a single hero clip. Earlier v2.5.17 rename ("Today's
-   *  Videos" → "Videos") is still relevant in spirit — "today" was
-   *  redundant once the home pill became "Today" — but the shorter
-   *  label confused with the new TOP VIDEO surface. */
+  /** General menu pill for `/app/videos` — today's videos feed. */
   videosBtn: {
-    en: "All videos",
-    fr: "Toutes les vidéos",
+    en: "Videos",
+    fr: "Vidéos",
   },
   videoKindLong: {
     en: "Long",

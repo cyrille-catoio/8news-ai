@@ -15,6 +15,7 @@ import {
   font,
   card,
   spinnerStyle,
+  primaryButtonStyle,
 } from "@/lib/theme";
 import { CopyLinkButton } from "@/app/components/CopyLinkButton";
 import { ScoreMeter } from "@/app/components/ScoreMeter";
@@ -31,7 +32,6 @@ import { TopicsPage } from "@/app/components/TopicsPage";
 import { TTS_VOICES_EN, TTS_VOICES_FR } from "@/app/components/VoiceAccordion";
 import { AppHeader, type AppNavPage } from "@/app/components/AppHeader";
 import { TopFeedSection } from "@/app/components/TopFeedSection";
-import { TopicPersonalizationBar } from "@/app/components/TopicPersonalizationBar";
 import { GeneralMenu } from "@/app/components/GeneralMenu";
 import { TopicOnboardingModal } from "@/app/components/TopicOnboardingModal";
 import { useTopFeed } from "@/hooks/useTopFeed";
@@ -49,7 +49,7 @@ import { BriefingPage } from "@/app/components/BriefingPage";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.7.5";
+const APP_VERSION = "2.7.6";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 const NEWS_API_TRANSIENT_STATUSES = new Set([502, 503, 504]);
 const NEWS_API_RETRY_DELAY_MS = 750;
@@ -254,6 +254,147 @@ function TopicToggle({
         </div>
       )}
     </>
+  );
+}
+
+function MyTopicsPage({
+  lang,
+  isAuthenticated,
+  topics,
+  draftTopicIds,
+  saveStatus,
+  onTogglePreference,
+  onCreateTopic,
+  onRequestAuth,
+}: {
+  lang: Lang;
+  isAuthenticated: boolean;
+  topics: TopicLabel[];
+  draftTopicIds: string[] | null;
+  saveStatus: ReturnType<typeof useUserTopics>["saveStatus"];
+  onTogglePreference: (id: string) => void;
+  onCreateTopic: () => void;
+  onRequestAuth: () => void;
+}) {
+  if (!isAuthenticated) {
+    return (
+      <section style={{ ...card, padding: "28px 24px", marginTop: 16 }}>
+        <h1
+          style={{
+            color: color.text,
+            fontFamily: "ui-serif, Georgia, serif",
+            fontSize: 30,
+            fontWeight: 400,
+            lineHeight: 1.14,
+            margin: "0 0 10px",
+          }}
+        >
+          {t("myTopicsSignInTitle", lang)}
+        </h1>
+        <p style={{ color: color.textMuted, fontSize: 14, lineHeight: 1.6, margin: "0 0 18px", maxWidth: 640 }}>
+          {t("myTopicsSignInBody", lang)}
+        </p>
+        <button
+          type="button"
+          onClick={onRequestAuth}
+          style={{
+            ...primaryButtonStyle,
+            padding: "9px 16px",
+            fontSize: 13,
+            fontWeight: 700,
+          }}
+        >
+          {t("authSignIn", lang)}
+        </button>
+      </section>
+    );
+  }
+
+  return (
+    <section>
+      <h1
+        style={{
+          color: color.text,
+          fontFamily: "ui-serif, Georgia, serif",
+          fontSize: 30,
+          fontWeight: 400,
+          lineHeight: 1.14,
+          marginBottom: 8,
+          marginTop: 0,
+        }}
+      >
+        {t("myTopicsPageTitle", lang)}
+      </h1>
+      <p
+        style={{
+          color: color.textMuted,
+          fontSize: 14,
+          marginTop: 0,
+          marginBottom: 22,
+          lineHeight: 1.6,
+          maxWidth: 680,
+        }}
+      >
+        {t("myTopicsPageSubtitle", lang)}
+      </p>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          flexWrap: "wrap",
+          marginBottom: 16,
+        }}
+      >
+        <button
+          type="button"
+          onClick={onCreateTopic}
+          style={{
+            border: `1px solid ${color.gold}`,
+            background: "#000",
+            color: color.gold,
+            cursor: "pointer",
+            fontFamily: "inherit",
+            padding: "10px 18px",
+            fontSize: 14,
+            fontWeight: 800,
+            borderRadius: 999,
+          }}
+        >
+          {t("myTopicsAddNew", lang)}
+        </button>
+        {saveStatus !== "idle" && (
+          <span
+            style={{
+              color: saveStatus === "error"
+                ? color.errorText
+                : saveStatus === "saved"
+                ? "#4ade80"
+                : color.textMuted,
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: "0.02em",
+            }}
+          >
+            {saveStatus === "saving"
+              ? t("myTopicsSaving", lang)
+              : saveStatus === "saved"
+              ? t("myTopicsSaved", lang)
+              : t("myAccountSaveError", lang)}
+          </span>
+        )}
+      </div>
+      <TopicToggle
+        topics={topics}
+        topic={null}
+        lang={lang}
+        disabled={false}
+        onChange={() => {}}
+        personalizationMode
+        preferredTopicIds={draftTopicIds}
+        onTogglePreference={onTogglePreference}
+      />
+    </section>
   );
 }
 
@@ -658,6 +799,7 @@ export default function Home() {
     briefing: "/app",
     videos: "/app/videos",
     home: "/app/articles",
+    myTopics: "/app/my-topics",
     stats: "/app/stats",
     crons: "/app/crons",
     topics: "/app/topics",
@@ -729,10 +871,7 @@ export default function Home() {
     preferredTopicIds,
     draftTopicIds,
     onboardingNeeded,
-    isPersonalizationMode,
     saveStatus,
-    enterPersonalizationMode,
-    exitPersonalizationMode,
     toggleTopicPreference,
     completeOnboarding,
   } = useUserTopics(isAuthenticated);
@@ -749,6 +888,7 @@ export default function Home() {
     }
     if (!isAuthenticated && currentPage === "favorites") {
       setCurrentPage("briefing", true);
+      setAuthModalOpen(true);
     }
   }, [authLoading, authOwner, isAuthenticated, currentPage, setCurrentPage]);
 
@@ -765,7 +905,6 @@ export default function Home() {
   useEffect(() => {
     if (
       topic &&
-      !isPersonalizationMode &&
       preferredTopicIds !== null &&
       preferredTopicIds.length > 0 &&
       !preferredTopicIds.includes(topic) &&
@@ -774,7 +913,7 @@ export default function Home() {
       handleReset();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preferredTopicIds, isPersonalizationMode, externalArticleTopicId]);
+  }, [preferredTopicIds, externalArticleTopicId]);
 
   const [resultTab, setResultTab] = useState<"relevant" | "all">("relevant");
   const [allArticles, setAllArticles] = useState<AllArticleEntry[]>([]);
@@ -783,11 +922,9 @@ export default function Home() {
   const [periodToast, setPeriodToast] = useState<string | null>(null);
   const periodToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Topics to display: all in personalization mode (so user can toggle any),
-  // filtered by committed prefs otherwise (no change until "Done" is clicked)
-  const displayedTopicLabels: TopicLabel[] = isPersonalizationMode
-    ? topicLabels
-    : (preferredTopicIds?.length ?? 0) > 0
+  // "Ma veille" always shows committed preferences only. Topic editing
+  // lives on the dedicated "Mes topics" page.
+  const displayedTopicLabels: TopicLabel[] = (preferredTopicIds?.length ?? 0) > 0
     ? topicLabels.filter((tp) => preferredTopicIds!.includes(tp.id) || tp.id === externalArticleTopicId)
     : topicLabels;
 
@@ -998,6 +1135,9 @@ export default function Home() {
           onAnalyzeTop={() => setCurrentPage("topArticles")}
           onNavigateSummaries={() => setCurrentPage("summaries")}
           onNavigateVideos={() => setCurrentPage("videos")}
+          onNavigateMyTopics={() => {
+            setCurrentPage("myTopics");
+          }}
           onRequestAuth={() => setAuthModalOpen(true)}
         />
 
@@ -1181,6 +1321,26 @@ export default function Home() {
               </div>
             )}
           </div>
+        ) : currentPage === "myTopics" ? (
+          topicsLoading ? (
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "80px 0" }}>
+              <span style={spinnerStyle(28)} />
+            </div>
+          ) : (
+            <MyTopicsPage
+              lang={lang}
+              isAuthenticated={isAuthenticated}
+              topics={topicLabels}
+              draftTopicIds={draftTopicIds}
+              saveStatus={saveStatus}
+              onTogglePreference={(id) => toggleTopicPreference(id, topics)}
+              onCreateTopic={() => {
+                setTopicsStartInCreate(true);
+                setCurrentPage("topics");
+              }}
+              onRequestAuth={() => setAuthModalOpen(true)}
+            />
+          )
         ) : currentPage === "summaries" ? (
           <ArchivesBrowsePage lang={lang} />
         ) : topicsLoading ? (
@@ -1189,31 +1349,41 @@ export default function Home() {
         </div>
         ) : (
         <>
-        {/* ── Action bar + Topic selector ─────────────────────── */}
+        {/* ── My briefing title + Topic selector ───────────────── */}
         <section style={{ marginBottom: 24 }}>
-          <TopicPersonalizationBar
-            lang={lang}
-            isAuthenticated={isAuthenticated}
-            hasPreferences={(preferredTopicIds?.length ?? 0) > 0}
-            isPersonalizationMode={isPersonalizationMode}
-            saveStatus={saveStatus}
-            onEnterEdit={enterPersonalizationMode}
-            onExitEdit={exitPersonalizationMode}
-            onCreateTopic={() => {
-              setTopicsStartInCreate(true);
-              setCurrentPage("topics");
+          <h1
+            style={{
+              color: color.text,
+              fontFamily: "ui-serif, Georgia, serif",
+              fontSize: 30,
+              fontWeight: 400,
+              lineHeight: 1.14,
+              marginBottom: 8,
+              marginTop: 0,
             }}
-            onRequestAuth={() => setAuthModalOpen(true)}
-          />
+          >
+            {t("myBriefingTitle", lang)}
+          </h1>
+          <p
+            style={{
+              color: color.textMuted,
+              fontSize: 14,
+              marginTop: 0,
+              marginBottom: 18,
+              lineHeight: 1.6,
+              maxWidth: 680,
+            }}
+          >
+            {t("myBriefingSubtitle", lang)}
+          </p>
           <TopicToggle
             topics={displayedTopicLabels}
             topic={topic}
             lang={lang}
             disabled={loading}
             onChange={handleTopicChange}
-            personalizationMode={isPersonalizationMode}
-            preferredTopicIds={isPersonalizationMode ? draftTopicIds : preferredTopicIds}
-            onTogglePreference={(id) => toggleTopicPreference(id, topics)}
+            preferredTopicIds={preferredTopicIds}
+            onTogglePreference={() => {}}
           />
         </section>
 
@@ -1348,12 +1518,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* ── Empty state ────────────────────────────────────── */}
-        {!loading && !data && !error && (
-          <p style={{ color: color.textDim, padding: "32px 0", fontSize: 15, textAlign: "center" }}>
-            {t("initialMessage", lang)}
-          </p>
-        )}
         </>
         )}
       </div>

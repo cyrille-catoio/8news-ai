@@ -879,20 +879,24 @@ function HistoryArrows({
   lang: Lang;
 }) {
   const canGoNewer = offset > 0;
-  // Bumped to 22px so the chevrons feel like real controls (not a UI
-  // afterthought) while still staying low-contrast at rest. Padding is
-  // symmetric so the visible glyph centers exactly on the kicker
-  // baseline when the parent uses `alignItems: "baseline"`.
+  // Match the visible "fold/unfold" affordance used elsewhere: bordered
+  // hit-targets with gold hover, instead of bare low-contrast glyphs.
   const baseBtn: CSSProperties = {
-    background: "transparent",
-    border: "none",
+    background: "rgba(255,255,255,0.02)",
+    border: `1px solid ${color.border}`,
+    borderRadius: 6,
     color: color.textDim,
-    fontSize: 22,
+    fontSize: 20,
     lineHeight: 1,
     fontFamily: "inherit",
-    padding: "0 6px",
+    padding: "4px 8px",
     cursor: "pointer",
-    transition: "color 120ms ease, opacity 120ms ease",
+    minWidth: 30,
+    minHeight: 28,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transition: "color 120ms ease, opacity 120ms ease, border-color 120ms ease, background 120ms ease",
     // Negative top offset compensates for the chevron glyph's intrinsic
     // top whitespace inside its own line-box, pulling the visible
     // character down to sit on the kicker's text baseline.
@@ -904,8 +908,8 @@ function HistoryArrows({
       style={{
         display: "inline-flex",
         alignItems: "baseline",
-        gap: 4,
-        marginLeft: 8,
+        gap: 6,
+        marginLeft: 10,
       }}
     >
       {/* Left chevron walks toward « now » (newer / back to live);
@@ -919,14 +923,19 @@ function HistoryArrows({
         aria-label={lang === "fr" ? "Plus récent" : "Newer"}
         style={{
           ...baseBtn,
-          opacity: canGoNewer ? 0.7 : 0.2,
+          opacity: canGoNewer ? 1 : 0.32,
           cursor: canGoNewer ? "pointer" : "not-allowed",
         }}
         onMouseEnter={(e) => {
-          if (canGoNewer) (e.currentTarget as HTMLButtonElement).style.color = color.gold;
+          if (!canGoNewer) return;
+          e.currentTarget.style.color = color.gold;
+          e.currentTarget.style.borderColor = color.gold;
+          e.currentTarget.style.background = "rgba(201,162,39,0.10)";
         }}
         onMouseLeave={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.color = color.textDim;
+          e.currentTarget.style.color = color.textDim;
+          e.currentTarget.style.borderColor = color.border;
+          e.currentTarget.style.background = "rgba(255,255,255,0.02)";
         }}
       >
         ‹
@@ -938,14 +947,19 @@ function HistoryArrows({
         aria-label={lang === "fr" ? "Plus ancien" : "Older"}
         style={{
           ...baseBtn,
-          opacity: canGoOlder ? 0.7 : 0.2,
+          opacity: canGoOlder ? 1 : 0.32,
           cursor: canGoOlder ? "pointer" : "not-allowed",
         }}
         onMouseEnter={(e) => {
-          if (canGoOlder) (e.currentTarget as HTMLButtonElement).style.color = color.gold;
+          if (!canGoOlder) return;
+          e.currentTarget.style.color = color.gold;
+          e.currentTarget.style.borderColor = color.gold;
+          e.currentTarget.style.background = "rgba(201,162,39,0.10)";
         }}
         onMouseLeave={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.color = color.textDim;
+          e.currentTarget.style.color = color.textDim;
+          e.currentTarget.style.borderColor = color.border;
+          e.currentTarget.style.background = "rgba(255,255,255,0.02)";
         }}
       >
         ›
@@ -988,7 +1002,7 @@ function HeroStory({
     ?? article.topic;
   return (
     <section style={{ marginBottom: 36 }}>
-      <div style={{ display: "flex", alignItems: "baseline" }}>
+      <div style={{ display: "flex", alignItems: "baseline", marginBottom: 12 }}>
         <div style={{ ...kicker(color.gold) }}>
           {lang === "fr" ? "Top story · maintenant" : "Top story · now"}
         </div>

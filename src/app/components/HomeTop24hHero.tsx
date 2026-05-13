@@ -55,6 +55,7 @@ export function HomeTop24hHero({
       appendSummaryDateToTitle
       isRead={isRead}
       onToggleRead={onToggleRead}
+      showHistoryControls
     />
   );
 }

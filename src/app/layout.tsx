@@ -59,6 +59,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <footer style={{ maxWidth: 916, margin: "0 auto", padding: "20px 20px 40px", borderTop: "1px solid #2a2a2a" }}>
           <nav style={{ display: "flex", gap: 16, flexWrap: "wrap", justifyContent: "center", fontSize: 12 }}>
             <Link href="/archives" style={{ color: "#999", textDecoration: "none" }}>Archives</Link>
+            <Link href="/mentions-legales" style={{ color: "#999", textDecoration: "none" }}>Mentions légales</Link>
             <a href="/sitemap.xml" style={{ color: "#666", textDecoration: "none" }}>Sitemap</a>
           </nav>
         </footer>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   getArticleImageUrlsByLinks,
-  getLatestTopSummary,
+  getTopSummaryByOffset,
   getTopSummaryBulletsByDate,
   type TopSummaryArticle,
 } from "@/lib/supabase";
@@ -28,10 +28,16 @@ function parseLang(raw: string | null): Lang {
   return raw === "fr" ? "fr" : "en";
 }
 
+function parseOffset(raw: string | null): number {
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
 export async function GET(request: NextRequest) {
   const lang = parseLang(request.nextUrl.searchParams.get("lang"));
+  const offset = parseOffset(request.nextUrl.searchParams.get("offset"));
 
-  const snapshot = await getLatestTopSummary(lang);
+  const { snapshot, hasOlder } = await getTopSummaryByOffset(lang, offset);
   if (!snapshot) {
     return NextResponse.json(
       { error: "No top summary available yet" },
@@ -99,6 +105,8 @@ export async function GET(request: NextRequest) {
       summaryDate: snapshot.summary_date,
       generatedAt: snapshot.generated_at,
       model: snapshot.model,
+      offset,
+      hasOlder,
     },
     {
       headers: {

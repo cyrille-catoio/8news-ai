@@ -48,6 +48,8 @@ interface Snapshot {
   bullets: Bullet[];
   summaryDate: string;
   generatedAt: string;
+  hasOlder?: boolean;
+  offset?: number;
 }
 
 interface Group {
@@ -192,6 +194,90 @@ function RefIcon() {
   );
 }
 
+function Top24hHistoryArrows({
+  offset,
+  canGoOlder,
+  onOlder,
+  onNewer,
+  lang,
+}: {
+  offset: number;
+  canGoOlder: boolean;
+  onOlder: () => void;
+  onNewer: () => void;
+  lang: Lang;
+}) {
+  const canGoNewer = offset > 0;
+  const baseBtn: CSSProperties = {
+    background: "rgba(255,255,255,0.02)",
+    border: `1px solid ${color.border}`,
+    borderRadius: 6,
+    color: color.textDim,
+    cursor: "pointer",
+    fontSize: 20,
+    lineHeight: 1,
+    padding: "4px 8px",
+    minWidth: 30,
+    minHeight: 28,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transition: "color 120ms ease, opacity 120ms ease, border-color 120ms ease, background 120ms ease",
+  };
+  return (
+    <span style={{ display: "inline-flex", alignItems: "baseline", gap: 6, marginLeft: 10 }}>
+      <button
+        type="button"
+        onClick={onNewer}
+        disabled={!canGoNewer}
+        aria-label={lang === "fr" ? "Podcast plus récent" : "Newer podcast"}
+        style={{
+          ...baseBtn,
+          opacity: canGoNewer ? 1 : 0.32,
+          cursor: canGoNewer ? "pointer" : "not-allowed",
+        }}
+        onMouseEnter={(e) => {
+          if (!canGoNewer) return;
+          e.currentTarget.style.color = color.gold;
+          e.currentTarget.style.borderColor = color.gold;
+          e.currentTarget.style.background = "rgba(201,162,39,0.10)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.color = color.textDim;
+          e.currentTarget.style.borderColor = color.border;
+          e.currentTarget.style.background = "rgba(255,255,255,0.02)";
+        }}
+      >
+        ‹
+      </button>
+      <button
+        type="button"
+        onClick={onOlder}
+        disabled={!canGoOlder}
+        aria-label={lang === "fr" ? "Podcast précédent" : "Previous podcast"}
+        style={{
+          ...baseBtn,
+          opacity: canGoOlder ? 1 : 0.32,
+          cursor: canGoOlder ? "pointer" : "not-allowed",
+        }}
+        onMouseEnter={(e) => {
+          if (!canGoOlder) return;
+          e.currentTarget.style.color = color.gold;
+          e.currentTarget.style.borderColor = color.gold;
+          e.currentTarget.style.background = "rgba(201,162,39,0.10)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.color = color.textDim;
+          e.currentTarget.style.borderColor = color.border;
+          e.currentTarget.style.background = "rgba(255,255,255,0.02)";
+        }}
+      >
+        ›
+      </button>
+    </span>
+  );
+}
+
 function formatSummaryDayLabel(dateISO: string, lang: Lang): string {
   const d = new Date(`${dateISO}T12:00:00Z`);
   return new Intl.DateTimeFormat(dateLocale(lang), {
@@ -211,6 +297,7 @@ export function Top24hHero({
   appendSummaryDateToTitle = false,
   isRead,
   onToggleRead,
+  showHistoryControls = false,
 }: {
   lang: Lang;
   /** Required when `showSeeAllLink` is `true` (default). The footer
@@ -258,11 +345,16 @@ export function Top24hHero({
    *  home wrapper only — keeps `/top-articles` and archive pages
    *  unchanged. */
   appendSummaryDateToTitle?: boolean;
+  /** Home-only: show discreet chevrons next to the Top articles 24h
+   *  kicker to browse previous daily podcast snapshots. */
+  showHistoryControls?: boolean;
 }) {
   const isSelfFetched = externalData === undefined;
   const [snapInternal, setSnapInternal] = useState<Snapshot | null>(null);
   const [loadingInternal, setLoadingInternal] = useState(isSelfFetched);
   const [errorInternal, setErrorInternal] = useState(false);
+  const [historyOffset, setHistoryOffset] = useState(0);
+  const [historyHasOlder, setHistoryHasOlder] = useState(false);
   const snap = isSelfFetched ? snapInternal : externalData ?? null;
 
   // Reset the open-index set whenever the snapshot or `defaultOpen`
@@ -282,11 +374,15 @@ export function Top24hHero({
   }, [defaultOpen, groupCount]);
 
   useEffect(() => {
+    setHistoryOffset(0);
+  }, [lang]);
+
+  useEffect(() => {
     if (!isSelfFetched) return;
     let cancelled = false;
     setLoadingInternal(true);
     setErrorInternal(false);
-    fetch(`/api/news/top-summary/latest?lang=${lang}`, { cache: "no-store" })
+    fetch(`/api/news/top-summary/latest?lang=${lang}&offset=${historyOffset}`, { cache: "no-store" })
       .then(async (r) => {
         if (cancelled) return null;
         if (r.status === 404) {
@@ -299,6 +395,7 @@ export function Top24hHero({
       .then((json) => {
         if (cancelled || !json) return;
         setSnapInternal(json);
+        setHistoryHasOlder(Boolean(json.hasOlder));
       })
       .catch(() => {
         if (cancelled) return;
@@ -310,7 +407,7 @@ export function Top24hHero({
     return () => {
       cancelled = true;
     };
-  }, [isSelfFetched, lang]);
+  }, [isSelfFetched, lang, historyOffset]);
 
   // Loading: discreet spinner that doesn't push the rest of the home
   // off-screen. ~80px tall is enough to feel like a placeholder while
@@ -364,7 +461,18 @@ export function Top24hHero({
 
   return (
     <section style={{ marginBottom: 36 }}>
-      <div style={kickerStyle(color.gold)}>{t("top24hHeroKicker", lang)}</div>
+      <div style={{ display: "flex", alignItems: "baseline", marginBottom: 12 }}>
+        <div style={kickerStyle(color.gold)}>{t("top24hHeroKicker", lang)}</div>
+        {showHistoryControls && isSelfFetched && (
+          <Top24hHistoryArrows
+            offset={historyOffset}
+            canGoOlder={historyHasOlder}
+            onOlder={() => setHistoryOffset((o) => historyHasOlder ? o + 1 : o)}
+            onNewer={() => setHistoryOffset((o) => Math.max(0, o - 1))}
+            lang={lang}
+          />
+        )}
+      </div>
       <div
         style={{
           ...card,

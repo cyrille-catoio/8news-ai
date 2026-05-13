@@ -556,7 +556,19 @@ export function VideoCard({
                 </>
               );
             })()}
-            <span style={{ color: color.textSecondary, fontWeight: 500 }}>{v.channelTitle}</span>
+            <span
+              style={{
+                color: color.gold,
+                fontWeight: 700,
+                border: `1px solid rgba(201,162,39,0.45)`,
+                background: "rgba(201,162,39,0.10)",
+                borderRadius: 999,
+                padding: "2px 8px",
+                lineHeight: 1.4,
+              }}
+            >
+              {v.channelTitle}
+            </span>
             <span>·</span>
             <span>{new Date(v.published).toLocaleDateString(lang === "fr" ? "fr-FR" : "en-US", { day: "numeric", month: "short", year: "numeric" })}</span>
             <span>·</span>

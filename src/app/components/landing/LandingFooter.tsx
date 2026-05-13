@@ -1,6 +1,13 @@
 import Link from "next/link";
 import { LANDING_CONTENT, type LandingLang } from "@/lib/landing-content";
 
+function footerHref(label: string): string {
+  if (label === "Mentions légales" || label === "Legal notice") {
+    return "/mentions-legales";
+  }
+  return "#";
+}
+
 export function LandingFooter({ lang }: { lang: LandingLang }) {
   const f = LANDING_CONTENT.footer;
   return (
@@ -22,15 +29,20 @@ export function LandingFooter({ lang }: { lang: LandingLang }) {
           {f.cols[lang].map((col, i) => (
             <div key={i} className="footer-col">
               <h4>{col.h}</h4>
-              {col.links.map((l, j) => (
-                <a key={j} href="#">{l}</a>
-              ))}
+              {col.links.map((l, j) => {
+                const href = footerHref(l);
+                return href.startsWith("/") ? (
+                  <Link key={j} href={href}>{l}</Link>
+                ) : (
+                  <a key={j} href={href}>{l}</a>
+                );
+              })}
             </div>
           ))}
         </div>
         <div className="footer-bottom">
           <span>{f.copy[lang]}</span>
-          <span>v2.7.4 · 8NEWS.AI</span>
+          <span>v2.7.5 · 8NEWS.AI</span>
         </div>
       </div>
     </footer>

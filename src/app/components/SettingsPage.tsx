@@ -444,11 +444,11 @@ function SubscriptionPanel({
           >
             {newsletterEnabled
               ? lang === "fr"
-                ? "Brief quotidien ON"
-                : "Daily brief ON"
+                ? "Newsletter quotidienne ON"
+                : "Daily newsletter ON"
               : lang === "fr"
-              ? "Activer le brief quotidien"
-              : "Enable daily brief"}
+              ? "Activer la newsletter quotidienne"
+              : "Enable daily newsletter"}
           </button>
         </div>
       </div>

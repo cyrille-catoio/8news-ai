@@ -106,6 +106,36 @@ export async function getLatestTopSummary(
   }
 }
 
+export async function getTopSummaryByOffset(
+  lang: "en" | "fr",
+  offset: number,
+): Promise<{ snapshot: TopSummaryRow | null; hasOlder: boolean }> {
+  const clientP = getServerClient();
+  if (!clientP) return { snapshot: null, hasOlder: false };
+
+  try {
+    const supabase = await clientP;
+    const safeOffset = Math.max(0, Math.floor(offset));
+    const { data, error } = await supabase
+      .from("top_summaries")
+      .select("summary_date, lang, generated_at, model, articles, summary_md")
+      .eq("lang", lang)
+      .order("summary_date", { ascending: false })
+      .range(safeOffset, safeOffset + 1);
+
+    if (error || !data || data.length === 0) {
+      return { snapshot: null, hasOlder: false };
+    }
+
+    return {
+      snapshot: data[0] as TopSummaryRow,
+      hasOlder: data.length > 1,
+    };
+  } catch {
+    return { snapshot: null, hasOlder: false };
+  }
+}
+
 /**
  * Fetch the snapshot for one specific (date, lang) tuple — drives the
  * SSR `/{YYYY-MM-DD}` page (v2.7.0+, the « top day » archive view

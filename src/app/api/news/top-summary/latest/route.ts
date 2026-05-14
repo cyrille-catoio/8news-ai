@@ -30,7 +30,8 @@ function parseLang(raw: string | null): Lang {
 
 function parseOffset(raw: string | null): number {
   const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.min(366, Math.floor(n));
 }
 
 export async function GET(request: NextRequest) {

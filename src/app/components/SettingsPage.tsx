@@ -301,8 +301,8 @@ function SubscriptionPanel({
       setNewsletterEnabled(true);
       setMessage(
         lang === "fr"
-          ? "Pro fondateur réservé. Aucun paiement ne sera lancé sans validation."
-          : "Founder Pro reserved. No payment will start without your confirmation.",
+          ? "Pro Early Adopter réservé. Aucun paiement ne sera lancé sans validation."
+          : "Pro Early Adopter reserved. No payment will start without your confirmation.",
       );
     } catch {
       setMessage(lang === "fr" ? "Impossible d'enregistrer la réservation." : "Could not save the reservation.");
@@ -393,12 +393,12 @@ function SubscriptionPanel({
   const benefits =
     lang === "fr"
       ? [
-          "Prix fondateur 88 € / an, facturation annuelle uniquement.",
+          "Prix Early Adopter 2 € / mois (28 € / an, facturation annuelle en une fois).",
           "Topics sur mesure avec découverte IA des flux.",
           "Plus de résumés YouTube et suivi de chaînes favorites.",
         ]
       : [
-          "Founder price $88/year, annual billing only.",
+          "Early Adopter price €2/month (€28/year, billed annually in one payment).",
           "Custom topics with AI feed discovery.",
           "More YouTube summaries and favorite channel monitoring.",
         ];
@@ -409,7 +409,7 @@ function SubscriptionPanel({
         <div style={{ flex: "1 1 320px", minWidth: 0 }}>
           <div style={eyebrowStyle}>{lang === "fr" ? "Abonnement" : "Subscription"}</div>
           <h3 style={titleStyle}>
-            {lang === "fr" ? "Réservez le Pro fondateur." : "Reserve Founder Pro."}
+            {lang === "fr" ? "Réservez Pro Early Adopter." : "Reserve Pro Early Adopter."}
           </h3>
           <p style={{ color: color.textSecondary, fontSize: 14, lineHeight: 1.55, margin: "10px 0 0", maxWidth: 680 }}>
             {lang === "fr"

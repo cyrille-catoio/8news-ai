@@ -695,29 +695,30 @@ export function BriefingPage({
       ) : (
         <>
           {/* Top articles 24h hero — pre-computed daily briefing pinned
-              at the very top by default. Self-fetches the latest
-              snapshot so its loading / error / 404 states stay fully
-              isolated from the rest of the home (a missing snapshot
-              just hides the card).
-              v2.6.15+ — the user can mark today's briefing as « lue »
-              via the bottom-left checkbox, which sets a cookie. When
-              checked, we skip the card here and re-emit it after the
-              `<RecentVideoPagesSection>` block below so the briefing
-              stays accessible but doesn't crowd the top of the home
-              once the visitor has already consumed it. */}
-          {!topHeroRead && (
-            <HomeTop24hHero
-              lang={lang}
-              onNavigate={onNavigate}
-              isRead={topHeroRead}
-              onToggleRead={onToggleTopHeroRead}
-            />
+              at the very top. Self-fetches the latest snapshot so its
+              loading / error / 404 states stay fully isolated from the
+              rest of the home (a missing snapshot just hides the card).
+              v2.7.7+ — when the user marks today's briefing as « Lu »
+              via the bottom-left checkbox, the hero collapses in place
+              with an animation rather than being re-positioned below
+              the videos: the slot stays the same so the visitor can
+              still see at a glance which day's briefing was consumed,
+              and unchecking expands it back. The cookie behavior is
+              unchanged (UTC-date keyed). */}
+          {!isAuthenticated && (
+            <NewsletterSignupPrompt lang={lang} onRequestAuth={onRequestAuth} />
           )}
 
-          <NewsletterSignupPrompt
+          <HomeTop24hHero
             lang={lang}
-            onRequestAuth={onRequestAuth}
+            onNavigate={onNavigate}
+            isRead={topHeroRead}
+            onToggleRead={onToggleTopHeroRead}
           />
+
+          {isAuthenticated && (
+            <NewsletterSignupPrompt lang={lang} onRequestAuth={onRequestAuth} />
+          )}
 
           {/* Top articles 24h hero, TOP VIDEO, Top story, puis « Toutes les vidéos transcrites », Tendances, résumé du jour, top 5, … */}
           {videosLoading ? (
@@ -769,20 +770,6 @@ export function BriefingPage({
             topicLabels={topicLabels}
             lang={lang}
           />
-
-          {/* v2.6.15+ — demoted slot for the Top 24h hero when the user
-              has ticked « Lue » on the card above. The card stays
-              identical (checkbox + accordion + see-all link), just no
-              longer above the fold. Unchecking the box reverts to the
-              top placement on the next render. */}
-          {topHeroRead && (
-            <HomeTop24hHero
-              lang={lang}
-              onNavigate={onNavigate}
-              isRead={topHeroRead}
-              onToggleRead={onToggleTopHeroRead}
-            />
-          )}
 
           {trending.length > 0 && (
             <TrendingStrip

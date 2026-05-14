@@ -28,7 +28,7 @@ export function LandingPricing({ lang }: { lang: LandingLang }) {
                 </div>
                 {pl.priceYear && (
                   <div className="price-year">
-                    {lang === "fr" ? "ou " : "or "}
+                    {lang === "fr" ? "Soit " : "Billed as "}
                     <strong>{pl.priceYear}</strong>
                     <span className="price-year-per">{pl.perYear}</span>
                     {pl.saveLabel && <span className="price-save">{pl.saveLabel}</span>}

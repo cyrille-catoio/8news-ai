@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { color, card, spinnerStyle } from "@/lib/theme";
 import { t, type Lang, dateLocale } from "@/lib/i18n";
 import type { AppNavPage } from "@/app/components/AppHeader";
@@ -355,6 +355,11 @@ export function Top24hHero({
   const [errorInternal, setErrorInternal] = useState(false);
   const [historyOffset, setHistoryOffset] = useState(0);
   const [historyHasOlder, setHistoryHasOlder] = useState(false);
+  /** Mirrors `historyHasOlder` after each successful fetch — avoids a stale
+   *  closure inside `setHistoryOffset` (the old `historyHasOlder ? o + 1`
+   *  pattern could read `false` from the initial render and never
+   *  increment even when the latest API said `hasOlder: true`). */
+  const historyHasOlderRef = useRef(false);
   const snap = isSelfFetched ? snapInternal : externalData ?? null;
 
   // Reset the open-index set whenever the snapshot or `defaultOpen`
@@ -373,20 +378,31 @@ export function Top24hHero({
     );
   }, [defaultOpen, groupCount]);
 
-  useEffect(() => {
+  // Reset history when the UI language flips. `useLayoutEffect` runs before
+  // the fetch `useEffect`, so the first network tick after a lang change
+  // always uses `offset=0` instead of briefly re-fetching the previous
+  // offset with the new lang (which could 404 or show the wrong day).
+  useLayoutEffect(() => {
+    historyHasOlderRef.current = false;
     setHistoryOffset(0);
   }, [lang]);
 
   useEffect(() => {
     if (!isSelfFetched) return;
     let cancelled = false;
+    const offsetRequested = historyOffset;
     setLoadingInternal(true);
     setErrorInternal(false);
     fetch(`/api/news/top-summary/latest?lang=${lang}&offset=${historyOffset}`, { cache: "no-store" })
       .then(async (r) => {
         if (cancelled) return null;
         if (r.status === 404) {
-          setErrorInternal(true);
+          if (offsetRequested > 0) {
+            setHistoryOffset((o) => Math.max(0, o - 1));
+            setErrorInternal(false);
+          } else {
+            setErrorInternal(true);
+          }
           return null;
         }
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -394,8 +410,10 @@ export function Top24hHero({
       })
       .then((json) => {
         if (cancelled || !json) return;
+        const older = Boolean(json.hasOlder);
+        historyHasOlderRef.current = older;
         setSnapInternal(json);
-        setHistoryHasOlder(Boolean(json.hasOlder));
+        setHistoryHasOlder(older);
       })
       .catch(() => {
         if (cancelled) return;
@@ -467,7 +485,10 @@ export function Top24hHero({
           <Top24hHistoryArrows
             offset={historyOffset}
             canGoOlder={historyHasOlder}
-            onOlder={() => setHistoryOffset((o) => historyHasOlder ? o + 1 : o)}
+            onOlder={() => {
+              if (!historyHasOlderRef.current) return;
+              setHistoryOffset((o) => o + 1);
+            }}
             onNewer={() => setHistoryOffset((o) => Math.max(0, o - 1))}
             lang={lang}
           />
@@ -476,13 +497,14 @@ export function Top24hHero({
       <div
         style={{
           ...card,
-          padding: "22px 22px 16px",
+          padding: isRead ? "16px 22px 12px" : "22px 22px 16px",
           borderColor: color.gold,
           background:
             "linear-gradient(180deg, rgba(201,162,39,0.04), transparent 60%), " + color.surface,
+          transition: "padding 280ms ease",
         }}
       >
-        <div className="top24h-hero-header" style={{ marginBottom: 14 }}>
+        <div className="top24h-hero-header" style={{ marginBottom: isRead ? 4 : 14, transition: "margin-bottom 280ms ease" }}>
           <div className="top24h-hero-heading-row">
           <h2
             className="top24h-hero-title"
@@ -506,6 +528,7 @@ export function Top24hHero({
                 same gold hover treatment as the per-row chevrons so
                 the affordance reads as a single interaction family. */}
             {(() => {
+              if (isRead) return null;
               const allOpen = groups.length > 0 && groups.every((_, i) => openIdx.has(i));
               const label = allOpen
                 ? t("top24hHeroCollapseAll", lang)
@@ -570,13 +593,28 @@ export function Top24hHero({
           </div>
         </div>
 
-        {/* TTS audio player — same UX register as `/[topic]/[date]/[slug]`
-            and `/[topic]/r/[date]/[slug]` (DailySummaryAudio /
-            VideoRoundupAudio). Reads the user's persisted speed + voice
-            cookies; gracefully no-ops when bullets are empty. The
-            previous « Click a headline to read the full angle » sub-line
-            was removed in v2.6.12 — the player above and the chevron-
-            decorated rows below are self-explanatory. */}
+        {/* Collapsible body — audio player + bullet list. v2.7.7+ when
+            `isRead` is true the wrapper animates to `max-height: 0` so
+            the « Lu » checkbox demotes the briefing in place rather than
+            being re-positioned somewhere else on the page. Audio stays
+            mounted so an ongoing playback isn't interrupted by the
+            collapse; `aria-hidden` is set so screen-readers skip the
+            stale content while it's hidden. The 4000px ceiling is
+            generous enough for any briefing payload we ship today
+            (typically ~1400px) so the open animation finishes before
+            the cap is reached on slow content. */}
+        <div
+          aria-hidden={isRead ? true : undefined}
+          style={{
+            maxHeight: isRead ? 0 : 4000,
+            opacity: isRead ? 0 : 1,
+            overflow: "hidden",
+            visibility: isRead ? "hidden" : "visible",
+            transition:
+              "max-height 420ms cubic-bezier(0.33, 0.86, 0.22, 1), opacity 240ms ease, visibility 0s linear " +
+              (isRead ? "420ms" : "0s"),
+          }}
+        >
         <Top24hAudio
           bullets={snap.bullets}
           lang={lang}
@@ -745,6 +783,7 @@ export function Top24hHero({
             );
           })}
         </ul>
+        </div>
 
         {/* Bottom action row: « Lue » checkbox on the left (when the
             parent opted in by passing `isRead` + `onToggleRead`) and
@@ -801,7 +840,7 @@ export function Top24hHero({
               // semantics intact without altering the visual layout.
               <span />
             )}
-            {showSeeAllLink && onNavigate && (
+            {showSeeAllLink && onNavigate && !isRead && (
               <button
                 type="button"
                 onClick={() => onNavigate("topArticles")}

@@ -204,17 +204,17 @@ export const LANDING_CONTENT: LandingContent = {
   pricing: {
     kicker: { en: "Pricing", fr: "Tarifs" },
     title: {
-      en: "Start free. <em>Reserve the founder Pro plan.</em>",
-      fr: "Commencez gratuitement. <em>Réservez le Pro fondateur.</em>",
+      en: "Start free. <em>Reserve Pro Early Adopter.</em>",
+      fr: "Commencez gratuitement. <em>Réservez Pro Early Adopter.</em>",
     },
     plans: {
       en: [
         { tag: "FREE PREVIEW", name: "Free", price: "$0", per: "", desc: "Use the core product while 8news is still in beta. No card required.", features: ["Top 24h articles and videos with AI summary + sources.", "Default tech, AI and crypto topics.", "Archives, favorites and bilingual EN / FR reading.", "Morning email brief for the topics you care about.", "Enough to see if 8news becomes part of your daily routine."], cta: "Start free", featured: false },
-        { tag: "FOUNDER PRICE", name: "Pro", price: "$88", per: "/year", desc: "For founders, analysts and builders who want 8news tuned to their exact watchlist.", features: ["Custom topics with AI feed discovery.", "More YouTube summaries and favorite channel monitoring.", "Annual billing only — reserve now, pay when checkout opens."], cta: "Reserve Pro", featured: true },
+        { tag: "EARLY ADOPTER PRICE", name: "Pro Early Adopter", price: "€2", per: "/month", priceYear: "€28", perYear: "/year", saveLabel: " · annual billing, one payment", desc: "For analysts, operators and builders who want 8news tuned to their exact watchlist.", features: ["Custom topics with AI feed discovery.", "More YouTube summaries and favorite channel monitoring.", "€28/year charged once — reserve now, pay when checkout opens."], cta: "Reserve Pro", featured: true },
       ],
       fr: [
         { tag: "APERÇU GRATUIT", name: "Gratuit", price: "0 €", per: "", desc: "Utilisez le cœur du produit pendant que 8news est encore en bêta. Sans carte bancaire.", features: ["Top articles et vidéos 24h avec résumé IA + sources.", "Topics tech, IA et crypto par défaut.", "Archives, favoris et lecture bilingue EN / FR.", "Brief matinal sur les topics qui comptent pour vous.", "Assez pour savoir si 8news devient un réflexe quotidien."], cta: "Commencer", featured: false },
-        { tag: "PRIX FONDATEUR", name: "Pro", price: "88 €", per: "/an", desc: "Pour fondateurs, analystes et builders qui veulent une veille réglée sur leur watchlist exacte.", features: ["Topics sur mesure avec découverte IA des flux.", "Plus de résumés YouTube et suivi de chaînes favorites.", "Paiement annuel uniquement — réservez maintenant, payez à l'ouverture."], cta: "Réserver Pro", featured: true },
+        { tag: "PRIX EARLY ADOPTER", name: "Pro Early Adopter", price: "2 €", per: "/mois", priceYear: "28 €", perYear: "/an", saveLabel: " · paiement annuel en une fois", desc: "Pour analystes, opérateurs et builders qui veulent une veille réglée sur leur watchlist exacte.", features: ["Topics sur mesure avec découverte IA des flux.", "Plus de résumés YouTube et suivi de chaînes favorites.", "28 € facturés une fois par an — réservez maintenant, payez à l'ouverture."], cta: "Réserver Pro", featured: true },
       ],
     },
   },

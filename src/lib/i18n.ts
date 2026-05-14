@@ -817,8 +817,8 @@ const strings = {
     fr: "Votre cockpit 8news est prêt",
   },
   authWelcomeBody: {
-    en: "Pick your topics, enable the daily brief, and reserve Founder Pro from Settings if 8news becomes part of your morning routine.",
-    fr: "Choisissez vos topics, activez le brief quotidien, et réservez le Pro fondateur depuis les paramètres si 8news entre dans votre routine du matin.",
+    en: "Pick your topics, enable the daily brief, and reserve Pro Early Adopter from Settings if 8news becomes part of your morning routine.",
+    fr: "Choisissez vos topics, activez le brief quotidien, et réservez Pro Early Adopter depuis les paramètres si 8news entre dans votre routine du matin.",
   },
   authWelcomeClose: {
     en: "Close",

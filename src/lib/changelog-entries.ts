@@ -9,6 +9,16 @@ export interface ChangelogEntryDef {
 
 export const CHANGELOG_ENTRIES: ChangelogEntryDef[] = [
   {
+    version: "2.8.1",
+    title_en: "v2.8.1: fix « previous podcast » history arrows in production (Netlify CDN cache key)",
+    title_fr: "v2.8.1 : correctif des flèches « podcast précédent » en production (clé de cache Netlify CDN)",
+    body_en:
+      "**Production bug.** The « previous podcast » chevron on the home `Top 24h` hero appeared to do nothing in production: clicking `›` requested `?offset=1`, but the user always landed back on today's snapshot. Local dev worked correctly because no CDN sits in front of the dev server.\n\n**Root cause.** `/api/news/top-summary/latest` was returning `Cache-Control: public, max-age=60, s-maxage=300`. On Netlify production this route exhibits path-level CDN reuse — the cache key drops the query string, so the first `?offset=0` response was served for every other offset (`hasOlder` then often read as `false`, the arrows disabled, the body never refreshed). The exact same Netlify gotcha is already documented in `/api/video-pages/recent/route.ts`.\n\n**Fix.** `/api/news/top-summary/latest/route.ts` now exports `dynamic = \"force-dynamic\"` and `revalidate = 0`, and returns `no-store` headers at every status (browser + `CDN-Cache-Control` + `Netlify-CDN-Cache-Control`). Per-request DB cost is tiny (single indexed `.range(0, 1)` query), so dropping the cache is the right trade-off vs. the production breakage.\n\n**Release.** Bump 2.8 → 2.8.1. No DB migration.",
+    body_fr:
+      "**Bug de production.** Le chevron « podcast précédent » du hero `Top 24h` de la home semblait sans effet en production : un clic sur `›` requêtait bien `?offset=1`, mais l'utilisateur retombait toujours sur le snapshot du jour. Le dev local fonctionnait normalement car aucune CDN ne se trouve devant le serveur de dev.\n\n**Cause racine.** `/api/news/top-summary/latest` retournait `Cache-Control: public, max-age=60, s-maxage=300`. En production Netlify, cette route subit une réutilisation CDN au niveau du path — la clé de cache ignore la query string, donc la première réponse `?offset=0` était servie pour tous les autres offsets (`hasOlder` souvent lu comme `false`, flèches désactivées, contenu jamais rafraîchi). Le même piège Netlify est déjà documenté dans `/api/video-pages/recent/route.ts`.\n\n**Correctif.** `/api/news/top-summary/latest/route.ts` exporte maintenant `dynamic = \"force-dynamic\"` et `revalidate = 0`, et retourne des headers `no-store` sur chaque code de status (navigateur + `CDN-Cache-Control` + `Netlify-CDN-Cache-Control`). Le coût DB par requête est minime (un seul `.range(0, 1)` sur colonne indexée), donc abandonner le cache est le bon compromis face à la régression production.\n\n**Release.** Bump 2.8 → 2.8.1. Pas de migration DB.",
+    created_at: "2026-05-17T16:09:00Z",
+  },
+  {
     version: "2.8",
     title_en: "v2.8: « Daily Newsletter » email rebrand + readable Top 24h paragraphs on desktop and mobile",
     title_fr: "v2.8 : email renommé « Newsletter quotidienne » + paragraphes Top 24h plus lisibles desktop et mobile",

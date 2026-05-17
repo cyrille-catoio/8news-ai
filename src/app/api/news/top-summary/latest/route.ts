@@ -24,6 +24,27 @@ import type { Lang } from "@/lib/i18n";
  * tick). The page renders an empty state in that case.
  */
 
+// v2.8.1+ — Force dynamic execution and no-store CDN headers. Netlify
+// production has shown path-level CDN reuse on this route when
+// `s-maxage` was set: requests for `?offset=1` returned the same
+// payload as `?offset=0` (cache key ignored the query string), which
+// broke the « previous podcast » arrows on the home Top 24h hero —
+// the user could click `›` but always landed back on today's snapshot.
+// Same fix pattern already documented in
+// `/api/video-pages/recent/route.ts`. Per-request DB cost is tiny
+// (single indexed `.range(0,1)` query) so caching is not worth the
+// production breakage.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, max-age=0, must-revalidate",
+  "CDN-Cache-Control": "no-store",
+  "Netlify-CDN-Cache-Control": "no-store",
+  Pragma: "no-cache",
+  Expires: "0",
+} as const;
+
 function parseLang(raw: string | null): Lang {
   return raw === "fr" ? "fr" : "en";
 }
@@ -42,7 +63,7 @@ export async function GET(request: NextRequest) {
   if (!snapshot) {
     return NextResponse.json(
       { error: "No top summary available yet" },
-      { status: 404, headers: { "Cache-Control": "no-store" } },
+      { status: 404, headers: NO_STORE_HEADERS },
     );
   }
 
@@ -109,15 +130,7 @@ export async function GET(request: NextRequest) {
       offset,
       hasOlder,
     },
-    {
-      headers: {
-        // The cron writes once a day; a 60 s edge cache + 5 min CDN
-        // cache is plenty and avoids hammering Supabase on bursty
-        // traffic without ever serving stale-after-cron output for
-        // more than 5 min.
-        "Cache-Control": "public, max-age=60, s-maxage=300",
-      },
-    },
+    { headers: NO_STORE_HEADERS },
   );
 }
 

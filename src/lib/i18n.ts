@@ -736,6 +736,10 @@ const strings = {
     en: "Users",
     fr: "Utilisateurs",
   },
+  userActivityAdminAria: {
+    en: "User Activity",
+    fr: "Activité utilisateurs",
+  },
   navStatsAria: {
     en: "Stats",
     fr: "Stats",

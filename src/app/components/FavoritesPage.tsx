@@ -344,7 +344,7 @@ export function FavoritesPage({
                             );
                             return tts ? (
                               <div style={{ marginBottom: 12 }}>
-                                <AudioPlayer text={tts} lang={lang} speed={speed} voice={voice} />
+                                <AudioPlayer text={tts} lang={lang} speed={speed} voice={voice} context="favorites" />
                               </div>
                             ) : null;
                           })()}

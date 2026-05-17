@@ -101,6 +101,43 @@ export default function LegalNoticePage() {
             vous pouvez contacter l&apos;éditeur à l&apos;adresse email ci-dessus.
           </p>
         </section>
+
+        <section style={{ ...cardStyle, marginTop: 22 }}>
+          <div style={labelStyle}>Mesure d&apos;audience</div>
+          <h2
+            style={{
+              fontFamily: "ui-serif, Georgia, serif",
+              fontSize: "clamp(22px, 4vw, 32px)",
+              lineHeight: 1.15,
+              fontWeight: 400,
+              margin: "0 0 16px",
+            }}
+          >
+            Journal d&apos;événements d&apos;interface
+          </h2>
+          <p style={{ color: "#c8c8c8", marginTop: 0 }}>
+            Pour améliorer le produit, 8NEWS journalise de manière anonyme les
+            interactions d&apos;interface (clics sur les menus, ouverture des
+            paragraphes du podcast, navigation dans l&apos;historique, lectures
+            audio, etc.). Aucune donnée personnelle identifiante n&apos;est
+            collectée (pas d&apos;adresse IP stockée, pas de fingerprinting).
+          </p>
+          <p style={{ color: "#c8c8c8" }}>
+            Les visiteurs non connectés sont identifiés par un identifiant
+            aléatoire (UUID) stocké dans un cookie <code style={{ background: "#1a1a1a", padding: "1px 6px", borderRadius: 4 }}>visitor_id</code>{" "}
+            valable un an, afin de mesurer la conversion vers la création de
+            compte. Les utilisateurs authentifiés sont identifiés par leur
+            <code style={{ background: "#1a1a1a", padding: "1px 6px", borderRadius: 4 }}> user_id</code> Supabase.
+          </p>
+          <p style={{ color: "#8a8a8a", fontSize: 13, marginBottom: 0 }}>
+            Pour vous opposer à cette collecte, vous pouvez supprimer le cookie{" "}
+            <code style={{ background: "#1a1a1a", padding: "1px 6px", borderRadius: 4 }}>visitor_id</code>{" "}
+            depuis les paramètres de votre navigateur. Pour les utilisateurs
+            inscrits, la suppression du compte efface également les identifiants
+            associés aux événements (rendus anonymes via{" "}
+            <code style={{ background: "#1a1a1a", padding: "1px 6px", borderRadius: 4 }}>ON DELETE SET NULL</code>).
+          </p>
+        </section>
       </div>
     </main>
   );

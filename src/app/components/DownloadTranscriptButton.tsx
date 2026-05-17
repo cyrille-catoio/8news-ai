@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { color } from "@/lib/theme";
 import type { Lang } from "@/lib/i18n";
+import { trackEvent } from "@/lib/track";
 
 /**
  * Small icon-only download button placed next to the favorite control on
@@ -99,6 +100,11 @@ export function DownloadTranscriptButton({
     try {
       const blob = new Blob([summaryMd], { type: "text/markdown;charset=utf-8" });
       triggerBlobDownload(blob, `${slug(title)}.md`);
+      trackEvent("share.download_transcript", {
+        target_id: videoId,
+        action: "md",
+        lang,
+      });
       flashDone();
     } finally {
       setBusy(false);
@@ -118,6 +124,11 @@ export function DownloadTranscriptButton({
       const blob = await res.blob();
       const filename = parseFilenameFromHeaders(res.headers) ?? `${slug(title)}.txt`;
       triggerBlobDownload(blob, filename);
+      trackEvent("share.download_transcript", {
+        target_id: videoId,
+        action: "txt",
+        lang,
+      });
       flashDone();
     } catch {
       // silent fail; the button just resets

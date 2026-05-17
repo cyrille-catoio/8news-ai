@@ -2,6 +2,7 @@
 
 import { color } from "@/lib/theme";
 import { t, type Lang } from "@/lib/i18n";
+import { trackEvent } from "@/lib/track";
 
 export interface FavoriteButtonProps {
   url: string;
@@ -35,6 +36,11 @@ export function FavoriteButton({
       onRequestAuth?.();
       return;
     }
+    trackEvent(isFavorite ? "favorite.remove" : "favorite.add", {
+      target_id: url,
+      lang,
+      meta: { source, sourceType: sourceType ?? "article" },
+    });
     onToggle({ url, title: articleTitle, source, pubDate, sourceType });
   };
 

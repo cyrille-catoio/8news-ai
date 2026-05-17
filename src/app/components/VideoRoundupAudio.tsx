@@ -59,7 +59,7 @@ export function VideoRoundupAudio({
 
   return (
     <div style={{ marginBottom: 16 }}>
-      <AudioPlayer text={text} lang={lang} speed={speed} voice={voice} />
+      <AudioPlayer text={text} lang={lang} speed={speed} voice={voice} context="video_roundup" />
     </div>
   );
 }

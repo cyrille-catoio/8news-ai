@@ -118,7 +118,7 @@ export function Top24hAudio({
 
   return (
     <div style={{ marginBottom: 16 }}>
-      <AudioPlayer text={ttsText} lang={lang} speed={speed} voice={voice} />
+      <AudioPlayer text={ttsText} lang={lang} speed={speed} voice={voice} context="top24h_podcast" contextId={date} />
     </div>
   );
 }

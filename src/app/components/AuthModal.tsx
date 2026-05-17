@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties, type For
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 import { t, type Lang } from "@/lib/i18n";
 import { color, font, formInputStyle } from "@/lib/theme";
+import { trackEvent } from "@/lib/track";
 
 type Mode = "signin" | "signup";
 
@@ -45,8 +46,10 @@ export function AuthModal({
       resetForm();
       setMode("signin");
       setJustSignedUp(false);
+    } else {
+      trackEvent("auth.modal_open", { lang });
     }
-  }, [open, resetForm]);
+  }, [open, resetForm, lang]);
 
   // Hard navigation to the Briefing homepage after the welcome screen is
   // dismissed. window.location guarantees the SPA picks up the fresh
@@ -71,9 +74,10 @@ export function AuthModal({
     if (justSignedUp) {
       handleWelcomeClose();
     } else {
+      trackEvent("auth.modal_dismiss", { lang });
       onClose();
     }
-  }, [justSignedUp, handleWelcomeClose, onClose]);
+  }, [justSignedUp, handleWelcomeClose, onClose, lang]);
 
   useEffect(() => {
     if (!open) return;
@@ -98,9 +102,11 @@ export function AuthModal({
           password,
         });
         if (err) {
+          trackEvent("auth.sign_in_error", { lang, meta: { code: err.message } });
           setError(err.message || t("authErrorGeneric", lang));
           return;
         }
+        trackEvent("auth.sign_in_success", { lang });
         onClose();
         resetForm();
         return;
@@ -123,6 +129,7 @@ export function AuthModal({
       });
 
       if (err) {
+        trackEvent("auth.sign_up_error", { lang, meta: { code: err.message } });
         setError(err.message || t("authErrorGeneric", lang));
         return;
       }
@@ -130,6 +137,7 @@ export function AuthModal({
       if (data.session) {
         // Email confirmation is disabled in Supabase: the user is live
         // immediately. Show the welcome screen instead of closing.
+        trackEvent("auth.sign_up_success", { lang });
         setJustSignedUp(true);
         return;
       }

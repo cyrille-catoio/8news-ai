@@ -3,8 +3,31 @@
 import { type CSSProperties, useState, useEffect, useCallback, useRef } from "react";
 import { type Lang } from "@/lib/i18n";
 import { color, spinnerStyle } from "@/lib/theme";
+import { trackEvent } from "@/lib/track";
 
-export function AudioPlayer({ text, lang, speed, voice }: { text: string; lang: Lang; speed: number; voice: string }) {
+/**
+ * Optional `context` + `contextId` props power per-surface analytics
+ * via `trackEvent("audio.play|pause|stop")`. Pass them in from each
+ * consumer (e.g. `context="top24h_podcast"`, `contextId=summaryDate`)
+ * so the « Top played audio » dashboard chart can group by source.
+ * When omitted, the events still fire with a generic `unknown` context
+ * so total volume is still measurable.
+ */
+export function AudioPlayer({
+  text,
+  lang,
+  speed,
+  voice,
+  context,
+  contextId,
+}: {
+  text: string;
+  lang: Lang;
+  speed: number;
+  voice: string;
+  context?: string;
+  contextId?: string;
+}) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const [state, setState] = useState<"idle" | "loading" | "playing" | "paused">("idle");
@@ -117,6 +140,11 @@ export function AudioPlayer({ text, lang, speed, voice }: { text: string; lang: 
       if (id !== genId.current) { audio.pause(); return; }
 
       await audio.play();
+      trackEvent("audio.play", {
+        target_id: contextId,
+        lang,
+        meta: { context: context ?? "unknown", duration: audio.duration ?? null },
+      });
       setState("playing");
     } catch {
       if (id === genId.current) {
@@ -132,12 +160,22 @@ export function AudioPlayer({ text, lang, speed, voice }: { text: string; lang: 
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
     }
+    trackEvent("audio.stop", {
+      target_id: contextId,
+      lang,
+      meta: { context: context ?? "unknown", positionSec: currentTime },
+    });
     setState("idle");
     setCurrentTime(0);
   }
 
   function handlePause() {
     if (audioRef.current) audioRef.current.pause();
+    trackEvent("audio.pause", {
+      target_id: contextId,
+      lang,
+      meta: { context: context ?? "unknown", positionSec: currentTime },
+    });
     setState("paused");
   }
 

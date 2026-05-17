@@ -7,6 +7,7 @@ import { CopyLinkButton } from "@/app/components/CopyLinkButton";
 import { FavoriteButton } from "@/app/components/FavoriteButton";
 import { ScoreMeter } from "@/app/components/ScoreMeter";
 import type { TopFeedArticle } from "@/hooks/useTopFeed";
+import { trackEvent } from "@/lib/track";
 
 const NEW_THRESHOLD_MS = 3_600_000;
 
@@ -78,6 +79,13 @@ export function TopFeedSection({
             target="_blank"
             rel="noopener noreferrer"
             style={{ textDecoration: "none", color: "inherit", display: "block" }}
+            onClick={() =>
+              trackEvent("article.link_click", {
+                target_id: art.link,
+                lang,
+                meta: { section: "top_50", source: art.source, score: art.score, rank: i },
+              })
+            }
           >
             <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
               {art.imageUrl && !brokenImages.has(art.imageUrl) ? (

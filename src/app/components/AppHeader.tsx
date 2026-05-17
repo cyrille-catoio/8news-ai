@@ -7,6 +7,7 @@ import { useAuth } from "@/app/providers";
 import { AuthModal } from "@/app/components/AuthModal";
 import { CryptoTicker } from "@/app/components/CryptoTicker";
 import { isOwnerUser } from "@/lib/user-type";
+import { trackEvent } from "@/lib/track";
 
 export type AppNavPage =
   | "briefing"
@@ -23,6 +24,7 @@ export type AppNavPage =
   | "videos"
   | "youtubeChannels"
   | "users"
+  | "userActivity"
   | "myTopics"
   | "topArticles"
   | "summaries"
@@ -76,12 +78,17 @@ function LangToggle({ lang, onChange }: { lang: Lang; onChange: (l: Lang) => voi
     transition: "all 0.15s",
   });
 
+  function handleSwitch(next: Lang) {
+    if (next !== lang) trackEvent("settings.lang_switch", { lang: next, target_id: next });
+    onChange(next);
+  }
+
   return (
     <div style={{ display: "flex", borderRadius: 5, overflow: "hidden", border: `1px solid ${color.gold}` }}>
-      <button type="button" onClick={() => onChange("en")} style={btn("en", true)}>
+      <button type="button" onClick={() => handleSwitch("en")} style={btn("en", true)}>
         EN
       </button>
-      <button type="button" onClick={() => onChange("fr")} style={btn("fr", false)}>
+      <button type="button" onClick={() => handleSwitch("fr")} style={btn("fr", false)}>
         FR
       </button>
     </div>
@@ -125,7 +132,8 @@ function UserMenu({
     currentPage === "categories" ||
     currentPage === "dailySummaries" ||
     currentPage === "youtubeChannels" ||
-    currentPage === "users";
+    currentPage === "users" ||
+    currentPage === "userActivity";
 
   const menuItemStyle: CSSProperties = {
     display: "block",
@@ -185,23 +193,26 @@ function UserMenu({
         >
           {isOwner && authed && (
             <>
-              <button type="button" onClick={() => { onNavigate("topics"); setOpen(false); }} style={adminItemStyle("topics")}>
+              <button type="button" onClick={() => { trackEvent("nav.user_menu", { target_id: "topics", lang }); onNavigate("topics"); setOpen(false); }} style={adminItemStyle("topics")}>
                 {t("navTopicsAria", lang)}
               </button>
-              <button type="button" onClick={() => { onNavigate("categories"); setOpen(false); }} style={adminItemStyle("categories")}>
+              <button type="button" onClick={() => { trackEvent("nav.user_menu", { target_id: "categories", lang }); onNavigate("categories"); setOpen(false); }} style={adminItemStyle("categories")}>
                 {t("categoriesAdminAria", lang)}
               </button>
-              <button type="button" onClick={() => { onNavigate("feeds"); setOpen(false); }} style={adminItemStyle("feeds")}>
+              <button type="button" onClick={() => { trackEvent("nav.user_menu", { target_id: "feeds", lang }); onNavigate("feeds"); setOpen(false); }} style={adminItemStyle("feeds")}>
                 {t("feedsAdminAria", lang)}
               </button>
-              <button type="button" onClick={() => { onNavigate("dailySummaries"); setOpen(false); }} style={adminItemStyle("dailySummaries")}>
+              <button type="button" onClick={() => { trackEvent("nav.user_menu", { target_id: "dailySummaries", lang }); onNavigate("dailySummaries"); setOpen(false); }} style={adminItemStyle("dailySummaries")}>
                 {t("dailySummariesAdmin", lang)}
               </button>
-              <button type="button" onClick={() => { onNavigate("youtubeChannels"); setOpen(false); }} style={adminItemStyle("youtubeChannels")}>
+              <button type="button" onClick={() => { trackEvent("nav.user_menu", { target_id: "youtubeChannels", lang }); onNavigate("youtubeChannels"); setOpen(false); }} style={adminItemStyle("youtubeChannels")}>
                 YouTube Channels
               </button>
-              <button type="button" onClick={() => { onNavigate("users"); setOpen(false); }} style={adminItemStyle("users")}>
+              <button type="button" onClick={() => { trackEvent("nav.user_menu", { target_id: "users", lang }); onNavigate("users"); setOpen(false); }} style={adminItemStyle("users")}>
                 {t("usersAdminAria", lang)}
+              </button>
+              <button type="button" onClick={() => { trackEvent("nav.user_menu", { target_id: "userActivity", lang }); onNavigate("userActivity"); setOpen(false); }} style={adminItemStyle("userActivity")}>
+                {t("userActivityAdminAria", lang)}
               </button>
               <div style={{ height: 1, background: color.border, margin: "4px 0" }} />
             </>
@@ -209,7 +220,11 @@ function UserMenu({
           {authed ? (
             <button
               type="button"
-              onClick={() => { onSignOut(); setOpen(false); }}
+              onClick={() => {
+                trackEvent("auth.sign_out", { lang });
+                onSignOut();
+                setOpen(false);
+              }}
               style={menuItemStyle}
             >
               {t("authSignOut", lang)}
@@ -330,7 +345,7 @@ export function AppHeader({
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <NavIconButton
             active={currentPage === "briefing"}
-            onClick={onHomeReset}
+            onClick={() => { trackEvent("nav.header_icon", { target_id: "briefing", lang }); onHomeReset(); }}
             ariaLabel={t("navHomeAria", lang)}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -340,7 +355,7 @@ export function AppHeader({
           </NavIconButton>
           <NavIconButton
             active={currentPage === "stats"}
-            onClick={() => onNavigate("stats")}
+            onClick={() => { trackEvent("nav.header_icon", { target_id: "stats", lang }); onNavigate("stats"); }}
             ariaLabel={t("navStatsAria", lang)}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -351,7 +366,7 @@ export function AppHeader({
           </NavIconButton>
           <NavIconButton
             active={currentPage === "crons"}
-            onClick={() => onNavigate("crons")}
+            onClick={() => { trackEvent("nav.header_icon", { target_id: "crons", lang }); onNavigate("crons"); }}
             ariaLabel={t("cronMonitor", lang)}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -360,7 +375,7 @@ export function AppHeader({
           </NavIconButton>
           <NavIconButton
             active={currentPage === "changelog"}
-            onClick={() => onNavigate("changelog")}
+            onClick={() => { trackEvent("nav.header_icon", { target_id: "changelog", lang }); onNavigate("changelog"); }}
             ariaLabel={t("changelog", lang)}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -370,7 +385,7 @@ export function AppHeader({
           </NavIconButton>
           <NavIconButton
             active={currentPage === "settings"}
-            onClick={() => onNavigate("settings")}
+            onClick={() => { trackEvent("nav.header_icon", { target_id: "settings", lang }); onNavigate("settings"); }}
             ariaLabel={t("settings", lang)}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

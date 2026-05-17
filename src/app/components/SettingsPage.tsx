@@ -7,6 +7,7 @@ import { VoiceAccordion, TTS_VOICES_EN, TTS_VOICES_FR } from "@/app/components/V
 import { useAuth } from "@/app/providers";
 import { MyAccountSection } from "@/app/components/MyAccountSection";
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
+import { trackEvent } from "@/lib/track";
 
 type MonetizationMetadata = {
   plan_intent?: unknown;
@@ -211,7 +212,11 @@ export function SettingsPage({
                 max={1.2}
                 step={0.05}
                 value={ttsSpeed}
-                onChange={(e) => onTtsSpeedChange(Number(e.target.value))}
+                onChange={(e) => {
+                  const next = Number(e.target.value);
+                  trackEvent("settings.tts_speed_change", { lang, meta: { speed: next } });
+                  onTtsSpeedChange(next);
+                }}
                 style={{ flex: 1, accentColor: color.gold, cursor: "pointer" }}
               />
               <span style={{ color: color.gold, fontSize: 15, fontWeight: 600, minWidth: 40, textAlign: "center" }}>
@@ -223,7 +228,14 @@ export function SettingsPage({
               label={lang === "fr" ? "Voix EN" : "Voice EN"}
               voices={TTS_VOICES_EN}
               selected={ttsVoice}
-              onChange={onTtsVoiceChange}
+              onChange={(v) => {
+                trackEvent("settings.tts_voice_change", {
+                  target_id: v,
+                  lang,
+                  meta: { voiceLang: "en" },
+                });
+                onTtsVoiceChange(v);
+              }}
               open={voiceEnOpen}
               onToggle={() => setVoiceEnOpen(!voiceEnOpen)}
             />
@@ -231,7 +243,14 @@ export function SettingsPage({
               label={lang === "fr" ? "Voix FR" : "Voice FR"}
               voices={TTS_VOICES_FR}
               selected={ttsVoiceFr}
-              onChange={onTtsVoiceFrChange}
+              onChange={(v) => {
+                trackEvent("settings.tts_voice_change", {
+                  target_id: v,
+                  lang,
+                  meta: { voiceLang: "fr" },
+                });
+                onTtsVoiceFrChange(v);
+              }}
               open={voiceFrOpen}
               onToggle={() => setVoiceFrOpen(!voiceFrOpen)}
             />
@@ -297,6 +316,7 @@ function SubscriptionPanel({
         pro_interest_at: new Date().toISOString(),
         daily_newsletter: true,
       });
+      trackEvent("pro.reserve", { lang });
       setReserved(true);
       setNewsletterEnabled(true);
       setMessage(
@@ -321,6 +341,10 @@ function SubscriptionPanel({
     setMessage(null);
     try {
       await persistMetadata({ daily_newsletter: next });
+      trackEvent(next ? "newsletter.subscribe" : "newsletter.unsubscribe", {
+        lang,
+        meta: { source: "settings" },
+      });
       setNewsletterEnabled(next);
       setMessage(
         next

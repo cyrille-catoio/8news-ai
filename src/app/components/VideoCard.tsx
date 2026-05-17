@@ -10,6 +10,7 @@ import { CopyLinkButton } from "@/app/components/CopyLinkButton";
 import { DownloadTranscriptButton } from "@/app/components/DownloadTranscriptButton";
 import { ScoreMeter } from "@/app/components/ScoreMeter";
 import type { TopicLabel } from "@/lib/types";
+import { trackEvent } from "@/lib/track";
 
 const ReactMarkdown = dynamic(() => import("react-markdown"), { ssr: false });
 
@@ -197,7 +198,12 @@ export function VideoCard({
 
   const startPlayback = useCallback(() => {
     setPlaying(true);
-  }, []);
+    trackEvent("top_video.play_start", {
+      target_id: v.videoId,
+      lang,
+      meta: { channelTitle: v.channelTitle, variant },
+    });
+  }, [v.videoId, v.channelTitle, lang, variant]);
 
   useEffect(() => {
     if (variant !== "hero" || !onPlaybackChange) return;
@@ -230,6 +236,7 @@ export function VideoCard({
   const handleSummaryCta = useCallback(() => {
     if (transcribing) return;
     if (hasTranscription) {
+      trackEvent("top_video.summary_expand", { target_id: v.videoId, lang });
       setSummaryExpanded(true);
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
@@ -238,9 +245,10 @@ export function VideoCard({
       });
       return;
     }
+    trackEvent("top_video.transcribe_request", { target_id: v.videoId, lang });
     pendingExpandAfterTranscribeRef.current = true;
     onTranscribe();
-  }, [transcribing, hasTranscription, onTranscribe, setSummaryExpanded]);
+  }, [transcribing, hasTranscription, onTranscribe, setSummaryExpanded, v.videoId, lang]);
 
   useEffect(() => {
     if (transcriptionFailed && summaryMd) {
@@ -830,7 +838,7 @@ export function VideoCard({
                   >
                     {lang === "fr" ? "Lecteur audio" : "Audio player"}
                   </div>
-                  <AudioPlayer text={`${intro} ${body}`} lang={lang} speed={speed} voice={voice} />
+                  <AudioPlayer text={`${intro} ${body}`} lang={lang} speed={speed} voice={voice} context="video_card" contextId={v.videoId} />
                 </div>
               ) : null;
             })()}

@@ -49,7 +49,7 @@ export function DailySummaryAudio({
 
   return (
     <div style={{ marginBottom: 16 }}>
-      <AudioPlayer text={ttsText} lang={lang} speed={speed} voice={voice} />
+      <AudioPlayer text={ttsText} lang={lang} speed={speed} voice={voice} context="daily_summary" />
     </div>
   );
 }

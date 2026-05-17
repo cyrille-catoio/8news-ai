@@ -86,7 +86,7 @@ export function SummaryBox({ data, locale, lang, hours, topicName, speed, voice,
           </p>
         )}
       </div>
-      {ttsText.length > 0 && <div style={{ marginBottom: 12 }}><AudioPlayer text={ttsText} lang={lang} speed={speed} voice={voice} /></div>}
+      {ttsText.length > 0 && <div style={{ marginBottom: 12 }}><AudioPlayer text={ttsText} lang={lang} speed={speed} voice={voice} context="summary_box" /></div>}
       {hasBullets ? (
         <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none" }}>
           {bullets.map((bullet, i) => {

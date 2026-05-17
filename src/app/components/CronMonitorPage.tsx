@@ -195,8 +195,12 @@ export function CronMonitorPage({ lang }: { lang: Lang }) {
               {data.topics.map((tp) => {
                 const fetchAgeMinutes = ageMinutes(tp.lastFetchedAt, generatedAtMs);
                 const scoreAgeMinutes = ageMinutes(tp.lastScoredAt, generatedAtMs);
-                const fetchIsLate = fetchAgeMinutes !== null && fetchAgeMinutes > 60;
-                const scoreIsLate = scoreAgeMinutes !== null && scoreAgeMinutes > 60;
+                // `>= 60` so the red highlight fires as soon as
+                // `timeAgo` flips to « 1 hour » — `ageMinutes` floors
+                // to whole minutes, so a strict `> 60` would leave the
+                // « 1 hour »-but-not-yet-red gap users were reporting.
+                const fetchIsLate = fetchAgeMinutes !== null && fetchAgeMinutes >= 60;
+                const scoreIsLate = scoreAgeMinutes !== null && scoreAgeMinutes >= 60;
                 return (
                 <tr key={tp.id}>
                   <td style={{ ...tdStyle, fontWeight: 600 }}>{tp.label}</td>

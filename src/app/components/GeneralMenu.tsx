@@ -5,6 +5,7 @@ import Link from "next/link";
 import { color } from "@/lib/theme";
 import { t, type Lang } from "@/lib/i18n";
 import type { AppNavPage } from "@/app/components/AppHeader";
+import { trackEvent } from "@/lib/track";
 
 /* ── Shared styles ─────────────────────────────────────────────────── */
 
@@ -78,28 +79,40 @@ export function GeneralMenu({
     <div style={barWrap}>
       <button
         type="button"
-        onClick={onNavigateBriefing}
+        onClick={() => {
+          trackEvent("nav.menu", { target_id: "briefing", lang });
+          onNavigateBriefing();
+        }}
         style={currentPage === "briefing" ? activeStyle : base}
       >
         {t("briefingBtn", lang)}
       </button>
       <button
         type="button"
-        onClick={onNavigateHome}
+        onClick={() => {
+          trackEvent("nav.menu", { target_id: "home", lang });
+          onNavigateHome();
+        }}
         style={currentPage === "home" ? activeStyle : base}
       >
         {t("generalMenuArticlesBtn", lang)}
       </button>
       <button
         type="button"
-        onClick={onNavigateVideos}
+        onClick={() => {
+          trackEvent("nav.menu", { target_id: "videos", lang });
+          onNavigateVideos();
+        }}
         style={currentPage === "videos" ? activeStyle : base}
       >
         {t("videosBtn", lang)}
       </button>
       <button
         type="button"
-        onClick={onAnalyzeTop}
+        onClick={() => {
+          trackEvent("nav.menu", { target_id: "topArticles", lang });
+          onAnalyzeTop();
+        }}
         style={currentPage === "topArticles" ? activeStyle : base}
         disabled={analyzeTopLoading}
       >
@@ -112,7 +125,10 @@ export function GeneralMenu({
           works without burning a nav slot. */}
       <button
         type="button"
-        onClick={onNavigateSummaries}
+        onClick={() => {
+          trackEvent("nav.menu", { target_id: "summaries", lang });
+          onNavigateSummaries();
+        }}
         style={currentPage === "summaries" ? activeStyle : base}
       >
         {t("dailySummaryBtn", lang)}
@@ -120,6 +136,7 @@ export function GeneralMenu({
       <button
         type="button"
         onClick={() => {
+          trackEvent("nav.menu", { target_id: "favorites", lang });
           if (isAuthenticated) onNavigateFavorites();
           else onRequestAuth?.();
         }}
@@ -129,7 +146,10 @@ export function GeneralMenu({
       </button>
       <button
         type="button"
-        onClick={onNavigateMyTopics}
+        onClick={() => {
+          trackEvent("nav.menu", { target_id: "myTopics", lang });
+          onNavigateMyTopics();
+        }}
         style={currentPage === "myTopics" ? activeStyle : base}
       >
         {t("myTopicsMenuBtn", lang)}

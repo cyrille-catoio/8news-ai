@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { TopicItem } from "@/lib/types";
+import { trackEvent } from "@/lib/track";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -85,9 +86,15 @@ export function useUserTopics(isAuthenticated: boolean) {
       setDraftTopicIds((prev) => {
         // If no draft yet, start from all topics selected
         const current = prev ?? allTopics.map((t) => t.id);
-        const next = current.includes(topicId)
+        const isRemoving = current.includes(topicId);
+        const next = isRemoving
           ? current.filter((id) => id !== topicId)
           : [...current, topicId];
+        trackEvent("topic.preference_toggle", {
+          target_id: topicId,
+          action: isRemoving ? "remove" : "add",
+          meta: { newCount: next.length },
+        });
         setPreferredTopicIds(next);
         savePreferences(next);
         return next;
@@ -113,6 +120,7 @@ export function useUserTopics(isAuthenticated: boolean) {
   // Complete onboarding: save selected topics and dismiss the onboarding modal.
   // topicIds may be empty [] (user wants everything) or a subset.
   const completeOnboarding = useCallback((topicIds: string[]) => {
+    trackEvent("topic.onboarding_complete", { meta: { selectedCount: topicIds.length } });
     setPreferredTopicIds(topicIds);
     setDraftTopicIds(topicIds);
     setOnboardingNeeded(false);

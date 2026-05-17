@@ -17,6 +17,7 @@ import { stripEmoji } from "@/lib/html";
 import { useAuth } from "@/app/providers";
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 import { isOwnerUser } from "@/lib/user-type";
+import { trackEvent } from "@/lib/track";
 
 // v2.8.2+ — the home Top 24h podcast « Lu / Read » state moved from a
 // single cookie keyed to today's UTC date to a per-snapshot-date store
@@ -135,6 +136,7 @@ function NewsletterSignupPrompt({
         },
       });
       if (error) throw error;
+      trackEvent("newsletter.subscribe", { lang, meta: { source: "home_prompt" } });
       setSubscribed(true);
       setMessage(t("newsletterSignupSuccess", lang));
     } catch {
@@ -400,11 +402,15 @@ export function BriefingPage({
   }, [lang]);
 
   const onArticleHistoryPrev = useCallback(() => {
-    setArticleHistoryOffset((o) => (articleHasOlder ? o + 1 : o));
-  }, [articleHasOlder]);
+    if (!articleHasOlder) return;
+    trackEvent("top_story.history_older", { lang, meta: { fromOffset: articleHistoryOffset } });
+    setArticleHistoryOffset((o) => o + 1);
+  }, [articleHasOlder, articleHistoryOffset, lang]);
   const onArticleHistoryNext = useCallback(() => {
+    if (articleHistoryOffset === 0) return;
+    trackEvent("top_story.history_newer", { lang, meta: { fromOffset: articleHistoryOffset } });
     setArticleHistoryOffset((o) => Math.max(0, o - 1));
-  }, []);
+  }, [articleHistoryOffset, lang]);
 
   // ─── Latest daily summary (today or yesterday fallback) ─────────────
   const [summaryRoutes, setSummaryRoutes] = useState<SummaryRoute[]>([]);
@@ -609,11 +615,15 @@ export function BriefingPage({
   }, [lang]);
 
   const onVideoHistoryPrev = useCallback(() => {
-    setVideoHistoryOffset((o) => (videoHasOlder ? o + 1 : o));
-  }, [videoHasOlder]);
+    if (!videoHasOlder) return;
+    trackEvent("top_video.history_older", { lang, meta: { fromOffset: videoHistoryOffset } });
+    setVideoHistoryOffset((o) => o + 1);
+  }, [videoHasOlder, videoHistoryOffset, lang]);
   const onVideoHistoryNext = useCallback(() => {
+    if (videoHistoryOffset === 0) return;
+    trackEvent("top_video.history_newer", { lang, meta: { fromOffset: videoHistoryOffset } });
     setVideoHistoryOffset((o) => Math.max(0, o - 1));
-  }, []);
+  }, [videoHistoryOffset, lang]);
 
   // Same logic as VideosPage.handleTranscribe — POSTs the video to the
   // transcribe endpoint and writes the resulting summaryMd into local
@@ -1012,6 +1022,13 @@ function HeroStory({
             target="_blank"
             rel="noopener noreferrer"
             aria-label={lang === "fr" ? "Lire l'article (nouvel onglet)" : "Read the article (new tab)"}
+            onClick={() =>
+              trackEvent("top_story.cta_read_article", {
+                target_id: article.link,
+                lang,
+                meta: { source: article.source, score: article.score },
+              })
+            }
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -1119,7 +1136,19 @@ function Top5Section({
       </div>
       {articles.map((art, i) => (
         <div key={`${art.link}-${i}`} style={{ ...card, display: "block", padding: 16, marginBottom: 10 }}>
-          <a href={art.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none", color: "inherit", display: "block" }}>
+          <a
+            href={art.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ textDecoration: "none", color: "inherit", display: "block" }}
+            onClick={() =>
+              trackEvent("article.link_click", {
+                target_id: art.link,
+                lang,
+                meta: { section: "top_5", source: art.source, score: art.score, rank: i },
+              })
+            }
+          >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
               <span style={{ color: color.text, fontWeight: 500, fontSize: 16, lineHeight: 1.35, flex: 1, minWidth: 0 }}>
                 {art.title}
@@ -1424,7 +1453,19 @@ function YourTopicsSection({
             </div>
             {articles.map((art, i) => (
               <div key={`${art.link}-${i}`} style={{ ...card, display: "block", padding: 12, marginBottom: 8 }}>
-                <a href={art.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none", color: "inherit", display: "block" }}>
+                <a
+                  href={art.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ textDecoration: "none", color: "inherit", display: "block" }}
+                  onClick={() =>
+                    trackEvent("article.link_click", {
+                      target_id: art.link,
+                      lang,
+                      meta: { section: "your_topics", source: art.source, score: art.score, rank: i },
+                    })
+                  }
+                >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                     <span style={{ color: color.text, fontWeight: 500, fontSize: 14, lineHeight: 1.35, flex: 1, minWidth: 0 }}>
                       {art.title}

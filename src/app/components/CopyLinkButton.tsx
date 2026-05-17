@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { color } from "@/lib/theme";
+import { trackEvent } from "@/lib/track";
 
 export function CopyLinkButton({ url }: { url: string }) {
   const [copied, setCopied] = useState(false);
@@ -9,6 +10,7 @@ export function CopyLinkButton({ url }: { url: string }) {
     e.preventDefault();
     e.stopPropagation();
     navigator.clipboard.writeText(url).then(() => {
+      trackEvent("share.copy_link", { target_id: url });
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     });

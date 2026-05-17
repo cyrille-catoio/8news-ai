@@ -6,6 +6,7 @@ import { t, type Lang, dateLocale } from "@/lib/i18n";
 import type { AppNavPage } from "@/app/components/AppHeader";
 import { ScoreMeter } from "@/app/components/ScoreMeter";
 import { Top24hAudio } from "@/app/components/Top24hAudio";
+import { trackEvent } from "@/lib/track";
 
 /**
  * Hero card pinned at the very top of `/app` (BriefingPage). Renders
@@ -481,8 +482,16 @@ export function Top24hHero({
   const toggle = (i: number) => {
     setOpenIdx((prev) => {
       const next = new Set(prev);
-      if (next.has(i)) next.delete(i);
-      else next.add(i);
+      const willOpen = !next.has(i);
+      if (willOpen) next.add(i);
+      else next.delete(i);
+      // Fire telemetry outside the setState so the type/title is stable.
+      const groupTitle = groups[i]?.title || `index_${i}`;
+      trackEvent(willOpen ? "top24h.group_expand" : "top24h.group_collapse", {
+        target_id: groupTitle,
+        lang,
+        meta: { summaryDate: snap?.summaryDate ?? null, groupIndex: i },
+      });
       return next;
     });
   };
@@ -503,9 +512,20 @@ export function Top24hHero({
             canGoOlder={historyHasOlder}
             onOlder={() => {
               if (!historyHasOlderRef.current) return;
+              trackEvent("top24h.history_older", {
+                lang,
+                meta: { fromOffset: historyOffset, fromDate: snap?.summaryDate ?? null },
+              });
               setHistoryOffset((o) => o + 1);
             }}
-            onNewer={() => setHistoryOffset((o) => Math.max(0, o - 1))}
+            onNewer={() => {
+              if (historyOffset === 0) return;
+              trackEvent("top24h.history_newer", {
+                lang,
+                meta: { fromOffset: historyOffset, fromDate: snap?.summaryDate ?? null },
+              });
+              setHistoryOffset((o) => Math.max(0, o - 1));
+            }}
             lang={lang}
           />
         )}
@@ -554,6 +574,10 @@ export function Top24hHero({
                   type="button"
                   className="top24h-hero-toggle"
                   onClick={() => {
+                    trackEvent(allOpen ? "top24h.collapse_all" : "top24h.expand_all", {
+                      lang,
+                      meta: { summaryDate: snap.summaryDate, groupCount: groups.length },
+                    });
                     if (allOpen) setOpenIdx(new Set());
                     else
                       setOpenIdx(
@@ -758,6 +782,17 @@ export function Top24hHero({
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 title={ref.title}
+                                onClick={() =>
+                                  trackEvent("top24h.ref_click", {
+                                    target_id: ref.link,
+                                    lang,
+                                    meta: {
+                                      source: ref.source,
+                                      title: ref.title,
+                                      summaryDate: snap.summaryDate,
+                                    },
+                                  })
+                                }
                                 // Chip/pill style: a thin gold border + soft
                                 // gold tint background makes the source links
                                 // pop instead of blending into the body text.
@@ -861,7 +896,13 @@ export function Top24hHero({
             {showSeeAllLink && onNavigate && !isRead && (
               <button
                 type="button"
-                onClick={() => onNavigate("topArticles")}
+                onClick={() => {
+                  trackEvent("top24h.see_full_briefing", {
+                    lang,
+                    meta: { summaryDate: snap.summaryDate },
+                  });
+                  onNavigate("topArticles");
+                }}
                 style={{
                   background: "transparent",
                   border: "none",

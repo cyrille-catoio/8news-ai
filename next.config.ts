@@ -20,6 +20,7 @@ const SPA_ROUTES = [
   "/app/daily-summaries",
   "/app/youtube-channels",
   "/app/users",
+  "/app/user-activity",
   "/app/top-articles",
   "/app/summaries-browse",
 ];

@@ -24,6 +24,7 @@ import { FeedsAdminPage } from "@/app/components/FeedsAdminPage";
 import { CategoriesPage } from "@/app/components/CategoriesPage";
 import { SettingsPage } from "@/app/components/SettingsPage";
 import { UsersSection } from "@/app/components/UsersSection";
+import { UserActivityStatsPage } from "@/app/components/UserActivityStatsPage";
 import { SummaryBox } from "@/app/components/SummaryBox";
 import { AllArticlesTab, type AllArticleEntry } from "@/app/components/AllArticlesTab";
 import { StatsPage } from "@/app/components/StatsPage";
@@ -46,10 +47,11 @@ import { ArchivesBrowsePage } from "@/app/components/ArchivesBrowsePage";
 import { VideosPage } from "@/app/components/VideosPage";
 import { YouTubeChannelsPage } from "@/app/components/YouTubeChannelsPage";
 import { BriefingPage } from "@/app/components/BriefingPage";
+import { trackEvent } from "@/lib/track";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.9";
+const APP_VERSION = "2.10";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 const NEWS_API_TRANSIENT_STATUSES = new Set([502, 503, 504]);
 const NEWS_API_RETRY_DELAY_MS = 750;
@@ -811,6 +813,7 @@ export default function Home() {
     dailySummaries: "/app/daily-summaries",
     youtubeChannels: "/app/youtube-channels",
     users: "/app/users",
+    userActivity: "/app/user-activity",
     topArticles: "/app/top-articles",
     summaries: "/app/archives",
     // v2.5.17+ — placeholder route for the future SPA-internal landing
@@ -847,6 +850,11 @@ export default function Home() {
         window.history.pushState({ page }, "", path);
       }
     }
+    // Fires after every SPA navigation (button-click, popstate, initial
+    // mount via the effect below). Lets the User Activity dashboard
+    // compute "page views per page" and feed the conversion funnel's
+    // first step.
+    trackEvent("page.view", { target_id: page });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -854,10 +862,12 @@ export default function Home() {
     const initial = pathToPage(window.location.pathname);
     setCurrentPageRaw(initial);
     window.history.replaceState({ page: initial }, "", window.location.pathname);
+    trackEvent("page.view", { target_id: initial });
 
     const handler = (e: PopStateEvent) => {
       const page = e.state?.page ?? pathToPage(window.location.pathname);
       setCurrentPageRaw(page);
+      trackEvent("page.view", { target_id: page, action: "popstate" });
     };
     window.addEventListener("popstate", handler);
     return () => window.removeEventListener("popstate", handler);
@@ -880,7 +890,7 @@ export default function Home() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!authOwner && (currentPage === "feeds" || currentPage === "categories" || currentPage === "dailySummaries" || currentPage === "youtubeChannels")) {
+    if (!authOwner && (currentPage === "feeds" || currentPage === "categories" || currentPage === "dailySummaries" || currentPage === "youtubeChannels" || currentPage === "users" || currentPage === "userActivity")) {
       setCurrentPage("briefing", true);
     }
     if (!isAuthenticated && currentPage === "topics") {
@@ -1246,6 +1256,18 @@ export default function Home() {
             </div>
           ) : authOwner ? (
             <UsersSection lang={lang} />
+          ) : null
+        ) : currentPage === "userActivity" ? (
+          // Owner-only behavioral analytics dashboard (v2.10+). Same
+          // auth pattern as `users`: render spinner while session is
+          // resolving, no-op for non-owners (the menu hides the link
+          // for them anyway, this is the URL-typed-directly fallback).
+          authLoading ? (
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "80px 0" }}>
+              <span style={spinnerStyle(28)} />
+            </div>
+          ) : authOwner ? (
+            <UserActivityStatsPage lang={lang} />
           ) : null
         ) : currentPage === "settings" ? (
           <SettingsPage

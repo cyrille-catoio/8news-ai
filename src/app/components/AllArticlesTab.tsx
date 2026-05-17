@@ -7,6 +7,7 @@ import { color, spinnerStyle } from "@/lib/theme";
 import { CopyLinkButton } from "@/app/components/CopyLinkButton";
 import { FavoriteButton } from "@/app/components/FavoriteButton";
 import { ScoreMeter } from "@/app/components/ScoreMeter";
+import { trackEvent } from "@/lib/track";
 
 const ALL_ARTICLES_PAGE_SIZE = 50;
 
@@ -92,6 +93,13 @@ export function AllArticlesTab({
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{ textDecoration: "none", color: "inherit", display: "block" }}
+                  onClick={() =>
+                    trackEvent("article.link_click", {
+                      target_id: art.link,
+                      lang,
+                      meta: { section: "all_articles", source: art.source, score: art.score, rank: i },
+                    })
+                  }
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <span className="app-title-sm" style={{ color: color.text, fontWeight: 500, flex: 1 }}>

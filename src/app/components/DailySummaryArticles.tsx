@@ -9,6 +9,7 @@ import { useFavorites } from "@/hooks/useFavorites";
 import { useAuth } from "@/app/providers";
 import { useState } from "react";
 import { AuthModal } from "@/app/components/AuthModal";
+import { trackEvent } from "@/lib/track";
 
 interface Article {
   title: string;
@@ -45,6 +46,13 @@ export function DailySummaryArticles({ articles, lang }: { articles: Article[]; 
             target="_blank"
             rel="noopener noreferrer"
             style={{ textDecoration: "none", color: "inherit", display: "block" }}
+            onClick={() =>
+              trackEvent("article.link_click", {
+                target_id: art.link,
+                lang,
+                meta: { section: "daily_summary", source: art.source, score: art.score, rank: i },
+              })
+            }
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
               <h3 style={{ color: color.text, fontWeight: 500, fontSize: 17, margin: 0, flex: 1, minWidth: 0 }}>

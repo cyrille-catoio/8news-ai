@@ -9,6 +9,16 @@ export interface ChangelogEntryDef {
 
 export const CHANGELOG_ENTRIES: ChangelogEntryDef[] = [
   {
+    version: "2.8",
+    title_en: "v2.8: « Daily Newsletter » email rebrand + readable Top 24h paragraphs on desktop and mobile",
+    title_fr: "v2.8 : email renommé « Newsletter quotidienne » + paragraphes Top 24h plus lisibles desktop et mobile",
+    body_en:
+      "**Newsletter rebrand.** The daily email's HTML `<title>`, body `<h1>` and subject line move from « Top 24h articles » / « Top articles 24h » to **« Daily Newsletter »** / **« Newsletter quotidienne »**. Single source of truth via `newsletterSubjectPrefix` in `src/lib/i18n.ts`, so subject + `<title>` + `<h1>` + plain-text header stay in sync without editing the renderer. The Top 24h kicker mono pill above the headline (`top24hHeroKicker`) is kept as the editorial register the bullets below come from.\n\n**Top 24h paragraphs reflow for readability.** Body paragraphs inside expanded bullet groups of the home `Podcast du jour` go from 14 px to **16 px** on desktop (line-height 1.55 → 1.6), and to **17 px** on phones (≤ 640 px) via a media-query override. The bullet text wrapper also gets a tighter left padding on phones (26 px → 8 px) so paragraphs use the full viewport width instead of wasting ~18 px on a desktop-sized rail. Titles, score badges, source pills and the mono kicker are unchanged.",
+    body_fr:
+      "**Renommage de la newsletter.** Le `<title>` HTML, le `<h1>` du corps et le sujet de l'email quotidien passent de « Top 24h articles » / « Top articles 24h » à **« Daily Newsletter »** / **« Newsletter quotidienne »**. Source unique via `newsletterSubjectPrefix` dans `src/lib/i18n.ts`, donc sujet + `<title>` + `<h1>` + entête texte restent alignés sans toucher au renderer. Le kicker mono « Top articles · 24h » au-dessus du titre (`top24hHeroKicker`) est conservé comme repère éditorial du contenu en dessous.\n\n**Paragraphes Top 24h plus lisibles.** Les paragraphes du corps des bullets dépliés du `Podcast du jour` passent de 14 px à **16 px** en desktop (line-height 1,55 → 1,6) et à **17 px** sur téléphone (≤ 640 px) via une override media-query. Le conteneur des bullets reçoit aussi un padding gauche resserré sur mobile (26 px → 8 px) pour que les paragraphes utilisent toute la largeur disponible au lieu de gâcher ~18 px sur une marge prévue pour desktop. Les titres, badges de score, pills source et kicker mono restent inchangés.",
+    created_at: "2026-05-17T15:16:00Z",
+  },
+  {
     version: "2.7.7",
     title_en: "v2.7.7: Pro €2/mo (€28/year), Top 24h history arrows fix, Favorites + newsletter prompt placement, in-place « read » collapse",
     title_fr: "v2.7.7 : Pro 2 €/mois (28 €/an), correctif flèches d'historique Top 24h, encarts Favoris et newsletter, collapse en place du Top 24h « Lu »",

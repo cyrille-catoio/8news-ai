@@ -1338,8 +1338,8 @@ const strings = {
   // i18n table so the same wording shows up on the homepage Top24h
   // card (`top24hHeroTitle`) and in the email envelope.
   newsletterSubjectPrefix: {
-    en: "Top 24h articles",
-    fr: "Top articles 24h",
+    en: "Daily Newsletter",
+    fr: "Newsletter quotidienne",
   },
   newsletterIntro: {
     en: "Here's your daily AI-curated brief of the most important stories from the last 24 hours.",

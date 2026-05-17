@@ -141,6 +141,23 @@ a.hero-story-title-link {
   .top24h-hero-generated {
     font-size: 11px;
   }
+
+  /* Bumps the body paragraph size from desktop's 16px (set inline in
+     `Top24hHero.tsx`) to a more readable 17px on phone screens. The
+     inline style needs `!important` to win against the React style
+     attribute — same pattern as `.top24h-hero-toggle` above. */
+  .top24h-bullet-body {
+    font-size: 17px !important;
+    line-height: 1.6 !important;
+  }
+
+  /* Tighter left padding on phones so paragraphs use more of the
+     available width — desktop's 26px left padding (set inline in
+     `Top24hHero.tsx`) wastes screen real estate on narrow viewports. */
+  .top24h-bullets-wrap {
+    padding-left: 8px !important;
+    padding-right: 0 !important;
+  }
 }
 
 .top-feed-thumb {

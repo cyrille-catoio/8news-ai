@@ -704,6 +704,7 @@ export function Top24hHero({
 
                 {collapsible && open && (
                   <div
+                    className="top24h-bullets-wrap"
                     style={{
                       padding: "4px 4px 16px 26px",
                       animation: "top24hExpandFade 220ms ease-out both",
@@ -712,10 +713,11 @@ export function Top24hHero({
                     {g.bullets.map((b, j) => (
                       <div
                         key={j}
+                        className="top24h-bullet-body"
                         style={{
                           color: color.textSecondary,
-                          fontSize: 14,
-                          lineHeight: 1.55,
+                          fontSize: 16,
+                          lineHeight: 1.6,
                           marginBottom: j < g.bullets.length - 1 ? 12 : 0,
                         }}
                       >

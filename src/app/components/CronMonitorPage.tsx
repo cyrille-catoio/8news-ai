@@ -57,7 +57,7 @@ export function CronMonitorPage({ lang }: { lang: Lang }) {
   function reasonLabel(status: string, reason: string | undefined): string {
     if (status === "ok" || !reason) return "";
     if (reason === "backlog") return status === "high" ? "backlog > 200" : "backlog ≥ 50";
-    if (reason === "fetch") return status === "high" ? "fetch > 60m" : "fetch > 30m";
+    if (reason === "fetch") return status === "high" ? "fetch > 2h" : "fetch > 1h";
     return status === "high" ? "score > 45m" : "score > 30m";
   }
 
@@ -195,7 +195,7 @@ export function CronMonitorPage({ lang }: { lang: Lang }) {
               {data.topics.map((tp) => {
                 const fetchAgeMinutes = ageMinutes(tp.lastFetchedAt, generatedAtMs);
                 const scoreAgeMinutes = ageMinutes(tp.lastScoredAt, generatedAtMs);
-                const fetchIsLate = fetchAgeMinutes !== null && fetchAgeMinutes > 30;
+                const fetchIsLate = fetchAgeMinutes !== null && fetchAgeMinutes > 60;
                 const scoreIsLate = scoreAgeMinutes !== null && scoreAgeMinutes > 60;
                 return (
                 <tr key={tp.id}>

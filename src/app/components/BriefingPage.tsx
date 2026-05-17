@@ -14,24 +14,17 @@ import type { TopicLabel } from "@/lib/types";
 import type { AppNavPage } from "@/app/components/AppHeader";
 import { summaryPath } from "@/lib/summary-routes";
 import { stripEmoji } from "@/lib/html";
-import { getCookie, setCookie } from "@/lib/cookies";
 import { useAuth } from "@/app/providers";
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 import { isOwnerUser } from "@/lib/user-type";
 
-/** Cookie key for the home « Top 24h podcast » read state. Value =
- *  UTC date string (`YYYY-MM-DD`) of the day on which the user marked
- *  the hero as read. We compare to `todayUtc()` at mount so a stale
- *  cookie from yesterday is automatically treated as « unread » — no
- *  need to expire it explicitly, and a fresh briefing always promotes
- *  the hero back to the top of the home regardless of past sessions.
- *  Stored as a cookie (not localStorage) so the value survives
- *  cross-tab + private browsing per the user's request. */
-const TOP24H_READ_COOKIE = "top24hRead";
-
-function todayUtcDate(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+// v2.8.2+ — the home Top 24h podcast « Lu / Read » state moved from a
+// single cookie keyed to today's UTC date to a per-snapshot-date store
+// owned by `<HomeTop24hHero>` itself (DB-backed via
+// /api/user/activity for authenticated users, comma-separated cookie
+// list for anonymous visitors). The `BriefingPage` no longer plumbs
+// `isRead` / `onToggleRead` down to the hero — the hero collapses in
+// place when checked, and the slot in the page stays unchanged.
 
 /** Tier color for an inline 1-10 score badge. Mirrors `ScoreMeter`. */
 function scoreTierColor(score: number): string {
@@ -429,30 +422,6 @@ export function BriefingPage({
     return summaryRoutes.find((r) => r.lang === lang) ?? null;
   }, [summaryRoutes, lang]);
 
-  // ─── Top 24h podcast « lue » toggle ─────────────────────────────────
-  // v2.6.15+ — small checkbox at the bottom of the home `Top24hHero`.
-  // Initial state is read from a cookie that stores the UTC date the
-  // user last marked « lue »; if the cookie matches today's UTC date,
-  // the hero is « read » and we demote the card below the transcribed-
-  // videos list. Stale cookies (yesterday's, or never set) read as
-  // unread → hero stays pinned at the top of the home as before.
-  const [topHeroRead, setTopHeroRead] = useState(false);
-  useEffect(() => {
-    setTopHeroRead(getCookie(TOP24H_READ_COOKIE) === todayUtcDate());
-  }, []);
-  const onToggleTopHeroRead = useCallback(() => {
-    setTopHeroRead((prev) => {
-      const next = !prev;
-      if (next) {
-        setCookie(TOP24H_READ_COOKIE, todayUtcDate(), 7);
-      } else {
-        // `days=0` zeroes `max-age` → browser drops the cookie.
-        setCookie(TOP24H_READ_COOKIE, "", 0);
-      }
-      return next;
-    });
-  }, []);
-
   // ─── Trending topics (powered by /api/topics/trending) ──────────────
   const [trending, setTrending] = useState<TrendingTopic[]>([]);
   useEffect(() => {
@@ -698,23 +667,21 @@ export function BriefingPage({
               at the very top. Self-fetches the latest snapshot so its
               loading / error / 404 states stay fully isolated from the
               rest of the home (a missing snapshot just hides the card).
-              v2.7.7+ — when the user marks today's briefing as « Lu »
-              via the bottom-left checkbox, the hero collapses in place
-              with an animation rather than being re-positioned below
-              the videos: the slot stays the same so the visitor can
-              still see at a glance which day's briefing was consumed,
-              and unchecking expands it back. The cookie behavior is
-              unchanged (UTC-date keyed). */}
+              v2.7.7+ — when the user marks the briefing as « Lu » via
+              the bottom-left checkbox, the hero collapses in place
+              (animated max-height + opacity) rather than being
+              re-positioned. v2.8.2+ — the « Lu » state is now stored
+              per snapshot date in the `user_activity` DB table for
+              authenticated users (one row per (user, summary_date)),
+              and in a comma-separated cookie list for anonymous
+              visitors. The hero owns this state internally so the
+              checkbox tracks the snapshot currently on screen as the
+              history arrows browse older podcasts. */}
           {!isAuthenticated && (
             <NewsletterSignupPrompt lang={lang} onRequestAuth={onRequestAuth} />
           )}
 
-          <HomeTop24hHero
-            lang={lang}
-            onNavigate={onNavigate}
-            isRead={topHeroRead}
-            onToggleRead={onToggleTopHeroRead}
-          />
+          <HomeTop24hHero lang={lang} onNavigate={onNavigate} />
 
           {isAuthenticated && (
             <NewsletterSignupPrompt lang={lang} onRequestAuth={onRequestAuth} />

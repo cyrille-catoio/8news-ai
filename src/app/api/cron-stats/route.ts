@@ -23,12 +23,20 @@ function percentile(values: number[], p: number): number {
 }
 
 const SCORING_CRON_INTERVAL_MINUTES = 15;
-const FETCH_CRON_INTERVAL_MINUTES = 15;
+/** Reference value for the RSS fetch cron cadence — no longer drives the
+ *  slow/high thresholds (which are now absolute 60 / 120 min, see below)
+ *  but kept here as a documentation anchor for future operators reading
+ *  this file. Prefixed `_` so eslint allows it as an intentionally unused
+ *  constant under `@typescript-eslint/no-unused-vars`. */
+const _FETCH_CRON_INTERVAL_MINUTES = 15;
+void _FETCH_CRON_INTERVAL_MINUTES;
 const FRESH_BACKLOG_WINDOW_MINUTES = SCORING_CRON_INTERVAL_MINUTES;
 const SCORE_SLOW_AFTER_MINUTES = SCORING_CRON_INTERVAL_MINUTES * 2;
 const SCORE_HIGH_AFTER_MINUTES = SCORING_CRON_INTERVAL_MINUTES * 3;
-const FETCH_SLOW_AFTER_MINUTES = FETCH_CRON_INTERVAL_MINUTES * 2;
-const FETCH_HIGH_AFTER_MINUTES = FETCH_CRON_INTERVAL_MINUTES * 4;
+/** Last fetch older than 1h → topic status `slow` + red « Dernier fetch » in Cron Monitor. */
+const FETCH_SLOW_AFTER_MINUTES = 60;
+/** Last fetch older than 2h → topic status `high` (fetch reason). */
+const FETCH_HIGH_AFTER_MINUTES = 120;
 const FETCH_TO_SCORE_SLA_MINUTES = SCORING_CRON_INTERVAL_MINUTES;
 
 export async function GET() {

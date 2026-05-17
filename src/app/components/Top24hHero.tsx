@@ -298,6 +298,7 @@ export function Top24hHero({
   isRead,
   onToggleRead,
   showHistoryControls = false,
+  onSnapshotChange,
 }: {
   lang: Lang;
   /** Required when `showSeeAllLink` is `true` (default). The footer
@@ -348,6 +349,12 @@ export function Top24hHero({
   /** Home-only: show discreet chevrons next to the Top articles 24h
    *  kicker to browse previous daily podcast snapshots. */
   showHistoryControls?: boolean;
+  /** Notifies the parent each time the visible snapshot changes
+   *  (initial load + every history-arrow navigation). v2.8.2+ used by
+   *  `<HomeTop24hHero>` to know which `summaryDate` to look up in the
+   *  per-user « Lu » DB-backed state, so the checkbox + collapse mirror
+   *  the date currently on screen rather than always today's. */
+  onSnapshotChange?: (snapshot: Snapshot) => void;
 }) {
   const isSelfFetched = externalData === undefined;
   const [snapInternal, setSnapInternal] = useState<Snapshot | null>(null);
@@ -360,6 +367,14 @@ export function Top24hHero({
    *  pattern could read `false` from the initial render and never
    *  increment even when the latest API said `hasOlder: true`). */
   const historyHasOlderRef = useRef(false);
+  /** Latest `onSnapshotChange` callback. Kept in a ref so the fetch
+   *  effect below doesn't need it as a dep — otherwise an unstable
+   *  parent callback would re-trigger the network request on every
+   *  parent render, which would also clobber the historyOffset state. */
+  const onSnapshotChangeRef = useRef(onSnapshotChange);
+  useEffect(() => {
+    onSnapshotChangeRef.current = onSnapshotChange;
+  }, [onSnapshotChange]);
   const snap = isSelfFetched ? snapInternal : externalData ?? null;
 
   // Reset the open-index set whenever the snapshot or `defaultOpen`
@@ -414,6 +429,7 @@ export function Top24hHero({
         historyHasOlderRef.current = older;
         setSnapInternal(json);
         setHistoryHasOlder(older);
+        onSnapshotChangeRef.current?.(json);
       })
       .catch(() => {
         if (cancelled) return;

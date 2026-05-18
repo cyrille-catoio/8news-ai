@@ -184,7 +184,13 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 │   ├── 023-video-title-localized.sql       # **v2.5.x+** video_transcriptions.title_localized (per-lang AI title)
 │   ├── 024-summary-bullets-title.sql       # summary_bullets.title (short journalistic title per Top articles bullet)
 │   ├── 025-top-summaries.sql               # top_summaries snapshot for the daily Top articles cron (gpt-5.5)
-│   └── 026-summary-bullets-importance.sql  # **v2.6.9+**: summary_bullets.importance_score 1-10 (Top 24h group-level editorial importance, propagated by analyzeWithAI flatten)
+│   ├── 026-summary-bullets-importance.sql  # **v2.6.9+**: summary_bullets.importance_score 1-10 (Top 24h group-level editorial importance, propagated by analyzeWithAI flatten)
+│   ├── 027-articles-image-url.sql          # articles.image_url (RSS thumbnail backfill for Top 50 cards)
+│   ├── 028-articles-stats-indexes.sql      # composite indexes for the per-topic Stats query push-down
+│   ├── 029-user-activity.sql               # **v2.9+**: per-user UI toggle state (e.g. home Top 24h « Lu » per snapshot date)
+│   ├── 030-user-event.sql                  # **v2.10+**: append-only event log (anonymous + authenticated visitors, owner-only User Activity dashboard)
+│   ├── 031-summary-bullets-uniqueness.sql  # **v2.10.3+**: UNIQUE DEFERRABLE on (daily_summary_id|video_roundup_id|video_transcription_id, bullet_index) — must run AFTER 032
+│   └── 032-summary-bullets-cleanup.sql     # **v2.10.3+**: normalize legacy source_type 'article'→'daily_summary'; dedup historical doubles per business key
 ├── .gitignore
 ├── .env                                    # API keys (not committed)
 ├── netlify.toml                            # Netlify build + redirect config
@@ -290,7 +296,16 @@ Users can create new topics from the Topics page. Each topic includes:
 | `user_topic_preferences` | Per-user topic selection (array of topic IDs, max 8) |
 | `user_favorites` | Per-user article bookmarks (URL, title, source, date) |
 | `daily_summaries` | SEO daily summary pages (bullets, articles, SEO metadata) — `slug_keywords` is CHECK-guarded since migration 015 |
-| `summary_bullets` | Individual bullets with AI-extracted named entities (GIN-indexed). **`source_type`** column = `article` \| `video` \| `video_roundup` \| `top50`. Optional FKs: `daily_summary_id`, `video_transcription_id`, **v2.4+ `video_roundup_id`** (migration 018). **v2.6.5+** `title` (short journalistic 3-8 word headline, populated by Top 24h pipeline only — migration 024). **v2.6.9+** `importance_score SMALLINT` (1-10 editorial importance for the GROUP a Top 24h bullet belongs to — same value across every row of a same-`title` run, propagated by `analyzeWithAI` flatten — migration 026). Used as a uniform queryable mirror across all bullet sources. |
+| `summary_bullets` | Individual bullets with AI-extracted named entities (GIN-indexed). **`source_type`** column = `daily_summary` \| `top50` \| `video` \| `video_roundup` (since **v2.10.3+** — legacy default was `'article'`, normalized to `'daily_summary'` by migration 032). Optional FKs: `daily_summary_id`, `video_transcription_id`, **v2.4+ `video_roundup_id`** (migration 018). **v2.6.5+** `title` (short editorial headline; populated by Top 24h **and** video roundups since v2.10.3 — migration 024). **v2.6.9+** `importance_score SMALLINT` (1-10 editorial importance for the GROUP a Top 24h bullet belongs to — same value across every row of a same-`title` run, propagated by `analyzeWithAI` flatten — migration 026). **v2.10.3+** UNIQUE DEFERRABLE constraints on `(daily_summary_id, bullet_index)`, `(video_roundup_id, bullet_index)`, `(video_transcription_id, bullet_index)` (migration 031) prevent concurrent-CRON duplicates; `'top50'` rows intentionally excluded (multi-topic fan-out, deduplicated at read time). **All writers are CRON-only since v2.10.3** — user-facing transcribe / prewarm routes set `persistBullets=false` and the next cron tick backfills. |
+
+**Writers map (v2.10.3+).** Each `source_type` has exactly one CRON writer; user actions never insert rows.
+
+| `source_type` | Writer CRON | Helper | Dedup key |
+|---|---|---|---|
+| `daily_summary` | `cron-daily-summary-background.ts` | `insertSummaryBullets` | `(daily_summary_id, bullet_index)` |
+| `top50` | `cron-top-summary-background.ts` | `insertTopSummaryBullets` | `(source_type, lang, summary_date)` at delete time; **no UNIQUE** (multi-topic fan-out, read-time dedup) |
+| `video_roundup` | `cron-video-roundup-background.ts` | `insertVideoRoundupBullets` | `(video_roundup_id, bullet_index)` |
+| `video` | `cron-video-transcribe-background.ts` (regular pass + backfill pass) | `insertVideoBullets` via `buildVideoBulletRows` | `(video_transcription_id, bullet_index)` |
 | `youtube_channels` | YouTube channel registry (channel_id, handle, title, thumbnail). Auto-refreshed when title/thumbnail are missing. |
 | `youtube_videos` | Cached video metadata from RSS (persists past-date lookups). **Includes `duration_sec`** (backfilled by `enrichDurations()` via YouTube Data API v3 — drives Shorts filtering in both the SPA and the cron) and **`topic_id`** (set when the parent channel belongs to a topic — required for `/v/` SSR slug). |
 | `video_transcriptions` | Full transcript text + AI Markdown summary per (video, lang). **v2.x+** `slug_keywords` + `published_date` columns + `idx_vt_route` (route resolution by `(topic_id, published_date, lang, slug_keywords)`) and `idx_vt_topic_recent` (recent-videos block) — migration 016. **Migration 021** adds `summary_score` (1-10) + `summary_scored_at` (filled by `cron-video-summary-score-background`). |
@@ -400,7 +415,7 @@ Canonical implementations live in `src/lib/`:
 - `WALL_MS = 840_000`, `BUDGET_MS = 810_000`, `SAFETY_MS = 15_000`, `MAX_TOPICS_PER_RUN = 5`
 - For each active topic × `(en, fr)` × yesterday's date, calls `generateDailySummary` (skip-if-exists via SELECT on `daily_summaries`)
 - Uses **`gpt-4.1-mini`** with up to 50 articles fed in, top 10 displayed on the page
-- Mirrors bullets to `summary_bullets` with `source_type = 'article'` and `daily_summary_id` FK
+- Mirrors bullets to `summary_bullets` with `source_type = 'daily_summary'` (since **v2.10.3+**, was `'article'` by DB default before) and `daily_summary_id` FK; UNIQUE `(daily_summary_id, bullet_index)` since migration 031
 
 #### `cron-video-roundup-background.ts` — **v2.4+** Per-topic-per-day video roundups
 
@@ -411,7 +426,7 @@ Canonical implementations live in `src/lib/`:
   - Pulls the matching `video_transcriptions` rows for `(topic, lang)`
   - **`gpt-5.3-chat-latest`** generates a structured 8-bullet briefing (each: bold journalistic title 3-8 words + 3-5 sentence body), plus `seo_title` (no generic phrasing), 5-7 specific kebab-case `slug_keywords` (forbidden: `news`, `briefing`, `daily`, `ai`, `tech`, `video`, `today`), and a `seo_description` with ≥ 3 specific terms
   - Persists in `video_roundups` (`UNIQUE(topic_id, roundup_date, lang)` — re-runs update in place)
-  - **v2.4+ Mirrors the 8 bullets** into `summary_bullets` with `source_type = 'video_roundup'`, `bullet_index = 0..7`, `text = '**Title**\\n\\nBody'`, `video_roundup_id` FK (migration 018; if the migration hasn't been applied, the mirror logs a single `WARN` with the actionable line `run migration 018-roundup-bullets.sql in Supabase…` and does not fail the roundup itself)
+  - **v2.4+ Mirrors the 8 bullets** into `summary_bullets` with `source_type = 'video_roundup'`, `bullet_index = 0..7`, `video_roundup_id` FK (migration 018). **v2.10.3+** the `### Title` is persisted in the dedicated `title` column (mig 024) instead of being embedded as `**Title**\\n\\nBody` markdown inside `text`; `refs` is passed explicitly as `[]` (rich per-bullet source attribution lives in `video_roundup_videos`); UNIQUE `(video_roundup_id, bullet_index)` since migration 031. If migration 018 is missing the mirror logs a single `WARN` and does not fail the roundup itself.
 
 #### `cron-video-transcribe-background.ts` — **v2.5+** Pre-warm video transcription cache
 

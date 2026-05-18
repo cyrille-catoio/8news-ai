@@ -3,10 +3,13 @@
  *
  * Shared between two callers:
  *  - `POST /api/youtube-channels/transcribe` (synchronous HTTP — Netlify
- *    function 30s budget, default `openaiTimeoutMs = 25_000`)
+ *    function 30s budget, default `openaiTimeoutMs = 25_000`). User-
+ *    triggered: never persists bullets (default `persistBullets=false`,
+ *    v2.10.3+). The next cron tick backfills them.
  *  - `netlify/functions/cron-video-transcribe-background.ts` (background
- *    function, 15 min budget — passes `openaiTimeoutMs = 90_000` to allow
- *    longer podcasts through)
+ *    function, 15 min budget — passes `openaiTimeoutMs = 180_000` and
+ *    `persistBullets=true` so it's the sole `summary_bullets` writer
+ *    for `source_type='video'`).
  *
  * Idempotent: a cache hit on `video_transcriptions(video_id, lang)`
  * returns immediately without touching OpenAI. The cron leans on this
@@ -21,8 +24,9 @@
  *      structured Markdown summary.
  *   3. Compute the SSR slug (`/{topic}/v/{date}/{slug}`) when both
  *      `topic_id` and `published_date` are known.
- *   4. Persist the row in `video_transcriptions` and mirror the bullets
- *      into `summary_bullets` (source_type = 'video').
+ *   4. Persist the row in `video_transcriptions`. When `persistBullets`
+ *      is `true` (cron only), also mirror the bullets into
+ *      `summary_bullets` (`source_type='video'`) via `buildVideoBulletRows`.
  */
 
 import OpenAI from "openai";
@@ -36,6 +40,7 @@ import {
 import { normalizeSummaryHeadings } from "./summary-headings";
 import { stripSubtitleCreditArtifacts } from "./text-artifacts";
 import { slugifyVideoTitle, uniquifyVideoSlug } from "./slug";
+import { buildVideoBulletRows } from "./video-bullets";
 
 /** OpenAI model used for all video transcription summaries. */
 const DEFAULT_AI_MODEL = "gpt-4.1-mini";
@@ -295,32 +300,6 @@ function stripCodeFences(md: string): string {
   return m ? m[1] : md;
 }
 
-function extractBulletsFromMarkdown(md: string): string[] {
-  const lines = md.split("\n");
-  let inBullets = false;
-  const bullets: string[] = [];
-  let current = "";
-
-  for (const line of lines) {
-    if (/^##\s+Points\s+cl/i.test(line) || /^##\s+Key\s+points/i.test(line)) {
-      inBullets = true;
-      continue;
-    }
-    if (inBullets && /^##\s/.test(line)) break;
-    if (!inBullets) continue;
-
-    if (/^\s*[-*]\s/.test(line)) {
-      if (current) bullets.push(current.trim());
-      current = line.replace(/^\s*[-*]\s+/, "").trim();
-    } else if (current && line.trim()) {
-      current += " " + line.trim();
-    }
-  }
-  if (current) bullets.push(current.trim());
-
-  return bullets;
-}
-
 export type TranscribeStatus =
   | "ok"
   | "cached"
@@ -356,6 +335,14 @@ export interface TranscribeOptions {
   openaiTimeoutMs?: number;
   /** OpenAI chat model override. Default `gpt-5.5`. */
   model?: string;
+  /** v2.10.3+ — when `true`, the resulting bullets are mirrored into
+   *  `summary_bullets` (`source_type='video'`). Default `false` so
+   *  user-triggered routes (synchronous `transcribe`, prewarm) never
+   *  write bullet rows. Only the background cron passes `true` — the
+   *  cron also runs a separate backfill pass for any video whose
+   *  transcription row exists without bullets (e.g. previously written
+   *  by a user click before this flag landed). */
+  persistBullets?: boolean;
 }
 
 /**
@@ -468,12 +455,17 @@ export async function transcribeVideo(
       }
     }
 
-    // Fetch topic_id + published_date from the cached video row. Both
-    // are needed to compute the SSR slug — without either, the per-video
-    // page /{topic}/v/{date}/{slug} cannot exist (the row is still
-    // inserted, just without slug_keywords; backfill can fix it later).
+    // Fetch topic_id + published_date + channel_title from the cached
+    // video row. The first two are needed to compute the SSR slug —
+    // without either, the per-video page /{topic}/v/{date}/{slug}
+    // cannot exist (the row is still inserted, just without
+    // slug_keywords; backfill can fix it later). `channel_title` is
+    // used by the bullet-fan-out below to populate `refs[0].source`
+    // so the persisted bullets carry an attributable channel name
+    // (v2.10.3+).
     let topicId: string | null = null;
     let publishedDate: string | null = null;
+    let channelTitle: string | null = null;
     try {
       const db = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -482,11 +474,12 @@ export async function transcribeVideo(
       );
       const { data: vid } = await db
         .from("youtube_videos")
-        .select("topic_id, published_date")
+        .select("topic_id, published_date, channel_title")
         .eq("video_id", videoId)
         .single();
       if (vid?.topic_id) topicId = vid.topic_id;
       if (vid?.published_date) publishedDate = vid.published_date;
+      if (vid?.channel_title) channelTitle = vid.channel_title;
     } catch { /* non-critical */ }
 
     // Compute slug if we have everything needed. Skipping is safe — the
@@ -542,21 +535,26 @@ export async function transcribeVideo(
       published_date: publishedDate,
     });
 
-    if (transcriptionId) {
-      const bullets = extractBulletsFromMarkdown(summaryMd);
-      const today = new Date().toISOString().slice(0, 10);
-      const bulletRows = bullets.map((text, i) => ({
-        video_transcription_id: transcriptionId,
-        topic_id: topicId,
+    // v2.10.3+ — bullets are only persisted when the caller opts in.
+    // User-triggered routes (synchronous transcribe button, prewarm GET)
+    // leave the default `persistBullets=false` so a user click never
+    // writes a row. The cron passes `true` and is the sole writer for
+    // `source_type='video'`. The cron also runs a separate backfill
+    // pass that picks up transcriptions whose bullets are missing.
+    if (transcriptionId && opts.persistBullets === true) {
+      const bulletRows = buildVideoBulletRows({
+        transcriptionId,
+        topicId,
         lang: safeLang,
-        summary_date: today,
-        bullet_index: i,
-        text: text.replace(/\*\*/g, "").trim(),
-        refs: [] as unknown[],
-        source_type: "video",
-        entities: [] as string[],
-      }));
-      await insertVideoBullets(bulletRows);
+        videoId,
+        videoTitle: title ?? "Untitled",
+        channelTitle,
+        publishedDate,
+        summaryMd,
+      });
+      if (bulletRows.length > 0) {
+        await insertVideoBullets(bulletRows);
+      }
     }
 
     return {

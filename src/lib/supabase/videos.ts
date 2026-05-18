@@ -3,8 +3,9 @@ import { getServerClient, SITEMAP_RECENT_DAYS } from "./client";
 /**
  * YouTube videos surface — transcriptions, per-video SSR pages,
  * per-(topic, date) roundups, and the `summary_bullets` mirrors for
- * both source_types (`video` for the per-video bullets, `roundup`
- * for the roundup briefing bullets).
+ * both source types (`'video'` for the per-video bullets, `'video_roundup'`
+ * for the roundup briefing bullets — both are written exclusively by
+ * the corresponding Netlify CRON background functions since v2.10.3).
  *
  * Three table families touched here:
  *  - `youtube_videos` (RSS/API mirror) — read-only via the joins below

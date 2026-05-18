@@ -177,6 +177,12 @@ export async function insertSummaryBullets(
     text: string;
     refs: unknown;
     entities: string[];
+    /** v2.10.3+ — passed explicitly as `'daily_summary'` by
+     *  `generateDailySummary` instead of relying on the legacy DB
+     *  default of `'article'`. The migration 032 backfill normalizes
+     *  historical rows so the discriminator is now uniformly
+     *  `'daily_summary'` for every daily SEO summary. */
+    source_type?: string;
   }>,
 ): Promise<boolean> {
   if (bullets.length === 0) return true;

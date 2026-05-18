@@ -261,6 +261,11 @@ export async function generateDailySummary(
 
   if (!summaryId) return null;
 
+  // v2.10.3+ — `source_type: 'daily_summary'` is passed explicitly
+  // instead of relying on the DB default of `'article'`, which is a
+  // legacy artifact from before migration 014 added the column. The
+  // companion migration 032 backfills historical rows so every daily
+  // summary bullet in the table now uses the same discriminator.
   const bulletRows = bullets.map((blt, i) => ({
     daily_summary_id: summaryId,
     topic_id: topicId,
@@ -270,6 +275,7 @@ export async function generateDailySummary(
     text: blt.text,
     refs: blt.refs,
     entities: (rawBulletArr[i]?.entities ?? []).map((e) => String(e).trim()).filter(Boolean),
+    source_type: "daily_summary",
   }));
 
   await insertSummaryBullets(bulletRows);

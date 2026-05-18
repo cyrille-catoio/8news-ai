@@ -1016,6 +1016,10 @@ const strings = {
     en: "Top articles · 24h",
     fr: "Top articles · 24h",
   },
+  audioPlayerKicker: {
+    en: "Audio player",
+    fr: "Lecteur audio",
+  },
   /**
    * Default title rendered by the base `<Top24hHero>` component AND
    * by its `<TopArticlesTop24hHero>` wrapper (the dedicated

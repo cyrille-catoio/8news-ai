@@ -96,10 +96,6 @@ function relativeTime(pubDate: string, lang: Lang): string {
   return lang === "fr" ? `il y a ${days} j` : `${days}d ago`;
 }
 
-function toISODate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 function NewsletterSignupPrompt({
   lang,
   onRequestAuth,
@@ -691,6 +687,68 @@ export function BriefingPage({
             <NewsletterSignupPrompt lang={lang} onRequestAuth={onRequestAuth} />
           )}
 
+          {/* Top-right refresh button — sits in its own row above the
+              Top 24h hero so it stays out of the hero's visual frame
+              but is still the first affordance the visitor reaches at
+              the top of the home. Full page reload (not a soft SPA
+              re-render) so every section refetches from scratch
+              including the podcast hero, top story, top video and
+              transcribed-videos list. */}
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+            <button
+              type="button"
+              onClick={() => {
+                trackEvent("nav.refresh_home", { lang });
+                if (typeof window !== "undefined") window.location.reload();
+              }}
+              aria-label={lang === "fr" ? "Rafraîchir la page" : "Refresh page"}
+              title={lang === "fr" ? "Rafraîchir la page" : "Refresh page"}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                background: "rgba(255,255,255,0.02)",
+                border: `1px solid ${color.border}`,
+                borderRadius: 999,
+                color: color.textMuted,
+                cursor: "pointer",
+                fontSize: 12,
+                fontWeight: 600,
+                letterSpacing: "0.04em",
+                padding: "5px 12px 5px 10px",
+                fontFamily: "inherit",
+                transition: "color 140ms ease, border-color 140ms ease, background 140ms ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = color.gold;
+                e.currentTarget.style.borderColor = color.gold;
+                e.currentTarget.style.background = "rgba(201,162,39,0.10)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = color.textMuted;
+                e.currentTarget.style.borderColor = color.border;
+                e.currentTarget.style.background = "rgba(255,255,255,0.02)";
+              }}
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <polyline points="23 4 23 10 17 10" />
+                <polyline points="1 20 1 14 7 14" />
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+              </svg>
+              <span>{lang === "fr" ? "Rafraîchir" : "Refresh"}</span>
+            </button>
+          </div>
+
           <HomeTop24hHero lang={lang} onNavigate={onNavigate} />
 
           {isAuthenticated && (
@@ -798,14 +856,14 @@ export function BriefingPage({
               onToggleFavorite={onToggleFavorite}
               isAuthenticated={isAuthenticated}
               onRequestAuth={onRequestAuth}
-              onSeeAllForTopic={() => onNavigate("home")}
+              onSeeAllForTopic={onOpenTopicArticles}
             />
           )}
 
           <FooterCTAs
             lang={lang}
             isAuthenticated={isAuthenticated}
-            onPersonalize={() => onNavigate("home")}
+            onPersonalize={() => onNavigate("myTopics")}
             onSummaries={() => onNavigate("summaries")}
             onVideos={() => onNavigate("videos")}
           />
@@ -1010,7 +1068,7 @@ function HeroStory({
           </span>
         </div>
         {article.snippet && (
-          <p style={{ color: color.articleSnippet, fontSize: 15, marginTop: 12, marginBottom: 0, lineHeight: 1.55 }}>
+          <p className="app-paragraph-lg" style={{ color: color.articleSnippet, marginTop: 12, marginBottom: 0 }}>
             {article.snippet}
           </p>
         )}
@@ -1134,62 +1192,88 @@ function Top5Section({
       <div style={{ ...kicker(color.gold), marginBottom: 12 }}>
         {lang === "fr" ? "Briefing du jour · top 5" : "Today's briefing · top 5"}
       </div>
-      {articles.map((art, i) => (
-        <div key={`${art.link}-${i}`} style={{ ...card, display: "block", padding: 16, marginBottom: 10 }}>
-          <a
-            href={art.link}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ textDecoration: "none", color: "inherit", display: "block" }}
-            onClick={() =>
-              trackEvent("article.link_click", {
-                target_id: art.link,
-                lang,
-                meta: { section: "top_5", source: art.source, score: art.score, rank: i },
-              })
-            }
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-              <span style={{ color: color.text, fontWeight: 500, fontSize: 16, lineHeight: 1.35, flex: 1, minWidth: 0 }}>
-                {art.title}
-              </span>
-              <span style={{ flexShrink: 0 }}>
-                <ScoreMeter score={art.score} />
-              </span>
+      {/* v2.10.x — Single outer gold-bordered card around all 5 items
+          (Hero Story / Daily summary teaser / All transcribed videos
+          register). The per-article cards are replaced with transparent
+          rows separated by a thin divider, so the section reads as one
+          coherent list rather than 5 stacked boxes. */}
+      <div
+        style={{
+          ...card,
+          display: "block",
+          padding: "4px 18px",
+          borderColor: color.gold,
+          background:
+            "linear-gradient(180deg, rgba(201,162,39,0.04), transparent 60%), " + color.surface,
+        }}
+      >
+        {articles.map((art, i) => {
+          const isLast = i === articles.length - 1;
+          return (
+            <div
+              key={`${art.link}-${i}`}
+              style={{
+                display: "block",
+                padding: "16px 0",
+                borderBottom: isLast ? "none" : `1px solid ${color.border}`,
+              }}
+            >
+              <a
+                href={art.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ textDecoration: "none", color: "inherit", display: "block" }}
+                onClick={() =>
+                  trackEvent("article.link_click", {
+                    target_id: art.link,
+                    lang,
+                    meta: { section: "top_5", source: art.source, score: art.score, rank: i },
+                  })
+                }
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                  <span style={{ color: color.text, fontWeight: 500, fontSize: 16, lineHeight: 1.35, flex: 1, minWidth: 0 }}>
+                    {art.title}
+                  </span>
+                  <span style={{ flexShrink: 0 }}>
+                    <ScoreMeter score={art.score} />
+                  </span>
+                </div>
+                {art.snippet && (
+                  <p className="app-paragraph-lg" style={{ color: color.articleSnippet, marginTop: 6, marginBottom: 0 }}>
+                    {art.snippet}
+                  </p>
+                )}
+              </a>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+                <span style={{ color: color.gold, fontSize: 12, fontFamily: "ui-monospace, Menlo, monospace", letterSpacing: "0.04em" }}>
+                  <span style={{ color: color.textMuted, marginRight: 8 }}>
+                    {(topicLabelById.get(art.topic) ?? art.topic).toUpperCase()}
+                  </span>
+                  <span style={{ color: color.textMuted, marginRight: 8 }}>·</span>
+                  {art.source.toUpperCase()}
+                  <span style={{ color: color.textMuted, marginLeft: 8 }}>· {relativeTime(art.pubDate, lang)}</span>
+                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                  <FavoriteButton
+                    url={art.link}
+                    title={art.title}
+                    source={art.source}
+                    pubDate={art.pubDate}
+                    isFavorite={favoriteUrls.has(art.link)}
+                    lang={lang}
+                    onToggle={onToggleFavorite}
+                    onRequestAuth={onRequestAuth}
+                    isAuthenticated={isAuthenticated}
+                  />
+                  <CopyLinkButton url={art.link} />
+                </div>
+              </div>
             </div>
-            {art.snippet && (
-              <p style={{ color: color.articleSnippet, fontSize: 13.5, marginTop: 6, marginBottom: 0, lineHeight: 1.5 }}>
-                {art.snippet}
-              </p>
-            )}
-          </a>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
-            <span style={{ color: color.gold, fontSize: 12, fontFamily: "ui-monospace, Menlo, monospace", letterSpacing: "0.04em" }}>
-              <span style={{ color: color.textMuted, marginRight: 8 }}>
-                {(topicLabelById.get(art.topic) ?? art.topic).toUpperCase()}
-              </span>
-              <span style={{ color: color.textMuted, marginRight: 8 }}>·</span>
-              {art.source.toUpperCase()}
-              <span style={{ color: color.textMuted, marginLeft: 8 }}>· {relativeTime(art.pubDate, lang)}</span>
-            </span>
-            <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
-              <FavoriteButton
-                url={art.link}
-                title={art.title}
-                source={art.source}
-                pubDate={art.pubDate}
-                isFavorite={favoriteUrls.has(art.link)}
-                lang={lang}
-                onToggle={onToggleFavorite}
-                onRequestAuth={onRequestAuth}
-                isAuthenticated={isAuthenticated}
-              />
-              <CopyLinkButton url={art.link} />
-            </div>
-          </div>
-        </div>
-      ))}
-      <button type="button" onClick={onSeeAll} style={ctaLink}>
+          );
+        })}
+      </div>
+      <button type="button" onClick={onSeeAll} style={{ ...ctaLink, marginTop: 12 }}>
         {lang === "fr" ? "Voir le top 50 →" : "See the full top 50 →"}
       </button>
       {/* locale prop reserved for future timestamp formatting */}
@@ -1199,6 +1283,30 @@ function Top5Section({
 }
 
 /* ────────────────── Daily Summary Teaser ────────────── */
+
+/** Bullet shape returned by `GET /api/summaries/[topic]/[date]`. Mirror
+ *  of the row stored in `daily_summaries.bullets`. */
+interface DailySummaryBullet {
+  title?: string | null;
+  text: string;
+}
+
+/** Builds a ~5-line teaser by concatenating the first 2-3 bullet texts
+ *  (each one is ~80-150 chars on average) and capping at 420 chars so
+ *  the card stays bounded. Falls back to a single bullet if the array
+ *  is shorter; returns the raw `seo_description` when the bullets
+ *  payload is missing entirely (legacy rows). */
+function buildSummaryTeaser(bullets: DailySummaryBullet[], seoDescription: string): string {
+  const cleanBullets = (bullets ?? [])
+    .map((b) => (typeof b?.text === "string" ? b.text.trim() : ""))
+    .filter(Boolean);
+  if (cleanBullets.length === 0) return seoDescription.trim();
+  const joined = cleanBullets.slice(0, 3).join(" ");
+  if (joined.length <= 420) return joined;
+  const cut = joined.slice(0, 420);
+  const lastSpace = cut.lastIndexOf(" ");
+  return (lastSpace > 320 ? cut.slice(0, lastSpace) : cut).trimEnd() + "…";
+}
 
 function DailySummaryTeaser({
   route,
@@ -1211,36 +1319,92 @@ function DailySummaryTeaser({
   locale: string;
   topicLabels: TopicLabel[];
 }) {
-  const today = toISODate(new Date());
-  const isToday = route.summary_date === today;
   const topic = topicLabels.find((tl) => tl.id === route.topic_id);
   const dateLabel = new Date(route.summary_date + "T00:00:00").toLocaleDateString(locale, {
     day: "numeric", month: "short", year: "numeric",
   });
   const href = summaryPath(route);
 
+  // Lazy-fetch the actual summary body so the teaser shows the
+  // opening lines of the editorial bullets instead of a generic « AI
+  // bullet-point summary… » placeholder. The route already serves
+  // `seo_description` + structured `bullets`, both 1 h CDN-cached, so
+  // a re-render of the home page costs at most one fast roundtrip.
+  const [teaser, setTeaser] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const qs = route.lang === "fr" ? "?lang=fr" : "";
+    fetch(`/api/summaries/${route.topic_id}/${route.summary_date}${qs}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json: { bullets?: DailySummaryBullet[]; seoDescription?: string } | null) => {
+        if (cancelled || !json) return;
+        const built = buildSummaryTeaser(json.bullets ?? [], json.seoDescription ?? "");
+        if (built) setTeaser(built);
+      })
+      .catch(() => { /* silent — keep teaser null, fallback below */ });
+    return () => { cancelled = true; };
+  }, [route.topic_id, route.summary_date, route.lang]);
+
+  const fallback = lang === "fr"
+    ? "Résumé IA en bullet points avec sources, scoré sur les meilleurs articles du jour."
+    : "AI bullet-point summary with sources, scored on the day's top articles.";
+  const teaserText = teaser ?? fallback;
+
   return (
     <section style={{ marginBottom: 36 }}>
       <div style={{ ...kicker(color.gold), marginBottom: 12 }}>
-        {isToday
-          ? (lang === "fr" ? "Résumé du jour" : "Today's daily summary")
-          : (lang === "fr" ? "Résumé d'hier" : "Yesterday's daily summary")}
+        {lang === "fr" ? "Résumé quotidien" : "Daily summary"}
       </div>
       <a href={href} style={{ textDecoration: "none", color: "inherit", display: "block" }}>
-        <div style={{ ...card, display: "block", padding: 20 }}>
+        <div
+          style={{
+            ...card,
+            display: "block",
+            padding: 20,
+            borderColor: color.gold,
+            background:
+              "linear-gradient(180deg, rgba(201,162,39,0.04), transparent 60%), " + color.surface,
+          }}
+        >
           <h3 style={{ color: color.text, margin: 0, fontSize: 20, fontFamily: "ui-serif, Georgia, serif", fontWeight: 400 }}>
             {topic?.label ?? route.topic_id}
             <span style={{ color: color.textMuted, fontSize: 14, marginLeft: 10, fontFamily: "ui-monospace, Menlo, monospace", letterSpacing: "0.04em" }}>
               · {dateLabel}
             </span>
           </h3>
-          <p style={{ color: color.articleSnippet, fontSize: 14, marginTop: 10, marginBottom: 14, lineHeight: 1.55 }}>
-            {lang === "fr"
-              ? "Résumé IA en bullet points avec sources, scoré sur les meilleurs articles du jour."
-              : "AI bullet-point summary with sources, scored on the day's top articles."}
+          <p
+            className="app-paragraph-lg"
+            style={{
+              color: color.articleSnippet,
+              marginTop: 10,
+              marginBottom: 16,
+              // Clamp to ~5 lines so the teaser never blows up the
+              // card height — anything past line 5 hides under the
+              // « Lire la suite » CTA, which is exactly the user goal.
+              display: "-webkit-box",
+              WebkitLineClamp: 5,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}
+          >
+            {teaserText}
           </p>
-          <span style={{ color: color.gold, fontSize: 13, fontWeight: 500 }}>
-            {lang === "fr" ? "Lire le résumé complet →" : "Read full summary →"}
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "8px 14px",
+              borderRadius: 6,
+              border: `1px solid ${color.gold}`,
+              background: "rgba(201,162,39,0.10)",
+              color: color.gold,
+              fontSize: 13,
+              fontWeight: 700,
+              letterSpacing: "0.01em",
+            }}
+          >
+            {lang === "fr" ? "Lire la suite →" : "Read more →"}
           </span>
         </div>
       </a>
@@ -1419,89 +1583,146 @@ function YourTopicsSection({
 }) {
   const orderedIds = Object.keys(articlesByTopic);
 
+  // Surface only topic blocks that actually have at least one article
+  // — empty topics shouldn't render an empty paragraph in the new
+  // collapsed layout.
+  const visibleIds = orderedIds.filter((tid) => (articlesByTopic[tid]?.length ?? 0) > 0);
+  if (visibleIds.length === 0) return null;
+
   return (
     <section style={{ marginBottom: 36 }}>
       <div style={{ ...kicker(color.gold), marginBottom: 12 }}>
         {lang === "fr" ? "Vos topics · 24 dernières heures" : "Your topics · last 24 hours"}
       </div>
-      {orderedIds.map((tid) => {
-        const articles = articlesByTopic[tid];
-        if (!articles || articles.length === 0) return null;
-        const topic = topicLabels.find((tl) => tl.id === tid);
-        return (
-          <div key={tid} style={{ marginBottom: 22 }}>
-            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8, gap: 12 }}>
-              <h3 style={{ color: color.text, fontSize: 16, fontWeight: 600, margin: 0 }}>
-                {topic?.label ?? tid}
-              </h3>
-              <button
-                type="button"
-                onClick={() => onSeeAllForTopic(tid)}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: color.gold,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  padding: 0,
-                  fontFamily: "inherit",
-                }}
-              >
-                {lang === "fr" ? "Voir tous →" : "See all →"}
-              </button>
-            </div>
-            {articles.map((art, i) => (
-              <div key={`${art.link}-${i}`} style={{ ...card, display: "block", padding: 12, marginBottom: 8 }}>
-                <a
-                  href={art.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ textDecoration: "none", color: "inherit", display: "block" }}
-                  onClick={() =>
-                    trackEvent("article.link_click", {
-                      target_id: art.link,
-                      lang,
-                      meta: { section: "your_topics", source: art.source, score: art.score, rank: i },
-                    })
-                  }
+      {/* v2.10.x — Single outer gold-bordered card wrapping every topic
+          block. Each topic reads as a « paragraph »: gold title, then
+          article titles as gold-bulleted rows with the ScoreMeter on
+          the right. The per-article cards are replaced with tight
+          single-line rows so the whole section reads as one coherent
+          editorial digest rather than a stack of mini boxes. */}
+      <div
+        style={{
+          ...card,
+          display: "block",
+          padding: "18px 20px",
+          borderColor: color.gold,
+          background:
+            "linear-gradient(180deg, rgba(201,162,39,0.04), transparent 60%), " + color.surface,
+        }}
+      >
+        {visibleIds.map((tid, blockIdx) => {
+          const articles = articlesByTopic[tid];
+          const topic = topicLabels.find((tl) => tl.id === tid);
+          const isLastBlock = blockIdx === visibleIds.length - 1;
+          return (
+            <div
+              key={tid}
+              style={{
+                marginBottom: isLastBlock ? 0 : 18,
+                paddingBottom: isLastBlock ? 0 : 18,
+                borderBottom: isLastBlock ? "none" : `1px solid ${color.border}`,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8, gap: 12 }}>
+                <h3 style={{ color: color.gold, fontSize: 17, fontWeight: 700, margin: 0, letterSpacing: "0.01em" }}>
+                  {topic?.label ?? tid}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => onSeeAllForTopic(tid)}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: color.gold,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    padding: 0,
+                    fontFamily: "inherit",
+                  }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-                    <span style={{ color: color.text, fontWeight: 500, fontSize: 14, lineHeight: 1.35, flex: 1, minWidth: 0 }}>
-                      {art.title}
+                  {lang === "fr" ? "Voir tous →" : "See all →"}
+                </button>
+              </div>
+              <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+                {articles.map((art, i) => (
+                  <li
+                    key={`${art.link}-${i}`}
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 10,
+                      padding: "8px 0",
+                    }}
+                  >
+                    <span
+                      style={{
+                        color: color.gold,
+                        flexShrink: 0,
+                        fontSize: 18,
+                        lineHeight: 1.35,
+                      }}
+                      aria-hidden
+                    >
+                      •
                     </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <a
+                        href={art.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ textDecoration: "none", color: "inherit", display: "block" }}
+                        onClick={() =>
+                          trackEvent("article.link_click", {
+                            target_id: art.link,
+                            lang,
+                            meta: { section: "your_topics", source: art.source, score: art.score, rank: i },
+                          })
+                        }
+                      >
+                        <div style={{ color: color.text, fontWeight: 500, fontSize: 15, lineHeight: 1.4 }}>
+                          {art.title}
+                        </div>
+                      </a>
+                      <div
+                        style={{
+                          color: color.textMuted,
+                          fontSize: 11,
+                          fontFamily: "ui-monospace, Menlo, monospace",
+                          letterSpacing: "0.04em",
+                          marginTop: 2,
+                        }}
+                      >
+                        <span style={{ color: color.gold }}>{art.source.toUpperCase()}</span>
+                        <span style={{ marginLeft: 6 }}>· {relativeTime(art.pubDate, lang)}</span>
+                      </div>
+                    </div>
                     {art.score != null && (
-                      <span style={{ flexShrink: 0 }}>
-                        <ScoreMeter score={art.score} />
+                      <span style={{ flexShrink: 0, alignSelf: "center" }}>
+                        <ScoreMeter score={art.score} width={56} />
                       </span>
                     )}
-                  </div>
-                </a>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
-                  <span style={{ color: color.gold, fontSize: 11, fontFamily: "ui-monospace, Menlo, monospace", letterSpacing: "0.04em" }}>
-                    {art.source.toUpperCase()}
-                    <span style={{ color: color.textMuted, marginLeft: 6 }}>· {relativeTime(art.pubDate, lang)}</span>
-                  </span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
-                    <FavoriteButton
-                      url={art.link}
-                      title={art.title}
-                      source={art.source}
-                      pubDate={art.pubDate}
-                      isFavorite={favoriteUrls.has(art.link)}
-                      lang={lang}
-                      onToggle={onToggleFavorite}
-                      onRequestAuth={onRequestAuth}
-                      isAuthenticated={isAuthenticated}
-                    />
-                    <CopyLinkButton url={art.link} />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        );
-      })}
+                    <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0, alignSelf: "center" }}>
+                      <FavoriteButton
+                        url={art.link}
+                        title={art.title}
+                        source={art.source}
+                        pubDate={art.pubDate}
+                        isFavorite={favoriteUrls.has(art.link)}
+                        lang={lang}
+                        onToggle={onToggleFavorite}
+                        onRequestAuth={onRequestAuth}
+                        isAuthenticated={isAuthenticated}
+                      />
+                      <CopyLinkButton url={art.link} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }
@@ -1629,6 +1850,7 @@ function RecentVideoPagesSection({
           ...card,
           display: "block",
           padding: undefined,
+          borderColor: color.gold,
           background:
             "linear-gradient(180deg, rgba(201,162,39,0.04), transparent 60%), " + color.surface,
         }}

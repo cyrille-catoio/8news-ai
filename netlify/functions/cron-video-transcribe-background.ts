@@ -2,6 +2,8 @@ import { createClient } from "@supabase/supabase-js";
 import { transcribeVideo } from "./shared/transcribe-video";
 import { enrichDurations } from "../../src/lib/youtube-duration";
 import { refreshYoutubeVideosFromRss } from "../../src/lib/refresh-youtube-videos";
+import { buildVideoBulletRows } from "../../src/lib/video-bullets";
+import { insertVideoBullets } from "../../src/lib/supabase";
 
 /**
  * 15-minute background function — pre-warms the AI summary cache for
@@ -52,6 +54,16 @@ const CRON_OPENAI_TIMEOUT_MS = 180_000;
 const CRON_AI_MODEL = "gpt-5.3-chat-latest";
 
 const ALL_LANGS = ["en", "fr"] as const;
+
+/** Backfill pass cap. v2.10.3+ — after the regular transcribe loop, the
+ *  cron scans for video_transcriptions whose summary_bullets count is
+ *  zero (legacy rows from before mig 014, prewarm/user clicks that
+ *  wrote only the transcription, etc.) and fans out their bullets.
+ *  50 rows × ~10 ms per insert = ~500 ms, comfortable under the budget. */
+const BACKFILL_BATCH = 50;
+/** Safety floor on the wall clock before starting the backfill pass.
+ *  Skips backfill entirely if the transcribe loop ran long. */
+const BACKFILL_MIN_REMAINING_MS = 30_000;
 
 interface CandidateVideo {
   video_id: string;
@@ -210,7 +222,14 @@ export default async () => {
           c.video_id,
           lang,
           { title: c.title ?? undefined, channelId: c.channel_id },
-          { openaiTimeoutMs: CRON_OPENAI_TIMEOUT_MS, model: CRON_AI_MODEL },
+          {
+            openaiTimeoutMs: CRON_OPENAI_TIMEOUT_MS,
+            model: CRON_AI_MODEL,
+            // v2.10.3+ — only the cron writes bullets; user-triggered
+            // routes leave the default `false` so a click never adds
+            // a row. The cron is the canonical writer for `'video'`.
+            persistBullets: true,
+          },
         );
         switch (result.status) {
           case "ok":
@@ -250,7 +269,105 @@ export default async () => {
     }
   }
 
-  const summary = `[run] cron=video-transcribe window=${WINDOW_HOURS}h candidates=${candidates.length} long_enough=${longEnough.length} shorts_skipped=${skippedShorts} processed=${processedBuckets} ok=${okCount} cached=${cachedCount} no_transcript=${noTranscriptCount} timeout=${timeoutCount} errors=${errorCount} capped=${cappedReached} elapsed_ms=${Date.now() - startedAt}`;
+  // 6. v2.10.3+ — Backfill pass for transcriptions that exist without
+  // any `summary_bullets` row. Covers two cases:
+  //   - User-triggered transcriptions (`/api/youtube-channels/transcribe`,
+  //     prewarm GET) now write only `video_transcriptions`, bullets are
+  //     fan-out asynchronously here.
+  //   - Legacy rows from before mig 014 / before this cleanup ever ran.
+  // The pass is best-effort: capped at BACKFILL_BATCH per tick, skipped
+  // entirely if the regular loop above ate most of the budget.
+  let backfillScanned = 0;
+  let backfillWrote = 0;
+  let backfillSkippedNoBullets = 0;
+  let backfillErrors = 0;
+  if (remaining() > BACKFILL_MIN_REMAINING_MS) {
+    try {
+      // PostgREST left-join: select transcriptions whose related
+      // summary_bullets join is null. We use the implicit FK relation
+      // so we don't have to enumerate the bullet columns.
+      const { data: missingRaw, error: missingErr } = await supabase
+        .from("video_transcriptions")
+        .select(
+          "id, video_id, topic_id, lang, summary_md, published_date, title, summary_bullets(id)",
+        )
+        .is("summary_bullets.id", null)
+        .order("id", { ascending: false })
+        .limit(BACKFILL_BATCH);
+      if (missingErr) {
+        lines.push(`[backfill] DB error: ${missingErr.message}`);
+      } else if (missingRaw && missingRaw.length > 0) {
+        // Pre-load `channel_title` for the affected videos in one
+        // round-trip so `buildVideoBulletRows` can populate
+        // `refs[0].source` with the publisher name.
+        const videoIds = Array.from(
+          new Set((missingRaw as Array<{ video_id: string }>).map((r) => r.video_id)),
+        );
+        const channelTitleByVideoId = new Map<string, string>();
+        if (videoIds.length > 0) {
+          const { data: vids } = await supabase
+            .from("youtube_videos")
+            .select("video_id, channel_title, title")
+            .in("video_id", videoIds);
+          for (const v of (vids ?? []) as Array<{
+            video_id: string;
+            channel_title: string | null;
+            title: string | null;
+          }>) {
+            if (v.channel_title) channelTitleByVideoId.set(v.video_id, v.channel_title);
+          }
+        }
+
+        for (const row of missingRaw as Array<{
+          id: number;
+          video_id: string;
+          topic_id: string | null;
+          lang: "en" | "fr";
+          summary_md: string | null;
+          published_date: string | null;
+          title: string | null;
+        }>) {
+          if (remaining() <= BACKFILL_MIN_REMAINING_MS) {
+            lines.push("[backfill] budget cut — stopping");
+            break;
+          }
+          backfillScanned++;
+          if (!row.summary_md) {
+            backfillSkippedNoBullets++;
+            continue;
+          }
+          const rows = buildVideoBulletRows({
+            transcriptionId: row.id,
+            topicId: row.topic_id,
+            lang: row.lang,
+            videoId: row.video_id,
+            videoTitle: row.title ?? "Untitled",
+            channelTitle: channelTitleByVideoId.get(row.video_id) ?? null,
+            publishedDate: row.published_date,
+            summaryMd: row.summary_md,
+          });
+          if (rows.length === 0) {
+            backfillSkippedNoBullets++;
+            continue;
+          }
+          const ok = await insertVideoBullets(rows);
+          if (ok) {
+            backfillWrote++;
+          } else {
+            backfillErrors++;
+            lines.push(`[backfill] insert failed for transcription_id=${row.id}`);
+          }
+        }
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "unknown";
+      lines.push(`[backfill] threw — ${msg}`);
+    }
+  } else {
+    lines.push(`[backfill] skipped — remaining=${remaining()}ms`);
+  }
+
+  const summary = `[run] cron=video-transcribe window=${WINDOW_HOURS}h candidates=${candidates.length} long_enough=${longEnough.length} shorts_skipped=${skippedShorts} processed=${processedBuckets} ok=${okCount} cached=${cachedCount} no_transcript=${noTranscriptCount} timeout=${timeoutCount} errors=${errorCount} capped=${cappedReached} backfill_scanned=${backfillScanned} backfill_wrote=${backfillWrote} backfill_no_bullets=${backfillSkippedNoBullets} backfill_errors=${backfillErrors} elapsed_ms=${Date.now() - startedAt}`;
   lines.push(summary);
   console.log(lines.join("\n"));
   console.log(summary);

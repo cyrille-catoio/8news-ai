@@ -1,7 +1,7 @@
 "use client";
 
 import { type CSSProperties, useState, useEffect, useCallback, useRef } from "react";
-import { type Lang } from "@/lib/i18n";
+import { type Lang, t } from "@/lib/i18n";
 import { color, spinnerStyle } from "@/lib/theme";
 import { trackEvent } from "@/lib/track";
 
@@ -216,8 +216,27 @@ export function AudioPlayer({
 
   const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
 
+  // Mono uppercase « LECTEUR AUDIO » kicker pinned above every audio
+  // player instance. v2.10.2+ — rendered here at the shared component
+  // level rather than in each consumer (DailySummaryAudio, Top24hAudio,
+  // VideoPageAudio, VideoRoundupAudio, VideoCard, SummaryBox,
+  // FavoritesPage) so the affordance is identical everywhere it
+  // appears. Uses the same `kicker` register as the section titles
+  // (gold mono, 11 px, letter-spaced) without being intrusive — only
+  // marginBottom: 8 above the transport row.
+  const kickerStyle: CSSProperties = {
+    color: color.gold,
+    fontFamily: "ui-monospace, Menlo, monospace",
+    fontSize: 11,
+    fontWeight: 600,
+    letterSpacing: "0.12em",
+    textTransform: "uppercase",
+    marginBottom: 8,
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <div style={kickerStyle}>{t("audioPlayerKicker", lang)}</div>
       <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
         {state === "playing" ? (
           <button onClick={handlePause} style={{ ...btnBase, color: color.gold }}>

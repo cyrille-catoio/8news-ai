@@ -261,13 +261,21 @@ export async function generateVideoRoundup(
   // bullets — same `source_type` discriminator pattern used for the
   // other surfaces. Failure here is logged but non-fatal: the roundup
   // page itself reads from `intro_md`, not from these rows.
+  //
+  // v2.10.3+ — `title` is now persisted as a first-class column (mig 024)
+  // instead of being embedded as `**Title**\n\nbody` markdown inside
+  // `text`. `refs` is passed explicitly as `[]` rather than relying on
+  // the DB default; richer per-bullet source attribution lives in
+  // `video_roundup_videos`.
   const bulletRows = generated.bullets.map((b, i) => ({
     video_roundup_id: row.id,
     topic_id: topicId,
     lang,
     summary_date: date,
     bullet_index: i,
-    text: `**${b.title.replace(/\.+$/, "").trim()}**\n\n${b.body.trim()}`,
+    title: b.title.replace(/\.+$/, "").trim() || null,
+    text: b.body.trim(),
+    refs: [],
     source_type: "video_roundup",
     entities: [],
   }));

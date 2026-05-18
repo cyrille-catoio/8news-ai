@@ -51,7 +51,7 @@ import { trackEvent } from "@/lib/track";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.10";
+const APP_VERSION = "2.11";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 const NEWS_API_TRANSIENT_STATUSES = new Set([502, 503, 504]);
 const NEWS_API_RETRY_DELAY_MS = 750;

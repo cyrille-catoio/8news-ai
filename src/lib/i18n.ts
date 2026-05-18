@@ -1323,14 +1323,6 @@ const strings = {
     en: "AI summary",
     fr: "Résumé IA",
   },
-  dailySummaryExplorerTitle: {
-    en: "Daily Summaries",
-    fr: "Résumés quotidiens",
-  },
-  dailySummaryExplorerDesc: {
-    en: "Select a topic and a date to view the AI-generated daily summary.",
-    fr: "Sélectionnez un topic et une date pour consulter le résumé quotidien généré par IA.",
-  },
   dailySummaryNotFound: {
     en: "No summary available for this topic and date.",
     fr: "Aucun résumé disponible pour ce topic et cette date.",

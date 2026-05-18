@@ -1,9 +1,8 @@
 "use client";
 
-import { type CSSProperties, useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type {
   SummaryResponse,
-  ArticleSummary,
   TopicItem,
   TopicLabel,
 } from "@/lib/types";
@@ -13,12 +12,8 @@ import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 import {
   color,
   font,
-  card,
   spinnerStyle,
-  primaryButtonStyle,
 } from "@/lib/theme";
-import { CopyLinkButton } from "@/app/components/CopyLinkButton";
-import { ScoreMeter } from "@/app/components/ScoreMeter";
 import { ChangelogPage } from "@/app/components/ChangelogPage";
 import { FeedsAdminPage } from "@/app/components/FeedsAdminPage";
 import { CategoriesPage } from "@/app/components/CategoriesPage";
@@ -31,7 +26,7 @@ import { StatsPage } from "@/app/components/StatsPage";
 import { CronMonitorPage } from "@/app/components/CronMonitorPage";
 import { TopicsPage } from "@/app/components/TopicsPage";
 import { TTS_VOICES_EN, TTS_VOICES_FR } from "@/app/components/VoiceAccordion";
-import { AppHeader, type AppNavPage } from "@/app/components/AppHeader";
+import { AppHeader } from "@/app/components/AppHeader";
 import { TopFeedSection } from "@/app/components/TopFeedSection";
 import { GeneralMenu } from "@/app/components/GeneralMenu";
 import { TopicOnboardingModal } from "@/app/components/TopicOnboardingModal";
@@ -40,365 +35,25 @@ import { useUserTopics } from "@/hooks/useUserTopics";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useAuth } from "@/app/providers";
 import { isOwnerUser } from "@/lib/user-type";
-import { FavoriteButton } from "@/app/components/FavoriteButton";
 import { FavoritesPage } from "@/app/components/FavoritesPage";
 import { DailySummariesPage } from "@/app/components/DailySummariesPage";
 import { ArchivesBrowsePage } from "@/app/components/ArchivesBrowsePage";
 import { VideosPage } from "@/app/components/VideosPage";
 import { YouTubeChannelsPage } from "@/app/components/YouTubeChannelsPage";
 import { BriefingPage } from "@/app/components/BriefingPage";
-import { trackEvent } from "@/lib/track";
+import { useSpaNavigation } from "@/lib/spa-navigation";
+import { fetchNewsApi, PERIODS } from "@/lib/news-fetch";
+import { unlockAudioContext, playNotificationBeep } from "@/lib/notification-sound";
+import { TopicToggle } from "@/app/components/app-shell/TopicToggle";
+import { MyTopicsPage } from "@/app/components/app-shell/MyTopicsPage";
+import { ScrollToTop } from "@/app/components/app-shell/ScrollToTop";
+import { ArticleCard } from "@/app/components/app-shell/ArticleCard";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.11";
+const APP_VERSION = "2.12";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
-const NEWS_API_TRANSIENT_STATUSES = new Set([502, 503, 504]);
-const NEWS_API_RETRY_DELAY_MS = 750;
-const MAX_VISIBLE_ERROR_CHARS = 280;
 
-
-const PERIODS = [
-  { label: "30 m",  hours: 0.5 },
-  { label: "1 h",   hours: 1 },
-  { label: "3 h",   hours: 3 },
-  { label: "6 h",   hours: 6 },
-  { label: "12 h",  hours: 12 },
-  { label: "24 h",  hours: 24 },
-  { label: "48 h",  hours: 48 },
-  { label: "3 d",   hours: 72 },
-  { label: "7 d",   hours: 168 },
-  { label: "14 d",  hours: 336 },
-  { label: "30 d",  hours: 720 },
-  { label: "2 mo",  hours: 1440 },
-  { label: "3 mo",  hours: 2160 },
-] as const;
-
-const MOBILE_TOPIC_PAGE_SIZE = 16;
-
-function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function isHtmlErrorResponse(text: string, contentType: string): boolean {
-  const trimmed = text.trimStart();
-  return (
-    contentType.toLowerCase().includes("text/html") ||
-    /^<!doctype html/i.test(trimmed) ||
-    /^<html[\s>]/i.test(trimmed)
-  );
-}
-
-async function safeNewsApiErrorMessage(res: Response, lang: Lang): Promise<string> {
-  const contentType = res.headers.get("content-type") ?? "";
-
-  if (contentType.toLowerCase().includes("application/json")) {
-    const body = await res.json().catch(() => null) as { error?: unknown; message?: unknown } | null;
-    const message = typeof body?.error === "string" ? body.error : typeof body?.message === "string" ? body.message : "";
-    if (message.trim()) return message.trim();
-  }
-
-  const text = await res.text().catch(() => "");
-  if (NEWS_API_TRANSIENT_STATUSES.has(res.status) || isHtmlErrorResponse(text, contentType)) {
-    return t("temporaryServerError", lang);
-  }
-
-  const trimmed = text.trim();
-  if (trimmed.length > 0) return trimmed.slice(0, MAX_VISIBLE_ERROR_CHARS);
-  return `${t("unknownError", lang)} (HTTP ${res.status})`;
-}
-
-async function fetchNewsApi(url: string, lang: Lang): Promise<SummaryResponse> {
-  let res = await fetch(url, { cache: "no-store" });
-  if (NEWS_API_TRANSIENT_STATUSES.has(res.status)) {
-    await delay(NEWS_API_RETRY_DELAY_MS);
-    res = await fetch(url, { cache: "no-store" });
-  }
-
-  if (!res.ok) {
-    throw new Error(await safeNewsApiErrorMessage(res, lang));
-  }
-
-  const contentType = res.headers.get("content-type") ?? "";
-  if (!contentType.toLowerCase().includes("application/json")) {
-    const text = await res.text().catch(() => "");
-    if (isHtmlErrorResponse(text, contentType)) {
-      throw new Error(t("temporaryServerError", lang));
-    }
-    throw new Error(t("unknownError", lang));
-  }
-
-  try {
-    return await res.json() as SummaryResponse;
-  } catch {
-    throw new Error(t("temporaryServerError", lang));
-  }
-}
-
-// ── Sub-components ────────────────────────────────────────────────────
-
-function TopicToggle({
-  topics,
-  topic,
-  lang,
-  disabled,
-  onChange,
-  personalizationMode = false,
-  preferredTopicIds,
-  onTogglePreference,
-}: {
-  topics: TopicLabel[];
-  topic: string | null;
-  lang: Lang;
-  disabled: boolean;
-  onChange: (t: string) => void;
-  personalizationMode?: boolean;
-  preferredTopicIds: string[] | null;
-  onTogglePreference: (id: string) => void;
-}) {
-  const [isMobile, setIsMobile] = useState(false);
-  const [page, setPage] = useState(0);
-  const pageCount = isMobile ? Math.max(1, Math.ceil(topics.length / MOBILE_TOPIC_PAGE_SIZE)) : 1;
-  const visibleTopics = isMobile
-    ? topics.slice(page * MOBILE_TOPIC_PAGE_SIZE, (page + 1) * MOBILE_TOPIC_PAGE_SIZE)
-    : topics;
-
-  useEffect(() => {
-    const media = window.matchMedia("(max-width: 640px)");
-    const sync = () => setIsMobile(media.matches);
-    sync();
-    media.addEventListener("change", sync);
-    return () => media.removeEventListener("change", sync);
-  }, []);
-
-  useEffect(() => {
-    setPage((current) => Math.min(current, pageCount - 1));
-  }, [pageCount]);
-
-  useEffect(() => {
-    if (!isMobile || !topic) return;
-    const selectedIndex = topics.findIndex((tp) => tp.id === topic);
-    if (selectedIndex >= 0) {
-      setPage(Math.floor(selectedIndex / MOBILE_TOPIC_PAGE_SIZE));
-    }
-  }, [isMobile, topic, topics]);
-
-  const btnStyle = (value: string): CSSProperties => {
-    if (personalizationMode) {
-      const inPrefs = preferredTopicIds === null || preferredTopicIds.includes(value);
-      return {
-        padding: "8px 0",
-        fontSize: 14,
-        fontWeight: 600,
-        border: `1px solid ${color.gold}`,
-        cursor: "pointer",
-        background: inPrefs ? color.gold : "transparent",
-        color: inPrefs ? "#000" : color.gold,
-        transition: "all 0.15s",
-        opacity: inPrefs ? 1 : 0.45,
-        borderRadius: 6,
-        textAlign: "center",
-      };
-    }
-    return {
-      padding: "8px 0",
-      fontSize: 14,
-      fontWeight: 600,
-      border: `1px solid ${color.gold}`,
-      cursor: disabled ? "wait" : "pointer",
-      background: topic === value ? color.gold : "transparent",
-      color: topic === value ? "#000" : color.gold,
-      transition: "all 0.15s",
-      opacity: disabled ? 0.6 : 1,
-      borderRadius: 6,
-      textAlign: "center",
-    };
-  };
-
-  return (
-    <>
-      <div
-        className={`topic-grid${isMobile && pageCount > 1 ? " topic-grid-paginated" : ""}`}
-        style={{ ["--topic-grid-cols" as string]: Math.min(visibleTopics.length || 8, 8) } as CSSProperties}
-      >
-        {visibleTopics.map(({ id, label }) => (
-          <button
-            key={id}
-            onClick={() => personalizationMode ? onTogglePreference(id) : onChange(id)}
-            disabled={!personalizationMode && disabled}
-            style={btnStyle(id)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      {isMobile && pageCount > 1 && (
-        <div className="topic-pagination" aria-label={lang === "fr" ? "Pagination des topics" : "Topic pagination"}>
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
-            disabled={page === 0}
-            aria-label={lang === "fr" ? "Page précédente" : "Previous page"}
-          >
-            ←
-          </button>
-          <span>
-            {page + 1}/{pageCount}
-          </span>
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
-            disabled={page >= pageCount - 1}
-            aria-label={lang === "fr" ? "Page suivante" : "Next page"}
-          >
-            →
-          </button>
-        </div>
-      )}
-    </>
-  );
-}
-
-function MyTopicsPage({
-  lang,
-  isAuthenticated,
-  topics,
-  draftTopicIds,
-  saveStatus,
-  onTogglePreference,
-  onCreateTopic,
-  onRequestAuth,
-}: {
-  lang: Lang;
-  isAuthenticated: boolean;
-  topics: TopicLabel[];
-  draftTopicIds: string[] | null;
-  saveStatus: ReturnType<typeof useUserTopics>["saveStatus"];
-  onTogglePreference: (id: string) => void;
-  onCreateTopic: () => void;
-  onRequestAuth: () => void;
-}) {
-  if (!isAuthenticated) {
-    return (
-      <section style={{ ...card, padding: "28px 24px", marginTop: 16 }}>
-        <h1
-          style={{
-            color: color.text,
-            fontFamily: "ui-serif, Georgia, serif",
-            fontSize: 30,
-            fontWeight: 400,
-            lineHeight: 1.14,
-            margin: "0 0 10px",
-          }}
-        >
-          {t("myTopicsSignInTitle", lang)}
-        </h1>
-        <p style={{ color: color.textMuted, fontSize: 14, lineHeight: 1.6, margin: "0 0 18px", maxWidth: 640 }}>
-          {t("myTopicsSignInBody", lang)}
-        </p>
-        <button
-          type="button"
-          onClick={onRequestAuth}
-          style={{
-            ...primaryButtonStyle,
-            padding: "9px 16px",
-            fontSize: 13,
-            fontWeight: 700,
-          }}
-        >
-          {t("authSignIn", lang)}
-        </button>
-      </section>
-    );
-  }
-
-  return (
-    <section>
-      <h1
-        style={{
-          color: color.text,
-          fontFamily: "ui-serif, Georgia, serif",
-          fontSize: 30,
-          fontWeight: 400,
-          lineHeight: 1.14,
-          marginBottom: 8,
-          marginTop: 0,
-        }}
-      >
-        {t("myTopicsPageTitle", lang)}
-      </h1>
-      <p
-        style={{
-          color: color.textMuted,
-          fontSize: 14,
-          marginTop: 0,
-          marginBottom: 22,
-          lineHeight: 1.6,
-          maxWidth: 680,
-        }}
-      >
-        {t("myTopicsPageSubtitle", lang)}
-      </p>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          flexWrap: "wrap",
-          marginBottom: 16,
-        }}
-      >
-        <button
-          type="button"
-          onClick={onCreateTopic}
-          style={{
-            border: `1px solid ${color.gold}`,
-            background: "#000",
-            color: color.gold,
-            cursor: "pointer",
-            fontFamily: "inherit",
-            padding: "10px 18px",
-            fontSize: 14,
-            fontWeight: 800,
-            borderRadius: 999,
-          }}
-        >
-          {t("myTopicsAddNew", lang)}
-        </button>
-        {saveStatus !== "idle" && (
-          <span
-            style={{
-              color: saveStatus === "error"
-                ? color.errorText
-                : saveStatus === "saved"
-                ? "#4ade80"
-                : color.textMuted,
-              fontSize: 12,
-              fontWeight: 700,
-              letterSpacing: "0.02em",
-            }}
-          >
-            {saveStatus === "saving"
-              ? t("myTopicsSaving", lang)
-              : saveStatus === "saved"
-              ? t("myTopicsSaved", lang)
-              : t("myAccountSaveError", lang)}
-          </span>
-        )}
-      </div>
-      <TopicToggle
-        topics={topics}
-        topic={null}
-        lang={lang}
-        disabled={false}
-        onChange={() => {}}
-        personalizationMode
-        preferredTopicIds={draftTopicIds}
-        onTogglePreference={onTogglePreference}
-      />
-    </section>
-  );
-}
 
 function PeriodButton({
   label,
@@ -429,159 +84,9 @@ function PeriodButton({
   );
 }
 
-function ScrollToTop({ lang }: { lang: Lang }) {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setVisible(window.scrollY > 400);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  if (!visible) return null;
-
-  return (
-    <button
-      type="button"
-      onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-      aria-label={t("scrollToTopAria", lang)}
-      style={{
-        position: "fixed",
-        bottom: 32,
-        left: 27,
-        width: 40,
-        height: 40,
-        borderRadius: "50%",
-        border: `1px solid ${color.border}`,
-        background: color.surface,
-        color: color.gold,
-        cursor: "pointer",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        boxShadow: "0 2px 10px rgba(0,0,0,0.4)",
-        transition: "opacity 0.2s",
-        zIndex: 998,
-      }}
-    >
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="18 15 12 9 6 15" />
-      </svg>
-    </button>
-  );
-}
 
 
-function ArticleCard({
-  article,
-  locale,
-  lang,
-  isFavorite,
-  isAuthenticated,
-  onToggleFavorite,
-  onRequestAuth,
-}: {
-  article: ArticleSummary;
-  locale: string;
-  lang: Lang;
-  isFavorite: boolean;
-  isAuthenticated: boolean;
-  onToggleFavorite: (a: { url: string; title: string; source: string; pubDate?: string }) => void;
-  onRequestAuth: () => void;
-}) {
-  return (
-    <div style={{ ...card, display: "block", position: "relative" }}>
-      <a
-        href={article.link}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{ textDecoration: "none", color: "inherit", display: "block" }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-          <span style={{ color: color.text, fontWeight: 500, fontSize: 17, flex: 1, minWidth: 0 }}>
-            {article.title}
-          </span>
-          {article.score != null && (
-            <span style={{ flexShrink: 0 }}>
-              <ScoreMeter score={article.score} />
-            </span>
-          )}
-        </div>
-        <p style={{ color: color.articleSnippet, fontSize: 14, marginTop: 6, lineHeight: 1.5 }}>
-          {article.snippet}
-        </p>
-      </a>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
-        <span style={{ color: color.gold, fontSize: 13 }}>
-          {article.source} · {article.pubDate ? new Date(article.pubDate).toLocaleString(locale) : ""}
-        </span>
-        <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
-          <FavoriteButton
-            url={article.link}
-            title={article.title}
-            source={article.source}
-            pubDate={article.pubDate}
-            isFavorite={isFavorite}
-            lang={lang}
-            onToggle={onToggleFavorite}
-            onRequestAuth={onRequestAuth}
-            isAuthenticated={isAuthenticated}
-          />
-          <CopyLinkButton url={article.link} />
-        </div>
-      </div>
-    </div>
-  );
-}
 
-let sharedAudioCtx: AudioContext | null = null;
-
-function unlockAudioContext() {
-  try {
-    if (!sharedAudioCtx || sharedAudioCtx.state === "closed") {
-      sharedAudioCtx = new AudioContext();
-    }
-    if (sharedAudioCtx.state === "suspended") {
-      sharedAudioCtx.resume();
-    }
-    const buf = sharedAudioCtx.createBuffer(1, 1, 22050);
-    const src = sharedAudioCtx.createBufferSource();
-    src.buffer = buf;
-    src.connect(sharedAudioCtx.destination);
-    src.start(0);
-  } catch { /* silent fail */ }
-}
-
-function playNotificationBeep() {
-  try {
-    const ctx = sharedAudioCtx;
-    if (!ctx || ctx.state === "closed") return;
-    if (ctx.state === "suspended") ctx.resume();
-
-    const t0 = ctx.currentTime;
-    const gain = ctx.createGain();
-    gain.connect(ctx.destination);
-
-    const osc1 = ctx.createOscillator();
-    osc1.frequency.value = 880;
-    osc1.type = "sine";
-    osc1.connect(gain);
-    osc1.start(t0);
-    osc1.stop(t0 + 0.12);
-
-    const osc2 = ctx.createOscillator();
-    osc2.frequency.value = 1050;
-    osc2.type = "sine";
-    osc2.connect(gain);
-    osc2.start(t0 + 0.18);
-    osc2.stop(t0 + 0.30);
-
-    gain.gain.setValueAtTime(0.08, t0);
-    gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.12);
-    gain.gain.setValueAtTime(0.08, t0 + 0.18);
-    gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.30);
-  } catch { /* silent fail */ }
-}
 
 export default function Home() {
   // Lang resolution order:
@@ -797,82 +302,12 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const PAGE_PATHS: Record<AppNavPage, string> = {
-    briefing: "/app",
-    videos: "/app/videos",
-    home: "/app/articles",
-    myTopics: "/app/my-topics",
-    stats: "/app/stats",
-    crons: "/app/crons",
-    topics: "/app/topics",
-    settings: "/app/settings",
-    changelog: "/app/changelog",
-    feeds: "/app/feeds",
-    categories: "/app/categories",
-    favorites: "/app/favorites",
-    dailySummaries: "/app/daily-summaries",
-    youtubeChannels: "/app/youtube-channels",
-    users: "/app/users",
-    userActivity: "/app/user-activity",
-    topArticles: "/app/top-articles",
-    summaries: "/app/archives",
-    // v2.5.17+ — placeholder route for the future SPA-internal landing
-    // page; the public marketing landing lives at `/` and is rendered
-    // by a separate Next route. Wired here so the AppNavPage discriminator
-    // (used by AppHeader to hide the CryptoTicker on landing) is exhaustive.
-    landing: "/app/landing",
-  };
-
-  const pathToPage = (path: string): AppNavPage => {
-    // Briefing is the SPA's home: hard refresh on /app, on /, or on
-    // /app/briefing all land here.
-    if (path === "/" || path === "/app" || path === "/app/briefing") return "briefing";
-    // Legacy SPA path: /app/summaries-browse was renamed to /app/archives in
-    // v2.7.0. Keep the old path bookmark-friendly by mapping it to the same
-    // SPA page; the URL replaces itself with the canonical path on first
-    // render via setCurrentPage's pushState below.
-    if (path === "/app/summaries-browse") return "summaries";
-    for (const [page, p] of Object.entries(PAGE_PATHS) as [AppNavPage, string][]) {
-      if (p === path) return page;
-    }
-    return "briefing";
-  };
-
-  const [currentPage, setCurrentPageRaw] = useState<AppNavPage>("briefing");
-
-  const setCurrentPage = useCallback((page: AppNavPage, replace = false) => {
-    setCurrentPageRaw(page);
-    const path = PAGE_PATHS[page];
-    if (typeof window !== "undefined" && window.location.pathname !== path) {
-      if (replace) {
-        window.history.replaceState({ page }, "", path);
-      } else {
-        window.history.pushState({ page }, "", path);
-      }
-    }
-    // Fires after every SPA navigation (button-click, popstate, initial
-    // mount via the effect below). Lets the User Activity dashboard
-    // compute "page views per page" and feed the conversion funnel's
-    // first step.
-    trackEvent("page.view", { target_id: page });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    const initial = pathToPage(window.location.pathname);
-    setCurrentPageRaw(initial);
-    window.history.replaceState({ page: initial }, "", window.location.pathname);
-    trackEvent("page.view", { target_id: initial });
-
-    const handler = (e: PopStateEvent) => {
-      const page = e.state?.page ?? pathToPage(window.location.pathname);
-      setCurrentPageRaw(page);
-      trackEvent("page.view", { target_id: page, action: "popstate" });
-    };
-    window.addEventListener("popstate", handler);
-    return () => window.removeEventListener("popstate", handler);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // v2.12+ — SPA navigation machine extracted to `src/lib/spa-navigation.ts`.
+  // The hook owns the URL ↔ AppNavPage mapping, History API plumbing,
+  // popstate listener and `page.view` analytics. Auth redirects and
+  // page-specific UX (scroll-to-top on /top-articles) stay in `Home`
+  // below because they read auth state / lifecycle other than `currentPage`.
+  const { currentPage, setCurrentPage } = useSpaNavigation();
 
   const [topicsStartInCreate, setTopicsStartInCreate] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);

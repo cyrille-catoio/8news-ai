@@ -4,24 +4,12 @@ import { normalizeSummaryHeadings } from "@/lib/summary-headings";
 import { enrichDurations } from "@/lib/youtube-duration";
 import { transcribeVideo } from "@/lib/transcribe-video";
 import { refreshYoutubeVideosFromRss } from "@/lib/refresh-youtube-videos";
+import type { VideoItem } from "@/lib/types";
 
 function getDb() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
   return createClient(url, key, { auth: { persistSession: false } });
-}
-
-export interface VideoItem {
-  videoId: string;
-  title: string;
-  description: string | null;
-  channelTitle: string;
-  channelId: string;
-  published: string;
-  thumbnail: string | null;
-  viewCount: string | null;
-  durationSec: number | null;
-  link: string;
 }
 
 /** API list row: persisted AI summary for the requested UI language, if any. */

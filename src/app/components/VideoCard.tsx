@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, type CSSProperties } from "react";
-import dynamic from "next/dynamic";
 import { color, primaryButtonStyle, spinnerStyle } from "@/lib/theme";
 import { t, type Lang } from "@/lib/i18n";
 import { AudioPlayer } from "@/app/components/AudioPlayer";
@@ -11,121 +10,41 @@ import { DownloadTranscriptButton } from "@/app/components/DownloadTranscriptBut
 import { ScoreMeter } from "@/app/components/ScoreMeter";
 import type { TopicLabel } from "@/lib/types";
 import { trackEvent } from "@/lib/track";
+import {
+  DESC_MAX,
+  buildSummaryPreview,
+  isTranscriptionErrorMarkdown,
+  formatViews,
+  formatDuration,
+  toggleLink,
+} from "@/app/components/video-card/VideoCardHelpers";
+import { VideoCardMarkdown } from "@/app/components/video-card/VideoCardMarkdown";
 
-const ReactMarkdown = dynamic(() => import("react-markdown"), { ssr: false });
+// v2.12 — re-export for back-compat; `isTranscriptionErrorMarkdown` and
+// `buildSummaryPreview` used to live in this file. New code should
+// import from `@/app/components/video-card/VideoCardHelpers`.
+export { isTranscriptionErrorMarkdown, buildSummaryPreview };
+
 
 /** Slow layout push for summary panel + fade-in of content (respect reduced-motion below). */
 const VIDEO_SUMMARY_GRID_MS = 2200;
 const VIDEO_SUMMARY_FADE_MS = 1100;
 const VIDEO_SUMMARY_FADE_DELAY_MS = 380;
 
-const DESC_MAX = 120;
 
-/**
- * Strip markdown formatting from the AI summary and return a clean
- * teaser snippet (first words, ≤ `maxChars`) suitable for the
- * homepage hero side panel — no headings, no bullets, no `**`.
- */
-function buildSummaryPreview(md: string | null, maxChars = 240): string {
-  if (!md) return "";
-  const plain = md
-    .replace(/^##\s+.+$/gm, "")     // drop ## section markers (whole line)
-    .replace(/^###\s+/gm, "")       // strip ### prefix, keep title text
-    .replace(/\*\*/g, "")           // remove bold markers
-    .replace(/^\s*[-*]\s+/gm, "")   // strip leading list bullets
-    .replace(/\n+/g, " ")           // collapse newlines into spaces
-    .replace(/\s{2,}/g, " ")
-    .trim();
-  if (plain.length <= maxChars) return plain;
-  const cut = plain.slice(0, maxChars);
-  const lastSpace = cut.lastIndexOf(" ");
-  const safe = lastSpace > maxChars * 0.6 ? cut.slice(0, lastSpace) : cut;
-  return safe.trimEnd() + "…";
-}
 
-export interface VideoItem {
-  videoId: string;
-  title: string;
-  description: string | null;
-  channelTitle: string;
-  channelId: string;
-  published: string;
-  thumbnail: string | null;
-  viewCount: string | null;
-  durationSec: number | null;
-  link: string;
-  /**
-   * SSR per-video page coordinates for the current UI lang. All three
-   * are non-null when the video has been transcribed AND its channel
-   * has an assigned topic_id. Used to render the "Read article" link
-   * pointing at /{topicId}/v/{publishedDate}/{slugKeywords}.
-   */
-  topicId?: string | null;
-  slugKeywords?: string | null;
-  publishedDate?: string | null;
-  /** 1-10 recap quality (same meter as articles); unset until scored by cron. */
-  summaryScore?: number | null;
-}
+// v2.11.x — `VideoItem` moved to `@/lib/types`. Re-imported + re-exported
+// here so internal usages inside this file resolve AND existing imports
+// `import { VideoItem } from "@/app/components/VideoCard"` keep working
+// without a sweeping refactor. New code should import directly from
+// `@/lib/types`.
+import type { VideoItem } from "@/lib/types";
+export type { VideoItem };
 
-export function isTranscriptionErrorMarkdown(md: string | null): boolean {
-  return !!md && md.startsWith("> **Error:**");
-}
 
-function formatViews(v: string | null): string {
-  if (!v) return "";
-  const n = parseInt(v, 10);
-  if (isNaN(n)) return v;
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return n.toString();
-}
 
-function formatDuration(sec: number): string {
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = sec % 60;
-  if (h > 0) return `${h}h ${m}m ${s}s`;
-  if (m > 0) return `${m}m ${s}s`;
-  return `${s}s`;
-}
 
-const toggleLink: CSSProperties = {
-  background: "none",
-  border: "none",
-  color: color.gold,
-  fontSize: 12,
-  fontWeight: 600,
-  cursor: "pointer",
-  padding: 0,
-  fontFamily: "inherit",
-};
 
-/* ── Markdown style overrides for dark theme ─────────────────────── */
-
-const mdComponents = {
-  h2: ({ children, ...props }: React.ComponentProps<"h2">) => (
-    <h2 className="app-title" style={{ color: color.gold, fontWeight: 700, margin: "18px 0 8px" }} {...props}>{children}</h2>
-  ),
-  // h3 is the per-key-point title (promoted from `- **Title**` bullets by
-  // `promoteBulletTitlesToHeadings`). Styled in gold to match the roundup
-  // pages' bullet titles for visual consistency across briefings and
-  // per-video summaries.
-  h3: ({ children, ...props }: React.ComponentProps<"h3">) => (
-    <h3 className="app-title" style={{ color: color.gold, fontWeight: 700, margin: "14px 0 4px" }} {...props}>{children}</h3>
-  ),
-  p: ({ children, ...props }: React.ComponentProps<"p">) => (
-    <p className="app-paragraph" style={{ color: color.textSecondary, margin: "6px 0" }} {...props}>{children}</p>
-  ),
-  ul: ({ children, ...props }: React.ComponentProps<"ul">) => (
-    <ul style={{ paddingLeft: 20, margin: "6px 0" }} {...props}>{children}</ul>
-  ),
-  li: ({ children, ...props }: React.ComponentProps<"li">) => (
-    <li className="app-paragraph" style={{ color: color.textSecondary, marginBottom: 8 }} {...props}>{children}</li>
-  ),
-  strong: ({ children, ...props }: React.ComponentProps<"strong">) => (
-    <strong style={{ color: color.text, fontWeight: 700 }} {...props}>{children}</strong>
-  ),
-};
 
 /**
  * Single video card with thumbnail + body (title, description, meta) + actions
@@ -784,7 +703,7 @@ export function VideoCard({
           borderTop: `1px solid ${color.border}`,
         }}
       >
-        <ReactMarkdown components={mdComponents}>{summaryMd}</ReactMarkdown>
+        <VideoCardMarkdown source={summaryMd} />
       </div>
     ) : null;
 
@@ -842,7 +761,7 @@ export function VideoCard({
                 </div>
               ) : null;
             })()}
-            <ReactMarkdown components={mdComponents}>{summaryMd}</ReactMarkdown>
+            <VideoCardMarkdown source={summaryMd} />
             <button type="button" onClick={() => setSummaryExpanded(false)} style={{ ...toggleLink, marginTop: 8 }}>
               {lang === "fr" ? "Réduire le résumé" : "Collapse summary"}
             </button>

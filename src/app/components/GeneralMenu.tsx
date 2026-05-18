@@ -17,10 +17,15 @@ const barWrap: CSSProperties = {
   flexWrap: "wrap",
 };
 
+// v2.11.2+ — pills default to gold-on-black (gold border, gold text,
+// solid black background). Selected pill inverts to gold-on-black-text
+// (gold fill, black text). This single-token treatment matches the
+// rest of the home's gold-bordered card family and gives the active
+// pill an unambiguous filled affordance.
 const base: CSSProperties = {
-  border: `1px solid ${color.borderLight}`,
-  background: "rgba(255,255,255,0.05)",
-  color: color.textSecondary,
+  border: `1px solid ${color.gold}`,
+  background: "#000",
+  color: color.gold,
   fontSize: 12,
   fontWeight: 600,
   cursor: "pointer",
@@ -41,9 +46,8 @@ const base: CSSProperties = {
 
 const activeStyle: CSSProperties = {
   ...base,
-  border: `1px solid ${color.gold}`,
-  background: "rgba(201,162,39,0.15)",
-  color: color.gold,
+  background: color.gold,
+  color: "#000",
 };
 
 /* ── SPA version (used in page.tsx) ────────────────────────────────── */

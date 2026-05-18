@@ -1,12 +1,21 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { color, card, spinnerStyle } from "@/lib/theme";
 import { t, type Lang, dateLocale } from "@/lib/i18n";
 import type { AppNavPage } from "@/app/components/AppHeader";
 import { ScoreMeter } from "@/app/components/ScoreMeter";
 import { Top24hAudio } from "@/app/components/Top24hAudio";
 import { trackEvent } from "@/lib/track";
+import { Chevron, DoubleChevron, RefIcon } from "@/app/components/top24h/Top24hHeroIcons";
+import {
+  groupBullets,
+  countGroups,
+  kickerStyle,
+  formatSummaryDayLabel,
+  type Bullet,
+} from "@/app/components/top24h/Top24hHeroHelpers";
+import { Top24hHistoryArrows } from "@/app/components/top24h/Top24hHistoryArrows";
 
 /**
  * Hero card pinned at the very top of `/app` (BriefingPage). Renders
@@ -30,20 +39,6 @@ import { trackEvent } from "@/lib/track";
  *    that message.
  */
 
-interface Bullet {
-  text: string;
-  title?: string | null;
-  refs: Array<{ title: string; link: string; source: string }>;
-  /**
-   * Editorial importance 1-10 propagated from the LLM `importance`
-   * field per group (mig. 026+, exposed by `/api/news/top-summary/latest`
-   * since v2.6.9). All bullets of a same-title run share the same value
-   * so the renderer can read it from `group.bullets[0]`. NULL on legacy
-   * snapshots and on environments where mig. 026 hasn't been applied —
-   * the meter is hidden in that case.
-   */
-  importanceScore?: number | null;
-}
 
 interface Snapshot {
   bullets: Bullet[];
@@ -53,240 +48,14 @@ interface Snapshot {
   offset?: number;
 }
 
-interface Group {
-  /** Empty string means « no title » (legacy bullets) — rendered as a
-   *  plain non-collapsible row. */
-  title: string;
-  bullets: Bullet[];
-}
 
-/** Fold consecutive bullets that share the same title into a single
- *  thematic group. Bullets without a title each become their own
- *  empty-titled group so they keep their place in the list without
- *  pretending to be collapsible.
- *
- *  v2.6.13+ groups are then sorted by descending `importanceScore`
- *  (first bullet of each group, which carries the LLM's group-level
- *  score thanks to the flatten in `ai-analyze.ts`). Bullets without
- *  a score fall back to 0 → drift to the bottom. Bullet order WITHIN
- *  a group is preserved (it's a narrative, not a ranking). The sort
- *  is stable so equal-score groups keep their LLM emission order. */
-function groupBullets(bullets: Bullet[]): Group[] {
-  const out: Group[] = [];
-  for (const b of bullets) {
-    const t = (b.title ?? "").trim();
-    if (!t) {
-      out.push({ title: "", bullets: [b] });
-      continue;
-    }
-    const last = out[out.length - 1];
-    if (last && last.title === t) last.bullets.push(b);
-    else out.push({ title: t, bullets: [b] });
-  }
-  // Stable sort by importance DESC; legacy groups without a score
-  // (NULL on snapshots predating mig 026) treat as 0 so they sink
-  // below scored groups instead of arbitrarily intermixing.
-  const decorated = out.map((g, i) => ({
-    g,
-    i,
-    s: g.bullets[0]?.importanceScore ?? 0,
-  }));
-  decorated.sort((a, b) => (b.s - a.s) || (a.i - b.i));
-  return decorated.map((d) => d.g);
-}
 
-/** Number of groups produced by `groupBullets` without allocating the
- *  full Group array — useful to size the initial `openIdx` Set when
- *  `defaultOpen` is true (the actual array gets built once below). */
-function countGroups(bullets: Bullet[]): number {
-  let n = 0;
-  let prev: string | null = null;
-  for (const b of bullets) {
-    const t = (b.title ?? "").trim();
-    if (!t) {
-      n += 1;
-      prev = null;
-      continue;
-    }
-    if (t !== prev) {
-      n += 1;
-      prev = t;
-    }
-  }
-  return n;
-}
 
-/** Inline kicker style (matches the rest of `BriefingPage`'s sections
- *  — gold mono uppercase, low contrast). Duplicated here on purpose
- *  so the component stays self-contained and importable from any
- *  surface, not just BriefingPage. */
-function kickerStyle(c: string): CSSProperties {
-  return {
-    color: c,
-    fontFamily: "ui-monospace, Menlo, monospace",
-    fontSize: 11,
-    fontWeight: 600,
-    letterSpacing: "0.12em",
-    textTransform: "uppercase",
-    marginBottom: 8,
-  };
-}
 
-function Chevron({ open }: { open: boolean }) {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      style={{
-        flexShrink: 0,
-        transform: open ? "rotate(180deg)" : "rotate(0deg)",
-        transition: "transform 180ms ease",
-      }}
-      aria-hidden
-    >
-      <polyline points="6 9 12 15 18 9" />
-    </svg>
-  );
-}
 
-/** Double-chevron glyph used by the « expand/collapse all » master
- *  toggle pinned at the top-right of the hero. Two stacked chevrons
- *  read as « all rows » where the single-chevron pattern on each row
- *  reads as « this row only » — distinct affordance for distinct
- *  scope. Rotates 180° when every group is open so the same SVG
- *  serves both directions, animated for continuity. */
-function DoubleChevron({ open }: { open: boolean }) {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.25"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      style={{
-        flexShrink: 0,
-        transform: open ? "rotate(180deg)" : "rotate(0deg)",
-        transition: "transform 220ms ease",
-      }}
-      aria-hidden
-    >
-      <polyline points="7 13 12 18 17 13" />
-      <polyline points="7 6 12 11 17 6" />
-    </svg>
-  );
-}
 
-function RefIcon() {
-  return (
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: "middle", opacity: 0.6 }}>
-      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-      <polyline points="15 3 21 3 21 9" />
-      <line x1="10" y1="14" x2="21" y2="3" />
-    </svg>
-  );
-}
 
-function Top24hHistoryArrows({
-  offset,
-  canGoOlder,
-  onOlder,
-  onNewer,
-  lang,
-}: {
-  offset: number;
-  canGoOlder: boolean;
-  onOlder: () => void;
-  onNewer: () => void;
-  lang: Lang;
-}) {
-  const canGoNewer = offset > 0;
-  const baseBtn: CSSProperties = {
-    background: "rgba(255,255,255,0.02)",
-    border: `1px solid ${color.border}`,
-    borderRadius: 6,
-    color: color.textDim,
-    cursor: "pointer",
-    fontSize: 20,
-    lineHeight: 1,
-    padding: "4px 8px",
-    minWidth: 30,
-    minHeight: 28,
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    transition: "color 120ms ease, opacity 120ms ease, border-color 120ms ease, background 120ms ease",
-  };
-  return (
-    <span style={{ display: "inline-flex", alignItems: "baseline", gap: 6, marginLeft: 10 }}>
-      <button
-        type="button"
-        onClick={onNewer}
-        disabled={!canGoNewer}
-        aria-label={lang === "fr" ? "Podcast plus récent" : "Newer podcast"}
-        style={{
-          ...baseBtn,
-          opacity: canGoNewer ? 1 : 0.32,
-          cursor: canGoNewer ? "pointer" : "not-allowed",
-        }}
-        onMouseEnter={(e) => {
-          if (!canGoNewer) return;
-          e.currentTarget.style.color = color.gold;
-          e.currentTarget.style.borderColor = color.gold;
-          e.currentTarget.style.background = "rgba(201,162,39,0.10)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.color = color.textDim;
-          e.currentTarget.style.borderColor = color.border;
-          e.currentTarget.style.background = "rgba(255,255,255,0.02)";
-        }}
-      >
-        ‹
-      </button>
-      <button
-        type="button"
-        onClick={onOlder}
-        disabled={!canGoOlder}
-        aria-label={lang === "fr" ? "Podcast précédent" : "Previous podcast"}
-        style={{
-          ...baseBtn,
-          opacity: canGoOlder ? 1 : 0.32,
-          cursor: canGoOlder ? "pointer" : "not-allowed",
-        }}
-        onMouseEnter={(e) => {
-          if (!canGoOlder) return;
-          e.currentTarget.style.color = color.gold;
-          e.currentTarget.style.borderColor = color.gold;
-          e.currentTarget.style.background = "rgba(201,162,39,0.10)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.color = color.textDim;
-          e.currentTarget.style.borderColor = color.border;
-          e.currentTarget.style.background = "rgba(255,255,255,0.02)";
-        }}
-      >
-        ›
-      </button>
-    </span>
-  );
-}
 
-function formatSummaryDayLabel(dateISO: string, lang: Lang): string {
-  const d = new Date(`${dateISO}T12:00:00Z`);
-  return new Intl.DateTimeFormat(dateLocale(lang), {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(d);
-}
 
 export function Top24hHero({
   lang,

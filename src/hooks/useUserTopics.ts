@@ -4,7 +4,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import type { TopicItem } from "@/lib/types";
 import { trackEvent } from "@/lib/track";
 
-export type SaveStatus = "idle" | "saving" | "saved" | "error";
+// Module-private since v2.11.x — only `useUserTopics`'s own state uses
+// this discriminator now that `TopicPersonalizationBar` is gone.
+type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 export function useUserTopics(isAuthenticated: boolean) {
   // Committed state: applied to the feed and grid outside edit mode.

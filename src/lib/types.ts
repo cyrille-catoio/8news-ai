@@ -239,6 +239,38 @@ export interface CronStatsResponse {
   alerts?: string[];
 }
 
+// ── YouTube videos ──────────────────────────────────────────────────────
+
+/**
+ * Canonical video row consumed by `<VideoCard>`, `<VideosBriefingSection>`,
+ * `<VideosPage>` and the `GET /api/youtube-channels/videos` endpoint.
+ * Moved here in v2.11.x (was duplicated in `VideoCard.tsx` and the API
+ * route — kept drifting silently between the two).
+ */
+export interface VideoItem {
+  videoId: string;
+  title: string;
+  description: string | null;
+  channelTitle: string;
+  channelId: string;
+  published: string;
+  thumbnail: string | null;
+  viewCount: string | null;
+  durationSec: number | null;
+  link: string;
+  /**
+   * SSR per-video page coordinates for the current UI lang. All three
+   * are non-null when the video has been transcribed AND its channel
+   * has an assigned topic_id. Used to render the "Read article" link
+   * pointing at /{topicId}/v/{publishedDate}/{slugKeywords}.
+   */
+  topicId?: string | null;
+  slugKeywords?: string | null;
+  publishedDate?: string | null;
+  /** 1-10 recap quality (same meter as articles); unset until scored by cron. */
+  summaryScore?: number | null;
+}
+
 // ── In-app UI rows (from API, used by page.tsx) ─────────────────────────
 
 /** Topic id + display label for toggles and admin pages. */

@@ -264,6 +264,18 @@ export function AppHeader({
   const { session, loading: authLoading, signOut } = useAuth();
   const authed = Boolean(session?.user);
   const canManageTopicsAndFeeds = isOwnerUser(session?.user);
+  // v2.11.1+ — hide the « Try Pro » CTA once the user has already
+  // reserved the Pro plan from /app/settings. Same check pattern as
+  // `SettingsPage.SubscriptionPanel` (line ~285): the reservation is
+  // mirrored in `user_metadata.plan_intent === 'pro'` OR
+  // `user_metadata.pro_interest === true` (legacy flag kept for
+  // forward compat). Anonymous visitors never trigger this branch.
+  const proMeta = (session?.user?.user_metadata ?? {}) as {
+    plan_intent?: unknown;
+    pro_interest?: unknown;
+  };
+  const proReserved =
+    authed && (proMeta.plan_intent === "pro" || proMeta.pro_interest === true);
 
   const authBtnStyle: CSSProperties = {
     padding: "4px 10px",
@@ -405,7 +417,7 @@ export function AppHeader({
           />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {!authLoading && (
+          {!authLoading && !proReserved && (
             <button
               type="button"
               onClick={() => {

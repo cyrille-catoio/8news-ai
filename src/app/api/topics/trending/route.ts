@@ -1,19 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 /**
- * GET /api/topics/trending?since=6h&lang=fr
+ * GET /api/topics/trending?since=24h&lang=fr&limit=10&topics=ai,crypto
  *
- * Returns the topics that received the most articles in the recent
- * window, ordered by count desc, limit 8. Powers the "Tendances" strip
- * on the Briefing homepage.
+ * Returns topics ranked by article count in the recent window (default
+ * 24 h), ordered by count desc. Optional `topics` restricts the count
+ * to the caller's preferred topic ids (logged-in personalization).
+ * Powers the « Tendances · 24h » strip on the Briefing homepage.
+ *
+ * Counts use `pub_date` (publication time), aligned with Top 50 /
+ * stats — not `fetched_at`, which under-counts when RSS re-sees an
+ * existing link (`ignoreDuplicates` upserts do not refresh fetched_at).
+ * Per-topic `{ count: "exact" }` queries avoid the PostgREST row cap
+ * (~1k rows) that truncated the previous single-scan approach.
  *
  * Response: [{ id, label, count }]
  */
 export async function GET(req: NextRequest) {
-  const sinceParam = req.nextUrl.searchParams.get("since") ?? "6h";
+  const sinceParam = req.nextUrl.searchParams.get("since") ?? "24h";
   const langParam = req.nextUrl.searchParams.get("lang") ?? "en";
   const lang = langParam === "fr" ? "fr" : "en";
+
+  const topicsParam = req.nextUrl.searchParams.get("topics");
+  const topicFilter = topicsParam
+    ? topicsParam.split(",").map((s) => s.trim()).filter(Boolean)
+    : null;
+
+  const limitRaw = parseInt(req.nextUrl.searchParams.get("limit") ?? "10", 10);
+  const limit = Math.min(20, Math.max(1, Number.isFinite(limitRaw) ? limitRaw : 10));
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -26,22 +41,18 @@ export async function GET(req: NextRequest) {
 
   const db = createClient(url, key, { auth: { persistSession: false } });
 
-  // Pull just the topic column for articles fetched in the window. Cap at
-  // 5000 rows to bound memory: typical 6h window is well under that.
-  const { data: rows, error } = await db
-    .from("articles")
-    .select("topic")
-    .gte("fetched_at", sinceISO)
-    .limit(5000);
+  const topicIds =
+    topicFilter && topicFilter.length > 0
+      ? topicFilter
+      : await fetchDisplayedTopicIds(db);
 
-  if (error || !rows) {
-    return NextResponse.json([], { headers: { "Cache-Control": "no-store" } });
+  if (topicIds.length === 0) {
+    return NextResponse.json([], {
+      headers: { "Cache-Control": "public, max-age=60, s-maxage=300" },
+    });
   }
 
-  const counts = new Map<string, number>();
-  for (const r of rows as Array<{ topic: string }>) {
-    counts.set(r.topic, (counts.get(r.topic) ?? 0) + 1);
-  }
+  const counts = await countArticlesByTopicSince(db, sinceISO, topicIds);
 
   if (counts.size === 0) {
     return NextResponse.json([], {
@@ -49,10 +60,12 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  const idsToLabel = Array.from(counts.keys());
+
   const { data: topicRows } = await db
     .from("topics")
     .select("id, label_en, label_fr, is_active, is_displayed")
-    .in("id", Array.from(counts.keys()));
+    .in("id", idsToLabel);
 
   const labelById = new Map<string, string>();
   for (const t of (topicRows ?? []) as Array<{
@@ -62,7 +75,7 @@ export async function GET(req: NextRequest) {
     is_active: boolean;
     is_displayed: boolean;
   }>) {
-    if (!t.is_active || !t.is_displayed) continue; // hide topics not surfaced to users
+    if (!t.is_active || !t.is_displayed) continue;
     labelById.set(t.id, lang === "fr" ? t.label_fr : t.label_en);
   }
 
@@ -70,21 +83,60 @@ export async function GET(req: NextRequest) {
     .filter(([id]) => labelById.has(id))
     .map(([id, count]) => ({ id, label: labelById.get(id)!, count }))
     .sort((a, b) => b.count - a.count)
-    .slice(0, 8);
+    .slice(0, limit);
 
   return NextResponse.json(ranked, {
-    // Light cache: trending is OK to be a few minutes stale.
     headers: { "Cache-Control": "public, max-age=60, s-maxage=300" },
   });
 }
 
+async function fetchDisplayedTopicIds(db: SupabaseClient): Promise<string[]> {
+  const { data, error } = await db
+    .from("topics")
+    .select("id")
+    .eq("is_active", true)
+    .eq("is_displayed", true);
+
+  if (error || !data) return [];
+  return (data as Array<{ id: string }>).map((r) => r.id);
+}
+
+/** Exact per-topic counts for articles published since `sinceISO`. */
+async function countArticlesByTopicSince(
+  db: SupabaseClient,
+  sinceISO: string,
+  topicIds: string[],
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  const BATCH = 25;
+
+  for (let i = 0; i < topicIds.length; i += BATCH) {
+    const slice = topicIds.slice(i, i + BATCH);
+    await Promise.all(
+      slice.map(async (topicId) => {
+        const { count, error } = await db
+          .from("articles")
+          .select("id", { count: "exact", head: true })
+          .eq("topic", topicId)
+          .gte("pub_date", sinceISO);
+
+        if (!error && count != null && count > 0) {
+          counts.set(topicId, count);
+        }
+      }),
+    );
+  }
+
+  return counts;
+}
+
 /**
- * Parse "6h", "24h", "30m" etc. into milliseconds. Defaults to 6h on any
+ * Parse "6h", "24h", "30m" etc. into milliseconds. Defaults to 24h on any
  * unparseable input. Caps at 7d to avoid huge windows.
  */
 function parseSinceWindow(s: string): number {
   const m = s.trim().match(/^(\d+)\s*([mhd])$/i);
-  if (!m) return 6 * 3_600_000;
+  if (!m) return 24 * 3_600_000;
   const n = parseInt(m[1], 10);
   const unit = m[2].toLowerCase();
   const ms =

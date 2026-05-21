@@ -15,6 +15,10 @@ export interface FavoriteButtonProps {
   onToggle: (article: { url: string; title: string; source: string; pubDate?: string; sourceType?: "article" | "video" }) => void;
   onRequestAuth?: () => void;
   isAuthenticated: boolean;
+  /** SVG side length in px. Defaults to 15 — the size used inline next
+   *  to article/video card titles in the SPA lists. Page-level headers
+   *  (the SEO daily-summary page) pass a larger value to balance the H1. */
+  size?: number;
 }
 
 export function FavoriteButton({
@@ -28,6 +32,7 @@ export function FavoriteButton({
   onToggle,
   onRequestAuth,
   isAuthenticated,
+  size = 15,
 }: FavoriteButtonProps) {
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -63,11 +68,11 @@ export function FavoriteButton({
       }}
     >
       {isFavorite ? (
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
           <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
         </svg>
       ) : (
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
         </svg>
       )}

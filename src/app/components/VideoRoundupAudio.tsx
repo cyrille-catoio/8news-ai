@@ -4,6 +4,7 @@ import type { Lang } from "@/lib/i18n";
 import { getCookie } from "@/lib/cookies";
 import { AudioPlayer } from "@/app/components/AudioPlayer";
 import { TTS_VOICES_EN, TTS_VOICES_FR } from "@/app/components/VoiceAccordion";
+import { TTS_TEXT_MAX_CHARS, ttsOutro } from "@/lib/tts";
 
 function readSpeed(): number {
   if (typeof document === "undefined") return 1.05;
@@ -32,8 +33,8 @@ function roundupMdToTtsText(roundupMd: string, roundupTitle: string, topicName: 
   const intro = lang === "fr"
     ? `Récap vidéo ${topicName} du ${date}. ${roundupTitle}.`
     : `Video recap for ${topicName}, ${date}. ${roundupTitle}.`;
-  const outro = lang === "fr" ? "... ... Analyse terminée." : "... ... That's all folks!";
-  const maxBody = 4800 - intro.length - outro.length;
+  const outro = ttsOutro(lang);
+  const maxBody = TTS_TEXT_MAX_CHARS - intro.length - outro.length;
   const body = plain.length > maxBody ? plain.slice(0, maxBody) + "..." : plain;
   return body.length > 0 ? `${intro} ${body} ${outro}` : "";
 }

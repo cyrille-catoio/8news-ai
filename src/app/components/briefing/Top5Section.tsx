@@ -127,13 +127,23 @@ export function Top5Section({
                   <CopyLinkButton url={art.link} />
                 </div>
               </div>
+              {isLast && (
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    marginTop: 6,
+                  }}
+                >
+                  <button type="button" onClick={onSeeAll} style={ctaLink}>
+                    {lang === "fr" ? "Voir le top 50 →" : "See the full top 50 →"}
+                  </button>
+                </div>
+              )}
             </div>
           );
         })}
       </div>
-      <button type="button" onClick={onSeeAll} style={{ ...ctaLink, marginTop: 12 }}>
-        {lang === "fr" ? "Voir le top 50 →" : "See the full top 50 →"}
-      </button>
       {/* locale prop reserved for future timestamp formatting */}
       <span style={{ display: "none" }} aria-hidden>{locale}</span>
     </section>

@@ -37,7 +37,7 @@ function LangToggle({ lang, altLangUrl }: { lang: Lang; altLangUrl?: string }) {
   }, []);
 
   const btn = (value: Lang, isLeft: boolean): CSSProperties => ({
-    padding: "4px 10px",
+    padding: "13px 10px 4px",
     fontSize: 10.4,
     fontWeight: 600,
     border: "none",
@@ -193,7 +193,7 @@ export function SeoNavBar({ lang, altLangUrl }: { lang: Lang; altLangUrl?: strin
           display: "flex",
           flexDirection: "column",
           alignItems: "flex-end",
-          gap: 6,
+          gap: 16,
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

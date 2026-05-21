@@ -7,6 +7,7 @@ import { t, dateLocale, type Lang } from "@/lib/i18n";
 import { color, sectionCard, spinnerStyle } from "@/lib/theme";
 import { CopyLinkButton } from "@/app/components/CopyLinkButton";
 import { AudioPlayer } from "@/app/components/AudioPlayer";
+import { TTS_TEXT_MAX_CHARS } from "@/lib/tts";
 
 const ReactMarkdown = dynamic(() => import("react-markdown"), { ssr: false });
 
@@ -80,7 +81,7 @@ function summaryMdToTtsText(summaryMd: string, videoTitle: string, lang: Lang): 
     .trim();
   const intro =
     lang === "fr" ? `Résumé de la vidéo ${videoTitle}.` : `Summary of the video ${videoTitle}.`;
-  const maxBody = 4800 - intro.length;
+  const maxBody = TTS_TEXT_MAX_CHARS - intro.length;
   const body = plain.length > maxBody ? plain.slice(0, maxBody) + "…" : plain;
   return body.length > 0 ? `${intro} ${body}` : "";
 }

@@ -4,6 +4,7 @@ import type { Lang } from "@/lib/i18n";
 import { getCookie } from "@/lib/cookies";
 import { AudioPlayer } from "@/app/components/AudioPlayer";
 import { TTS_VOICES_EN, TTS_VOICES_FR } from "@/app/components/VoiceAccordion";
+import { TTS_TEXT_MAX_CHARS } from "@/lib/tts";
 
 /**
  * TTS player for the per-video SSR page (`/{topic}/v/{date}/{slug}`).
@@ -14,7 +15,10 @@ import { TTS_VOICES_EN, TTS_VOICES_FR } from "@/app/components/VoiceAccordion";
  *
  * Same TTS text shape as the inline AudioPlayer in `VideoCard`:
  *  - intro: "Résumé de la vidéo {title}." / "Summary of the video {title}."
- *  - body: summary_md stripped of Markdown markup, capped at 4800 chars
+ *  - body: summary_md stripped of Markdown markup, capped at
+ *    `TTS_TEXT_MAX_CHARS` (see `src/lib/tts.ts`) to stay under the
+ *    serverless function timeout — well above Flash v2.5's own
+ *    40 000-char request ceiling.
  */
 
 function readSpeed(): number {
@@ -35,7 +39,9 @@ function readVoice(lang: Lang): string {
 /**
  * Build the TTS text from a video summary. Strips Markdown markers
  * (headings, bold, bullets) and prepends a localized intro. Capped at
- * ~4800 chars to stay under ElevenLabs' single-shot generation limit.
+ * `TTS_TEXT_MAX_CHARS` — see `src/lib/tts.ts` for the rationale (the
+ * previous ~4800 hard ceiling was a vestige of the older Multilingual
+ * v1 model and was truncating long summaries with no functional reason).
  *
  * Exported for re-use by the future per-roundup page (Phase 2.4) which
  * needs the same logic.
@@ -56,7 +62,7 @@ export function summaryMdToVideoTtsText(summaryMd: string, videoTitle: string, l
     .trim();
   const intro =
     lang === "fr" ? `Résumé de la vidéo ${videoTitle}.` : `Summary of the video ${videoTitle}.`;
-  const maxBody = 4800 - intro.length;
+  const maxBody = TTS_TEXT_MAX_CHARS - intro.length;
   const body = plain.length > maxBody ? plain.slice(0, maxBody) + "…" : plain;
   return body.length > 0 ? `${intro} ${body}` : "";
 }

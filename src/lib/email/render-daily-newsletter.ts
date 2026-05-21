@@ -157,7 +157,7 @@ export interface RenderNewsletterParams {
   snapshot: TopSummaryRow;
   bullets: TopSummaryBulletRow[];
   lang: Lang;
-  /** Absolute origin used to build the « Read online » deep link
+  /** Absolute origin used for logo, CTA and settings links
    *  (e.g. "https://8news.ai"). No trailing slash. */
   origin: string;
 }
@@ -175,11 +175,11 @@ export function renderDailyNewsletter(
   const groups = groupBullets(bullets);
   const dateLong = formatDateLong(snapshot.summary_date, lang);
   const dateShort = formatDateShort(snapshot.summary_date, lang);
-  const archiveUrl = `${origin}/${snapshot.summary_date}${lang === "fr" ? "?lang=fr" : ""}`;
+  const topArticlesUrl = `${origin}/app/top-articles${lang === "fr" ? "?lang=fr" : ""}`;
   const subject = `${t("newsletterSubjectPrefix", lang)} · ${dateShort}`;
 
-  const html = buildHtml({ groups, lang, dateLong, archiveUrl, origin });
-  const text = buildText({ groups, lang, dateLong, archiveUrl });
+  const html = buildHtml({ groups, lang, dateLong, ctaUrl: topArticlesUrl, origin });
+  const text = buildText({ groups, lang, dateLong, ctaUrl: topArticlesUrl });
 
   return { subject, html, text };
 }
@@ -192,10 +192,10 @@ function buildHtml(args: {
   groups: Group[];
   lang: Lang;
   dateLong: string;
-  archiveUrl: string;
+  ctaUrl: string;
   origin: string;
 }): string {
-  const { groups, lang, dateLong, archiveUrl, origin } = args;
+  const { groups, lang, dateLong, ctaUrl, origin } = args;
 
   const groupsHtml = groups
     .map((g) => renderGroupHtml(g))
@@ -268,7 +268,7 @@ function buildHtml(args: {
           <tr>
             <td style="padding:18px 24px 8px;">
               <div style="text-align:center;margin:8px 0 4px;">
-                <a href="${esc(archiveUrl)}" style="display:inline-block;padding:13px 22px;background:${COLOR.gold};color:#000000;text-decoration:none;border-radius:6px;font-size:17px;font-weight:600;letter-spacing:0.01em;">
+                <a href="${esc(ctaUrl)}" style="display:inline-block;padding:13px 22px;background:${COLOR.gold};color:#000000;text-decoration:none;border-radius:6px;font-size:17px;font-weight:600;letter-spacing:0.01em;">
                   ${esc(t("newsletterReadOnline", lang))} &rarr;
                 </a>
               </div>
@@ -279,7 +279,7 @@ function buildHtml(args: {
               <div style="border-top:1px solid ${COLOR.border};padding-top:16px;color:${COLOR.textDim};font-size:13px;line-height:1.5;text-align:center;">
                 <div>${esc(t("newsletterFooterReason", lang))}</div>
                 <div style="margin-top:6px;">
-                  <a href="${esc(originFromUrl(archiveUrl))}/app/settings" style="color:${COLOR.gold};text-decoration:none;">
+                  <a href="${esc(origin)}/app/settings" style="color:${COLOR.gold};text-decoration:none;">
                     ${esc(t("newsletterFooterUnsubscribe", lang))}
                   </a>
                 </div>
@@ -295,19 +295,6 @@ function buildHtml(args: {
   </table>
 </body>
 </html>`;
-}
-
-/** Helper to pull the bare origin back out of the full archive URL so
- *  the footer's settings link doesn't need an extra prop. The archive
- *  URL is built as `${origin}/${date}` (optionally with `?lang=fr`),
- *  so the origin is everything before the second slash after `://`. */
-function originFromUrl(archiveUrl: string): string {
-  try {
-    const u = new URL(archiveUrl);
-    return `${u.protocol}//${u.host}`;
-  } catch {
-    return archiveUrl;
-  }
 }
 
 /** Importance score badge — colored mono pill rendered next to each
@@ -398,9 +385,9 @@ function buildText(args: {
   groups: Group[];
   lang: Lang;
   dateLong: string;
-  archiveUrl: string;
+  ctaUrl: string;
 }): string {
-  const { groups, lang, dateLong, archiveUrl } = args;
+  const { groups, lang, dateLong, ctaUrl } = args;
 
   const header = [
     `${t("newsletterSubjectPrefix", lang).toUpperCase()} — ${dateLong}`,
@@ -420,7 +407,7 @@ function buildText(args: {
     "",
     "----------------------------------------",
     "",
-    `${t("newsletterReadOnline", lang)}: ${archiveUrl}`,
+    `${t("newsletterReadOnline", lang)}: ${ctaUrl}`,
     "",
     t("newsletterFooterReason", lang),
     "",

@@ -90,6 +90,33 @@ export const primaryButtonStyle: CSSProperties = {
   cursor: "pointer",
 };
 
+/**
+ * Rounded rectangular CTA with a gold outline on a transparent (black)
+ * background, gold text. Mirrors the chrome of the main app header
+ * (EN/FR toggle, « Sign in » button, top icons) so the on-card CTAs —
+ * « Lire l'article », « Play Vidéo », « Résumé », « Ouvrir sur YouTube »
+ * — read as part of the same affordance family rather than as bright
+ * « buy » buttons. Hover behaviour is opt-in via inline JSX (a soft
+ * gold tint background); keeping the rest-state declarative here lets
+ * every CTA share the same baseline metrics.
+ *
+ * v2.12.1+: introduced when the in-card action buttons were switched
+ * from filled gold (black text) to outline gold for visual coherence
+ * with the top nav.
+ */
+export const outlinedButtonStyle: CSSProperties = {
+  padding: "8px 16px",
+  borderRadius: 6,
+  border: `1px solid ${color.gold}`,
+  background: "transparent",
+  color: color.gold,
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: "pointer",
+  fontFamily: "inherit",
+  transition: "background 140ms ease, border-color 140ms ease",
+};
+
 export const dangerButtonStyle: CSSProperties = {
   padding: "6px 12px",
   borderRadius: 6,

@@ -16,6 +16,7 @@ import {
   type Bullet,
 } from "@/app/components/top24h/Top24hHeroHelpers";
 import { Top24hHistoryArrows } from "@/app/components/top24h/Top24hHistoryArrows";
+import { readCachedSnapshot, writeCachedSnapshot } from "@/app/components/top24h/top24h-cache";
 
 /**
  * Hero card pinned at the very top of `/app` (BriefingPage). Renders
@@ -68,6 +69,7 @@ export function Top24hHero({
   isRead,
   onToggleRead,
   showHistoryControls = false,
+  showHomeRefresh = false,
   onSnapshotChange,
 }: {
   lang: Lang;
@@ -119,6 +121,9 @@ export function Top24hHero({
   /** Home-only: show discreet chevrons next to the Top articles 24h
    *  kicker to browse previous daily podcast snapshots. */
   showHistoryControls?: boolean;
+  /** Home-only: full-page reload pill to the right of the history
+   *  chevrons (podcast du jour header). */
+  showHomeRefresh?: boolean;
   /** Notifies the parent each time the visible snapshot changes
    *  (initial load + every history-arrow navigation). v2.8.2+ used by
    *  `<HomeTop24hHero>` to know which `summaryDate` to look up in the
@@ -127,11 +132,18 @@ export function Top24hHero({
   onSnapshotChange?: (snapshot: Snapshot) => void;
 }) {
   const isSelfFetched = externalData === undefined;
-  const [snapInternal, setSnapInternal] = useState<Snapshot | null>(null);
-  const [loadingInternal, setLoadingInternal] = useState(isSelfFetched);
+  // Stale-while-revalidate: hydrate from the persisted cache synchronously
+  // so the hero paints instantly on a returning visit instead of showing
+  // the spinner for the full RTT of the /api/news/top-summary/latest call.
+  // The live fetch below still runs and silently replaces the snapshot
+  // when it returns, so we never serve a stale value for more than one
+  // network round-trip.
+  const cachedInitial = isSelfFetched ? readCachedSnapshot<Snapshot>(lang, 0) : null;
+  const [snapInternal, setSnapInternal] = useState<Snapshot | null>(cachedInitial);
+  const [loadingInternal, setLoadingInternal] = useState(isSelfFetched && !cachedInitial);
   const [errorInternal, setErrorInternal] = useState(false);
   const [historyOffset, setHistoryOffset] = useState(0);
-  const [historyHasOlder, setHistoryHasOlder] = useState(false);
+  const [historyHasOlder, setHistoryHasOlder] = useState(Boolean(cachedInitial?.hasOlder));
   /** Mirrors `historyHasOlder` after each successful fetch — avoids a stale
    *  closure inside `setHistoryOffset` (the old `historyHasOlder ? o + 1`
    *  pattern could read `false` from the initial render and never
@@ -176,7 +188,21 @@ export function Top24hHero({
     if (!isSelfFetched) return;
     let cancelled = false;
     const offsetRequested = historyOffset;
-    setLoadingInternal(true);
+    // SWR: hydrate from the local cache for THIS (lang, offset) tuple
+    // before we hit the network. The very first effect run was already
+    // pre-seeded by the lazy initialiser above, but subsequent runs
+    // (lang flip, history-arrow navigation) need to repeat the cache
+    // hit so the new tuple paints instantly too.
+    const cached = readCachedSnapshot<Snapshot>(lang, historyOffset);
+    if (cached) {
+      historyHasOlderRef.current = Boolean(cached.hasOlder);
+      setSnapInternal(cached);
+      setHistoryHasOlder(Boolean(cached.hasOlder));
+      onSnapshotChangeRef.current?.(cached);
+      setLoadingInternal(false);
+    } else {
+      setLoadingInternal(true);
+    }
     setErrorInternal(false);
     fetch(`/api/news/top-summary/latest?lang=${lang}&offset=${historyOffset}`, { cache: "no-store" })
       .then(async (r) => {
@@ -185,7 +211,10 @@ export function Top24hHero({
           if (offsetRequested > 0) {
             setHistoryOffset((o) => Math.max(0, o - 1));
             setErrorInternal(false);
-          } else {
+          } else if (!cached) {
+            // Only flip into the error state when we don't already have a
+            // cached snapshot on screen — otherwise we'd swap a visible,
+            // recent briefing for an empty surface on a transient 404.
             setErrorInternal(true);
           }
           return null;
@@ -200,9 +229,10 @@ export function Top24hHero({
         setSnapInternal(json);
         setHistoryHasOlder(older);
         onSnapshotChangeRef.current?.(json);
+        writeCachedSnapshot<Snapshot>(lang, offsetRequested, json);
       })
       .catch(() => {
-        if (cancelled) return;
+        if (cancelled || cached) return;
         setErrorInternal(true);
       })
       .finally(() => {
@@ -273,7 +303,16 @@ export function Top24hHero({
 
   return (
     <section style={{ marginBottom: 36 }}>
-      <div style={{ display: "flex", alignItems: "baseline", marginBottom: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          gap: 12,
+          flexWrap: "wrap",
+          marginBottom: 12,
+        }}
+      >
         <div style={kickerStyle(color.gold)}>{t("top24hHeroKicker", lang)}</div>
         {showHistoryControls && isSelfFetched && (
           <Top24hHistoryArrows
@@ -297,6 +336,62 @@ export function Top24hHero({
             }}
             lang={lang}
           />
+        )}
+        {showHomeRefresh && (
+          <button
+            type="button"
+            onClick={() => {
+              trackEvent("nav.refresh_home", { lang });
+              if (typeof window !== "undefined") window.location.reload();
+            }}
+            aria-label={lang === "fr" ? "Rafraîchir la page" : "Refresh page"}
+            title={lang === "fr" ? "Rafraîchir la page" : "Refresh page"}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              marginLeft: "auto",
+              background: "rgba(255,255,255,0.02)",
+              border: `1px solid ${color.border}`,
+              borderRadius: 999,
+              color: color.textMuted,
+              cursor: "pointer",
+              fontSize: 12,
+              fontWeight: 600,
+              letterSpacing: "0.04em",
+              padding: "5px 12px 5px 10px",
+              fontFamily: "inherit",
+              transition:
+                "color 140ms ease, border-color 140ms ease, background 140ms ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = color.gold;
+              e.currentTarget.style.borderColor = color.gold;
+              e.currentTarget.style.background = "rgba(201,162,39,0.10)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = color.textMuted;
+              e.currentTarget.style.borderColor = color.border;
+              e.currentTarget.style.background = "rgba(255,255,255,0.02)";
+            }}
+          >
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <polyline points="23 4 23 10 17 10" />
+              <polyline points="1 20 1 14 7 14" />
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+            </svg>
+            <span>{lang === "fr" ? "Rafraîchir" : "Refresh"}</span>
+          </button>
         )}
       </div>
       <div
@@ -325,6 +420,22 @@ export function Top24hHero({
           >
             {headingTitle}
           </h2>
+            {/* « Généré le … » timestamp inlined into the heading row
+                (v2.12.1+) — used to sit on its own line below the H2,
+                which cost ~18 px of vertical space on every render.
+                Now sits to the left of the expand/collapse toggle so
+                the card opens with a tighter header. On phones the
+                CSS forces it back to its own line so neither the H2
+                nor the toggle get crammed. */}
+            <div
+              className="top24h-hero-generated"
+              style={{ color: color.textDim, fontSize: 12, letterSpacing: "0.02em" }}
+            >
+              {t("topSummaryGeneratedOn", lang).replace(
+                "{date}",
+                new Date(snap.generatedAt).toLocaleString(locale),
+              )}
+            </div>
             {/* Master toggle. `allOpen` reflects « every group is
                 expanded »; clicking flips the whole set in one
                 update. Title attribute doubles as a tooltip for the
@@ -390,15 +501,6 @@ export function Top24hHero({
                 </button>
               );
             })()}
-          </div>
-          <div
-            className="top24h-hero-generated"
-            style={{ color: color.textDim, fontSize: 12, letterSpacing: "0.02em" }}
-          >
-            {t("topSummaryGeneratedOn", lang).replace(
-              "{date}",
-              new Date(snap.generatedAt).toLocaleString(locale),
-            )}
           </div>
         </div>
 

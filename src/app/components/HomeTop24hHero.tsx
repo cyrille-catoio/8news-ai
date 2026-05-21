@@ -198,6 +198,7 @@ export function HomeTop24hHero({
       isRead={isRead}
       onToggleRead={onToggleRead}
       showHistoryControls
+      showHomeRefresh
       onSnapshotChange={handleSnapshotChange}
     />
   );

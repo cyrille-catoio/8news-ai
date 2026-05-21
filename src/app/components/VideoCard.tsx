@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, type CSSProperties } from "react";
-import { color, primaryButtonStyle, spinnerStyle } from "@/lib/theme";
+import { color, outlinedButtonStyle, spinnerStyle } from "@/lib/theme";
+import { TTS_TEXT_MAX_CHARS } from "@/lib/tts";
 import { t, type Lang } from "@/lib/i18n";
 import { AudioPlayer } from "@/app/components/AudioPlayer";
 import { FavoriteButton } from "@/app/components/FavoriteButton";
@@ -69,6 +70,7 @@ export function VideoCard({
   variant = "default",
   topicLabels = [],
   onPlaybackChange,
+  onSeeAll,
 }: {
   v: VideoItem;
   lang: Lang;
@@ -98,6 +100,10 @@ export function VideoCard({
   topicLabels?: TopicLabel[];
   /** Homepage TOP VIDEO: notify parent when inline playback starts/stops so auto-refresh can pause. */
   onPlaybackChange?: (playing: boolean) => void;
+  /** Home TOP VIDEO hero only — « Toutes les vidéos → » rendered below the
+   *  favorite / copy / download icon row so the section footer link can
+   *  be removed and the card stays self-contained. */
+  onSeeAll?: () => void;
 }) {
   const [descExpanded, setDescExpanded] = useState(false);
   const [summaryExpanded, setSummaryExpanded] = useState(false);
@@ -273,9 +279,17 @@ export function VideoCard({
   // actions need to read at the same visual weight. In the default
   // variant we keep the historical compact shape used on /app/videos
   // and channel pages.
+  //
+  // v2.12.1+: the filled-gold base (primaryButtonStyle) was swapped
+  // for the outline-gold style (`outlinedButtonStyle`) so the CTAs
+  // read in the same family as the main header buttons (EN/FR toggle,
+  // « Sign in », « Try Pro » outline). Hover is wired via inline
+  // `onMouseEnter/Leave` directly on each button below — keeps the
+  // base style declarative for SSR snapshots while still affording the
+  // visual feedback.
   const btnStyle: CSSProperties = isHero
     ? {
-        ...primaryButtonStyle,
+        ...outlinedButtonStyle,
         display: "inline-flex",
         alignItems: "center",
         gap: 6,
@@ -283,25 +297,33 @@ export function VideoCard({
         fontSize: 13,
         fontWeight: 700,
         marginTop: 10,
-        opacity: 1,
       }
     : {
-        ...primaryButtonStyle,
+        ...outlinedButtonStyle,
         display: "inline-flex",
         alignItems: "center",
         gap: 6,
         padding: "6px 14px",
         fontSize: 12,
+        fontWeight: 600,
         marginTop: 10,
-        opacity: 1,
       };
 
-  /** Gold-on-gold spinner is invisible; use dark ring on primary (gold) button. */
-  const transcribeBtnSpinnerStyle: CSSProperties = {
-    ...spinnerStyle(15, { borderWidth: 2, flexShrink: 0 }),
-    border: "2px solid rgba(0,0,0,0.38)",
-    borderTop: "2px solid transparent",
+  /** Hover affordance shared by every outline CTA on the card. Soft
+   *  gold tint matches the chevron / refresh pill treatment used
+   *  elsewhere in the app so the interaction language stays uniform. */
+  const handleBtnHoverEnter = (e: React.MouseEvent<HTMLElement>) => {
+    e.currentTarget.style.background = "rgba(201,162,39,0.12)";
   };
+  const handleBtnHoverLeave = (e: React.MouseEvent<HTMLElement>) => {
+    e.currentTarget.style.background = "transparent";
+  };
+
+  /** Gold ring on transparent — visible on the new dark outline button. */
+  const transcribeBtnSpinnerStyle: CSSProperties = spinnerStyle(15, {
+    borderWidth: 2,
+    flexShrink: 0,
+  });
 
   const descTruncated = v.description && v.description.length > DESC_MAX && !descExpanded;
   const youtubeEmbedSrc = (() => {
@@ -581,9 +603,11 @@ export function VideoCard({
                 href={v.link}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ ...btnStyle, textDecoration: "none", opacity: 1 }}
+                onMouseEnter={handleBtnHoverEnter}
+                onMouseLeave={handleBtnHoverLeave}
+                style={{ ...btnStyle, textDecoration: "none" }}
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
                   <polyline points="15 3 21 3 21 9" />
                   <line x1="10" y1="14" x2="21" y2="3" />
@@ -597,9 +621,11 @@ export function VideoCard({
                   e.preventDefault();
                   startPlayback();
                 }}
-                style={{ ...btnStyle, opacity: 1 }}
+                onMouseEnter={handleBtnHoverEnter}
+                onMouseLeave={handleBtnHoverLeave}
+                style={btnStyle}
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="#000" stroke="none">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
                   <polygon points="5,3 19,12 5,21" />
                 </svg>
                 {lang === "fr" ? "Play Vidéo" : "Play Video"}
@@ -618,6 +644,8 @@ export function VideoCard({
                 pendingExpandAfterTranscribeRef.current = true;
                 onTranscribe();
               }}
+              onMouseEnter={handleBtnHoverEnter}
+              onMouseLeave={handleBtnHoverLeave}
               aria-expanded={hasTranscription ? summaryExpanded : undefined}
               aria-controls={hasTranscription ? `video-ai-summary-${v.videoId}` : undefined}
               aria-busy={transcribing}
@@ -626,11 +654,11 @@ export function VideoCard({
               {transcribing ? (
                 <span style={transcribeBtnSpinnerStyle} aria-hidden />
               ) : hasTranscription ? (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <path d="M20 6L9 17l-5-5" />
                 </svg>
               ) : (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <path d="M4 6h16M4 12h16M4 18h10" />
                 </svg>
               )}
@@ -690,6 +718,33 @@ export function VideoCard({
               <CopyLinkButton url={v.link} />
             </div>
           </div>
+          {isHero && onSeeAll && (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                marginTop: 6,
+              }}
+            >
+              <button
+                type="button"
+                onClick={onSeeAll}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: color.gold,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  padding: 0,
+                  fontFamily: "inherit",
+                  textDecoration: "underline",
+                }}
+              >
+                {lang === "fr" ? "Toutes les vidéos →" : "All videos →"}
+              </button>
+            </div>
+          )}
         </div>
   );
 
@@ -741,7 +796,7 @@ export function VideoCard({
                 .replace(/\n{2,}/g, "\n")
                 .trim();
               const intro = lang === "fr" ? `Résumé de la vidéo ${v.title}.` : `Summary of the video ${v.title}.`;
-              const maxBody = 4800 - intro.length;
+              const maxBody = TTS_TEXT_MAX_CHARS - intro.length;
               const body = plain.length > maxBody ? plain.slice(0, maxBody) + "…" : plain;
               return body.length > 0 ? (
                 <div style={{ paddingTop: 10, marginBottom: 12 }}>

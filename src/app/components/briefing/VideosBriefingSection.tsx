@@ -4,7 +4,7 @@ import { color } from "@/lib/theme";
 import type { Lang } from "@/lib/i18n";
 import type { TopicLabel, VideoItem } from "@/lib/types";
 import { VideoCard } from "@/app/components/VideoCard";
-import { kicker, ctaLink } from "@/app/components/briefing/styles";
+import { kicker } from "@/app/components/briefing/styles";
 import { HistoryArrows } from "@/app/components/briefing/HistoryArrows";
 
 /**
@@ -85,12 +85,10 @@ export function VideosBriefingSection({
             variant="hero"
             topicLabels={topicLabels}
             onPlaybackChange={onPlaybackChange}
+            onSeeAll={onSeeAll}
           />
         ))}
       </div>
-      <button type="button" onClick={onSeeAll} style={{ ...ctaLink, marginTop: 14 }}>
-        {lang === "fr" ? "Toutes les vidéos →" : "All videos →"}
-      </button>
     </section>
   );
 }

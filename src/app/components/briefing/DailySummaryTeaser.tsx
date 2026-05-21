@@ -18,7 +18,7 @@ export interface SummaryRoute {
 }
 
 /**
- * « Résumé quotidien » teaser card. Fetches the actual summary opening
+ * « Résumé quotidien topic » teaser card. Fetches the actual summary opening
  * lines from `/api/summaries/{topic}/{date}` so the home shows real
  * editorial content instead of a generic placeholder.
  *
@@ -69,7 +69,7 @@ export function DailySummaryTeaser({
   return (
     <section style={{ marginBottom: 36 }}>
       <div style={{ ...kicker(color.gold), marginBottom: 12 }}>
-        {lang === "fr" ? "Résumé quotidien" : "Daily summary"}
+        {lang === "fr" ? "Résumé quotidien topic" : "Daily topic summary"}
       </div>
       <a href={href} style={{ textDecoration: "none", color: "inherit", display: "block" }}>
         <div

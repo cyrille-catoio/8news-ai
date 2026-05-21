@@ -4,6 +4,7 @@ import { dateLocale, type Lang } from "@/lib/i18n";
 import { getCookie } from "@/lib/cookies";
 import { AudioPlayer } from "@/app/components/AudioPlayer";
 import { TTS_VOICES_EN, TTS_VOICES_FR } from "@/app/components/VoiceAccordion";
+import { TTS_TEXT_MAX_CHARS, ttsOutro } from "@/lib/tts";
 
 /**
  * TTS audio player for the cross-topic Top 24h editorial brief
@@ -23,11 +24,11 @@ import { TTS_VOICES_EN, TTS_VOICES_FR } from "@/app/components/VoiceAccordion";
  *
  * Length cap
  * ----------
- * `AudioPlayer` enforces a ~4800 char limit (ElevenLabs request size).
- * We compute the intro + outro length and clamp the body to fit. The
- * Top 24h body is typically 6-12 groups × 1-3 bullets × 3-5 sentences
- * — usually under 5000 chars, but a busy day can spill, hence the
- * defensive cut.
+ * The body is clamped to `TTS_TEXT_MAX_CHARS` (see `src/lib/tts.ts`)
+ * minus the intro/outro length so the assembled prompt stays under
+ * the shared cap. The old 4800-char ceiling was a vestige of the
+ * Multilingual v1 model; Flash v2.5 (current) accepts up to 40 000
+ * chars per request — busy briefings no longer cut mid-sentence.
  */
 
 function readSpeed(): number {
@@ -101,8 +102,7 @@ export function Top24hAudio({
     lang === "fr"
       ? `Top articles 24 heures du ${dateLabel}.`
       : `Top 24-hour articles for ${dateLabel}.`;
-  const outro =
-    lang === "fr" ? "... ... Analyse terminée." : "... ... That's all folks!";
+  const outro = ttsOutro(lang);
 
   const body = orderedGroups
     .map((g) => {
@@ -112,7 +112,7 @@ export function Top24hAudio({
     })
     .join(" ... ... ");
 
-  const maxBody = 4800 - intro.length - outro.length;
+  const maxBody = TTS_TEXT_MAX_CHARS - intro.length - outro.length;
   const trimmed = body.length > maxBody ? body.slice(0, maxBody) + "…" : body;
   const ttsText = `${intro} ${trimmed} ${outro}`;
 

@@ -4,7 +4,8 @@ import { createClient } from "@supabase/supabase-js";
 /**
  * GET /api/crypto
  *
- * Returns the four ticker prices (BTC, ETH, SOL, XRP) for the AppHeader
+ * Returns the six ticker prices (BTC, ETH, SOL, XRP, TAO, SUI) for the
+ * AppHeader — TAO/SUI are rendered on desktop viewports only.
  * `<CryptoTicker />`. Public endpoint, no session required, no `?lang`
  * dimension (USD-only — the labels are language-neutral).
  *
@@ -49,16 +50,18 @@ const CACHE_TTL_MS = 60_000;
 const FETCH_TIMEOUT_MS = 5_000;
 
 const COINGECKO_URL =
-  "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,ripple&vs_currencies=usd&include_24hr_change=true";
+  "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,ripple,bittensor,sui&vs_currencies=usd&include_24hr_change=true";
 
 const COINGECKO_TO_SYMBOL: Record<string, string> = {
   bitcoin: "btc",
   ethereum: "eth",
   solana: "sol",
   ripple: "xrp",
+  bittensor: "tao",
+  sui: "sui",
 };
 
-const TRACKED_SYMBOLS = ["btc", "eth", "sol", "xrp"] as const;
+const TRACKED_SYMBOLS = ["btc", "eth", "sol", "xrp", "tao", "sui"] as const;
 
 interface CryptoPrice {
   symbol: string;

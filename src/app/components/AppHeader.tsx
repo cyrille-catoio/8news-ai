@@ -311,20 +311,21 @@ export function AppHeader({
           (4 coins × ~85 px) plus the icons cluster pushed left far
           enough to overlap the « 8NEWS » logo. Lifting the ticker
           into its own strip:
-            - gives the brand zone below its full horizontal real
+            - gives the           brand zone below its full horizontal real
               estate back (no overlap),
             - matches the conventional « news ticker » UX (Bloomberg,
               CNBC, financial sites) which users parse at a glance,
             - works on mobile too — at ≤ 480 px the ticker collapses
               to just BTC + ETH and still looks intentional in the
               strip rather than crammed into a now-cluttered icon row.
+          Centered in the same max-width column as the briefing body.
           A thin border-bottom anchors the strip without competing
           with the brand below. */}
       {showCryptoTicker && (
         <div
           style={{
             display: "flex",
-            justifyContent: "flex-end",
+            justifyContent: "center",
             alignItems: "center",
             paddingBottom: 8,
             marginBottom: 14,
@@ -351,7 +352,7 @@ export function AppHeader({
           display: "flex",
           flexDirection: "column",
           alignItems: "flex-end",
-          gap: 6,
+          gap: 16,
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

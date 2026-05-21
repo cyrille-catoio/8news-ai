@@ -1,6 +1,6 @@
 "use client";
 
-import { color, card } from "@/lib/theme";
+import { color, card, outlinedButtonStyle } from "@/lib/theme";
 import type { Lang } from "@/lib/i18n";
 import type { TopFeedArticle } from "@/hooks/useTopFeed";
 import type { TopicLabel } from "@/lib/types";
@@ -115,21 +115,21 @@ export function HeroStory({
                 meta: { source: article.source, score: article.score },
               })
             }
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(201,162,39,0.12)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+            }}
             style={{
+              ...outlinedButtonStyle,
               display: "inline-flex",
               alignItems: "center",
               gap: 6,
               padding: "9px 16px",
-              border: "none",
-              borderRadius: 6,
-              background: color.gold,
-              color: "#000",
-              fontSize: 13,
               fontWeight: 700,
-              fontFamily: "inherit",
               textDecoration: "none",
               whiteSpace: "nowrap",
-              cursor: "pointer",
             }}
           >
             {lang === "fr" ? "Lire l'article →" : "Read article →"}

@@ -4,6 +4,7 @@ import type { Lang } from "@/lib/i18n";
 import { getCookie } from "@/lib/cookies";
 import { AudioPlayer } from "@/app/components/AudioPlayer";
 import { TTS_VOICES_EN, TTS_VOICES_FR } from "@/app/components/VoiceAccordion";
+import { TTS_TEXT_MAX_CHARS, ttsOutro } from "@/lib/tts";
 
 function readSpeed(): number {
   if (typeof document === "undefined") return 1.05;
@@ -37,13 +38,11 @@ export function DailySummaryAudio({
   if (bullets.length === 0) return null;
 
   const intro = lang === "fr"
-    ? `Résumé quotidien ${topicName} du ${date}.`
-    : `Daily summary for ${topicName}, ${date}.`;
-  const outro = lang === "fr"
-    ? "... ... Analyse terminée."
-    : "... ... That's all folks!";
+    ? `Résumé quotidien topic ${topicName} du ${date}.`
+    : `Daily topic summary for ${topicName}, ${date}.`;
+  const outro = ttsOutro(lang);
   const body = bullets.map((b) => `• ${b.text}`).join(" ... ");
-  const maxBody = 4800 - intro.length - outro.length;
+  const maxBody = TTS_TEXT_MAX_CHARS - intro.length - outro.length;
   const trimmed = body.length > maxBody ? body.slice(0, maxBody) + "…" : body;
   const ttsText = `${intro} ${trimmed} ${outro}`;
 

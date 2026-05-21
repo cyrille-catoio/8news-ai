@@ -1151,6 +1151,12 @@ const strings = {
     en: "Prices unavailable",
     fr: "Cours indisponibles",
   },
+  /** Shown on every coin pill (title tooltip) and on the ticker group
+   *  aria-label so visitors know the header prices auto-refresh. */
+  cryptoTickerRefreshHint: {
+    en: "Updates every minute",
+    fr: "Actualisation chaque minute",
+  },
   favoritesTitle: {
     en: "My Favorites",
     fr: "Mes Favoris",
@@ -1346,8 +1352,8 @@ const strings = {
     fr: "Voici votre brief quotidien : les actualités les plus importantes des 24 dernières heures, sélectionnées par l'IA.",
   },
   newsletterReadOnline: {
-    en: "Read the full briefing online",
-    fr: "Lire le briefing complet en ligne",
+    en: "Read the last 24h articles",
+    fr: "Lire les derniers articles 24h",
   },
   newsletterFooterReason: {
     en: "You're receiving this email because the daily newsletter is enabled on your 8news account.",

@@ -6,6 +6,7 @@ import { color, font } from "@/lib/theme";
 import type { ArticleSummary, SummaryBullet } from "@/lib/types";
 import { DailySummaryArticles } from "@/app/components/DailySummaryArticles";
 import { DailySummaryAudio } from "@/app/components/DailySummaryAudio";
+import { DailySummaryFavoriteButton } from "@/app/components/DailySummaryFavoriteButton";
 import { SeoNavBar } from "@/app/components/SeoNavBar";
 import { SeoGeneralMenu } from "@/app/components/GeneralMenu";
 import type { Lang } from "@/lib/i18n";
@@ -158,9 +159,20 @@ export async function renderDailySummaryPage({
         </nav>
 
         <header style={{ marginBottom: 32 }}>
-          <h1 style={{ color: color.gold, fontSize: 24, fontWeight: 700, lineHeight: 1.3, marginBottom: 12, marginTop: 0 }}>
-            {summary.seo_h1 || summary.seo_title}
-          </h1>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+            <h1 style={{ color: color.gold, fontSize: 24, fontWeight: 700, lineHeight: 1.3, marginBottom: 12, marginTop: 0, flex: 1 }}>
+              {summary.seo_h1 || summary.seo_title}
+            </h1>
+            <div style={{ flexShrink: 0, marginTop: 2 }}>
+              <DailySummaryFavoriteButton
+                url={summaryAbsoluteUrl(summary)}
+                title={summary.seo_h1 || summary.seo_title}
+                source={topicLabel}
+                pubDate={summary.period_to}
+                lang={lang}
+              />
+            </div>
+          </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             <span style={{
               fontSize: 11, fontWeight: 700, color: color.gold,

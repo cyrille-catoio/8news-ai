@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { TTS_TEXT_MAX_CHARS } from "@/lib/tts";
 
 export const maxDuration = 60;
 
@@ -51,7 +52,10 @@ export async function POST(request: NextRequest) {
           "xi-api-key": apiKey,
         },
         body: JSON.stringify({
-          text: text.slice(0, 5000),
+          // Belt-and-braces server-side clamp — every client component
+          // already trims to `TTS_TEXT_MAX_CHARS`, but if a caller forgets
+          // we don't want to forward an oversized prompt to ElevenLabs.
+          text: text.slice(0, TTS_TEXT_MAX_CHARS),
           model_id: MODEL_ID,
           language_code: languageCode,
           voice_settings: {

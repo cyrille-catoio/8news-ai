@@ -213,21 +213,17 @@ export function BriefingPage({
   // ─── Trending topics (powered by /api/topics/trending) ──────────────
   const [trending, setTrending] = useState<TrendingTopic[]>([]);
   useEffect(() => {
-    fetch(`/api/topics/trending?since=6h&lang=${lang}`, { cache: "no-store" })
+    const params = new URLSearchParams({ since: "24h", lang, limit: "10" });
+    if (preferredTopicIds && preferredTopicIds.length > 0) {
+      params.set("topics", preferredTopicIds.join(","));
+    }
+    fetch(`/api/topics/trending?${params}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : []))
       .then((rows: TrendingTopic[]) => {
-        if (Array.isArray(rows) && rows.length > 0) {
-          setTrending(rows);
-        } else {
-          // Fallback to a wider window if the last 6 hours are empty.
-          fetch(`/api/topics/trending?since=24h&lang=${lang}`, { cache: "no-store" })
-            .then((r) => (r.ok ? r.json() : []))
-            .then((rows24: TrendingTopic[]) => setTrending(Array.isArray(rows24) ? rows24 : []))
-            .catch(() => {});
-        }
+        setTrending(Array.isArray(rows) ? rows : []);
       })
-      .catch(() => {});
-  }, [lang]);
+      .catch(() => setTrending([]));
+  }, [lang, preferredTopicIds]);
 
   // ─── Recent SSR per-video pages ─────────────────────────────────────
   // The list itself owns its pagination state — see
@@ -473,68 +469,6 @@ export function BriefingPage({
             <NewsletterSignupPrompt lang={lang} onRequestAuth={onRequestAuth} />
           )}
 
-          {/* Top-right refresh button — sits in its own row above the
-              Top 24h hero so it stays out of the hero's visual frame
-              but is still the first affordance the visitor reaches at
-              the top of the home. Full page reload (not a soft SPA
-              re-render) so every section refetches from scratch
-              including the podcast hero, top story, top video and
-              transcribed-videos list. */}
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
-            <button
-              type="button"
-              onClick={() => {
-                trackEvent("nav.refresh_home", { lang });
-                if (typeof window !== "undefined") window.location.reload();
-              }}
-              aria-label={lang === "fr" ? "Rafraîchir la page" : "Refresh page"}
-              title={lang === "fr" ? "Rafraîchir la page" : "Refresh page"}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                background: "rgba(255,255,255,0.02)",
-                border: `1px solid ${color.border}`,
-                borderRadius: 999,
-                color: color.textMuted,
-                cursor: "pointer",
-                fontSize: 12,
-                fontWeight: 600,
-                letterSpacing: "0.04em",
-                padding: "5px 12px 5px 10px",
-                fontFamily: "inherit",
-                transition: "color 140ms ease, border-color 140ms ease, background 140ms ease",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = color.gold;
-                e.currentTarget.style.borderColor = color.gold;
-                e.currentTarget.style.background = "rgba(201,162,39,0.10)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = color.textMuted;
-                e.currentTarget.style.borderColor = color.border;
-                e.currentTarget.style.background = "rgba(255,255,255,0.02)";
-              }}
-            >
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                <polyline points="23 4 23 10 17 10" />
-                <polyline points="1 20 1 14 7 14" />
-                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-              </svg>
-              <span>{lang === "fr" ? "Rafraîchir" : "Refresh"}</span>
-            </button>
-          </div>
-
           <HomeTop24hHero lang={lang} onNavigate={onNavigate} />
 
           {isAuthenticated && (
@@ -605,8 +539,8 @@ export function BriefingPage({
             <SectionSpinner
               label={
                 lang === "fr"
-                  ? "Résumé du jour · chargement"
-                  : "Daily summary · loading"
+                  ? "Résumé quotidien topic · chargement"
+                  : "Daily topic summary · loading"
               }
             />
           ) : (

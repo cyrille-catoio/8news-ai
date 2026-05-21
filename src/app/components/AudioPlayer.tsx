@@ -197,8 +197,14 @@ export function AudioPlayer({
     return `${m}:${sec.toString().padStart(2, "0")}`;
   }
 
+  // v2.12.1+: vertical padding tightened from 6px → 2px so the player
+  // ribbon takes ~12 px less height across every surface (Top 24h
+  // podcast, daily summary, video page, video card, favorites). SVG
+  // glyphs were also resized below from 30-32 to 24-26 — the controls
+  // are still well above the WCAG 24 × 24 target floor with the 8 px
+  // horizontal padding kept intact.
   const btnBase: CSSProperties = {
-    padding: "6px 10px",
+    padding: "2px 10px",
     border: "none",
     borderRadius: 6,
     background: "transparent",
@@ -231,25 +237,25 @@ export function AudioPlayer({
     fontWeight: 600,
     letterSpacing: "0.12em",
     textTransform: "uppercase",
-    marginBottom: 8,
+    marginBottom: 4,
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       <div style={kickerStyle}>{t("audioPlayerKicker", lang)}</div>
       <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
         {state === "playing" ? (
           <button onClick={handlePause} style={{ ...btnBase, color: color.gold }}>
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
           </button>
         ) : (
           <button onClick={handlePlay} disabled={state === "loading"} style={{ ...btnBase, color: color.gold }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21" /></svg>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21" /></svg>
           </button>
         )}
 
         <button onClick={handleStop} disabled={!isActive} style={{ ...btnBase, opacity: isActive ? 1 : 0.35 }}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2" /></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2" /></svg>
         </button>
 
         <button onClick={() => skip(-15)} disabled={!isActive} style={{ ...btnBase, opacity: isActive ? 1 : 0.35 }}>
@@ -273,8 +279,8 @@ export function AudioPlayer({
         onClick={isActive ? seekTo : undefined}
         style={{
           width: "100%",
-          height: 5,
-          borderRadius: 3,
+          height: 4,
+          borderRadius: 2,
           background: color.border,
           cursor: isActive ? "pointer" : "default",
           position: "relative",
@@ -284,7 +290,7 @@ export function AudioPlayer({
         <div
           style={{
             height: "100%",
-            borderRadius: 3,
+            borderRadius: 2,
             background: color.gold,
             width: `${pct}%`,
             transition: "width 0.15s linear",

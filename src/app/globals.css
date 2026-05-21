@@ -115,6 +115,7 @@ a.hero-story-title-link {
 .top24h-hero-heading-row {
   display: flex;
   align-items: flex-start;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
@@ -129,9 +130,15 @@ a.hero-story-title-link {
   margin-top: 2px;
 }
 
+/* v2.12.1+: « Généré le … » timestamp now sits inside the heading
+   row, immediately to the left of the expand/collapse toggle. It's
+   `align-self: center` so its baseline lands on the toggle button's
+   visual centre rather than the H2's first line — keeps the row
+   visually balanced when the title wraps to two lines. */
 .top24h-hero-generated {
-  margin-top: 6px;
-  text-align: right;
+  flex-shrink: 0;
+  align-self: center;
+  white-space: nowrap;
 }
 
 @media (max-width: 640px) {
@@ -148,8 +155,15 @@ a.hero-story-title-link {
     height: 14px;
   }
 
+  /* Phones: the H2 alone often eats the full row; force the timestamp
+     onto its own line below the title so neither overlaps the toggle. */
   .top24h-hero-generated {
+    flex-basis: 100%;
     font-size: 11px;
+    text-align: left;
+    align-self: flex-start;
+    margin-top: 2px;
+    order: 2;
   }
 
   /* Bumps the body paragraph size from desktop's 16px (set inline in
@@ -1296,9 +1310,11 @@ a.hero-story-title-link {
    - `.crypto-ticker-change` carries the 24h % cell. Hidden on ≤640px
      so the ticker stays compact next to the icon row without pushing
      it off-screen.
-   - `.crypto-ticker-coin-extra` covers SOL + XRP. Hidden on ≤480px
-     so very narrow phones only show BTC + ETH (the two coins users
-     glance at by default). */
+   - `.crypto-ticker-coin-desktop` covers TAO + SUI (positions 5-6).
+     Hidden on ≤1024px — the 4 mainstream pairs (BTC / ETH / SOL / XRP)
+     stay visible on phones and on tablets (portrait + landscape) so the
+     strip never wraps onto a second row. TAO + SUI only join the line-up
+     at ≥1025px (laptop / desktop). */
 .crypto-ticker {
   display: flex;
   align-items: center;
@@ -1326,10 +1342,17 @@ a.hero-story-title-link {
   }
 }
 
-@media (max-width: 480px) {
-  .crypto-ticker-coin-extra {
-    display: none;
+@media (max-width: 1024px) {
+  /* `!important` because the rendered `<a>` carries an inline
+     `style={{ display: "inline-flex" }}` which would otherwise win
+     specificity against this class selector and keep TAO / SUI
+     visible on phones and tablets. */
+  .crypto-ticker-coin-desktop {
+    display: none !important;
   }
+}
+
+@media (max-width: 480px) {
   .crypto-ticker {
     gap: 6px;
   }

@@ -4,6 +4,7 @@ import type { SummaryResponse } from "@/lib/types";
 import { t, type Lang } from "@/lib/i18n";
 import { color, card, sectionHeading } from "@/lib/theme";
 import { AudioPlayer } from "@/app/components/AudioPlayer";
+import { TTS_TEXT_MAX_CHARS, ttsOutro } from "@/lib/tts";
 
 function RefIcon() {
   return (
@@ -41,11 +42,11 @@ export function SummaryBox({ data, locale, lang, hours, topicName, speed, voice,
   embedded?: boolean;
 }) {
   const raw = typeof data.summary === "string" ? data.summary : String(data.summary ?? "");
-  const ttsOutro = lang === "fr" ? "... ... Analyse terminée. Vous pouvez reprendre une activité normale." : "... ... That's all folks!";
+  const outro = ttsOutro(lang);
   const intro = ttsIntro(hours, lang, topicName);
-  const maxTtsBody = 4800 - intro.length - ttsOutro.length;
+  const maxTtsBody = TTS_TEXT_MAX_CHARS - intro.length - outro.length;
   const ttsBody = raw.trim().length > maxTtsBody ? raw.trim().slice(0, maxTtsBody) + "…" : raw.trim();
-  const ttsText = ttsBody.length > 0 ? `${intro} ${ttsBody} ${ttsOutro}` : "";
+  const ttsText = ttsBody.length > 0 ? `${intro} ${ttsBody} ${outro}` : "";
   const bullets = data.bullets ?? [];
   const hasBullets = bullets.length > 0;
   const loc = lang === "fr" ? "fr-FR" : "en-US";

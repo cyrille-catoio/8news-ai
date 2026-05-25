@@ -26,9 +26,9 @@ import { TTS_TEXT_MAX_CHARS, ttsOutro } from "@/lib/tts";
  * ----------
  * The body is clamped to `TTS_TEXT_MAX_CHARS` (see `src/lib/tts.ts`)
  * minus the intro/outro length so the assembled prompt stays under
- * the shared cap. The old 4800-char ceiling was a vestige of the
- * Multilingual v1 model; Flash v2.5 (current) accepts up to 40 000
- * chars per request — busy briefings no longer cut mid-sentence.
+ * the shared cap. Longer briefings need future chunking/async generation;
+ * sending them as one synchronous request can time out and leave the
+ * player with no audio.
  */
 
 function readSpeed(): number {

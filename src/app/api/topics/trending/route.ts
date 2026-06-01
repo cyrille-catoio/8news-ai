@@ -17,6 +17,22 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
  *
  * Response: [{ id, label, count }]
  */
+
+// Query params materially change this payload (`lang`, `since`, `limit`, and
+// personalized `topics`). Netlify has previously reused path-level CDN entries
+// for query-driven API routes when `s-maxage` was set, so keep this endpoint
+// fully dynamic and no-store.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, max-age=0, must-revalidate",
+  "CDN-Cache-Control": "no-store",
+  "Netlify-CDN-Cache-Control": "no-store",
+  Pragma: "no-cache",
+  Expires: "0",
+} as const;
+
 export async function GET(req: NextRequest) {
   const sinceParam = req.nextUrl.searchParams.get("since") ?? "24h";
   const langParam = req.nextUrl.searchParams.get("lang") ?? "en";
@@ -33,7 +49,7 @@ export async function GET(req: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
-    return NextResponse.json([], { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json([], { headers: NO_STORE_HEADERS });
   }
 
   const sinceMs = parseSinceWindow(sinceParam);
@@ -47,17 +63,13 @@ export async function GET(req: NextRequest) {
       : await fetchDisplayedTopicIds(db);
 
   if (topicIds.length === 0) {
-    return NextResponse.json([], {
-      headers: { "Cache-Control": "public, max-age=60, s-maxage=300" },
-    });
+    return NextResponse.json([], { headers: NO_STORE_HEADERS });
   }
 
   const counts = await countArticlesByTopicSince(db, sinceISO, topicIds);
 
   if (counts.size === 0) {
-    return NextResponse.json([], {
-      headers: { "Cache-Control": "public, max-age=60, s-maxage=300" },
-    });
+    return NextResponse.json([], { headers: NO_STORE_HEADERS });
   }
 
   const idsToLabel = Array.from(counts.keys());
@@ -86,7 +98,7 @@ export async function GET(req: NextRequest) {
     .slice(0, limit);
 
   return NextResponse.json(ranked, {
-    headers: { "Cache-Control": "public, max-age=60, s-maxage=300" },
+    headers: NO_STORE_HEADERS,
   });
 }
 

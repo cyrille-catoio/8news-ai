@@ -17,8 +17,7 @@ import { TTS_TEXT_MAX_CHARS } from "@/lib/tts";
  *  - intro: "Résumé de la vidéo {title}." / "Summary of the video {title}."
  *  - body: summary_md stripped of Markdown markup, capped at
  *    `TTS_TEXT_MAX_CHARS` (see `src/lib/tts.ts`) to stay under the
- *    serverless function timeout — well above Flash v2.5's own
- *    40 000-char request ceiling.
+ *    serverless function timeout.
  */
 
 function readSpeed(): number {
@@ -39,9 +38,8 @@ function readVoice(lang: Lang): string {
 /**
  * Build the TTS text from a video summary. Strips Markdown markers
  * (headings, bold, bullets) and prepends a localized intro. Capped at
- * `TTS_TEXT_MAX_CHARS` — see `src/lib/tts.ts` for the rationale (the
- * previous ~4800 hard ceiling was a vestige of the older Multilingual
- * v1 model and was truncating long summaries with no functional reason).
+ * `TTS_TEXT_MAX_CHARS` — see `src/lib/tts.ts` for the synchronous
+ * serverless timeout rationale.
  *
  * Exported for re-use by the future per-roundup page (Phase 2.4) which
  * needs the same logic.

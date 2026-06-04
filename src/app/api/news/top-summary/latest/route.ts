@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getArticleImageUrlsByLinks,
   getTopSummaryByOffset,
+  getTopSummaryLiveLatest,
   getTopSummaryBulletsByDate,
   type TopSummaryArticle,
 } from "@/lib/supabase";
@@ -9,9 +10,9 @@ import type { Lang } from "@/lib/i18n";
 
 /**
  * Read endpoint backing the new `/top-articles` UX. Returns the
- * latest available pre-computed Top articles snapshot for a given
- * lang (transparent fallback to the previous day if today's cron
- * hasn't run yet, no client-side coordination needed).
+ * pre-computed Top articles snapshot for a given lang. `offset=0`
+ * prefers today's UTC row via `getTopSummaryLiveLatest`, then falls
+ * back to the newest row when today's cron hasn't run yet.
  *
  * Shape is intentionally close to the legacy POST route's
  * `SummaryResponse` so the existing `<SummaryBox>` component can
@@ -59,7 +60,10 @@ export async function GET(request: NextRequest) {
   const lang = parseLang(request.nextUrl.searchParams.get("lang"));
   const offset = parseOffset(request.nextUrl.searchParams.get("offset"));
 
-  const { snapshot, hasOlder } = await getTopSummaryByOffset(lang, offset);
+  const { snapshot, hasOlder } =
+    offset === 0
+      ? await getTopSummaryLiveLatest(lang)
+      : await getTopSummaryByOffset(lang, offset);
   if (!snapshot) {
     return NextResponse.json(
       { error: "No top summary available yet" },

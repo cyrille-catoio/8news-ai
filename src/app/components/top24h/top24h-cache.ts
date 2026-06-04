@@ -21,6 +21,7 @@
  */
 
 import type { Lang } from "@/lib/i18n";
+import { todayUtc } from "@/lib/dates-utc";
 
 const KEY_PREFIX = "top24h-snapshot:";
 const TTL_MS = 24 * 60 * 60 * 1000;
@@ -41,7 +42,12 @@ function key(lang: Lang, offset: number): string {
   return `${KEY_PREFIX}${lang}:${offset}`;
 }
 
-export function readCachedSnapshot<T>(lang: Lang, offset: number): T | null {
+type CachedSnapshot = { summaryDate?: string };
+
+export function readCachedSnapshot<T extends CachedSnapshot>(
+  lang: Lang,
+  offset: number,
+): T | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = window.localStorage.getItem(key(lang, offset));
@@ -49,6 +55,18 @@ export function readCachedSnapshot<T>(lang: Lang, offset: number): T | null {
     const parsed = JSON.parse(raw) as Envelope<T>;
     if (parsed.schema !== SCHEMA) return null;
     if (Date.now() - parsed.ts > TTL_MS) return null;
+    // Offset 0 is « today's live podcast ». A cached row keyed on a
+    // past `summaryDate` paints yesterday instantly and can hide a
+    // freshly-written row until TTL expiry — drop it when the UTC day
+    // rolled over (the live fetch still falls back when today's cron
+    // row is missing).
+    if (
+      offset === 0 &&
+      parsed.data.summaryDate &&
+      parsed.data.summaryDate !== todayUtc()
+    ) {
+      return null;
+    }
     return parsed.data;
   } catch {
     return null;

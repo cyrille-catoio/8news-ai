@@ -106,6 +106,23 @@ export async function getLatestTopSummary(
   }
 }
 
+/**
+ * Live home read (`offset=0`): prefer today's UTC row when it exists,
+ * otherwise the newest row (yesterday until the daily cron lands).
+ * `hasOlder` is true when any older edition exists for history arrows.
+ */
+export async function getTopSummaryLiveLatest(
+  lang: "en" | "fr",
+): Promise<{ snapshot: TopSummaryRow | null; hasOlder: boolean }> {
+  const today = new Date().toISOString().slice(0, 10);
+  const todaySnap = await getTopSummaryByDate(lang, today);
+  if (todaySnap) {
+    const { snapshot: older } = await getTopSummaryByOffset(lang, 1);
+    return { snapshot: todaySnap, hasOlder: older !== null };
+  }
+  return getTopSummaryByOffset(lang, 0);
+}
+
 export async function getTopSummaryByOffset(
   lang: "en" | "fr",
   offset: number,

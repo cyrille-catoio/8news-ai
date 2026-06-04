@@ -17,6 +17,7 @@ import {
 } from "@/app/components/top24h/Top24hHeroHelpers";
 import { Top24hHistoryArrows } from "@/app/components/top24h/Top24hHistoryArrows";
 import { readCachedSnapshot, writeCachedSnapshot } from "@/app/components/top24h/top24h-cache";
+import { todayUtc } from "@/lib/dates-utc";
 
 /**
  * Hero card pinned at the very top of `/app` (BriefingPage). Renders
@@ -144,6 +145,13 @@ export function Top24hHero({
   const [errorInternal, setErrorInternal] = useState(false);
   const [historyOffset, setHistoryOffset] = useState(0);
   const [historyHasOlder, setHistoryHasOlder] = useState(Boolean(cachedInitial?.hasOlder));
+  /** Bumped by the hourly stale-date watcher below to force the fetch
+   *  effect to re-run for the same `(lang, historyOffset=0)` tuple when
+   *  the visible snapshot's `summaryDate` no longer matches today UTC
+   *  (the cron writes a fresh row every morning — if the user keeps the
+   *  tab open across midnight UTC, the podcast on screen falls behind).
+   *  Live offset only; freezing on a history offset is intentional. */
+  const [refetchTick, setRefetchTick] = useState(0);
   /** Mirrors `historyHasOlder` after each successful fetch — avoids a stale
    *  closure inside `setHistoryOffset` (the old `historyHasOlder ? o + 1`
    *  pattern could read `false` from the initial render and never
@@ -154,6 +162,8 @@ export function Top24hHero({
    *  parent callback would re-trigger the network request on every
    *  parent render, which would also clobber the historyOffset state. */
   const onSnapshotChangeRef = useRef(onSnapshotChange);
+  /** Avoid re-fetch loops when the API legitimately still serves yesterday. */
+  const staleRefetchKeyRef = useRef<string | null>(null);
   useEffect(() => {
     onSnapshotChangeRef.current = onSnapshotChange;
   }, [onSnapshotChange]);
@@ -241,7 +251,49 @@ export function Top24hHero({
     return () => {
       cancelled = true;
     };
-  }, [isSelfFetched, lang, historyOffset]);
+  }, [isSelfFetched, lang, historyOffset, refetchTick]);
+
+  // Stale-date watcher (live offset only).
+  //
+  // The Top articles 24h cron writes a new `top_summaries` row each
+  // morning keyed on `summary_date = todayUtc()`. A visitor who keeps
+  // the home open across UTC midnight would otherwise still see
+  // yesterday's podcast until a full reload. We compare the visible
+  // `summaryDate` to today UTC on mount, every hour, and when the tab
+  // becomes visible again — then bump `refetchTick` once per stale
+  // (date, today) pair so we don't hammer the API when today's row
+  // simply doesn't exist yet.
+  useEffect(() => {
+    if (!isSelfFetched) return;
+    if (historyOffset !== 0) return;
+    if (typeof document === "undefined") return;
+
+    const check = () => {
+      if (document.visibilityState === "hidden") return;
+      const current = snap?.summaryDate;
+      const today = todayUtc();
+      if (!current || current === today) {
+        staleRefetchKeyRef.current = null;
+        return;
+      }
+      const key = `${current}->${today}`;
+      if (staleRefetchKeyRef.current === key) return;
+      staleRefetchKeyRef.current = key;
+      setRefetchTick((n) => n + 1);
+    };
+
+    check();
+    const intervalId = setInterval(check, 60 * 60 * 1000);
+    const onVisibility = () => {
+      if (document.visibilityState !== "hidden") check();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [isSelfFetched, historyOffset, snap?.summaryDate]);
 
   // Loading: discreet spinner that doesn't push the rest of the home
   // off-screen. ~80px tall is enough to feel like a placeholder while
@@ -394,6 +446,21 @@ export function Top24hHero({
           </button>
         )}
       </div>
+      {appendSummaryDateToTitle &&
+        historyOffset === 0 &&
+        snap.summaryDate !== todayUtc() && (
+          <p
+            style={{
+              margin: "0 0 12px",
+              fontSize: 13,
+              color: color.textMuted,
+              lineHeight: 1.45,
+              maxWidth: 560,
+            }}
+          >
+            {t("top24hHeroPendingToday", lang)}
+          </p>
+        )}
       <div
         style={{
           ...card,

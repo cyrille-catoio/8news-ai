@@ -1042,6 +1042,12 @@ const strings = {
     en: "Daily podcast",
     fr: "Podcast du jour",
   },
+  /** Shown on the home hero when `offset=0` but today's UTC snapshot
+   *  row is not in `top_summaries` yet (cron pending / failed). */
+  top24hHeroPendingToday: {
+    en: "Today's edition is not ready yet — showing the latest available briefing.",
+    fr: "L'édition du jour n'est pas encore prête — affichage du dernier briefing disponible.",
+  },
   top24hHeroSeeAll: {
     en: "See all articles →",
     fr: "Voir tous les articles →",

@@ -5,11 +5,9 @@ import {
   type TopSummaryBulletRow,
 } from "@/lib/supabase/top-summaries";
 import type { Lang } from "@/lib/i18n";
+import { todayUtc } from "@/lib/dates-utc";
 
-/** UTC calendar date `YYYY-MM-DD` — same key as `top_summaries.summary_date`. */
-export function todayUtc(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+export { todayUtc };
 
 export type NewsletterSnapshotBundle = {
   snapshot: TopSummaryRow;

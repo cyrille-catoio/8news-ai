@@ -1,9 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
 import {
-  getLatestTopSummary,
-  getTopSummaryBulletsByDate,
-  type TopSummaryRow,
-  type TopSummaryBulletRow,
+  getNewsletterSnapshotForLang,
+  todayUtc,
+} from "../../src/lib/newsletter-snapshot";
+import type {
+  TopSummaryRow,
+  TopSummaryBulletRow,
 } from "../../src/lib/supabase/top-summaries";
 import { renderDailyNewsletter } from "../../src/lib/email/render-daily-newsletter";
 import type { Lang } from "../../src/lib/i18n";
@@ -119,36 +121,30 @@ async function runCron(): Promise<void> {
   const lines: string[] = [];
 
   // ----------------------------------------------------------------
-  // 1) Pull the latest snapshot per lang. We use `getLatestTopSummary`
-  //    (not "today's date") so we degrade gracefully when the
-  //    `cron-top-summary-background` tick hasn't run yet (or failed)
-  //    — better to ship yesterday's brief than to silently skip the
-  //    whole send and have subscribers wonder where the email went.
+  // 1) Pull today's UTC snapshot per lang only. We do NOT fall back to
+  //    `getLatestTopSummary`: re-sending yesterday's edition duplicates
+  //    mail for everyone who already got it. If
+  //    `cron-top-summary-background` hasn't written today yet, skip and
+  //    log — fix the snapshot cron or replay with NEWSLETTER_SUMMARY_DATE.
   // ----------------------------------------------------------------
+  const targetDate =
+    process.env.NEWSLETTER_SUMMARY_DATE?.trim() || todayUtc();
   const snapshots = new Map<
     Lang,
     { snapshot: TopSummaryRow; bullets: TopSummaryBulletRow[] }
   >();
   for (const lang of LANGS) {
     try {
-      const snapshot = await getLatestTopSummary(lang);
-      if (!snapshot) {
-        lines.push(`[skip-snapshot] lang=${lang} reason=no_top_summary_row`);
-        continue;
-      }
-      const bullets = await getTopSummaryBulletsByDate(
-        lang,
-        snapshot.summary_date,
-      );
-      if (bullets.length === 0) {
+      const bundle = await getNewsletterSnapshotForLang(lang, targetDate);
+      if (!bundle) {
         lines.push(
-          `[skip-snapshot] lang=${lang} reason=no_bullets date=${snapshot.summary_date}`,
+          `[skip-snapshot] lang=${lang} reason=no_snapshot_for_date date=${targetDate}`,
         );
         continue;
       }
-      snapshots.set(lang, { snapshot, bullets });
+      snapshots.set(lang, bundle);
       lines.push(
-        `[snapshot] lang=${lang} date=${snapshot.summary_date} bullets=${bullets.length}`,
+        `[snapshot] lang=${lang} date=${bundle.snapshot.summary_date} bullets=${bundle.bullets.length}`,
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : "unknown";
@@ -158,7 +154,7 @@ async function runCron(): Promise<void> {
 
   if (snapshots.size === 0) {
     lines.push(
-      `[run] cron=newsletter-daily aborted=no_snapshot elapsed_ms=${Date.now() - startedAt}`,
+      `[run] cron=newsletter-daily aborted=no_snapshot_for_date=${targetDate} elapsed_ms=${Date.now() - startedAt}`,
     );
     console.log(lines.join("\n"));
     return;

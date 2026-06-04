@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireOwnerSession } from "@/lib/auth-api";
 import {
-  getLatestTopSummary,
-  getTopSummaryBulletsByDate,
+  getNewsletterSnapshotForLang,
+  todayUtc,
+} from "@/lib/newsletter-snapshot";
+import type {
+  TopSummaryRow,
+  TopSummaryBulletRow,
 } from "@/lib/supabase/top-summaries";
 import { renderDailyNewsletter } from "@/lib/email/render-daily-newsletter";
 import type { Lang } from "@/lib/i18n";
@@ -20,11 +24,9 @@ import type { Lang } from "@/lib/i18n";
  *  - Pull the user record by id from `auth.users` to read `email` +
  *    `user_metadata.preferred_lang`. Fallback to `"en"` when unset
  *    (same heuristic as the cron's bucketing).
- *  - Pull the latest `top_summaries` snapshot for that lang via
- *    `getLatestTopSummary(lang)` and its bullets via
- *    `getTopSummaryBulletsByDate`. Degrade to yesterday's brief if
- *    today's cron tick hasn't landed yet — sending the previous day's
- *    digest is more useful than aborting on a freshly-rebooted env.
+ *  - Pull today's UTC `top_summaries` row for that lang (optional
+ *    `?summaryDate=YYYY-MM-DD` for owner replay). No fallback to an
+ *    older edition — same rule as the daily cron (avoids duplicate sends).
  *  - If a lang's snapshot is missing, fall back to the alternate lang
  *    snapshot (same fallback as the cron). Return 404 with a typed
  *    `reason` when no snapshot exists in any lang.
@@ -44,7 +46,7 @@ const DEFAULT_PUBLIC_ORIGIN = "https://8news.ai";
 const RESEND_SINGLE_URL = "https://api.resend.com/emails";
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const auth = await requireOwnerSession();
@@ -101,28 +103,28 @@ export async function POST(
   // test send works even when the snapshot for one lang is missing
   // (early-deploy state, failed cron tick). Same defensive fallback
   // as the daily cron — keeps the test rig honest.
+  const summaryDate =
+    req.nextUrl.searchParams.get("summaryDate")?.trim() || todayUtc();
   const tryLangs: Lang[] = preferred === "fr" ? ["fr", "en"] : ["en", "fr"];
   let summaryLang: Lang | null = null;
-  let snapshot: Awaited<ReturnType<typeof getLatestTopSummary>> | null = null;
-  let bullets: Awaited<ReturnType<typeof getTopSummaryBulletsByDate>> = [];
+  let snapshot: TopSummaryRow | null = null;
+  let bullets: TopSummaryBulletRow[] = [];
 
   for (const l of tryLangs) {
-    const snap = await getLatestTopSummary(l);
-    if (!snap) continue;
-    const bts = await getTopSummaryBulletsByDate(l, snap.summary_date);
-    if (bts.length === 0) continue;
+    const bundle = await getNewsletterSnapshotForLang(l, summaryDate);
+    if (!bundle) continue;
     summaryLang = l;
-    snapshot = snap;
-    bullets = bts;
+    snapshot = bundle.snapshot;
+    bullets = bundle.bullets;
     break;
   }
 
   if (!snapshot || !summaryLang) {
     return NextResponse.json(
       {
-        error:
-          "No Top 24h snapshot available yet — wait for cron-top-summary-background to write one",
+        error: `No Top 24h snapshot for ${summaryDate} — wait for cron-top-summary-background or pass ?summaryDate= after backfill`,
         reason: "no_snapshot",
+        summaryDate,
       },
       { status: 404 },
     );

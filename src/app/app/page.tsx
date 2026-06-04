@@ -48,6 +48,7 @@ import { TopicToggle } from "@/app/components/app-shell/TopicToggle";
 import { MyTopicsPage } from "@/app/components/app-shell/MyTopicsPage";
 import { ScrollToTop } from "@/app/components/app-shell/ScrollToTop";
 import { ArticleCard } from "@/app/components/app-shell/ArticleCard";
+import { DailyPodcastChatPanel } from "@/app/components/podcast-chat/DailyPodcastChatPanel";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
@@ -312,6 +313,28 @@ export default function Home() {
   const [topicsStartInCreate, setTopicsStartInCreate] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
 
+  // Daily Podcast chat side panel open/closed. Persisted to localStorage
+  // so an expanded panel stays expanded across reloads and on every page
+  // of the SPA. Hydrated after mount to avoid an SSR mismatch. With no
+  // stored preference, the panel defaults OPEN on desktop (incl. anonymous
+  // visitors) and closed on small screens (where it overlays full-width).
+  const [chatOpen, setChatOpen] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem("podcastChatOpen");
+    if (stored === "1") setChatOpen(true);
+    else if (stored === "0") setChatOpen(false);
+    else setChatOpen(window.innerWidth >= 761);
+  }, []);
+  const handleChatOpenChange = useCallback((next: boolean) => {
+    setChatOpen(next);
+    try {
+      window.localStorage.setItem("podcastChatOpen", next ? "1" : "0");
+    } catch {
+      /* storage disabled — in-memory state still works for the session */
+    }
+  }, []);
+
   const {
     preferredTopicIds,
     draftTopicIds,
@@ -549,7 +572,10 @@ export default function Home() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: color.bg, color: color.text, fontFamily: font.base }}>
+    <div
+      className={`app-shell-root${chatOpen ? " chat-open" : ""}`}
+      style={{ minHeight: "100vh", background: color.bg, color: color.text, fontFamily: font.base }}
+    >
       <div style={{ maxWidth: 916, margin: "0 auto", padding: "40px 20px" }}>
 
         <AppHeader
@@ -978,6 +1004,58 @@ export default function Home() {
         </>
         )}
       </div>
+
+      {/* Daily Podcast chat — collapsible side panel, available to
+          everyone (anonymous visitors can type; submitting routes them to
+          sign-in). Square open/close toggle pinned top-right; the panel
+          pushes the interface left (no backdrop) so the app stays usable. */}
+      {
+        <>
+          <button
+            type="button"
+            onClick={() => handleChatOpenChange(!chatOpen)}
+            aria-label={chatOpen ? t("podcastChatClose", lang) : t("podcastChatOpen", lang)}
+            aria-expanded={chatOpen}
+            title={chatOpen ? t("podcastChatClose", lang) : t("podcastChatOpen", lang)}
+            style={{
+              position: "fixed",
+              top: 12,
+              right: 12,
+              zIndex: 80,
+              width: 40,
+              height: 40,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 8,
+              border: `1px solid ${color.border}`,
+              background: color.surface,
+              color: chatOpen ? color.textMuted : color.gold,
+              cursor: "pointer",
+              boxShadow: "0 4px 18px rgba(0,0,0,0.4)",
+              transition: "background 140ms ease, border-color 140ms ease, color 140ms ease",
+            }}
+          >
+            {chatOpen ? (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8 8.38 8.38 0 0 1 8.5-8.5 8.5 8.5 0 0 1 8.5 8.5z" />
+              </svg>
+            )}
+          </button>
+          <DailyPodcastChatPanel
+            lang={lang}
+            open={chatOpen}
+            onOpenChange={handleChatOpenChange}
+            isAuthenticated={isAuthenticated}
+            onRequestAuth={() => setAuthModalOpen(true)}
+          />
+        </>
+      }
 
       {newVersionAvailable && (
         <div

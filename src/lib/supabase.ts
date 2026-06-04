@@ -23,6 +23,7 @@ export * from "./supabase/summaries";
 export * from "./supabase/videos";
 export * from "./supabase/bullets";
 export * from "./supabase/top-summaries";
+export * from "./supabase/podcast-chat";
 export * from "./supabase/archives";
 export * from "./supabase/user-activity";
 export * from "./supabase/user-event";

@@ -73,6 +73,44 @@ a.hero-story-title-link {
   }
 }
 
+/* Slide-in for the Daily Podcast chat side panel (v2.13+). Tied to the
+   inline `animation: podcastChatSlideIn …` on the panel <aside>. */
+@keyframes podcastChatSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Daily Podcast chat layout (v2.13+).
+   When the panel is open, the SPA root gains right padding equal to the
+   panel width so the whole interface is pushed left (Cursor-style) and
+   stays fully usable — no backdrop. On narrow screens the panel goes
+   full-width and overlays instead (pushing would crush the content). */
+.app-shell-root {
+  transition: padding-right 240ms ease;
+}
+
+.podcast-chat-panel {
+  width: 400px;
+}
+
+@media (min-width: 761px) {
+  .app-shell-root.chat-open {
+    padding-right: 400px;
+  }
+}
+
+@media (max-width: 760px) {
+  .podcast-chat-panel {
+    width: 100vw;
+  }
+}
+
 /* Smooth open animation for `Top24hHero` accordion rows — fades the
    expanded body in + drops it 4 px so the click visibly produces
    movement. Tied to inline `animation: top24hExpandFade …` in the

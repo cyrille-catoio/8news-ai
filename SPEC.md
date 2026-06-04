@@ -464,6 +464,15 @@ Canonical implementations live in `src/lib/`:
 - Required env: `RESEND_API_KEY`. Optional: `RESEND_FROM_ADDRESS` (default `"8news <newsletter@8news.ai>"` — the domain must be verified in Resend), `NEWSLETTER_UNSUBSCRIBE_MAILTO` (default `unsubscribe@8news.ai`), `NEWSLETTER_PUBLIC_ORIGIN` (default `https://8news.ai`, used for the « Read online » CTA pointing at `/{summary_date}`).
 - No auth check on the URL (URL obscurity — same convention as the other `cron-*-background.ts` siblings). Idempotency: there is no built-in dedup, so triggering the cron twice in a day will send twice. Trust the scheduler.
 
+#### Daily Podcast chat side panel (v2.13+)
+
+A collapsible chat docked on the right edge of the SPA, **collapsed by default** to a slim gold tab. It lets a signed-in user ask questions about the day's Top 24h podcast. UI is `src/app/components/podcast-chat/DailyPodcastChatPanel.tsx` (+ `PodcastChatMarkdown.tsx`), mounted in [src/app/app/page.tsx](src/app/app/page.tsx) only when `isAuthenticated`.
+
+- **Grounding (server-enforced).** `src/lib/podcast-chat-context.ts` rebuilds the system prompt from the day's `top_summaries` snapshot on every turn — per-topic group titles, bullet text and deduped source links — so the client cannot spoof the briefing. The day's running conversation (questions + answers) is re-injected each turn.
+- **Persistence.** `migrations/033-podcast-chat-messages.sql` — one row per message; a conversation is the rows sharing `(user_id, summary_date)`. The (user, podcast day) tuple IS the conversation key, so each new day starts a fresh thread for free. Service-role-only RLS, accessed via helpers in `src/lib/supabase/podcast-chat.ts`.
+- **API** `src/app/api/podcast-chat/route.ts` (`requireSession`, `no-store`): `GET` hydrates the day's thread; `POST { question, lang }` streams the answer (`text/plain`) and persists the turn server-side after the stream closes (the resolved day is echoed in `X-Summary-Date`), 409 when no snapshot exists; `DELETE` clears the day's thread.
+- **Model.** OpenAI `PODCAST_CHAT_MODEL` (default `gpt-5.5`), reusing `OPENAI_API_KEY`.
+
 **Scoring criteria** (stored in `topics` table, used by `gpt-4.1-nano` scoring runs):
 - **9-10**: Major breaking news
 - **7-8**: Significant development
@@ -1301,6 +1310,7 @@ User opens /archives, /[topic], /[topic]/[date]/[slug],
 | `RESEND_FROM_ADDRESS` | No | « From » envelope for the newsletter, format `Display name <local@domain>`. Default `8news <newsletter@8news.ai>`. The domain MUST be verified in your Resend account (https://resend.com/domains) before mails will deliver. |
 | `NEWSLETTER_UNSUBSCRIBE_MAILTO` | No | mailto target injected into the `List-Unsubscribe` header (RFC 8058). Default `unsubscribe@8news.ai`. Doesn't currently auto-unsubscribe — you'll get a reply and toggle the user manually from `<UsersSection>` until a self-serve opt-out lands on the SettingsPage. |
 | `NEWSLETTER_PUBLIC_ORIGIN` | No | Absolute origin used to build the « Read online » CTA inside the newsletter (`${origin}/${summary_date}`). Default `https://8news.ai`. |
+| `PODCAST_CHAT_MODEL` | No | **v2.13+** OpenAI model for the Daily Podcast chat side panel (`/api/podcast-chat`). Reuses `OPENAI_API_KEY`. Default `gpt-5.5`. |
 | `CRON_VIDEO_SUMMARY_SCORE_SAFETY_MS` | No | Reserve before deadline — stop launching new batches. Default `45000`. |
 
 ---

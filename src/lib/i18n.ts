@@ -1369,6 +1369,60 @@ const strings = {
     en: "Sign in to update your preferences",
     fr: "Connectez-vous pour modifier vos préférences",
   },
+
+  // ── Daily Podcast chat side panel (v2.13+) ──────────────────────
+  podcastChatOpen: {
+    en: "Ask the Daily Podcast",
+    fr: "Demander au Podcast du jour",
+  },
+  podcastChatTitle: {
+    en: "Daily Podcast chat",
+    fr: "Chat du Podcast du jour",
+  },
+  podcastChatClose: {
+    en: "Close",
+    fr: "Fermer",
+  },
+  podcastChatContextChip: {
+    en: "Context: Daily Podcast",
+    fr: "Contexte : Podcast du jour",
+  },
+  podcastChatClear: {
+    en: "Clear conversation",
+    fr: "Effacer la conversation",
+  },
+  podcastChatPlaceholder: {
+    en: "Ask anything about today's briefing…",
+    fr: "Posez une question sur le briefing du jour…",
+  },
+  podcastChatSend: {
+    en: "Send",
+    fr: "Envoyer",
+  },
+  podcastChatEmpty: {
+    en: "Ask a question about today's podcast. The full briefing — text, notes and source links — is used as context.",
+    fr: "Posez une question sur le podcast du jour. Tout le briefing — texte, notes et liens sources — sert de contexte.",
+  },
+  podcastChatSignInHint: {
+    en: "Type your question — you'll be asked to sign in (free) to get the answer.",
+    fr: "Tapez votre question — la connexion (gratuite) vous sera demandée pour obtenir la réponse.",
+  },
+  podcastChatNoSnapshot: {
+    en: "Today's podcast isn't available yet. Come back once the daily briefing has been generated.",
+    fr: "Le podcast du jour n'est pas encore disponible. Revenez une fois le briefing quotidien généré.",
+  },
+  podcastChatError: {
+    en: "Something went wrong. Please try again.",
+    fr: "Une erreur s'est produite. Veuillez réessayer.",
+  },
+  podcastChatThinking: {
+    en: "Thinking…",
+    fr: "Réflexion…",
+  },
+  podcastChatClearConfirm: {
+    en: "Clear the whole conversation for today?",
+    fr: "Effacer toute la conversation du jour ?",
+  },
 } as const;
 
 type StringKey = keyof typeof strings;

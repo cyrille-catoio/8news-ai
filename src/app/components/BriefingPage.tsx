@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Lang } from "@/lib/i18n";
-import { dateLocale } from "@/lib/i18n";
+import { dateLocale, t } from "@/lib/i18n";
 import { color, spinnerStyle } from "@/lib/theme";
 import { useTopFeed, type TopFeedArticle } from "@/hooks/useTopFeed";
 import { type VideoItem } from "@/app/components/VideoCard";
@@ -11,6 +11,7 @@ import type { TopicLabel } from "@/lib/types";
 import type { AppNavPage } from "@/app/components/AppHeader";
 import { trackEvent } from "@/lib/track";
 import { SectionSpinner } from "@/app/components/briefing/SectionSpinner";
+import { kicker, ctaLink } from "@/app/components/briefing/styles";
 import { TrendingStrip, type TrendingTopic } from "@/app/components/briefing/TrendingStrip";
 import { FooterCTAs } from "@/app/components/briefing/FooterCTAs";
 import { HeroStory } from "@/app/components/briefing/HeroStory";
@@ -42,6 +43,7 @@ export function BriefingPage({
   preferredTopicIds,
   ttsSpeed,
   ttsVoice,
+  onOpenChat,
 }: {
   lang: Lang;
   isAuthenticated: boolean;
@@ -56,8 +58,57 @@ export function BriefingPage({
   /** TTS settings forwarded to the VideoCard's audio player. */
   ttsSpeed: number;
   ttsVoice: string;
+  /** Opens the Daily Podcast chat side panel (owned by the SPA shell).
+   *  Used by the discovery hint under the podcast hero. */
+  onOpenChat?: () => void;
 }) {
   const locale = dateLocale(lang);
+
+  // ─── « New since your last visit » ──────────────────────────────────
+  // previousVisitAt = the most recent prior visit timestamp (ms).
+  // Sourced from localStorage (per-device) and, for signed-in users,
+  // from `user_activity` (cross-device) — we keep the most RECENT of the
+  // two as the cutoff so we never over-count. On mount we read the prior
+  // value, then bump it to now for the next visit. `null` on a first-ever
+  // visit (no badge shown).
+  const [previousVisitAt, setPreviousVisitAt] = useState<number | null>(null);
+  useEffect(() => {
+    let localPrev: number | null = null;
+    try {
+      const raw = window.localStorage.getItem("homeLastVisitAt");
+      const n = raw ? Number(raw) : NaN;
+      if (Number.isFinite(n)) localPrev = n;
+      window.localStorage.setItem("homeLastVisitAt", String(Date.now()));
+    } catch {
+      /* storage disabled — DB path (if signed in) still works */
+    }
+    setPreviousVisitAt(localPrev);
+
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/user/activity?type=home_visit", { cache: "no-store" });
+        if (res.ok && !cancelled) {
+          const json: { entries?: Array<{ last_clicked_at?: string }> } = await res.json();
+          const iso = json.entries?.[0]?.last_clicked_at;
+          const t = iso ? new Date(iso).getTime() : NaN;
+          if (Number.isFinite(t)) {
+            setPreviousVisitAt((cur) => (cur == null ? t : Math.max(cur, t)));
+          }
+        }
+        // Bump the cross-device marker for next time (after reading it).
+        await fetch("/api/user/activity", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ activity_type: "home_visit", target_id: "home", action: "visit", value: 1 }),
+        });
+      } catch {
+        /* best-effort — local cutoff already applies */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isAuthenticated]);
 
   // ─── Top feed (powers Top 5; the hero gets its own freshness-priority
   //      query — see heroStory below) ───────────────────────────────────
@@ -443,6 +494,21 @@ export function BriefingPage({
   const heroLink = heroArticle?.link ?? null;
   const top5 = topFeed.filter((a) => a.link !== heroLink).slice(0, 5);
 
+  // Count of top-feed stories published since the user's last visit —
+  // drives the « N nouveaux » badge on the « À lire maintenant » header.
+  const newSinceVisit =
+    previousVisitAt == null
+      ? 0
+      : topFeed.filter((a) => {
+          const t = new Date(a.pubDate).getTime();
+          return Number.isFinite(t) && t > previousVisitAt;
+        }).length;
+
+  const showChooseTopics =
+    isAuthenticated &&
+    (!preferredTopicIds || preferredTopicIds.length === 0) &&
+    Object.keys(yourTopicArticles).length === 0;
+
   return (
     <div>
       {heroBlocked ? (
@@ -451,31 +517,39 @@ export function BriefingPage({
         </div>
       ) : (
         <>
-          {/* Top articles 24h hero — pre-computed daily briefing pinned
-              at the very top. Self-fetches the latest snapshot so its
-              loading / error / 404 states stay fully isolated from the
-              rest of the home (a missing snapshot just hides the card).
-              v2.7.7+ — when the user marks the briefing as « Lu » via
-              the bottom-left checkbox, the hero collapses in place
-              (animated max-height + opacity) rather than being
-              re-positioned. v2.8.2+ — the « Lu » state is now stored
-              per snapshot date in the `user_activity` DB table for
-              authenticated users (one row per (user, summary_date)),
-              and in a comma-separated cookie list for anonymous
-              visitors. The hero owns this state internally so the
-              checkbox tracks the snapshot currently on screen as the
-              history arrows browse older podcasts. */}
-          {!isAuthenticated && (
-            <NewsletterSignupPrompt lang={lang} onRequestAuth={onRequestAuth} />
-          )}
-
+          {/* ─── 1 · Podcast du jour (flagship) ──────────────────────
+              Pre-computed daily AI briefing pinned at the very top.
+              Self-fetches the latest snapshot so its loading / 404
+              states stay isolated (a missing snapshot just hides the
+              card). The « Lu » state is owned internally by the hero
+              (DB-backed for authenticated users via `user_activity`,
+              cookie list for anonymous visitors). */}
           <HomeTop24hHero lang={lang} onNavigate={onNavigate} />
 
-          {isAuthenticated && (
-            <NewsletterSignupPrompt lang={lang} onRequestAuth={onRequestAuth} />
+          {/* Chat discovery hint — opens the Daily Podcast chat grounded
+              in today's briefing. */}
+          {onOpenChat && (
+            <div style={{ marginTop: -20, marginBottom: 28 }}>
+              <button
+                type="button"
+                onClick={onOpenChat}
+                style={{
+                  ...ctaLink,
+                  marginTop: 0,
+                  textDecoration: "none",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                {t("homeAskAiHint", lang)}
+              </button>
+            </div>
           )}
 
-          {/* Top articles 24h hero, TOP VIDEO, Top story, puis « Toutes les vidéos transcrites », Tendances, résumé du jour, top 5, … */}
+          {/* ─── 2 · TOP VIDEO · maintenant ───────────────────────────
+              Kept at the top AND distinct from the Top story below
+              (deliberate separation). */}
           {videosLoading ? (
             <SectionSpinner
               label={lang === "fr" ? "TOP VIDEO · MAINTENANT" : "TOP VIDEO · NOW"}
@@ -506,6 +580,7 @@ export function BriefingPage({
             )
           )}
 
+          {/* ─── 3 · Top story ───────────────────────────────────────── */}
           {heroArticle && (
             <HeroStory
               article={heroArticle}
@@ -522,19 +597,159 @@ export function BriefingPage({
             />
           )}
 
+          {/* ─── 4 · Newsletter CTA (single placement) ────────────────
+              The component self-hides for owners and already-subscribed
+              users, so a single render covers anonymous + members. */}
+          <NewsletterSignupPrompt lang={lang} onRequestAuth={onRequestAuth} />
+
+          {/* ─── 5 · À lire maintenant : Top 5 (col. principale) +
+              Tendances 24h (rail). Two-column grid driven by a container
+              query so it collapses to one column on phones AND whenever
+              the chat panel narrows the content area (the section's
+              inline size already reflects the `--chat-width` push). ─── */}
+          {(top5.length > 0 || trending.length > 0) && (
+            <section className="briefing-readnow" style={{ marginBottom: 36 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  gap: 10,
+                  flexWrap: "wrap",
+                  marginBottom: 14,
+                }}
+              >
+                <span
+                  style={{
+                    ...kicker(color.gold),
+                    fontSize: 12,
+                    letterSpacing: "0.14em",
+                    marginBottom: 0,
+                  }}
+                >
+                  {lang === "fr" ? "À lire maintenant" : "Read now"}
+                </span>
+                {newSinceVisit > 0 && (
+                  <span
+                    style={{
+                      fontFamily: "ui-monospace, Menlo, monospace",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: "#000",
+                      background: color.gold,
+                      borderRadius: 999,
+                      padding: "2px 9px",
+                      letterSpacing: "0.02em",
+                    }}
+                  >
+                    {t("homeNewSinceVisit", lang).replace("{n}", String(newSinceVisit))}
+                  </span>
+                )}
+              </div>
+              <div className="briefing-readnow-grid">
+                {top5.length > 0 && (
+                  <div className="briefing-readnow-main">
+                    <Top5Section
+                      articles={top5}
+                      lang={lang}
+                      locale={locale}
+                      topicLabels={topicLabels}
+                      favoriteUrls={favoriteUrls}
+                      onToggleFavorite={onToggleFavorite}
+                      isAuthenticated={isAuthenticated}
+                      onRequestAuth={onRequestAuth}
+                      onSeeAll={() => onNavigate("topArticles")}
+                    />
+                  </div>
+                )}
+
+                {trending.length > 0 && (
+                  <div className="briefing-readnow-rail">
+                    <TrendingStrip
+                      topics={trending}
+                      lang={lang}
+                      onTopicClick={onOpenTopicArticles}
+                    />
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* ─── 6 · Vos topics (personnalisé, remonté) ──────────────── */}
+          {Object.keys(yourTopicArticles).length > 0 ? (
+            <YourTopicsSection
+              articlesByTopic={yourTopicArticles}
+              topicLabels={topicLabels}
+              lang={lang}
+              favoriteUrls={favoriteUrls}
+              onToggleFavorite={onToggleFavorite}
+              isAuthenticated={isAuthenticated}
+              onRequestAuth={onRequestAuth}
+              onSeeAllForTopic={onOpenTopicArticles}
+            />
+          ) : (
+            showChooseTopics && (
+              <section style={{ marginBottom: 36 }}>
+                <div style={{ ...kicker(color.gold), marginBottom: 12 }}>
+                  {t("homeChooseTopicsKicker", lang)}
+                </div>
+                <div
+                  style={{
+                    background: color.surface,
+                    border: `1px solid ${color.border}`,
+                    borderRadius: 10,
+                    padding: 20,
+                  }}
+                >
+                  <h3
+                    style={{
+                      color: color.text,
+                      margin: 0,
+                      fontSize: 20,
+                      fontFamily: "ui-serif, Georgia, serif",
+                      fontWeight: 400,
+                    }}
+                  >
+                    {t("homeChooseTopicsTitle", lang)}
+                  </h3>
+                  <p
+                    className="app-paragraph-lg"
+                    style={{ color: color.articleSnippet, marginTop: 10, marginBottom: 16 }}
+                  >
+                    {t("homeChooseTopicsBody", lang)}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate("myTopics")}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "8px 14px",
+                      borderRadius: 6,
+                      border: `1px solid ${color.gold}`,
+                      background: "rgba(201,162,39,0.10)",
+                      color: color.gold,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    {t("homeChooseTopicsButton", lang)}
+                  </button>
+                </div>
+              </section>
+            )
+          )}
+
+          {/* ─── 7 · Toutes les vidéos transcrites (zone browse) ─────── */}
           <RecentVideoPagesSection
             topicLabels={topicLabels}
             lang={lang}
           />
 
-          {trending.length > 0 && (
-            <TrendingStrip
-              topics={trending}
-              lang={lang}
-              onTopicClick={onOpenTopicArticles}
-            />
-          )}
-
+          {/* ─── 8 · Résumé quotidien topic (teaser) ─────────────────── */}
           {summaryLoading ? (
             <SectionSpinner
               label={
@@ -554,33 +769,7 @@ export function BriefingPage({
             )
           )}
 
-          {top5.length > 0 && (
-            <Top5Section
-              articles={top5}
-              lang={lang}
-              locale={locale}
-              topicLabels={topicLabels}
-              favoriteUrls={favoriteUrls}
-              onToggleFavorite={onToggleFavorite}
-              isAuthenticated={isAuthenticated}
-              onRequestAuth={onRequestAuth}
-              onSeeAll={() => onNavigate("topArticles")}
-            />
-          )}
-
-          {Object.keys(yourTopicArticles).length > 0 && (
-            <YourTopicsSection
-              articlesByTopic={yourTopicArticles}
-              topicLabels={topicLabels}
-              lang={lang}
-              favoriteUrls={favoriteUrls}
-              onToggleFavorite={onToggleFavorite}
-              isAuthenticated={isAuthenticated}
-              onRequestAuth={onRequestAuth}
-              onSeeAllForTopic={onOpenTopicArticles}
-            />
-          )}
-
+          {/* ─── 9 · Footer CTAs ─────────────────────────────────────── */}
           <FooterCTAs
             lang={lang}
             isAuthenticated={isAuthenticated}

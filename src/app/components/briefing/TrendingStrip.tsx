@@ -38,9 +38,8 @@ export function TrendingStrip({
           ...card,
           display: "block",
           padding: "16px 18px",
-          borderColor: color.gold,
-          background:
-            "linear-gradient(180deg, rgba(201,162,39,0.04), transparent 60%), " + color.surface,
+          borderColor: color.border,
+          background: color.surface,
         }}
       >
         <div

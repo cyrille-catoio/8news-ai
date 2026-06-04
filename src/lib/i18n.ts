@@ -1383,6 +1383,65 @@ const strings = {
     en: "Close",
     fr: "Fermer",
   },
+  // « Chaînes YouTube » browse page (v2.13+).
+  channelsBtn: {
+    en: "YouTube channels",
+    fr: "Chaînes YouTube",
+  },
+  channelsTitle: {
+    en: "YouTube channels",
+    fr: "Chaînes YouTube",
+  },
+  channelsSubtitle: {
+    en: "Every channel tracked by 8news. Open one to browse its latest videos.",
+    fr: "Toutes les chaînes suivies par 8news. Ouvrez-en une pour parcourir ses dernières vidéos.",
+  },
+  channelsEmpty: {
+    en: "No channels registered yet.",
+    fr: "Aucune chaîne enregistrée pour le moment.",
+  },
+  channelsBack: {
+    en: "← All channels",
+    fr: "← Toutes les chaînes",
+  },
+  channelsNoVideos: {
+    en: "No videos for this channel yet.",
+    fr: "Aucune vidéo pour cette chaîne pour le moment.",
+  },
+  channelsLoadMore: {
+    en: "Load more",
+    fr: "Charger plus",
+  },
+  // Home briefing — « new since last visit », chat discovery hint, and
+  // the « choose your topics » empty state (v2.13+).
+  homeNewSinceVisit: {
+    en: "{n} new since your last visit",
+    fr: "{n} nouveaux depuis ta dernière visite",
+  },
+  homeAskAiHint: {
+    en: "Ask the AI about today's briefing →",
+    fr: "Poser une question à l'IA sur le briefing du jour →",
+  },
+  homeChooseTopicsKicker: {
+    en: "Your topics",
+    fr: "Vos topics",
+  },
+  homeChooseTopicsTitle: {
+    en: "Personalize your briefing",
+    fr: "Personnalisez votre briefing",
+  },
+  homeChooseTopicsBody: {
+    en: "Pick the topics you care about to get a tailored daily feed right here.",
+    fr: "Choisissez les sujets qui vous intéressent pour obtenir un fil quotidien sur mesure ici.",
+  },
+  homeChooseTopicsButton: {
+    en: "Choose your topics →",
+    fr: "Choisir vos topics →",
+  },
+  podcastChatResize: {
+    en: "Drag to resize",
+    fr: "Glisser pour redimensionner",
+  },
   podcastChatContextChip: {
     en: "Context: Daily Podcast",
     fr: "Contexte : Podcast du jour",
@@ -1420,8 +1479,8 @@ const strings = {
     fr: "Réflexion…",
   },
   podcastChatClearConfirm: {
-    en: "Clear the whole conversation for today?",
-    fr: "Effacer toute la conversation du jour ?",
+    en: "Hide today's conversation from view? It stays saved and won't be deleted.",
+    fr: "Masquer la conversation du jour ? Elle reste enregistrée et ne sera pas supprimée.",
   },
 } as const;
 

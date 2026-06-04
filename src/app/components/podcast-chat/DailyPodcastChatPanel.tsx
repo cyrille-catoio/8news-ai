@@ -30,12 +30,37 @@ interface ChatMessage {
   content: string;
 }
 
+/** localStorage key for the per-day « hidden up to » cut-off used by the
+ *  « Clear » action (hide-only — the DB keeps every message). */
+function hiddenKey(summaryDate: string): string {
+  return `podcastChatHiddenUntil:${summaryDate}`;
+}
+
+function readHiddenUntil(summaryDate: string | null): string | null {
+  if (!summaryDate || typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(hiddenKey(summaryDate));
+  } catch {
+    return null;
+  }
+}
+
+function writeHiddenUntil(summaryDate: string | null, iso: string): void {
+  if (!summaryDate || typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(hiddenKey(summaryDate), iso);
+  } catch {
+    /* storage disabled — the in-session clear still works */
+  }
+}
+
 export function DailyPodcastChatPanel({
   lang,
   open,
   onOpenChange,
   isAuthenticated,
   onRequestAuth,
+  onWidthChange,
 }: {
   lang: Lang;
   open: boolean;
@@ -46,6 +71,9 @@ export function DailyPodcastChatPanel({
   isAuthenticated: boolean;
   /** Opens the sign-in / create-account modal. */
   onRequestAuth: () => void;
+  /** Reports a requested panel width (px) while the left-edge handle is
+   *  dragged. The parent clamps to its min/max and applies it. */
+  onWidthChange: (width: number) => void;
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -77,16 +105,21 @@ export function DailyPodcastChatPanel({
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = (await res.json()) as {
         summaryDate: string | null;
-        messages: ChatMessage[];
+        messages: Array<{ role: "user" | "assistant"; content: string; created_at: string }>;
         reason?: string;
       };
       setSummaryDate(json.summaryDate);
       setNoSnapshot(json.summaryDate === null);
+      // « Clear » hides the thread client-side only — the DB keeps every
+      // message. We remember the cut-off timestamp per podcast day in
+      // localStorage and drop anything at or before it, so a cleared
+      // conversation stays hidden across reloads while new messages
+      // (posted after the cut-off) remain visible.
+      const hiddenUntil = readHiddenUntil(json.summaryDate);
       setMessages(
-        (json.messages ?? []).map((m) => ({
-          role: m.role,
-          content: m.content,
-        })),
+        (json.messages ?? [])
+          .filter((m) => !hiddenUntil || m.created_at > hiddenUntil)
+          .map((m) => ({ role: m.role, content: m.content })),
       );
     } catch {
       setError(t("podcastChatError", lang));
@@ -211,7 +244,10 @@ export function DailyPodcastChatPanel({
     }
   }, [input, sending, lang, isAuthenticated, onRequestAuth]);
 
-  const clearConversation = useCallback(async () => {
+  // Hides the conversation from the UI WITHOUT deleting anything in the
+  // database. We persist the cut-off timestamp per podcast day so the
+  // thread stays hidden across reloads; `loadHistory` filters on it.
+  const clearConversation = useCallback(() => {
     if (sending) return;
     if (
       typeof window !== "undefined" &&
@@ -219,16 +255,9 @@ export function DailyPodcastChatPanel({
     ) {
       return;
     }
+    writeHiddenUntil(summaryDate, new Date().toISOString());
     setMessages([]);
-    try {
-      await fetch(`/api/podcast-chat?lang=${lang}`, {
-        method: "DELETE",
-        cache: "no-store",
-      });
-    } catch {
-      /* best-effort — the UI already cleared */
-    }
-  }, [lang, sending]);
+  }, [lang, sending, summaryDate]);
 
   const onInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -237,12 +266,69 @@ export function DailyPodcastChatPanel({
     }
   };
 
+  // Drag-to-resize from the left edge. The panel is anchored to the
+  // right, so the requested width is simply the distance from the
+  // cursor to the right edge of the viewport. The parent clamps it.
+  const startResize = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault();
+      document.body.classList.add("podcast-chat-resizing");
+      document.body.style.cursor = "ew-resize";
+      document.body.style.userSelect = "none";
+      const onMove = (ev: PointerEvent) => {
+        onWidthChange(window.innerWidth - ev.clientX);
+      };
+      const onUp = () => {
+        document.body.classList.remove("podcast-chat-resizing");
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+    },
+    [onWidthChange],
+  );
+
   const dateLabel = summaryDate ? formatSummaryDayLabel(summaryDate, lang) : "";
 
   if (!open) return null;
 
   return (
     <>
+      {/* Clear-conversation icon — pinned top-right, just left of the
+          parent's close (X) toggle. Hides the thread (DB untouched).
+          Only shown when there's something to clear. */}
+      {messages.length > 0 && (
+        <button
+          type="button"
+          onClick={() => clearConversation()}
+          aria-label={t("podcastChatClear", lang)}
+          title={t("podcastChatClear", lang)}
+          style={{
+            position: "fixed",
+            top: 12,
+            right: 50,
+            zIndex: 80,
+            width: 30,
+            height: 30,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: 8,
+            border: `1px solid ${color.border}`,
+            background: color.surface,
+            color: color.textMuted,
+            cursor: "pointer",
+            boxShadow: "0 4px 18px rgba(0,0,0,0.4)",
+            transition: "color 140ms ease, border-color 140ms ease",
+          }}
+        >
+          <TrashGlyph />
+        </button>
+      )}
+
       {/* Panel — docked right, no backdrop so the app stays usable. */}
       {
         <aside
@@ -263,6 +349,27 @@ export function DailyPodcastChatPanel({
             animation: "podcastChatSlideIn 220ms ease",
           }}
         >
+          {/* Left-edge resize handle (desktop). Drag to grow/shrink the
+              panel; the parent clamps to a coherent min/max and mirrors
+              the width onto the interface push. Hidden on phones. */}
+          <div
+            className="podcast-chat-resize"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={t("podcastChatResize", lang)}
+            title={t("podcastChatResize", lang)}
+            onPointerDown={startResize}
+            style={{
+              position: "absolute",
+              left: -4,
+              top: 0,
+              bottom: 0,
+              width: 9,
+              cursor: "ew-resize",
+              zIndex: 2,
+              touchAction: "none",
+            }}
+          />
           {/* Header. */}
           <header
             style={{
@@ -280,8 +387,8 @@ export function DailyPodcastChatPanel({
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
-                // Leave room for the parent's top-right square toggle.
-                paddingRight: 44,
+                // Leave room for the top-right icons (clear + close).
+                paddingRight: 84,
               }}
             >
               <span
@@ -300,14 +407,9 @@ export function DailyPodcastChatPanel({
                 {t("podcastChatTitle", lang)}
               </span>
             </div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 8,
-              }}
-            >
+            {/* Context chip — now spans the full header width since the
+                « clear » action moved to a top-right icon next to close. */}
+            <div style={{ display: "flex", alignItems: "center" }}>
               <span
                 style={{
                   display: "inline-flex",
@@ -326,21 +428,6 @@ export function DailyPodcastChatPanel({
                 {t("podcastChatContextChip", lang)}
                 {dateLabel ? ` · ${dateLabel}` : ""}
               </span>
-              {messages.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => void clearConversation()}
-                  style={{
-                    ...iconBtnStyle,
-                    width: "auto",
-                    padding: "4px 8px",
-                    fontSize: 11,
-                  }}
-                  title={t("podcastChatClear", lang)}
-                >
-                  {t("podcastChatClear", lang)}
-                </button>
-              )}
             </div>
           </header>
 
@@ -521,20 +608,6 @@ function MessageBubble({
   );
 }
 
-const iconBtnStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  width: 30,
-  height: 30,
-  borderRadius: 6,
-  border: `1px solid ${color.border}`,
-  background: "transparent",
-  color: color.textMuted,
-  cursor: "pointer",
-  fontFamily: "inherit",
-};
-
 const mutedTextStyle: React.CSSProperties = {
   margin: 0,
   color: color.textMuted,
@@ -546,6 +619,15 @@ function ChatGlyph() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8 8.38 8.38 0 0 1 8.5-8.5 8.5 8.5 0 0 1 8.5 8.5z" />
+    </svg>
+  );
+}
+
+function TrashGlyph() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
     </svg>
   );
 }

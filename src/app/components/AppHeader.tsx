@@ -23,6 +23,7 @@ export type AppNavPage =
   | "dailySummaries"
   | "videos"
   | "youtubeChannels"
+  | "channels"
   | "users"
   | "userActivity"
   | "myTopics"

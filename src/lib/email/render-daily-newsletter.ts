@@ -138,7 +138,7 @@ function formatDateLong(dateISO: string, lang: Lang): string {
   // differ in local dev / preview deploys).
   const d = new Date(`${dateISO}T12:00:00Z`);
   return new Intl.DateTimeFormat(dateLocale(lang), {
-    weekday: "long",
+    weekday: "short",
     day: "numeric",
     month: "long",
     year: "numeric",

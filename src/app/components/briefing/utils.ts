@@ -33,6 +33,14 @@ export function relativeTime(pubDate: string, lang: Lang): string {
   return lang === "fr" ? `il y a ${days} j` : `${days}d ago`;
 }
 
+/** True when `pubDate` is within the last `withinHours` hours (default
+ *  3) — drives the « NEW » freshness badge on the home so a daily
+ *  reader spots what landed since this morning at a glance. */
+export function isFresh(pubDate: string, withinHours = 3): boolean {
+  const ms = Date.now() - new Date(pubDate).getTime();
+  return ms >= 0 && ms < withinHours * 3_600_000;
+}
+
 /** Bullet shape returned by `GET /api/summaries/[topic]/[date]`. Mirror
  *  of the row stored in `daily_summaries.bullets`. */
 export interface DailySummaryBullet {

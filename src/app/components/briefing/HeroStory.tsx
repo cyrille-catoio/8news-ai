@@ -9,7 +9,8 @@ import { CopyLinkButton } from "@/app/components/CopyLinkButton";
 import { FavoriteButton } from "@/app/components/FavoriteButton";
 import { trackEvent } from "@/lib/track";
 import { kicker } from "@/app/components/briefing/styles";
-import { relativeTime } from "@/app/components/briefing/utils";
+import { relativeTime, isFresh } from "@/app/components/briefing/utils";
+import { FreshBadge } from "@/app/components/briefing/FreshBadge";
 import { HistoryArrows } from "@/app/components/briefing/HistoryArrows";
 
 /**
@@ -73,6 +74,25 @@ export function HeroStory({
           background: "linear-gradient(180deg, rgba(201,162,39,0.04), transparent 60%), " + color.surface,
         }}
       >
+        {article.imageUrl && (
+          <img
+            src={article.imageUrl}
+            alt=""
+            loading="lazy"
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+            }}
+            style={{
+              display: "block",
+              width: "100%",
+              height: 180,
+              objectFit: "cover",
+              borderRadius: 8,
+              border: `1px solid ${color.border}`,
+              marginBottom: 18,
+            }}
+          />
+        )}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
           <h2
             style={{
@@ -87,6 +107,11 @@ export function HeroStory({
               letterSpacing: "-0.01em",
             }}
           >
+            {isFresh(article.pubDate) && (
+              <span style={{ marginRight: 10, verticalAlign: "middle" }}>
+                <FreshBadge lang={lang} />
+              </span>
+            )}
             <span className="hero-story-title-link">
               {article.title}
             </span>

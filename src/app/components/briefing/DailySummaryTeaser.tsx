@@ -77,9 +77,8 @@ export function DailySummaryTeaser({
             ...card,
             display: "block",
             padding: 20,
-            borderColor: color.gold,
-            background:
-              "linear-gradient(180deg, rgba(201,162,39,0.04), transparent 60%), " + color.surface,
+            borderColor: color.border,
+            background: color.surface,
           }}
         >
           <h3 style={{ color: color.text, margin: 0, fontSize: 20, fontFamily: "ui-serif, Georgia, serif", fontWeight: 400 }}>

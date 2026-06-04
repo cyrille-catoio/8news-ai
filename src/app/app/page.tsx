@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import type { CSSProperties } from "react";
 import type {
   SummaryResponse,
   TopicItem,
@@ -41,6 +42,7 @@ import { ArchivesBrowsePage } from "@/app/components/ArchivesBrowsePage";
 import { VideosPage } from "@/app/components/VideosPage";
 import { YouTubeChannelsPage } from "@/app/components/YouTubeChannelsPage";
 import { BriefingPage } from "@/app/components/BriefingPage";
+import { ChannelsPage } from "@/app/components/ChannelsPage";
 import { useSpaNavigation } from "@/lib/spa-navigation";
 import { fetchNewsApi, PERIODS } from "@/lib/news-fetch";
 import { unlockAudioContext, playNotificationBeep } from "@/lib/notification-sound";
@@ -54,6 +56,13 @@ import { DailyPodcastChatPanel } from "@/app/components/podcast-chat/DailyPodcas
 
 const APP_VERSION = "2.12";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
+
+// Daily Podcast chat panel width bounds (desktop). The panel is
+// drag-resizable from its left edge between these values; the layout
+// push mirrors the chosen width via the `--chat-width` CSS variable.
+const PODCAST_CHAT_MIN_WIDTH = 320;
+const PODCAST_CHAT_MAX_WIDTH = 640;
+const PODCAST_CHAT_DEFAULT_WIDTH = 400;
 
 
 function PeriodButton({
@@ -335,6 +344,40 @@ export default function Home() {
     }
   }, []);
 
+  // User-resizable chat width (drag the panel's left edge). Shared with
+  // the layout push via a `--chat-width` CSS variable on the root so the
+  // interface shift always matches the panel. Clamped to a coherent
+  // min/max (and never wider than the viewport minus a content margin).
+  const [chatWidth, setChatWidth] = useState(PODCAST_CHAT_DEFAULT_WIDTH);
+  const clampChatWidth = useCallback((raw: number) => {
+    const viewportCap =
+      typeof window !== "undefined"
+        ? Math.max(PODCAST_CHAT_MIN_WIDTH, window.innerWidth - 320)
+        : PODCAST_CHAT_MAX_WIDTH;
+    const max = Math.min(PODCAST_CHAT_MAX_WIDTH, viewportCap);
+    return Math.round(Math.max(PODCAST_CHAT_MIN_WIDTH, Math.min(max, raw)));
+  }, []);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = Number.parseInt(
+      window.localStorage.getItem("podcastChatWidth") ?? "",
+      10,
+    );
+    if (Number.isFinite(stored)) setChatWidth(clampChatWidth(stored));
+  }, [clampChatWidth]);
+  const handleChatWidthChange = useCallback(
+    (raw: number) => {
+      const w = clampChatWidth(raw);
+      setChatWidth(w);
+      try {
+        window.localStorage.setItem("podcastChatWidth", String(w));
+      } catch {
+        /* storage disabled — width still applies for the session */
+      }
+    },
+    [clampChatWidth],
+  );
+
   const {
     preferredTopicIds,
     draftTopicIds,
@@ -574,7 +617,13 @@ export default function Home() {
   return (
     <div
       className={`app-shell-root${chatOpen ? " chat-open" : ""}`}
-      style={{ minHeight: "100vh", background: color.bg, color: color.text, fontFamily: font.base }}
+      style={{
+        minHeight: "100vh",
+        background: color.bg,
+        color: color.text,
+        fontFamily: font.base,
+        ["--chat-width" as string]: `${chatWidth}px`,
+      } as CSSProperties}
     >
       <div style={{ maxWidth: 916, margin: "0 auto", padding: "40px 20px" }}>
 
@@ -606,6 +655,7 @@ export default function Home() {
           onAnalyzeTop={() => setCurrentPage("topArticles")}
           onNavigateSummaries={() => setCurrentPage("summaries")}
           onNavigateVideos={() => setCurrentPage("videos")}
+          onNavigateChannels={() => setCurrentPage("channels")}
           onNavigateMyTopics={() => {
             setCurrentPage("myTopics");
           }}
@@ -625,6 +675,7 @@ export default function Home() {
             preferredTopicIds={preferredTopicIds}
             ttsSpeed={ttsSpeed}
             ttsVoice={lang === "fr" ? ttsVoiceFr : ttsVoice}
+            onOpenChat={() => handleChatOpenChange(true)}
           />
         ) : currentPage === "stats" ? (
           <StatsPage
@@ -694,6 +745,8 @@ export default function Home() {
             isAuthenticated={isAuthenticated}
             onRequestAuth={() => setAuthModalOpen(true)}
           />
+        ) : currentPage === "channels" ? (
+          <ChannelsPage lang={lang} />
         ) : currentPage === "youtubeChannels" ? (
           authLoading ? (
             <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "80px 0" }}>
@@ -1022,8 +1075,8 @@ export default function Home() {
               top: 12,
               right: 12,
               zIndex: 80,
-              width: 40,
-              height: 40,
+              width: 30,
+              height: 30,
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
@@ -1053,6 +1106,7 @@ export default function Home() {
             onOpenChange={handleChatOpenChange}
             isAuthenticated={isAuthenticated}
             onRequestAuth={() => setAuthModalOpen(true)}
+            onWidthChange={handleChatWidthChange}
           />
         </>
       }

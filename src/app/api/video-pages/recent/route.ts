@@ -5,8 +5,10 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
  * GET /api/video-pages/recent?page=1&pageSize=10&lang=fr
  *
  * Classic offset/limit pagination over transcribed-video SSR pages
- * (`/{topic}/v/{published_date}/{slug}`), ordered by `published_date`
- * desc then `created_at` desc.
+ * (`/{topic}/v/{published_date}/{slug}`), ordered by AI quality
+ * `summary_score` desc (NULLS LAST), then `published_date` desc, then
+ * `created_at` desc — so every page runs from the highest score to the
+ * lowest and page 1 holds the best recaps.
  *
  *  - `page` is **1-indexed** (defaults to 1, clamped to >= 1)
  *  - `pageSize` defaults to 10, clamped to [1, 50]
@@ -96,26 +98,36 @@ async function fetchPageRows(
   const withScore = `${baseColumns}, summary_score`;
   const withScoreAndTitle = `${withScore}, title_localized`;
 
-  const run = async (columns: string) =>
-    db
+  // Ordering: highest AI quality score first (NULLS LAST so unscored
+  // recaps sink to the bottom), then most recent. Applied globally so
+  // every paginated slice walks from the top score down — each page is
+  // sorted descending and page 1 holds the best recaps. The score order
+  // is skipped on the legacy fallback that has no `summary_score` column.
+  const run = async (columns: string, withScoreOrder: boolean) => {
+    let q = db
       .from("video_transcriptions")
       .select(columns)
       .eq("lang", lang)
       .not("topic_id", "is", null)
-      .not("slug_keywords", "is", null)
+      .not("slug_keywords", "is", null);
+    if (withScoreOrder) {
+      q = q.order("summary_score", { ascending: false, nullsFirst: false });
+    }
+    return q
       .order("published_date", { ascending: false })
       .order("created_at", { ascending: false })
       .range(fromIdx, toIdx);
+  };
 
-  let res = await run(withScoreAndTitle);
+  let res = await run(withScoreAndTitle, true);
   if (res.error && isMissingColumn(res.error, "title_localized")) {
-    res = await run(withScore);
+    res = await run(withScore, true);
   }
   if (res.error && isMissingColumn(res.error, "summary_score")) {
     console.warn(
       "[/api/video-pages/recent] summary_score column missing — falling back. Apply migrations/021-video-summary-score.sql to enable AI quality scores in the list.",
     );
-    res = await run(baseColumns);
+    res = await run(baseColumns, false);
   }
 
   if (res.error) return { data: null, error: res.error };

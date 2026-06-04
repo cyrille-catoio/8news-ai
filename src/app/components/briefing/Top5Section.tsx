@@ -10,7 +10,8 @@ import { CopyLinkButton } from "@/app/components/CopyLinkButton";
 import { FavoriteButton } from "@/app/components/FavoriteButton";
 import { trackEvent } from "@/lib/track";
 import { kicker, ctaLink } from "@/app/components/briefing/styles";
-import { relativeTime } from "@/app/components/briefing/utils";
+import { relativeTime, isFresh } from "@/app/components/briefing/utils";
+import { FreshBadge } from "@/app/components/briefing/FreshBadge";
 
 /**
  * Top 5 list of the day. Single outer gold-bordered card around all 5
@@ -60,9 +61,8 @@ export function Top5Section({
           ...card,
           display: "block",
           padding: "4px 18px",
-          borderColor: color.gold,
-          background:
-            "linear-gradient(180deg, rgba(201,162,39,0.04), transparent 60%), " + color.surface,
+          borderColor: color.border,
+          background: color.surface,
         }}
       >
         {articles.map((art, i) => {
@@ -89,19 +89,48 @@ export function Top5Section({
                   })
                 }
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-                  <span style={{ color: color.text, fontWeight: 500, fontSize: 16, lineHeight: 1.35, flex: 1, minWidth: 0 }}>
-                    {art.title}
-                  </span>
-                  <span style={{ flexShrink: 0 }}>
-                    <ScoreMeter score={art.score} />
-                  </span>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                      <span style={{ color: color.text, fontWeight: 500, fontSize: 16, lineHeight: 1.35, flex: 1, minWidth: 0 }}>
+                        {isFresh(art.pubDate) && (
+                          <span style={{ marginRight: 8 }}>
+                            <FreshBadge lang={lang} />
+                          </span>
+                        )}
+                        {art.title}
+                      </span>
+                      <span style={{ flexShrink: 0 }}>
+                        <ScoreMeter score={art.score} />
+                      </span>
+                    </div>
+                    {art.snippet && (
+                      <p className="app-paragraph-lg" style={{ color: color.articleSnippet, marginTop: 6, marginBottom: 0 }}>
+                        {art.snippet}
+                      </p>
+                    )}
+                  </div>
+                  {art.imageUrl && (
+                    <img
+                      src={art.imageUrl}
+                      alt=""
+                      loading="lazy"
+                      width={96}
+                      height={64}
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                      }}
+                      style={{
+                        width: 96,
+                        height: 64,
+                        objectFit: "cover",
+                        borderRadius: 6,
+                        flexShrink: 0,
+                        border: `1px solid ${color.border}`,
+                      }}
+                    />
+                  )}
                 </div>
-                {art.snippet && (
-                  <p className="app-paragraph-lg" style={{ color: color.articleSnippet, marginTop: 6, marginBottom: 0 }}>
-                    {art.snippet}
-                  </p>
-                )}
               </a>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
                 <span style={{ color: color.gold, fontSize: 12, fontFamily: "ui-monospace, Menlo, monospace", letterSpacing: "0.04em" }}>

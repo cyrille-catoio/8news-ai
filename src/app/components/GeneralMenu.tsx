@@ -63,6 +63,7 @@ export function GeneralMenu({
   onAnalyzeTop,
   onNavigateSummaries,
   onNavigateVideos,
+  onNavigateChannels,
   onNavigateMyTopics,
   onRequestAuth,
 }: {
@@ -76,6 +77,7 @@ export function GeneralMenu({
   onAnalyzeTop: () => void;
   onNavigateSummaries: () => void;
   onNavigateVideos: () => void;
+  onNavigateChannels: () => void;
   onNavigateMyTopics: () => void;
   onRequestAuth?: () => void;
 }) {
@@ -110,6 +112,16 @@ export function GeneralMenu({
         style={currentPage === "videos" ? activeStyle : base}
       >
         {t("videosBtn", lang)}
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          trackEvent("nav.menu", { target_id: "channels", lang });
+          onNavigateChannels();
+        }}
+        style={currentPage === "channels" ? activeStyle : base}
+      >
+        {t("channelsBtn", lang)}
       </button>
       <button
         type="button"

@@ -35,8 +35,9 @@ export interface RecentVideoPagesResponse {
 /**
  * Bottom-of-page list of every transcribed video that has an SSR page.
  * Classic offset/limit pagination — 10 items per page, page index
- * 1-indexed. The list is a flat view ordered by `published_date DESC,
- * created_at DESC` (most recent first). Each row shows the topic pill,
+ * 1-indexed. The list is ordered by AI quality `summary_score DESC`
+ * (unscored last), then `published_date DESC, created_at DESC`, so each
+ * page runs from the highest score to the lowest. Each row shows the topic pill,
  * the emoji-stripped title, the publication date suffixed after a dash
  * (e.g. « — 5 mai 2026 ») and the AI quality score pinned right.
  *

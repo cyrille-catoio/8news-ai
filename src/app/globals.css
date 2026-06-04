@@ -73,6 +73,33 @@ a.hero-story-title-link {
   }
 }
 
+/* « Read now » zone (v2.13+): Top 5 (main) + Trending (rail). A
+   container query (not a media query) drives the 2-column layout so it
+   collapses to one column both on phones AND whenever the Daily Podcast
+   chat panel narrows the content area — the section's inline size
+   already accounts for the `--chat-width` push on the root. */
+.briefing-readnow {
+  container-type: inline-size;
+}
+
+.briefing-readnow-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px 24px;
+  align-items: start;
+}
+
+/* Neutralize the inner sections' bottom margin so grid cells stay tidy. */
+.briefing-readnow-grid > div > section {
+  margin-bottom: 0;
+}
+
+@container (min-width: 760px) {
+  .briefing-readnow-grid {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  }
+}
+
 /* Slide-in for the Daily Podcast chat side panel (v2.13+). Tied to the
    inline `animation: podcastChatSlideIn …` on the panel <aside>. */
 @keyframes podcastChatSlideIn {
@@ -96,18 +123,52 @@ a.hero-story-title-link {
 }
 
 .podcast-chat-panel {
-  width: 400px;
+  width: var(--chat-width, 400px);
 }
 
 @media (min-width: 761px) {
   .app-shell-root.chat-open {
-    padding-right: 400px;
+    padding-right: var(--chat-width, 400px);
   }
+}
+
+/* While dragging the resize handle we suspend the push transition so the
+   panel tracks the cursor 1:1 (no lag). Toggled via a body class. */
+body.podcast-chat-resizing .app-shell-root {
+  transition: none;
+}
+
+/* Resize handle on the panel's left edge — a hairline that gilds on
+   hover / while dragging so the affordance reads without adding chrome. */
+.podcast-chat-resize::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: transparent;
+  transition: background 140ms ease;
+}
+
+@media (hover: hover) {
+  .podcast-chat-resize:hover::after {
+    background: #c9a227;
+  }
+}
+
+body.podcast-chat-resizing .podcast-chat-resize::after {
+  background: #c9a227;
 }
 
 @media (max-width: 760px) {
   .podcast-chat-panel {
+    /* Full-width overlay on phones — resizing is disabled there. */
     width: 100vw;
+  }
+
+  .podcast-chat-resize {
+    display: none;
   }
 }
 

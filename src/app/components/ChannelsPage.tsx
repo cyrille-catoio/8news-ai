@@ -34,6 +34,7 @@ interface ChannelVideoItem {
   viewCount: string | null;
   channelTitle: string;
   summaryScore: number | null;
+  appUrl: string | null;
 }
 
 const PAGE_SIZE = 10;
@@ -86,7 +87,7 @@ export function ChannelsPage({ lang }: { lang: Lang }) {
       else setVideosLoading(true);
       try {
         const res = await fetch(
-          `/api/youtube-channels/by-channel?channelId=${encodeURIComponent(channelId)}&page=${pageToLoad}&pageSize=${PAGE_SIZE}`,
+          `/api/youtube-channels/by-channel?channelId=${encodeURIComponent(channelId)}&page=${pageToLoad}&pageSize=${PAGE_SIZE}&lang=${lang}`,
           { cache: "no-store" },
         );
         const json: {
@@ -105,7 +106,7 @@ export function ChannelsPage({ lang }: { lang: Lang }) {
         setLoadingMore(false);
       }
     },
-    [],
+    [lang],
   );
 
   const openChannel = useCallback(
@@ -340,14 +341,21 @@ export function ChannelsPage({ lang }: { lang: Lang }) {
                 typeof v.summaryScore === "number" &&
                 v.summaryScore >= 1 &&
                 v.summaryScore <= 10;
+              // Prefer the on-site 8news per-video page; only fall back to
+              // YouTube (new tab) when the video has no on-site page yet.
+              const internal = Boolean(v.appUrl);
+              const href = v.appUrl ?? v.link;
               return (
                 <a
                   key={v.videoId}
-                  href={v.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  href={href}
+                  {...(internal ? {} : { target: "_blank", rel: "noopener noreferrer" })}
                   onClick={() =>
-                    trackEvent("channels.video_click", { target_id: v.videoId, lang })
+                    trackEvent("channels.video_click", {
+                      target_id: v.videoId,
+                      lang,
+                      meta: { dest: internal ? "app" : "youtube" },
+                    })
                   }
                   style={{ textDecoration: "none", color: "inherit", display: "block" }}
                 >

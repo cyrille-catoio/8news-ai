@@ -37,6 +37,11 @@ export interface ChannelVideoItem {
   /** AI quality score 1-10 (best across langs) from `video_transcriptions`,
    *  or null when the recap is unscored / not transcribed. */
   summaryScore: number | null;
+  /** Relative path to the on-site 8news per-video page
+   *  (`/{topic}/v/{date}/{slug}`) when the video has been transcribed and
+   *  has a topic + slug. `null` when no on-site page exists yet — the UI
+   *  then falls back to the external YouTube `link`. */
+  appUrl: string | null;
 }
 
 interface ChannelVideosResponse {
@@ -58,6 +63,8 @@ function empty(page: number, pageSize: number): ChannelVideosResponse {
 
 export async function GET(req: NextRequest) {
   const channelId = req.nextUrl.searchParams.get("channelId")?.trim();
+  const langParam = req.nextUrl.searchParams.get("lang");
+  const uiLang = langParam === "fr" ? "fr" : "en";
   const requestedPage = parsePositiveInt(req.nextUrl.searchParams.get("page"), 1);
   const requestedPageSize = parsePositiveInt(
     req.nextUrl.searchParams.get("pageSize"),
@@ -117,15 +124,22 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Enrich with the AI quality score from `video_transcriptions`. A video
-  // can be transcribed in EN and/or FR; we keep the best valid (1-10)
-  // score across langs so the badge shows whenever a score exists.
+  // Enrich from `video_transcriptions`:
+  //  - `summaryScore`: best valid (1-10) score across langs, so the badge
+  //    shows whenever a score exists.
+  //  - `appUrl`: the on-site per-video page `/{topic}/v/{date}/{slug}`,
+  //    preferring the UI-lang transcription and falling back to any lang
+  //    that has a topic + slug + date.
   const pageVideoIds = data.map((r) => r.video_id as string);
   const scoreByVideoId = new Map<string, number>();
+  const appUrlByVideoId = new Map<string, string>();
+  // Track whether the chosen appUrl came from the UI lang so a later
+  // UI-lang row can upgrade a fallback chosen from the other lang.
+  const appUrlIsUiLang = new Map<string, boolean>();
   if (pageVideoIds.length > 0) {
     const { data: trows } = await db
       .from("video_transcriptions")
-      .select("video_id, summary_score")
+      .select("video_id, summary_score, topic_id, slug_keywords, published_date, lang")
       .in("video_id", pageVideoIds);
     for (const row of trows ?? []) {
       const id = row.video_id as string;
@@ -133,6 +147,18 @@ export async function GET(req: NextRequest) {
       if (typeof s === "number" && s >= 1 && s <= 10) {
         const prev = scoreByVideoId.get(id);
         if (prev == null || s > prev) scoreByVideoId.set(id, s);
+      }
+      const topicId = row.topic_id as string | null;
+      const slug = row.slug_keywords as string | null;
+      const date = row.published_date as string | null;
+      const rowLang = row.lang as string;
+      if (topicId && slug && date) {
+        const isUi = rowLang === uiLang;
+        // Prefer the UI-lang page; otherwise accept the first available.
+        if (!appUrlByVideoId.has(id) || (isUi && !appUrlIsUiLang.get(id))) {
+          appUrlByVideoId.set(id, `/${topicId}/v/${date}/${slug}`);
+          appUrlIsUiLang.set(id, isUi);
+        }
       }
     }
   }
@@ -149,6 +175,7 @@ export async function GET(req: NextRequest) {
       viewCount: (r.view_count as string | null) ?? null,
       channelTitle: r.channel_title as string,
       summaryScore: scoreByVideoId.get(videoId) ?? null,
+      appUrl: appUrlByVideoId.get(videoId) ?? null,
     };
   });
 

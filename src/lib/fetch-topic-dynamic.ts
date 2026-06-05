@@ -75,9 +75,58 @@ const rssParser: Parser<Record<string, never>, RssItem> = new Parser({
   },
 });
 const FETCH_TIMEOUT_MS = 5_000;
-const GOOGLE_NEWS_BATCH_TIMEOUT_MS = 2_000;
+// Google News URL decode tuning. The legacy embedded-URL trick no longer
+// works for modern `CBMi…` article IDs, so we lean on the live
+// `batchexecute` RPC — which is flaky from a datacenter IP. We give it a
+// bit more time, retry once, decode items concurrently (a small pool so
+// we don't get throttled), and memoize results across the run + warm
+// invocations (the same article shows up across many topic feeds).
+const GOOGLE_NEWS_BATCH_TIMEOUT_MS = 5_000;
+const GOOGLE_NEWS_DECODE_MAX_RETRIES = 1;
+const GOOGLE_NEWS_DECODE_CONCURRENCY = 6;
+const GOOGLE_NEWS_CACHE_MAX = 5_000;
 const GOOGLE_NEWS_BATCH_ENDPOINT =
   "https://news.google.com/_/DotsSplashUi/data/batchexecute";
+// Shared request headers — the `CONSENT` cookie skips the EU consent
+// interstitial that otherwise replaces the page we scrape for the
+// decode signature; `Accept-Language` pins the en-US variant.
+const GOOGLE_NEWS_HEADERS: Record<string, string> = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+  "Accept-Language": "en-US,en;q=0.9",
+  Cookie: "CONSENT=YES+cb",
+};
+
+/** Memoized articleId → resolved source URL, persisted across warm
+ *  invocations. Bounded to `GOOGLE_NEWS_CACHE_MAX` with FIFO eviction. */
+const googleNewsUrlCache = new Map<string, string>();
+function cacheGoogleNewsUrl(articleId: string, url: string): void {
+  if (googleNewsUrlCache.size >= GOOGLE_NEWS_CACHE_MAX) {
+    const oldest = googleNewsUrlCache.keys().next().value;
+    if (oldest !== undefined) googleNewsUrlCache.delete(oldest);
+  }
+  googleNewsUrlCache.set(articleId, url);
+}
+
+/** Runs `fn` over `items` with at most `limit` concurrent executions,
+ *  preserving input order in the returned array. */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  const workerCount = Math.max(1, Math.min(limit, items.length));
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (true) {
+      const i = cursor++;
+      if (i >= items.length) break;
+      results[i] = await fn(items[i], i);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
 
 interface GoogleNewsDecodeParams {
   signature: string;
@@ -295,7 +344,7 @@ function getHtmlAttribute(tag: string, attribute: string): string | null {
 async function fetchGoogleNewsDecodeParams(articleId: string): Promise<GoogleNewsDecodeParams | null> {
   for (const prefix of ["https://news.google.com/articles/", "https://news.google.com/rss/articles/"]) {
     const response = await fetch(`${prefix}${articleId}`, {
-      headers: { "User-Agent": "Mozilla/5.0" },
+      headers: GOOGLE_NEWS_HEADERS,
       signal: AbortSignal.timeout(GOOGLE_NEWS_BATCH_TIMEOUT_MS),
     });
     const html = await response.text();
@@ -341,8 +390,8 @@ async function fetchDecodedGoogleNewsUrl(articleId: string): Promise<string | nu
   const response = await fetch(GOOGLE_NEWS_BATCH_ENDPOINT, {
     method: "POST",
     headers: {
+      ...GOOGLE_NEWS_HEADERS,
       "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-      "User-Agent": "Mozilla/5.0",
     },
     body: `f.req=${encodeURIComponent(JSON.stringify([[rpcPayload]]))}`,
     signal: AbortSignal.timeout(GOOGLE_NEWS_BATCH_TIMEOUT_MS),
@@ -364,15 +413,41 @@ async function resolveArticleLink(link: string): Promise<string> {
   const googleNewsArticleId = getGoogleNewsArticleId(link);
   if (!googleNewsArticleId) return link;
 
-  const legacyUrl = decodeLegacyGoogleNewsUrl(googleNewsArticleId);
-  if (legacyUrl) return legacyUrl;
+  // Memoized result (same article appears across many topic feeds, and
+  // the cache survives warm Lambda invocations).
+  const cached = googleNewsUrlCache.get(googleNewsArticleId);
+  if (cached) return cached;
 
-  try {
-    return (await fetchDecodedGoogleNewsUrl(googleNewsArticleId)) ?? link;
-  } catch (error) {
-    console.warn("[fetch-topic] Failed to decode Google News article URL:", error);
-    return link;
+  // Fast path: legacy IDs embed the URL directly (no network call).
+  const legacyUrl = decodeLegacyGoogleNewsUrl(googleNewsArticleId);
+  if (legacyUrl) {
+    cacheGoogleNewsUrl(googleNewsArticleId, legacyUrl);
+    return legacyUrl;
   }
+
+  // Modern IDs: resolve via the live RPC, retrying once on a transient
+  // failure/timeout before giving up and keeping the Google News link.
+  for (let attempt = 0; attempt <= GOOGLE_NEWS_DECODE_MAX_RETRIES; attempt++) {
+    try {
+      const decoded = await fetchDecodedGoogleNewsUrl(googleNewsArticleId);
+      if (decoded) {
+        cacheGoogleNewsUrl(googleNewsArticleId, decoded);
+        return decoded;
+      }
+      // No URL in the response — a retry won't help, stop early.
+      break;
+    } catch (error) {
+      if (attempt === GOOGLE_NEWS_DECODE_MAX_RETRIES) {
+        console.warn(
+          "[fetch-topic] Failed to decode Google News article URL:",
+          error instanceof Error ? error.message : error,
+        );
+      } else {
+        await new Promise((r) => setTimeout(r, 300));
+      }
+    }
+  }
+  return link;
 }
 
 async function fetchFeedsAndStore(
@@ -396,6 +471,11 @@ async function fetchFeedsAndStore(
 
       const parsed = await rssParser.parseString(xml);
 
+      // First pass: parse + validate every item, building the row with
+      // the ORIGINAL link as a placeholder. Link resolution (which may
+      // hit the Google News decode RPC) is deferred so it can run with
+      // bounded concurrency below instead of one slow await per item.
+      const pending: { originalLink: string; article: ParsedArticle }[] = [];
       for (const item of parsed.items ?? []) {
         const pubDate = item.pubDate ?? item.isoDate ?? "";
         if (!pubDate) continue;
@@ -404,7 +484,6 @@ async function fetchFeedsAndStore(
 
         const originalLink = item.link?.trim() ?? "";
         if (!originalLink) continue;
-        const link = await resolveArticleLink(originalLink);
         const sourceUrl = extractSourceUrl(item.source);
         const sourceName = getGoogleNewsArticleId(originalLink)
           ? (extractSourceName(item.source) ?? (sourceUrl ? hostLabel(sourceUrl) : null) ?? feed.name)
@@ -413,18 +492,33 @@ async function fetchFeedsAndStore(
         const rawSnippet = decodeHtmlEntities(item.contentSnippet ?? "");
         const imageUrl = extractRssImageUrl(item);
 
-        articles.push({
-          topic: topicId,
-          source: sourceName,
-          title: decodeHtmlEntities(item.title ?? ""),
-          link,
-          pub_date: new Date(ms).toISOString(),
-          content: rawContent.slice(0, SNIPPET_MAX),
-          snippet: rawSnippet.slice(0, SNIPPET_MAX),
-          fetched_at: fetchedAt,
-          image_url: imageUrl,
+        pending.push({
+          originalLink,
+          article: {
+            topic: topicId,
+            source: sourceName,
+            title: decodeHtmlEntities(item.title ?? ""),
+            link: originalLink,
+            pub_date: new Date(ms).toISOString(),
+            content: rawContent.slice(0, SNIPPET_MAX),
+            snippet: rawSnippet.slice(0, SNIPPET_MAX),
+            fetched_at: fetchedAt,
+            image_url: imageUrl,
+          },
         });
       }
+
+      // Second pass: resolve Google News links to their real source URL
+      // with a small concurrency pool (non-GN links return instantly).
+      const resolvedLinks = await mapWithConcurrency(
+        pending,
+        GOOGLE_NEWS_DECODE_CONCURRENCY,
+        (p) => resolveArticleLink(p.originalLink),
+      );
+      pending.forEach((p, i) => {
+        p.article.link = resolvedLinks[i];
+        articles.push(p.article);
+      });
     }),
   );
 

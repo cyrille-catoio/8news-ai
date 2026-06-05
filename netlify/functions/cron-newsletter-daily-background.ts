@@ -100,25 +100,28 @@ async function runCron(): Promise<void> {
     process.env.NEWSLETTER_PUBLIC_ORIGIN?.trim() || DEFAULT_PUBLIC_ORIGIN
   ).replace(/\/+$/, "");
 
-  console.log(
-    `[cron-newsletter] [start] env_resend=${apiKey ? "yes" : "NO"} env_supabase_url=${url ? "yes" : "NO"} env_supabase_srk=${key ? "yes" : "NO"} from=${fromAddress} origin=${publicOrigin}`,
+  // Emit each line IMMEDIATELY (not buffered to a single end-of-run log)
+  // so partial progress survives a timeout / crash. Failures go to
+  // `console.error` so Netlify surfaces them at error level. Filter the
+  // function logs on `[cron-newsletter]`.
+  const TAG = "[cron-newsletter]";
+  const log = (s: string) => console.log(`${TAG} ${s}`);
+  const elog = (s: string) => console.error(`${TAG} ${s}`);
+
+  log(
+    `[start] env_resend=${apiKey ? "yes" : "NO"} env_supabase_url=${url ? "yes" : "NO"} env_supabase_srk=${key ? "yes" : "NO"} from=${fromAddress} origin=${publicOrigin}`,
   );
 
   if (!apiKey) {
-    console.error(
-      "[cron-newsletter] RESEND_API_KEY not configured — aborting (set it in Netlify env vars)",
-    );
+    elog("RESEND_API_KEY not configured — aborting (set it in Netlify env vars)");
     return;
   }
   if (!url || !key) {
-    console.error(
-      "[cron-newsletter] Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY — aborting",
-    );
+    elog("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY — aborting");
     return;
   }
 
   const startedAt = Date.now();
-  const lines: string[] = [];
 
   // ----------------------------------------------------------------
   // 1) Pull today's UTC snapshot per lang only. We do NOT fall back to
@@ -137,26 +140,25 @@ async function runCron(): Promise<void> {
     try {
       const bundle = await getNewsletterSnapshotForLang(lang, targetDate);
       if (!bundle) {
-        lines.push(
+        log(
           `[skip-snapshot] lang=${lang} reason=no_snapshot_for_date date=${targetDate}`,
         );
         continue;
       }
       snapshots.set(lang, bundle);
-      lines.push(
+      log(
         `[snapshot] lang=${lang} date=${bundle.snapshot.summary_date} bullets=${bundle.bullets.length}`,
       );
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "unknown";
-      lines.push(`[skip-snapshot] lang=${lang} reason=throw — ${msg}`);
+      const msg = err instanceof Error ? (err.stack ?? err.message) : "unknown";
+      elog(`[skip-snapshot] lang=${lang} reason=throw — ${msg}`);
     }
   }
 
   if (snapshots.size === 0) {
-    lines.push(
+    elog(
       `[run] cron=newsletter-daily aborted=no_snapshot_for_date=${targetDate} elapsed_ms=${Date.now() - startedAt}`,
     );
-    console.log(lines.join("\n"));
     return;
   }
 
@@ -179,10 +181,7 @@ async function runCron(): Promise<void> {
       perPage: USERS_PAGE_SIZE,
     });
     if (error) {
-      lines.push(
-        `[error] listUsers page=${page} — ${error.message}; aborting send`,
-      );
-      console.error(lines.join("\n"));
+      elog(`[error] listUsers page=${page} — ${error.message}; aborting send`);
       return;
     }
     const users = data.users ?? [];
@@ -213,20 +212,19 @@ async function runCron(): Promise<void> {
     page += 1;
     // Safety brake — should never trigger on a sane user base.
     if (page > 100) {
-      lines.push(`[warn] listUsers loop hit page=${page}; bailing out`);
+      elog(`[warn] listUsers loop hit page=${page}; bailing out`);
       break;
     }
   }
 
-  lines.push(
+  log(
     `[users] total=${totalUsers} opted_in=${totalOptIn} en=${subscribersByLang.get("en")?.length ?? 0} fr=${subscribersByLang.get("fr")?.length ?? 0}`,
   );
 
   if (totalOptIn === 0) {
-    lines.push(
+    log(
       `[run] cron=newsletter-daily sent=0 errors=0 elapsed_ms=${Date.now() - startedAt} note=no_subscribers`,
     );
-    console.log(lines.join("\n"));
     return;
   }
 
@@ -243,7 +241,7 @@ async function runCron(): Promise<void> {
     if (!bundle) {
       // Defensive — should be impossible given the fallback above,
       // but better than dropping recipients silently.
-      lines.push(
+      elog(
         `[skip-lang] lang=${lang} subscribers=${recipients.length} reason=snapshot_missing_after_fallback`,
       );
       continue;
@@ -295,7 +293,7 @@ async function runCron(): Promise<void> {
             bodyText.slice(0, 200) ??
             `HTTP ${res.status}`;
           totalErrors += slice.length;
-          lines.push(
+          elog(
             `[error] lang=${lang} batch=${batchNo} count=${slice.length} http=${res.status} elapsed_ms=${Date.now() - batchStart} — ${msg}`,
           );
           continue;
@@ -303,13 +301,13 @@ async function runCron(): Promise<void> {
 
         const accepted = json?.data?.length ?? slice.length;
         totalSent += accepted;
-        lines.push(
+        log(
           `[ok] lang=${lang} batch=${batchNo} count=${accepted} elapsed_ms=${Date.now() - batchStart}`,
         );
       } catch (err) {
         const msg = err instanceof Error ? err.message : "unknown";
         totalErrors += slice.length;
-        lines.push(
+        elog(
           `[error] lang=${lang} batch=${batchNo} count=${slice.length} elapsed_ms=${Date.now() - batchStart} reason=throw — ${msg}`,
         );
       }
@@ -319,12 +317,18 @@ async function runCron(): Promise<void> {
   const summaryDates = Array.from(snapshots.entries())
     .map(([l, b]) => `${l}=${b.snapshot.summary_date}`)
     .join(",");
-  lines.push(
-    `[run] cron=newsletter-daily snapshots=${summaryDates} sent=${totalSent} errors=${totalErrors} elapsed_ms=${Date.now() - startedAt}`,
-  );
-  console.log(lines.join("\n"));
+  const summary = `[run] cron=newsletter-daily snapshots=${summaryDates} sent=${totalSent} errors=${totalErrors} elapsed_ms=${Date.now() - startedAt}`;
+  if (totalErrors > 0) elog(summary);
+  else log(summary);
 }
 
 export default async (): Promise<void> => {
-  await runCron();
+  try {
+    await runCron();
+  } catch (fatal) {
+    // Catch-all so an unexpected throw still leaves a trace instead of an
+    // opaque function failure with no logs.
+    const msg = fatal instanceof Error ? (fatal.stack ?? fatal.message) : String(fatal);
+    console.error(`[cron-newsletter] [fatal] — ${msg}`);
+  }
 };

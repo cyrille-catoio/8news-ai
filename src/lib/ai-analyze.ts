@@ -51,7 +51,13 @@ export async function analyzeWithAI(
   model: string = "gpt-4.1-mini",
 ): Promise<{ summary: string; bullets: SummaryBullet[]; relevant: Map<number, RelevantEntry> }> {
   const msg = getServerMessages(lang);
-  const openai = new OpenAI({ apiKey });
+  // Bound each call so a hung request fails fast and the caller (e.g. the
+  // daily Top-summary cron, which retries a failed lang) can recover well
+  // within its 15-min wall budget rather than blocking on the SDK's
+  // 10-min default. `maxRetries` keeps the SDK's transient 429/5xx
+  // handling. A 4-min ceiling is ample for chat completions, including
+  // the reasoning-heavy gpt-5.5 editorial briefing.
+  const openai = new OpenAI({ apiKey, timeout: 240_000, maxRetries: 2 });
 
   const userList =
     lang === "fr"

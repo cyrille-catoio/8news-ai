@@ -1,4 +1,8 @@
-import { generateTopSummary } from "../../src/lib/generate-top-summary";
+import {
+  generateTopSummary,
+  type GenerateTopSummaryResult,
+  type GenerateTopSummaryStatus,
+} from "../../src/lib/generate-top-summary";
 import type { Lang } from "../../src/lib/i18n";
 
 /**
@@ -45,49 +49,84 @@ export default async () => {
   let noArticles = 0;
   let errors = 0;
 
+  // Statuses a retry could actually change. "ok"/"no_articles" are
+  // terminal; "no_openai" means the key is missing, so retrying is
+  // pointless. Everything else (ai_error, db_error, a thrown error) is
+  // treated as transient and retried once.
+  const RETRYABLE = new Set<GenerateTopSummaryStatus>(["ai_error", "db_error"]);
+
+  // Self-healing per-lang retry. The daily tick has intermittently
+  // failed for a single language — in practice the FIRST one generated
+  // (EN), which then stays stuck on the previous edition while the
+  // second (FR) is fine. The most likely cause is a cold-start transient
+  // on the first OpenAI/DB call of the run. One retry after a short
+  // backoff makes the tick self-healing so we never ship a day with one
+  // language a full edition behind. `generateTopSummary` itself never
+  // throws on an LLM/JSON hiccup (it degrades to a fallback that still
+  // persists a row), so an ABSENT row only happens on a thrown/transient
+  // error — exactly what this retry covers.
   for (const lang of LANGS) {
     const langStart = Date.now();
-    try {
-      const result = await generateTopSummary(summaryDate, lang);
-      const elapsed = Date.now() - langStart;
-      switch (result.status) {
-        case "ok":
-          generated += 1;
-          lines.push(
-            `[ok] lang=${lang} date=${summaryDate} articles=${result.articleCount} bullets=${result.bulletCount} elapsed_ms=${elapsed}`,
-          );
-          break;
-        case "no_articles":
-          noArticles += 1;
-          lines.push(
-            `[no_articles] lang=${lang} date=${summaryDate} elapsed_ms=${elapsed}`,
-          );
-          break;
-        case "no_openai":
-          errors += 1;
-          lines.push(
-            `[error] lang=${lang} date=${summaryDate} status=no_openai — ${result.errorMessage ?? ""}`,
-          );
-          break;
-        case "ai_error":
-          errors += 1;
-          lines.push(
-            `[error] lang=${lang} date=${summaryDate} status=ai_error articles=${result.articleCount} — ${result.errorMessage ?? ""} elapsed_ms=${elapsed}`,
-          );
-          break;
-        case "db_error":
-          errors += 1;
-          lines.push(
-            `[error] lang=${lang} date=${summaryDate} status=db_error articles=${result.articleCount} bullets=${result.bulletCount} — ${result.errorMessage ?? ""} elapsed_ms=${elapsed}`,
-          );
-          break;
+    let result: GenerateTopSummaryResult | null = null;
+    let lastErr = "";
+
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        result = await generateTopSummary(summaryDate, lang);
+        lastErr = "";
+      } catch (err) {
+        result = null;
+        lastErr = err instanceof Error ? err.message : "unknown";
       }
-    } catch (err) {
-      errors += 1;
-      const msg = err instanceof Error ? err.message : "unknown";
+      const retryable = result === null || RETRYABLE.has(result.status);
+      if (!retryable || attempt === 2) break;
       lines.push(
-        `[error] lang=${lang} date=${summaryDate} status=throw — ${msg} elapsed_ms=${Date.now() - langStart}`,
+        `[retry] lang=${lang} date=${summaryDate} after=${result?.status ?? "throw"} attempt=${attempt}`,
       );
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+
+    const elapsed = Date.now() - langStart;
+
+    if (result === null) {
+      errors += 1;
+      lines.push(
+        `[error] lang=${lang} date=${summaryDate} status=throw — ${lastErr} elapsed_ms=${elapsed}`,
+      );
+      continue;
+    }
+
+    switch (result.status) {
+      case "ok":
+        generated += 1;
+        lines.push(
+          `[ok] lang=${lang} date=${summaryDate} articles=${result.articleCount} bullets=${result.bulletCount} elapsed_ms=${elapsed}`,
+        );
+        break;
+      case "no_articles":
+        noArticles += 1;
+        lines.push(
+          `[no_articles] lang=${lang} date=${summaryDate} elapsed_ms=${elapsed}`,
+        );
+        break;
+      case "no_openai":
+        errors += 1;
+        lines.push(
+          `[error] lang=${lang} date=${summaryDate} status=no_openai — ${result.errorMessage ?? ""}`,
+        );
+        break;
+      case "ai_error":
+        errors += 1;
+        lines.push(
+          `[error] lang=${lang} date=${summaryDate} status=ai_error articles=${result.articleCount} — ${result.errorMessage ?? ""} elapsed_ms=${elapsed}`,
+        );
+        break;
+      case "db_error":
+        errors += 1;
+        lines.push(
+          `[error] lang=${lang} date=${summaryDate} status=db_error articles=${result.articleCount} bullets=${result.bulletCount} — ${result.errorMessage ?? ""} elapsed_ms=${elapsed}`,
+        );
+        break;
     }
   }
 

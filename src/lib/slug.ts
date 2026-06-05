@@ -13,7 +13,7 @@
  *
  * Used by:
  *  - `POST /api/youtube-channels/transcribe` (transcribe-time write)
- *  - `scripts/backfill-video-slugs.mjs` (one-shot backfill)
+ *  - `scripts/oneoffs/backfill-video-slugs.mjs` (one-shot backfill)
  */
 
 /** Stop words filtered out before keyword selection. */
@@ -96,7 +96,7 @@ export function slugifyVideoTitle(title: string, lang: "en" | "fr"): string {
  *
  * `supabase` is typed loosely (`unknown` cast internally) so this helper
  * works equally well with the SDK's strongly-typed `SupabaseClient` from
- * the API route, the looser shape used by `scripts/backfill-video-slugs.mjs`,
+ * the API route, the looser shape used by `scripts/oneoffs/backfill-video-slugs.mjs`,
  * or any future test mock — without dragging the SDK's deep generics
  * (which were tripping `Type instantiation is excessively deep` errors).
  */

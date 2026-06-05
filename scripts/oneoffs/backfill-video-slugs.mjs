@@ -5,7 +5,7 @@
  *
  * Run from the project root:
  *
- *     node scripts/backfill-video-slugs.mjs
+ *     node scripts/oneoffs/backfill-video-slugs.mjs
  *
  * Idempotent — safe to re-run any number of times. A second run only
  * touches rows that gained a topic in the meantime (or that someone
@@ -32,9 +32,11 @@ import { createClient } from "@supabase/supabase-js";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { slugifyVideoTitle, uniquifyVideoSlug } from "../src/lib/slug.ts";
+import { slugifyVideoTitle, uniquifyVideoSlug } from "../../src/lib/slug.ts";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+// This script lives in scripts/oneoffs/, so the project root is two
+// levels up (used to locate .env below).
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
 /**
  * Manual .env loader — Node doesn't read .env automatically (unlike

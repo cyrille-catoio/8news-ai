@@ -378,7 +378,7 @@ export async function getAllVideoRoundupRoutes(): Promise<
  * Last-{@link SITEMAP_RECENT_DAYS} days of per-video SSR pages. Same
  * shape as `getAllSummaryRoutes` so the sitemap.ts can map both with
  * the same code path. Excludes rows missing topic_id or slug — those
- * have no SSR page (see backfill in scripts/backfill-video-slugs.mjs).
+ * have no SSR page (see backfill in scripts/oneoffs/backfill-video-slugs.mjs).
  */
 export async function getAllVideoPageRoutes(): Promise<
   Array<{ topic_id: string; published_date: string; slug_keywords: string; lang: string }>

@@ -8,7 +8,7 @@ AI-powered **tech / AI / crypto** intelligence: hundreds of RSS feeds across dyn
 
 - **Next.js 16** (App Router) + React 19 + TypeScript  
 - **Supabase** (PostgreSQL, Auth)  
-- **OpenAI** (scoring, summaries, transcripts, roundups — model split documented in [`SPEC.md`](SPEC.md))  
+- **OpenAI** (scoring, summaries, transcripts, roundups — model split documented in [`docs/SPEC.md`](docs/SPEC.md))  
 - **Netlify** (hosting, cron background functions)  
 - **ElevenLabs** (TTS), **TranscriptAPI** + optional **YouTube Data API** (video pipeline)
 
@@ -29,7 +29,7 @@ Copy the example env file and edit:
 cp .env.example .env
 ```
 
-Minimum variables you typically need locally (details in **SPEC.md** § Environment Variables):
+Minimum variables you typically need locally (details in **docs/SPEC.md** § Environment Variables):
 
 | Variable | Purpose |
 |----------|---------|
@@ -41,7 +41,7 @@ Minimum variables you typically need locally (details in **SPEC.md** § Environm
 | `TRANSCRIPT_API_KEY` | YouTube transcripts |
 | `CRON_SECRET` | Bearer for cron-protected routes (if you hit those locally) |
 
-Optional: `YOUTUBE_API_KEY` for reliable Shorts / duration backfill. See [`SPEC.md`](SPEC.md) for the authoritative table and descriptions.
+Optional: `YOUTUBE_API_KEY` for reliable Shorts / duration backfill. See [`docs/SPEC.md`](docs/SPEC.md) for the authoritative table and descriptions.
 
 Apply SQL migrations under `migrations/` to your Supabase project when bootstrapping a new database.
 
@@ -73,8 +73,9 @@ Open **http://127.0.0.1:3000** in the browser (Next is configured for `127.0.0.1
 
 | File | Contents |
 |------|----------|
-| [`SPEC.md`](SPEC.md) | Technical specification — routes, cron, DB, env vars, SEO |
-| [`ROADMAP.md`](ROADMAP.md) | Planned work |
+| [`docs/SPEC.md`](docs/SPEC.md) | Technical specification — routes, cron, DB, env vars, SEO |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | Planned work |
+| [`docs/COMMITS.md`](docs/COMMITS.md) | Commit & release conventions |
 | [`src/lib/changelog-entries.ts`](src/lib/changelog-entries.ts) | Release history shown in the app |
 
-For architecture detail, behavior of pipelines, and deployment notes, **`SPEC.md` is the source of truth** — avoid duplicating long sections in this README.
+For architecture detail, behavior of pipelines, and deployment notes, **`docs/SPEC.md` is the source of truth** — avoid duplicating long sections in this README.

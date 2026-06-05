@@ -107,12 +107,12 @@ export function kickerStyle(c: string): CSSProperties {
 
 /** Day label rendered in the Daily Podcast title (home hero) and next
  *  to the kicker when navigating previous snapshots. The weekday is
- *  spelled out in French (« mercredi 5 mai 2026 ») and abbreviated in
- *  English (« Wed, May 5, 2026 ») per the editorial preference. */
+ *  spelled out in full in both languages (« mercredi 5 mai 2026 » /
+ *  « Wednesday, May 5, 2026 ») — no abbreviations. */
 export function formatSummaryDayLabel(dateISO: string, lang: Lang): string {
   const d = new Date(`${dateISO}T12:00:00Z`);
   return new Intl.DateTimeFormat(dateLocale(lang), {
-    weekday: lang === "fr" ? "long" : "short",
+    weekday: "long",
     day: "numeric",
     month: "long",
     year: "numeric",

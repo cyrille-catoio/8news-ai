@@ -44,6 +44,7 @@ export function BriefingPage({
   ttsSpeed,
   ttsVoice,
   onOpenChat,
+  onPodcastSnapshotDateChange,
 }: {
   lang: Lang;
   isAuthenticated: boolean;
@@ -61,6 +62,8 @@ export function BriefingPage({
   /** Opens the Daily Podcast chat side panel (owned by the SPA shell).
    *  Used by the discovery hint under the podcast hero. */
   onOpenChat?: () => void;
+  /** Current home podcast snapshot date, lifted for chat grounding. */
+  onPodcastSnapshotDateChange?: (summaryDate: string) => void;
 }) {
   const locale = dateLocale(lang);
 
@@ -524,7 +527,11 @@ export function BriefingPage({
               card). The « Lu » state is owned internally by the hero
               (DB-backed for authenticated users via `user_activity`,
               cookie list for anonymous visitors). */}
-          <HomeTop24hHero lang={lang} onNavigate={onNavigate} />
+          <HomeTop24hHero
+            lang={lang}
+            onNavigate={onNavigate}
+            onSnapshotDateChange={onPodcastSnapshotDateChange}
+          />
 
           {/* Chat discovery hint — opens the Daily Podcast chat grounded
               in today's briefing. */}

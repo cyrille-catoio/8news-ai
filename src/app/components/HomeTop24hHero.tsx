@@ -82,9 +82,13 @@ function writeAnonCookieSet(set: Set<string>): void {
 export function HomeTop24hHero({
   lang,
   onNavigate,
+  onSnapshotDateChange,
 }: {
   lang: Lang;
   onNavigate: (page: AppNavPage) => void;
+  /** Lets the app-level chat panel ground answers in the same podcast
+   *  snapshot currently visible in this hero, including history offsets. */
+  onSnapshotDateChange?: (summaryDate: string) => void;
 }) {
   const { session, loading: authLoading } = useAuth();
   const userId = session?.user?.id ?? null;
@@ -138,7 +142,8 @@ export function HomeTop24hHero({
 
   const handleSnapshotChange = useCallback((snap: { summaryDate: string }) => {
     setCurrentSnapshot({ summaryDate: snap.summaryDate });
-  }, []);
+    onSnapshotDateChange?.(snap.summaryDate);
+  }, [onSnapshotDateChange]);
 
   const currentDate = currentSnapshot?.summaryDate ?? null;
   const isRead = currentDate ? readDates.has(currentDate) : false;

@@ -58,6 +58,7 @@ export function DailyPodcastChatPanel({
   lang,
   open,
   onOpenChange,
+  activeSummaryDate,
   isAuthenticated,
   onRequestAuth,
   onWidthChange,
@@ -65,6 +66,9 @@ export function DailyPodcastChatPanel({
   lang: Lang;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Snapshot date currently visible in the home Daily Podcast hero.
+   *  `null` keeps the API's live-latest fallback for non-briefing views. */
+  activeSummaryDate?: string | null;
   /** When false, the user can still type a question, but submitting it
    *  routes them to the auth flow instead of calling the (auth-gated)
    *  API — see `send` below. */
@@ -79,7 +83,7 @@ export function DailyPodcastChatPanel({
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const [summaryDate, setSummaryDate] = useState<string | null>(null);
+  const [resolvedSummaryDate, setResolvedSummaryDate] = useState<string | null>(null);
   const [noSnapshot, setNoSnapshot] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const hydratedRef = useRef(false);
@@ -99,7 +103,9 @@ export function DailyPodcastChatPanel({
     setLoadingHistory(true);
     setError(null);
     try {
-      const res = await fetch(`/api/podcast-chat?lang=${lang}`, {
+      const params = new URLSearchParams({ lang });
+      if (activeSummaryDate) params.set("date", activeSummaryDate);
+      const res = await fetch(`/api/podcast-chat?${params.toString()}`, {
         cache: "no-store",
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -108,7 +114,7 @@ export function DailyPodcastChatPanel({
         messages: Array<{ role: "user" | "assistant"; content: string; created_at: string }>;
         reason?: string;
       };
-      setSummaryDate(json.summaryDate);
+      setResolvedSummaryDate(json.summaryDate);
       setNoSnapshot(json.summaryDate === null);
       // « Clear » hides the thread client-side only — the DB keeps every
       // message. We remember the cut-off timestamp per podcast day in
@@ -126,13 +132,15 @@ export function DailyPodcastChatPanel({
     } finally {
       setLoadingHistory(false);
     }
-  }, [lang]);
+  }, [lang, activeSummaryDate]);
 
   // Reset the hydration latch whenever auth flips so a user who signs in
-  // with the panel already open gets their thread loaded.
+  // with the panel already open gets their thread loaded. The visible
+  // podcast date and lang are part of the server conversation key too,
+  // so reset when the history arrows or language switch snapshots.
   useEffect(() => {
     hydratedRef.current = false;
-  }, [isAuthenticated]);
+  }, [isAuthenticated, lang, activeSummaryDate]);
 
   useEffect(() => {
     if (!open) return;
@@ -147,13 +155,6 @@ export function DailyPodcastChatPanel({
     hydratedRef.current = true;
     void loadHistory();
   }, [open, isAuthenticated, loadHistory]);
-
-  // Re-hydrate on lang change while open (different grounding day/lang).
-  useEffect(() => {
-    if (!open || !isAuthenticated) return;
-    void loadHistory();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lang]);
 
   useEffect(() => {
     if (open) scrollToBottom();
@@ -191,7 +192,11 @@ export function DailyPodcastChatPanel({
       const res = await fetch("/api/podcast-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, lang }),
+        body: JSON.stringify({
+          question,
+          lang,
+          ...(activeSummaryDate ? { date: activeSummaryDate } : {}),
+        }),
       });
 
       if (res.status === 409) {
@@ -203,7 +208,7 @@ export function DailyPodcastChatPanel({
 
       const headerDate = res.headers.get("X-Summary-Date");
       if (headerDate) {
-        setSummaryDate(headerDate);
+        setResolvedSummaryDate(headerDate);
         setNoSnapshot(false);
       }
 
@@ -242,7 +247,7 @@ export function DailyPodcastChatPanel({
       setSending(false);
       requestAnimationFrame(() => inputRef.current?.focus());
     }
-  }, [input, sending, lang, isAuthenticated, onRequestAuth]);
+  }, [input, sending, lang, activeSummaryDate, isAuthenticated, onRequestAuth]);
 
   // Hides the conversation from the UI WITHOUT deleting anything in the
   // database. We persist the cut-off timestamp per podcast day so the
@@ -255,9 +260,9 @@ export function DailyPodcastChatPanel({
     ) {
       return;
     }
-    writeHiddenUntil(summaryDate, new Date().toISOString());
+    writeHiddenUntil(resolvedSummaryDate, new Date().toISOString());
     setMessages([]);
-  }, [lang, sending, summaryDate]);
+  }, [lang, sending, resolvedSummaryDate]);
 
   const onInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -291,7 +296,7 @@ export function DailyPodcastChatPanel({
     [onWidthChange],
   );
 
-  const dateLabel = summaryDate ? formatSummaryDayLabel(summaryDate, lang) : "";
+  const dateLabel = resolvedSummaryDate ? formatSummaryDayLabel(resolvedSummaryDate, lang) : "";
 
   if (!open) return null;
 

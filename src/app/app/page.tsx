@@ -328,6 +328,7 @@ export default function Home() {
   // stored preference, the panel defaults OPEN on desktop (incl. anonymous
   // visitors) and closed on small screens (where it overlays full-width).
   const [chatOpen, setChatOpen] = useState(false);
+  const [activePodcastSummaryDate, setActivePodcastSummaryDate] = useState<string | null>(null);
   useEffect(() => {
     if (typeof window === "undefined") return;
     const stored = window.localStorage.getItem("podcastChatOpen");
@@ -676,6 +677,7 @@ export default function Home() {
             ttsSpeed={ttsSpeed}
             ttsVoice={lang === "fr" ? ttsVoiceFr : ttsVoice}
             onOpenChat={() => handleChatOpenChange(true)}
+            onPodcastSnapshotDateChange={setActivePodcastSummaryDate}
           />
         ) : currentPage === "stats" ? (
           <StatsPage
@@ -1104,6 +1106,7 @@ export default function Home() {
             lang={lang}
             open={chatOpen}
             onOpenChange={handleChatOpenChange}
+            activeSummaryDate={activePodcastSummaryDate}
             isAuthenticated={isAuthenticated}
             onRequestAuth={() => setAuthModalOpen(true)}
             onWidthChange={handleChatWidthChange}

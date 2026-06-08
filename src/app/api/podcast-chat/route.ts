@@ -21,10 +21,12 @@ import type { TopSummaryRow } from "@/lib/supabase/top-summaries";
  *    Hydrates the panel with the user's conversation for the active
  *    podcast day (today's snapshot, or the explicit `date`).
  *
- *  POST /api/podcast-chat   body: { question, lang }
+ *  POST /api/podcast-chat   body: { question, lang, date? }
  *    → streamed text/plain answer. Resolves the day's snapshot, grounds
  *      the model in it + the running conversation, streams the answer,
- *      then persists the user question + assistant answer. The resolved
+ *      then persists the user question + assistant answer. When `date`
+ *      is present, grounds on that snapshot (used by history arrows);
+ *      otherwise it uses the live-latest podcast. The resolved
  *      podcast day is echoed in the `X-Summary-Date` response header.
  *    409 when no snapshot exists for the day.
  *
@@ -133,7 +135,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: { question?: unknown; lang?: unknown };
+  let body: { question?: unknown; lang?: unknown; date?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -160,10 +162,11 @@ export async function POST(req: NextRequest) {
 
   const lang = parseLang(typeof body.lang === "string" ? body.lang : null);
 
-  // Always ground on the live-latest snapshot (today's podcast). We do
-  // not let the client pick the day for a POST — the conversation is
-  // « du jour ».
-  const { snapshot } = await getTopSummaryLiveLatest(lang);
+  // Ground on the snapshot the user is actually viewing. The home
+  // podcast history arrows pass an explicit date; other surfaces omit it
+  // and keep the previous live-latest behavior.
+  const explicitDate = typeof body.date === "string" ? body.date : null;
+  const snapshot = await resolveSnapshot(lang, explicitDate);
   if (!snapshot) {
     return NextResponse.json(
       { error: "No podcast snapshot available", reason: "no_snapshot" },

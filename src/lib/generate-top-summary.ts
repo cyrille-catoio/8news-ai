@@ -219,6 +219,18 @@ export async function generateTopSummary(
       errorMessage: msg,
     };
   }
+  if (bullets.length === 0) {
+    const msg = "analyzeWithAI returned zero bullets";
+    console.error(`[generateTopSummary] ${msg} (lang=${lang}, date=${summaryDate})`);
+    return {
+      status: "ai_error",
+      summaryDate,
+      lang,
+      articleCount: articles.length,
+      bulletCount: 0,
+      errorMessage: msg,
+    };
+  }
 
   // Persist the frozen snapshot first — even if the bullet mirror
   // fails downstream, the GET endpoint can still render the summary
@@ -315,7 +327,17 @@ export async function generateTopSummary(
       }
     }
 
-    await insertTopSummaryBullets(lang, summaryDate, bulletRows);
+    const bulletsOk = await insertTopSummaryBullets(lang, summaryDate, bulletRows);
+    if (!bulletsOk) {
+      return {
+        status: "db_error",
+        summaryDate,
+        lang,
+        articleCount: articles.length,
+        bulletCount: bullets.length,
+        errorMessage: "insertTopSummaryBullets failed",
+      };
+    }
   }
 
   return {

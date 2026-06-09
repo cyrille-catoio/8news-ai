@@ -572,25 +572,27 @@ export function Top24hHero({
         </div>
 
         {/* Collapsible body — audio player + bullet list. v2.7.7+ when
-            `isRead` is true the wrapper animates to `max-height: 0` so
+            `isRead` is true the wrapper collapses to `max-height: 0` so
             the « Lu » checkbox demotes the briefing in place rather than
             being re-positioned somewhere else on the page. Audio stays
-            mounted so an ongoing playback isn't interrupted by the
-            collapse; `aria-hidden` is set so screen-readers skip the
-            stale content while it's hidden. The 4000px ceiling is
-            generous enough for any briefing payload we ship today
-            (typically ~1400px) so the open animation finishes before
-            the cap is reached on slow content. */}
+            mounted so an ongoing playback isn't interrupted; `aria-hidden`
+            is set so screen-readers skip the stale content while hidden.
+
+            IMPORTANT: when NOT read we must NOT cap the height. A fixed
+            `max-height` + `overflow: hidden` previously clipped long
+            briefings (notably on mobile where bullets wrap to many lines
+            and the expanded content easily exceeds the old 4000px cap),
+            cutting off the text. So the cap (and clipping) only apply in
+            the read/collapsing state; open state is unconstrained. */}
         <div
           aria-hidden={isRead ? true : undefined}
           style={{
-            maxHeight: isRead ? 0 : 4000,
+            maxHeight: isRead ? 0 : "none",
             opacity: isRead ? 0 : 1,
-            overflow: "hidden",
+            overflow: isRead ? "hidden" : "visible",
             visibility: isRead ? "hidden" : "visible",
             transition:
-              "max-height 420ms cubic-bezier(0.33, 0.86, 0.22, 1), opacity 240ms ease, visibility 0s linear " +
-              (isRead ? "420ms" : "0s"),
+              "opacity 240ms ease, visibility 0s linear " + (isRead ? "240ms" : "0s"),
           }}
         >
         <Top24hAudio

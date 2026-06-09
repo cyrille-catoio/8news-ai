@@ -7,6 +7,7 @@ import type { TopicLabel } from "@/lib/types";
 import { stripEmoji } from "@/lib/html";
 import { kicker } from "@/app/components/briefing/styles";
 import { scoreTierColor } from "@/app/components/briefing/utils";
+import { formatScore } from "@/lib/score-format";
 
 /** A SSR per-video page surfaced in the bottom "Toutes les vidéos
  *  transcrites" list. Same shape as the items in the response of
@@ -205,7 +206,7 @@ export function RecentVideoPagesSection({
                         color: hasScore ? scoreTierColor(p.summaryScore as number) : "transparent",
                       }}
                     >
-                      {hasScore ? `${p.summaryScore}/10` : "—/10"}
+                      {hasScore ? `${formatScore(p.summaryScore as number)}/10` : "—/10"}
                     </span>
                   </a>
                 </li>

@@ -1,4 +1,5 @@
 import { getServerClient, SITEMAP_RECENT_DAYS } from "./client";
+import { normalizeVideoScore } from "@/lib/score-format";
 
 /**
  * YouTube videos surface — transcriptions, per-video SSR pages,
@@ -646,7 +647,7 @@ export async function getVideoPagesForTopicDate(
       title_localized: r.title_localized ?? null,
       published_date: r.published_date ?? "",
       slug_keywords: r.slug_keywords ?? "",
-      summary_score: typeof r.summary_score === "number" ? r.summary_score : null,
+      summary_score: normalizeVideoScore(r.summary_score),
     }));
   } catch {
     return [];

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { normalizeVideoScore } from "@/lib/score-format";
 
 /**
  * GET /api/youtube-channels/by-channel?channelId=...&page=1&pageSize=10
@@ -143,8 +144,8 @@ export async function GET(req: NextRequest) {
       .in("video_id", pageVideoIds);
     for (const row of trows ?? []) {
       const id = row.video_id as string;
-      const s = row.summary_score as number | null;
-      if (typeof s === "number" && s >= 1 && s <= 10) {
+      const s = normalizeVideoScore(row.summary_score);
+      if (s != null) {
         const prev = scoreByVideoId.get(id);
         if (prev == null || s > prev) scoreByVideoId.set(id, s);
       }

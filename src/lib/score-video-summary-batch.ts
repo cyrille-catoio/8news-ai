@@ -90,6 +90,7 @@ export async function scoreVideoSummaryBatch(
     "  - About 5-10% in 1-2 → vague / off-topic / promotional / very thin.",
     "DO NOT cluster scores around 7-8 « to play safe » — that defeats the ranking. If a batch has ~20 items and one recap clearly stands above the rest on BOTH importance and factual density, use 10. Do not reserve 10 only for once-per-year AGI moments.",
     "If you hesitate between 9 and 10: use 10 when the recap combines (a) a frontier player / market-moving event, (b) concrete numbers or named products, and (c) clear strategic consequence. Otherwise use 9.",
+    "DECIMAL PRECISION IN THE 9-10 BAND: scores 1-8 are integers, but in the 9-10 range use ONE decimal place (e.g. 9.1, 9.4, 9.7, 10.0) to finely rank the very best recaps against each other. Reserve 10.0 for the single best, market-moving item; spread the rest across 9.0-9.9 by relative strength. Below 9, keep integers.",
     "If you hesitate between 7 and 8, look at the major-player anchor: if absent, drop to 5-6.",
     "",
     "ANCHOR EXAMPLES (calibrate against these):",
@@ -117,8 +118,8 @@ export async function scoreVideoSummaryBatch(
     `There are ${rows.length} recaps to score, indices 0..${rows.length - 1}.`,
     "Apply the COMPOSITE scoring above (importance × quality, anchored on major-player presence).",
     "Use the FULL 1-10 range — most batches should NOT be a 7-8 cluster.",
-    "Return exactly: {\"scores\":[{\"index\":0,\"score\":7},...]} with one entry per index present.",
-    "Each score must be an integer 1-10.",
+    "Return exactly: {\"scores\":[{\"index\":0,\"score\":7},{\"index\":1,\"score\":9.3},...]} with one entry per index present.",
+    "Each score is 1-10: integers for 1-8, and one decimal in the 9-10 band (e.g. 9.2, 9.8, 10.0).",
     "",
     blocks.join("\n\n---\n\n"),
   ].join("\n");
@@ -151,10 +152,12 @@ export async function scoreVideoSummaryBatch(
     if (typeof s.index !== "number" || typeof s.score !== "number") continue;
     const row = rows[s.index];
     if (!row) continue;
-    let sc = Math.round(Number(s.score));
-    if (Number.isNaN(sc)) continue;
+    let sc = Number(s.score);
+    if (!Number.isFinite(sc)) continue;
     if (sc < 1) sc = 1;
     if (sc > 10) sc = 10;
+    // One-decimal precision only in the 9-10 band; integers below 9.
+    sc = sc >= 9 ? Math.round(sc * 10) / 10 : Math.round(sc);
     out.push({ id: row.id, score: sc });
   }
   return out;

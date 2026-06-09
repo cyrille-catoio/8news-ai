@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { color, card, spinnerStyle } from "@/lib/theme";
 import { t, type Lang } from "@/lib/i18n";
 import { relativeTime, scoreTierColor } from "@/app/components/briefing/utils";
+import { formatScore } from "@/lib/score-format";
 import { trackEvent } from "@/lib/track";
 
 /**
@@ -423,7 +424,7 @@ export function ChannelsPage({ lang }: { lang: Lang }) {
                           border: `1px solid ${scoreTierColor(v.summaryScore as number)}`,
                         }}
                       >
-                        {v.summaryScore}/10
+                        {formatScore(v.summaryScore as number)}/10
                       </span>
                     )}
                   </div>

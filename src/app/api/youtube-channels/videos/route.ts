@@ -4,6 +4,7 @@ import { normalizeSummaryHeadings } from "@/lib/summary-headings";
 import { enrichDurations } from "@/lib/youtube-duration";
 import { transcribeVideo } from "@/lib/transcribe-video";
 import { refreshYoutubeVideosFromRss } from "@/lib/refresh-youtube-videos";
+import { normalizeVideoScore } from "@/lib/score-format";
 import type { VideoItem } from "@/lib/types";
 
 function getDb() {
@@ -244,8 +245,9 @@ export async function GET(req: NextRequest) {
       if (tr.summary_md && tr.summary_md.length > 0) {
         nextSummaryByVideoId.set(tr.video_id, normalizeSummaryHeadings(tr.summary_md, uiLang));
       }
-      if (tr.summary_score != null && tr.summary_score >= 1 && tr.summary_score <= 10) {
-        nextScoreByVideoId.set(tr.video_id, tr.summary_score);
+      const normScore = normalizeVideoScore(tr.summary_score);
+      if (normScore != null) {
+        nextScoreByVideoId.set(tr.video_id, normScore);
       }
       if (tr.topic_id && tr.slug_keywords && tr.published_date) {
         nextSlugByVideoId.set(tr.video_id, {

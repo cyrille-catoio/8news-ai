@@ -3,6 +3,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Lang } from "@/lib/i18n";
 import { normalizeSummaryHeadings } from "@/lib/summary-headings";
 import { getHiddenTopicIds } from "@/lib/supabase";
+import { normalizeVideoScore } from "@/lib/score-format";
 
 /**
  * GET /api/videos/top?lang=fr
@@ -169,7 +170,7 @@ function toVideoTopItem(
     durationSec: yv.duration_sec,
     link: yv.link,
     summaryMd,
-    summaryScore: tr.summary_score,
+    summaryScore: normalizeVideoScore(tr.summary_score),
     topicId: tr.topic_id,
     slugKeywords: tr.slug_keywords,
     publishedDate: tr.published_date,

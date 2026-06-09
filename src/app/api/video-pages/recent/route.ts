@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { normalizeVideoScore } from "@/lib/score-format";
 
 /**
  * GET /api/video-pages/recent?page=1&pageSize=10&lang=fr
@@ -207,10 +208,7 @@ export async function GET(req: NextRequest) {
   }
 
   const items: VideoPageItem[] = (pageRes.data ?? []).map((row) => {
-    const rawScore = row.summary_score;
-    const score = typeof rawScore === "number" && rawScore >= 1 && rawScore <= 10
-      ? rawScore
-      : null;
+    const score = normalizeVideoScore(row.summary_score);
     return {
       videoId: row.video_id,
       // Prefer the per-lang translated title (migration 023); fall back

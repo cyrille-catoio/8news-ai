@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import { color } from "@/lib/theme";
+import { formatScore } from "@/lib/score-format";
 
 /**
  * Score indicator: small mono score stacked just above a thin progress
@@ -24,7 +25,9 @@ export function ScoreMeter({
 }) {
   const clamped = Math.max(0, Math.min(10, score));
   const ratio = clamped / 10;
-  const scoreLabel = `${clamped}/10`;
+  // Integer scores render without a decimal (« 8/10 »); fractional ones
+  // — the 9-10 band for video recaps — keep one decimal (« 9.1/10 »).
+  const scoreLabel = `${formatScore(clamped)}/10`;
   // v2.6.14+ green tier lowered 9 → 8 to recognize "strong signal"
   // editorial bullets and high-relevance articles that were previously
   // stuck in gold. Other thresholds unchanged.

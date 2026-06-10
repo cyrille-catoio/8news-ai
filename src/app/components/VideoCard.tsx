@@ -18,6 +18,7 @@ import {
   formatViews,
   formatDuration,
   toggleLink,
+  videoSsrHref,
 } from "@/app/components/video-card/VideoCardHelpers";
 import { VideoCardMarkdown } from "@/app/components/video-card/VideoCardMarkdown";
 
@@ -424,6 +425,8 @@ export function VideoCard({
     </div>
   );
 
+  const ssrHref = videoSsrHref(v);
+
   const bodyBlock = (
         <div className="video-body" style={bodyStyle}>
           <div
@@ -436,9 +439,8 @@ export function VideoCard({
             }}
           >
             <a
-              href={v.link}
-              target="_blank"
-              rel="noopener noreferrer"
+              href={ssrHref ?? v.link}
+              {...(ssrHref ? {} : { target: "_blank", rel: "noopener noreferrer" })}
               style={{ textDecoration: "none", flex: 1, minWidth: 0 }}
             >
               {isHero ? (
@@ -800,18 +802,6 @@ export function VideoCard({
               const body = plain.length > maxBody ? plain.slice(0, maxBody) + "…" : plain;
               return body.length > 0 ? (
                 <div style={{ paddingTop: 10, marginBottom: 12 }}>
-                  <div
-                    style={{
-                      color: color.gold,
-                      fontSize: 11,
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.08em",
-                      marginBottom: 6,
-                    }}
-                  >
-                    {lang === "fr" ? "Lecteur audio" : "Audio player"}
-                  </div>
                   <AudioPlayer text={`${intro} ${body}`} lang={lang} speed={speed} voice={voice} context="video_card" contextId={v.videoId} />
                 </div>
               ) : null;

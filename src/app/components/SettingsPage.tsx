@@ -419,12 +419,12 @@ function SubscriptionPanel({
       ? [
           "Prix Early Adopter 2 € / mois (28 € / an, facturation annuelle en une fois).",
           "Topics sur mesure avec découverte IA des flux.",
-          "Plus de résumés YouTube et suivi de chaînes favorites.",
+          "Plus de résumés YouTube et suivi de chaînes personnelles — jusqu'à 5 chaînes YouTube.",
         ]
       : [
           "Early Adopter price €2/month (€28/year, billed annually in one payment).",
           "Custom topics with AI feed discovery.",
-          "More YouTube summaries and favorite channel monitoring.",
+          "More YouTube summaries and personal channel monitoring — up to 5 YouTube channels.",
         ];
 
   return (

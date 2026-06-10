@@ -1,5 +1,6 @@
 import { type CSSProperties } from "react";
 import { color } from "@/lib/theme";
+import type { VideoItem } from "@/lib/types";
 
 /**
  * Pure helpers used by `VideoCard` — content normalization (markdown
@@ -15,6 +16,16 @@ import { color } from "@/lib/theme";
 /** Chars after which the description gets truncated with a « See more »
  *  toggle in the card body. */
 export const DESC_MAX = 120;
+
+/** Internal SSR page URL when the video has been transcribed with a topic + slug. */
+export function videoSsrHref(
+  v: Pick<VideoItem, "topicId" | "slugKeywords" | "publishedDate">,
+): string | null {
+  if (v.topicId && v.slugKeywords && v.publishedDate) {
+    return `/${v.topicId}/v/${v.publishedDate}/${v.slugKeywords}`;
+  }
+  return null;
+}
 
 /**
  * Strip markdown formatting from the AI summary and return a clean

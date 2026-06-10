@@ -431,6 +431,7 @@ export async function getVideoPageBySlug(
   title_localized: string | null;
   lang: string;
   summary_md: string;
+  summary_score: number | null;
   transcript: string;
   word_count: number | null;
   topic_id: string;
@@ -457,7 +458,9 @@ export async function getVideoPageBySlug(
     // migrated) so the page keeps rendering with the YouTube title.
     const baseColumns =
       "id, video_id, channel_id, title, lang, summary_md, transcript, word_count, topic_id, published_date, slug_keywords, created_at";
-    const fullColumns = `${baseColumns}, title_localized`;
+    const withTitle = `${baseColumns}, title_localized`;
+    const withScore = `${withTitle}, summary_score`;
+    const withTitleNoScore = withTitle;
 
     const run = (columns: string) =>
       supabase
@@ -469,16 +472,23 @@ export async function getVideoPageBySlug(
         .limit(1)
         .maybeSingle();
 
-    let res = await run(fullColumns);
+    let res = await run(withScore);
+    if (res.error && /summary_score/i.test(res.error.message ?? "")) {
+      res = await run(withTitleNoScore);
+    }
     if (res.error && /title_localized/i.test(res.error.message ?? "")) {
-      res = await run(baseColumns);
+      res = await run(`${baseColumns}, summary_score`);
+      if (res.error && /summary_score/i.test(res.error.message ?? "")) {
+        res = await run(baseColumns);
+      }
     }
     if (res.error || !res.data) return null;
 
     const row = res.data as unknown as {
       id: number; video_id: string; channel_id: string; title: string;
       title_localized?: string | null;
-      lang: string; summary_md: string; transcript: string;
+      lang: string; summary_md: string; summary_score?: number | null;
+      transcript: string;
       word_count: number | null; topic_id: string; published_date: string;
       slug_keywords: string; created_at: string;
     };
@@ -495,6 +505,7 @@ export async function getVideoPageBySlug(
     return {
       ...row,
       title_localized: row.title_localized ?? null,
+      summary_score: normalizeVideoScore(row.summary_score),
       video: (vidRow as {
         title: string; description: string | null; channel_title: string;
         published: string; thumbnail: string | null; view_count: string | null;

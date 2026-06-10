@@ -14,6 +14,8 @@ import { SeoNavBar } from "@/app/components/SeoNavBar";
 import { SeoGeneralMenu } from "@/app/components/GeneralMenu";
 import { VideoPageAudio } from "@/app/components/VideoPageAudio";
 import { VideoPageFavoriteButton } from "@/app/components/VideoPageFavoriteButton";
+import { VideoPageTranscript } from "@/app/components/VideoPageTranscript";
+import { ScoreMeter } from "@/app/components/ScoreMeter";
 import type { Lang } from "@/lib/i18n";
 
 // react-markdown is imported directly for SSR — the SPA's VideosPage uses
@@ -207,7 +209,8 @@ export default async function VideoSeoPage({ params }: PageProps) {
     : undefined;
 
   const summaryMd = normalizeSummaryHeadings(page.summary_md, lang);
-  const transcript = (page.transcript ?? "").trim();
+  const hasTranscript = Boolean((page.transcript ?? "").trim());
+  const summaryScore = page.summary_score;
   const durationLabel = formatDuration(page.video?.duration_sec ?? null);
   /** Per-lang translated title (mig. 023) → YouTube title → stored fallback. */
   const videoTitle = page.title_localized ?? page.video?.title ?? page.title;
@@ -270,9 +273,16 @@ export default async function VideoSeoPage({ params }: PageProps) {
 
         {/* Header */}
         <header style={{ marginBottom: 24 }}>
-          <h1 style={{ color: color.gold, fontSize: 26, fontWeight: 700, lineHeight: 1.3, marginBottom: 12, marginTop: 0 }}>
-            {videoTitle}
-          </h1>
+          <div style={{ display: "flex", gap: 16, alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
+            <h1 style={{ color: color.gold, fontSize: 26, fontWeight: 700, lineHeight: 1.3, margin: 0, flex: 1, minWidth: 0 }}>
+              {videoTitle}
+            </h1>
+            {typeof summaryScore === "number" && (
+              <span style={{ flexShrink: 0, marginTop: 4 }}>
+                <ScoreMeter score={summaryScore} width={72} align="end" />
+              </span>
+            )}
+          </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             <span style={{
               fontSize: 11, fontWeight: 700, color: color.gold,
@@ -359,28 +369,10 @@ export default async function VideoSeoPage({ params }: PageProps) {
           <ReactMarkdown components={mdComponents}>{summaryMd}</ReactMarkdown>
         </section>
 
-        {/* Full transcript (collapsed by default — heavy in chars but
-            keyword-rich for SEO crawlers, which see the content even
-            inside <details>). */}
-        {transcript && (
-          <details style={{
-            background: color.surface, border: `1px solid ${color.border}`,
-            borderRadius: 10, padding: "16px 24px", marginBottom: 24,
-          }}>
-            <summary style={{
-              color: color.gold, fontSize: 13, fontWeight: 700,
-              textTransform: "uppercase", letterSpacing: "0.08em",
-              cursor: "pointer", outline: "none",
-            }}>
-              {lang === "fr" ? "Transcription complète" : "Full transcript"}
-            </summary>
-            <p style={{
-              color: color.textSecondary, fontSize: 14, lineHeight: 1.6,
-              marginTop: 16, whiteSpace: "pre-wrap",
-            }}>
-              {transcript}
-            </p>
-          </details>
+        {/* Full transcript — loaded client-side on expand so crawlers
+            indexing the initial HTML only see the AI summary above. */}
+        {hasTranscript && (
+          <VideoPageTranscript videoId={page.video_id} lang={lang} />
         )}
 
         {/* "Same topic" sidebar (rendered as a full block below the

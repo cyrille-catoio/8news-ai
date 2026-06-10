@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
-import ReactMarkdown from "react-markdown";
 import {
   getVideoPageBySlug,
   getRecentVideoPagesForTopic,
@@ -15,56 +14,13 @@ import { SeoGeneralMenu } from "@/app/components/GeneralMenu";
 import { VideoPageAudio } from "@/app/components/VideoPageAudio";
 import { VideoPageFavoriteButton } from "@/app/components/VideoPageFavoriteButton";
 import { VideoPageTranscript } from "@/app/components/VideoPageTranscript";
+import { VideoPageSummary } from "@/app/components/VideoPageSummary";
 import { ScoreMeter } from "@/app/components/ScoreMeter";
 import type { Lang } from "@/lib/i18n";
-
-// react-markdown is imported directly for SSR — the SPA's VideosPage uses
-// next/dynamic with ssr:false because it lives inside a Client Component,
-// but here we want the Markdown rendered into the HTML the crawler sees.
 
 interface PageProps {
   params: Promise<{ topic: string; date: string; slug: string }>;
 }
-
-/**
- * Markdown renderer overrides that match the dark-theme typography used
- * by the SPA's `VideosPage`. Same hierarchy + colors so the SSR page
- * feels native, not a separate experience.
- */
-const mdComponents = {
-  h2: ({ children, ...props }: React.ComponentProps<"h2">) => (
-    <h2
-      style={{
-        color: color.gold,
-        fontSize: 18,
-        fontWeight: 700,
-        margin: "24px 0 10px",
-        textTransform: "uppercase",
-      }}
-      {...props}
-    >
-      {children}
-    </h2>
-  ),
-  // h3 is the per-key-point title promoted from `- **Title**` bullets by
-  // `promoteBulletTitlesToHeadings`. Styled in gold to match the roundup
-  // pages' bullet titles for visual consistency.
-  h3: ({ children, ...props }: React.ComponentProps<"h3">) => (
-    <h3 style={{ color: color.gold, fontSize: 17, fontWeight: 700, lineHeight: 1.35, margin: "20px 0 4px" }} {...props}>{children}</h3>
-  ),
-  p: ({ children, ...props }: React.ComponentProps<"p">) => (
-    <p style={{ color: color.textSecondary, fontSize: 15, lineHeight: 1.6, margin: "8px 0" }} {...props}>{children}</p>
-  ),
-  ul: ({ children, ...props }: React.ComponentProps<"ul">) => (
-    <ul style={{ paddingLeft: 22, margin: "8px 0" }} {...props}>{children}</ul>
-  ),
-  li: ({ children, ...props }: React.ComponentProps<"li">) => (
-    <li style={{ color: color.textSecondary, fontSize: 15, lineHeight: 1.6, marginBottom: 10 }} {...props}>{children}</li>
-  ),
-  strong: ({ children, ...props }: React.ComponentProps<"strong">) => (
-    <strong style={{ color: color.text, fontWeight: 700 }} {...props}>{children}</strong>
-  ),
-};
 
 /**
  * Strip Markdown markup down to a one-sentence description for the
@@ -357,17 +313,10 @@ export default async function VideoSeoPage({ params }: PageProps) {
           lang={lang}
         />
 
-        {/* AI Summary (Markdown). No "Résumé / Summary" wrapper heading: the
-            page is already framed by the H1 + topic chip above, and the
-            markdown opens with its own `## INTRO` / `## TL;DR` heading.
-            Repeating "Résumé / Summary" added zero SEO value and pushed the
-            keyword-rich INTRO copy further down the page. */}
-        <section style={{
-          background: color.surface, border: `1px solid ${color.border}`,
-          borderRadius: 10, padding: "4px 24px 20px", marginBottom: 24,
-        }}>
-          <ReactMarkdown components={mdComponents}>{summaryMd}</ReactMarkdown>
-        </section>
+        {/* AI Summary — markdown opens with its own `## INTRO` / `## TL;DR`
+            heading (no extra wrapper title for SEO). Copy icons top + bottom
+            mirror the full-transcript panel below. */}
+        <VideoPageSummary summaryMd={summaryMd} videoId={page.video_id} lang={lang} />
 
         {/* Full transcript — loaded client-side on expand so crawlers
             indexing the initial HTML only see the AI summary above. */}

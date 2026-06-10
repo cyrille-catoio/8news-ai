@@ -55,8 +55,8 @@ export interface LandingContent {
     kicker: { en: string; fr: string };
     title: { en: string; fr: string };
     plans: {
-      en: Array<{ tag: string; name: string; price: string; per: string; priceYear?: string; perYear?: string; saveLabel?: string; desc: string; features: string[]; cta: string; featured: boolean }>;
-      fr: Array<{ tag: string; name: string; price: string; per: string; priceYear?: string; perYear?: string; saveLabel?: string; desc: string; features: string[]; cta: string; featured: boolean }>;
+      en: Array<{ tag: string; name: string; price: string; per: string; compareAtPrice?: string; priceYear?: string; perYear?: string; saveLabel?: string; desc: string; features: string[]; cta: string; featured: boolean }>;
+      fr: Array<{ tag: string; name: string; price: string; per: string; compareAtPrice?: string; priceYear?: string; perYear?: string; saveLabel?: string; desc: string; features: string[]; cta: string; featured: boolean }>;
     };
   };
   faq: {
@@ -210,11 +210,11 @@ export const LANDING_CONTENT: LandingContent = {
     plans: {
       en: [
         { tag: "FREE PREVIEW", name: "Free", price: "$0", per: "", desc: "Use the core product while 8news is still in beta. No card required.", features: ["Top 24h articles and videos with AI summary + sources.", "Default tech, AI and crypto topics.", "Archives, favorites and bilingual EN / FR reading.", "Morning email brief for the topics you care about.", "Enough to see if 8news becomes part of your daily routine."], cta: "Start free", featured: false },
-        { tag: "EARLY ADOPTER PRICE", name: "Pro Early Adopter", price: "€2", per: "/month", priceYear: "€28", perYear: "/year", saveLabel: " · annual billing, one payment", desc: "For analysts, operators and builders who want 8news tuned to their exact watchlist.", features: ["Custom topics with AI feed discovery.", "More YouTube summaries and personal channel monitoring — up to 5 YouTube channels.", "€28/year charged once — reserve now, pay when checkout opens."], cta: "Reserve Pro", featured: true },
+        { tag: "EARLY ADOPTER PRICE", name: "Pro Early Adopter", price: "€28", per: "/year", compareAtPrice: "€88", saveLabel: "annual billing, one payment", desc: "For analysts, operators and builders who want 8news tuned to their exact watchlist.", features: ["50+ YouTube channels included by default with AI summaries and transcripts in English and French — add up to 5 personal channels of your choice.", "Add your own topics with AI feed discovery.", "AI chat grounded in your live news feed — ask anything about today's briefing, notes and source links.", "Reserve now — pay when checkout opens."], cta: "Reserve Pro", featured: true },
       ],
       fr: [
         { tag: "APERÇU GRATUIT", name: "Gratuit", price: "0 €", per: "", desc: "Utilisez le cœur du produit pendant que 8news est encore en bêta. Sans carte bancaire.", features: ["Top articles et vidéos 24h avec résumé IA + sources.", "Topics tech, IA et crypto par défaut.", "Archives, favoris et lecture bilingue EN / FR.", "Brief matinal sur les topics qui comptent pour vous.", "Assez pour savoir si 8news devient un réflexe quotidien."], cta: "Commencer", featured: false },
-        { tag: "PRIX EARLY ADOPTER", name: "Pro Early Adopter", price: "2 €", per: "/mois", priceYear: "28 €", perYear: "/an", saveLabel: " · paiement annuel en une fois", desc: "Pour analystes, opérateurs et builders qui veulent une veille réglée sur leur watchlist exacte.", features: ["Topics sur mesure avec découverte IA des flux.", "Plus de résumés YouTube et suivi de chaînes personnelles — jusqu'à 5 chaînes YouTube.", "28 € facturés une fois par an — réservez maintenant, payez à l'ouverture."], cta: "Réserver Pro", featured: true },
+        { tag: "PRIX EARLY ADOPTER", name: "Pro Early Adopter", price: "28 €", per: "/an", compareAtPrice: "88 €", saveLabel: "paiement annuel en une fois", desc: "Pour analystes, opérateurs et builders qui veulent une veille réglée sur leur watchlist exacte.", features: ["50+ chaînes YouTube incluses par défaut avec résumés IA et transcriptions en anglais et en français — ajoutez jusqu'à 5 chaînes personnelles au choix.", "Ajoutez vos propres topics avec découverte IA de flux.", "Chat IA ancré dans votre flux d'actualité — posez vos questions sur le briefing du jour, ses notes et ses sources.", "Réservez maintenant — payez à l'ouverture du paiement."], cta: "Réserver Pro", featured: true },
       ],
     },
   },

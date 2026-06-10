@@ -59,6 +59,10 @@ export function Top24hAudio({
      *  the TTS narration ordered like the visible accordion (sorted
      *  by importance DESC). */
     importanceScore?: number | null;
+    /** « Top videos of yesterday » bullets — narrated first, with a
+     *  spoken « Video: » prefix, mirroring the visible hoisting in
+     *  `groupBullets` (v2.13+). */
+    isVideo?: boolean;
   }>;
   lang: Lang;
   /** YYYY-MM-DD — the snapshot's `summary_date`. Used in the spoken intro. */
@@ -73,7 +77,12 @@ export function Top24hAudio({
   // the TTS announces each group title once before its paragraphs —
   // mirrors the visual fold in `groupBullets` (Top24hHero.tsx). An
   // empty title means « no group header », bullet body alone.
-  const groups: Array<{ title: string; bullets: string[]; score: number }> = [];
+  const groups: Array<{
+    title: string;
+    bullets: string[];
+    score: number;
+    isVideo: boolean;
+  }> = [];
   for (const b of bullets) {
     const t = (b.title ?? "").trim();
     const last = groups[groups.length - 1];
@@ -83,14 +92,21 @@ export function Top24hAudio({
         title: t,
         bullets: [b.text],
         score: typeof b.importanceScore === "number" ? b.importanceScore : 0,
+        isVideo: Boolean(b.isVideo),
       });
   }
 
-  // Sort groups by importance DESC to match the visible accordion
-  // order (v2.6.13+). Stable: tied scores keep LLM emission order so
-  // narrative continuity inside the brief is preserved.
+  // Sort groups: « top videos of yesterday » first (v2.13+, mirrors
+  // the visible accordion hoisting in `groupBullets`), then importance
+  // DESC. Stable: tied scores keep LLM emission order so narrative
+  // continuity inside the brief is preserved.
   const decorated = groups.map((g, i) => ({ g, i }));
-  decorated.sort((a, b) => (b.g.score - a.g.score) || (a.i - b.i));
+  decorated.sort(
+    (a, b) =>
+      (Number(b.g.isVideo) - Number(a.g.isVideo)) ||
+      (b.g.score - a.g.score) ||
+      (a.i - b.i),
+  );
   const orderedGroups = decorated.map((d) => d.g);
 
   const dateLabel = new Date(`${date}T00:00:00`).toLocaleDateString(
@@ -106,7 +122,8 @@ export function Top24hAudio({
 
   const body = orderedGroups
     .map((g) => {
-      const header = g.title ? `${g.title}.` : "";
+      const videoPrefix = g.isVideo ? (lang === "fr" ? "Vidéo : " : "Video: ") : "";
+      const header = g.title ? `${videoPrefix}${g.title}.` : "";
       const bul = g.bullets.map((t) => `• ${t}`).join(" ... ");
       return header ? `${header} ${bul}` : bul;
     })

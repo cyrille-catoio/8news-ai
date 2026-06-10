@@ -638,6 +638,30 @@ export function Top24hHero({
                   >
                     <span style={{ color: color.gold, flexShrink: 0, fontSize: 18, lineHeight: 1 }}>•</span>
                     <span style={{ flex: 1, minWidth: 0 }}>{g.title}</span>
+                    {/* « Top videos of yesterday » badge (v2.13+) —
+                        the two best-scored videos of the previous day
+                        are pinned at the head of the briefing; the
+                        mono pill tells them apart from article groups
+                        at a glance. */}
+                    {g.bullets[0]?.isVideo && (
+                      <span
+                        style={{
+                          flexShrink: 0,
+                          fontFamily: "ui-monospace, Menlo, monospace",
+                          fontSize: 9.5,
+                          fontWeight: 700,
+                          letterSpacing: "0.1em",
+                          color: color.gold,
+                          border: "1px solid rgba(201, 162, 39, 0.45)",
+                          background: "rgba(201, 162, 39, 0.10)",
+                          borderRadius: 999,
+                          padding: "2px 8px",
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        VIDEO
+                      </span>
+                    )}
                     {/* Editorial importance score 1-10 (mig. 026+).
                         Read off the first bullet of the group — every
                         bullet of a same-title run carries the same

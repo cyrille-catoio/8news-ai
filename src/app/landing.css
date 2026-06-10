@@ -596,15 +596,24 @@
 
 /* ===== PRICING ===== */
 .landing-root .pricing-grid {
-  display: grid; grid-template-columns: 1fr 1fr;
-  gap: 20px; margin-top: 48px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: stretch;
+  gap: 20px;
+  margin-top: 48px;
 }
 @media (max-width: 800px) {
   .landing-root .pricing-grid { grid-template-columns: 1fr; }
 }
 .landing-root .plan {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 14px; padding: 32px; position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 32px;
+  position: relative;
 }
 .landing-root .plan.featured { border-color: var(--gold); background: linear-gradient(180deg, rgba(201,162,39,0.05), transparent 40%), var(--surface); }
 .landing-root .plan .tag {
@@ -612,7 +621,45 @@
   color: var(--gold);
 }
 .landing-root .plan h3 { font-family: var(--serif); font-size: 40px; margin-top: 8px; }
+.landing-root .plan .price-main-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+.landing-root .plan .price-compare {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--text-3);
+}
+.landing-root .plan .price-compare-label {
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--text-3);
+}
+.landing-root .plan .price-compare-val {
+  display: inline-block;
+  font-family: var(--serif);
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--text-3);
+}
+.landing-root .plan .price-compare-amount {
+  color: inherit;
+}
+.landing-root .plan .price-compare-per {
+  font-family: var(--sans);
+  font-size: 14px;
+  margin-left: 4px;
+  font-weight: 500;
+  color: inherit;
+}
 .landing-root .plan .price { margin-top: 16px; font-family: var(--serif); font-size: 52px; letter-spacing: -0.02em; line-height: 1; }
+.landing-root .plan .price-row .price { margin-top: 0; }
 .landing-root .plan .price small.price-period { font-family: var(--sans); font-size: 14px; color: var(--text-3); margin-left: 6px; font-weight: 400; }
 .landing-root .plan .price small.price-period-annual {
   font-family: var(--sans);
@@ -624,7 +671,6 @@
 }
 .landing-root .plan.featured .price small.price-period-annual { color: var(--gold); }
 .landing-root .plan .price-row { margin-top: 16px; display: flex; align-items: baseline; flex-wrap: wrap; gap: 18px; }
-.landing-root .plan .price-row .price { margin-top: 0; }
 .landing-root .plan .price-year { font-size: 13px; color: var(--text-3); display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; }
 .landing-root .plan .price-year strong { font-family: var(--serif); font-size: 18px; color: var(--text); font-weight: 500; letter-spacing: -0.01em; }
 .landing-root .plan .price-year-per { color: var(--text-3); font-size: 13px; }
@@ -640,12 +686,22 @@
   font-size: 13px;
   line-height: 1.45;
 }
-.landing-root .plan ul { margin: 24px 0 0; padding: 0; list-style: none; }
+.landing-root .plan ul { flex: 1 1 auto; margin: 24px 0 0; padding: 0; list-style: none; }
 .landing-root .plan li { font-size: 14px; padding: 10px 0; border-top: 1px solid var(--border); display: flex; gap: 10px; color: var(--text-2); }
 .landing-root .plan li::before { content: "—"; color: var(--gold); }
-.landing-root .plan .cta { margin-top: 24px; display: block; width: 100%; text-align: center; }
+.landing-root .plan .plan-footer {
+  margin-top: auto;
+  padding-top: 24px;
+}
+.landing-root .plan .cta {
+  margin-top: 0;
+  display: block;
+  width: 100%;
+  text-align: center;
+}
 .landing-root .plan .plan-note {
   margin-top: 10px;
+  min-height: 2.9em;
   color: var(--text-3);
   font-size: 12px;
   line-height: 1.45;

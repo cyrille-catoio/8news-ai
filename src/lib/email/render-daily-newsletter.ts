@@ -80,15 +80,19 @@ function groupBullets(bullets: TopSummaryBulletRow[]): Group[] {
     if (last && last.title === tt) last.bullets.push(b);
     else out.push({ title: tt, bullets: [b] });
   }
+  // Video groups (« top videos of yesterday », v2.13+) are hoisted
+  // before every article group — same ordering as the home accordion —
+  // then importance DESC.
   const decorated = out.map((g, i) => ({
     g,
     i,
+    v: g.bullets[0]?.video_transcription_id != null ? 1 : 0,
     s:
       typeof g.bullets[0]?.importance_score === "number"
         ? (g.bullets[0]?.importance_score as number)
         : 0,
   }));
-  decorated.sort((a, b) => (b.s - a.s) || (a.i - b.i));
+  decorated.sort((a, b) => (b.v - a.v) || (b.s - a.s) || (a.i - b.i));
   return decorated.map((d) => d.g);
 }
 
@@ -330,6 +334,13 @@ function renderGroupHtml(g: Group): string {
     typeof first.importance_score === "number" ? first.importance_score : null;
   const scoreBadgeHtml = score !== null ? renderScoreBadgeHtml(score) : "";
 
+  // « Top videos of yesterday » badge (v2.13+) — mono gold pill in
+  // front of the title, mirroring the home accordion's VIDEO badge.
+  const isVideo = first.video_transcription_id != null;
+  const videoBadgeHtml = isVideo
+    ? `<span style="display:inline-block;font-family:ui-monospace,Menlo,monospace;font-size:10px;font-weight:700;letter-spacing:0.1em;color:${COLOR.gold};background:${COLOR.goldSoft};border:1px solid ${COLOR.goldRing};border-radius:999px;padding:2px 8px;line-height:1.4;vertical-align:middle;margin-right:8px;">VIDEO</span>`
+    : "";
+
   // Title row — gold serif title with the score badge aligned to the
   // right. A two-cell `<table>` keeps the alignment robust across
   // Outlook (flex/justify-content don't reliably collapse) — left cell
@@ -338,7 +349,7 @@ function renderGroupHtml(g: Group): string {
     ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:20px 0 10px;">
          <tr>
            <td valign="middle" style="font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;color:${COLOR.gold};font-weight:600;padding-right:10px;">
-             ${esc(g.title)}
+             ${videoBadgeHtml}${esc(g.title)}
            </td>
            <td valign="middle" align="right" style="white-space:nowrap;">
              ${scoreBadgeHtml}
@@ -425,7 +436,9 @@ function renderGroupText(g: Group): string {
         ? Math.max(0, Math.min(10, Math.round(g.bullets[0].importance_score)))
         : null;
     const scoreSuffix = score !== null ? ` [${score}/10]` : "";
-    lines.push(`## ${g.title}${scoreSuffix}`);
+    const videoPrefix =
+      g.bullets[0]?.video_transcription_id != null ? "[VIDEO] " : "";
+    lines.push(`## ${videoPrefix}${g.title}${scoreSuffix}`);
   }
   for (const b of g.bullets) {
     const cleanText = stripTitlePrefix(b.text, b.title);

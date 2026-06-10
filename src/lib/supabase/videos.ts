@@ -115,6 +115,97 @@ export async function insertVideoBullets(
   }
 }
 
+export interface TopVideoForDateRow {
+  /** `video_transcriptions.id` — referenced by `summary_bullets.video_transcription_id`. */
+  id: number;
+  video_id: string;
+  topic_id: string;
+  slug_keywords: string;
+  published_date: string;
+  summary_score: number;
+  summary_md: string;
+  /** Localized title when available, else the stored YouTube title. */
+  title: string;
+  channel_title: string | null;
+}
+
+/**
+ * Best-scored transcribed videos published on a given UTC date — feeds
+ * the « top videos of yesterday » bullets pinned at the head of the
+ * Daily Podcast (Top 24h briefing, see `generateTopSummary`).
+ *
+ * Only rows that can resolve to an SSR page URL qualify (`topic_id` +
+ * `slug_keywords` set) so the bullet ref always deep-links to
+ * `/{topic}/v/{date}/{slug}`.
+ */
+export async function getTopVideosForDate(
+  date: string,
+  lang: string,
+  limit = 2,
+): Promise<TopVideoForDateRow[]> {
+  const clientP = getServerClient();
+  if (!clientP) return [];
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("video_transcriptions")
+      .select(
+        "id, video_id, topic_id, slug_keywords, published_date, summary_score, summary_md, title, title_localized",
+      )
+      .eq("lang", lang)
+      .eq("published_date", date)
+      .not("topic_id", "is", null)
+      .not("slug_keywords", "is", null)
+      .not("summary_score", "is", null)
+      .order("summary_score", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error || !data || data.length === 0) return [];
+
+    const rows = data as Array<{
+      id: number;
+      video_id: string;
+      topic_id: string;
+      slug_keywords: string;
+      published_date: string;
+      summary_score: number | string;
+      summary_md: string;
+      title: string;
+      title_localized: string | null;
+    }>;
+
+    const videoIds = rows.map((r) => r.video_id);
+    const { data: vids } = await supabase
+      .from("youtube_videos")
+      .select("video_id, channel_title, title")
+      .in("video_id", videoIds);
+    const metaById = new Map(
+      ((vids ?? []) as Array<{ video_id: string; channel_title: string | null; title: string | null }>).map(
+        (v) => [v.video_id, v],
+      ),
+    );
+
+    return rows
+      .filter((r) => (r.summary_md ?? "").trim().length > 0)
+      .map((r) => {
+        const meta = metaById.get(r.video_id);
+        return {
+          id: r.id,
+          video_id: r.video_id,
+          topic_id: r.topic_id,
+          slug_keywords: r.slug_keywords,
+          published_date: r.published_date,
+          summary_score: Number(r.summary_score) || 0,
+          summary_md: r.summary_md,
+          title: r.title_localized ?? meta?.title ?? r.title,
+          channel_title: meta?.channel_title ?? null,
+        };
+      });
+  } catch {
+    return [];
+  }
+}
+
 /* ── Video roundups (per-topic-per-day SSR pages) ───────────────── */
 
 export interface VideoRoundupRow {

@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { color } from "@/lib/theme";
 import type { Lang } from "@/lib/i18n";
+import { CopyTextButton } from "@/app/components/CopyLinkButton";
+import { trackEvent } from "@/lib/track";
 
 /**
  * Lazy-loaded full transcript for SSR video pages. The transcript text is
@@ -20,6 +22,9 @@ export function VideoPageTranscript({
   const [transcript, setTranscript] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const copyTitle =
+    lang === "fr" ? "Copier la transcription" : "Copy transcript";
 
   async function loadTranscript() {
     if (transcript || loading) return;
@@ -45,6 +50,14 @@ export function VideoPageTranscript({
     if (nextOpen) void loadTranscript();
   }
 
+  function trackCopy() {
+    trackEvent("share.copy_transcript", { target_id: videoId, lang });
+  }
+
+  const copyProps = transcript
+    ? { text: transcript, title: copyTitle, onCopied: trackCopy }
+    : null;
+
   return (
     <details
       open={open}
@@ -66,9 +79,15 @@ export function VideoPageTranscript({
           letterSpacing: "0.08em",
           cursor: "pointer",
           outline: "none",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          listStyle: "none",
         }}
       >
-        {lang === "fr" ? "Transcription complète" : "Full transcript"}
+        <span>{lang === "fr" ? "Transcription complète" : "Full transcript"}</span>
+        {open && copyProps && <CopyTextButton {...copyProps} />}
       </summary>
       <div
         data-nosnippet
@@ -83,15 +102,20 @@ export function VideoPageTranscript({
           <p style={{ color: color.errorText, fontSize: 14, margin: 0 }}>{error}</p>
         )}
         {transcript && (
-          <p style={{
-            color: color.textSecondary,
-            fontSize: 14,
-            lineHeight: 1.6,
-            margin: 0,
-            whiteSpace: "pre-wrap",
-          }}>
-            {transcript}
-          </p>
+          <>
+            <p style={{
+              color: color.textSecondary,
+              fontSize: 14,
+              lineHeight: 1.6,
+              margin: 0,
+              whiteSpace: "pre-wrap",
+            }}>
+              {transcript}
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+              {copyProps && <CopyTextButton {...copyProps} />}
+            </div>
+          </>
         )}
       </div>
     </details>

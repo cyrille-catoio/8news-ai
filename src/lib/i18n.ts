@@ -1323,6 +1323,18 @@ const strings = {
     en: "Show long videos or Short",
     fr: "Afficher les vidéos longues ou le format Short",
   },
+  videoSortScore: {
+    en: "Score",
+    fr: "Score",
+  },
+  videoSortDate: {
+    en: "Date",
+    fr: "Date",
+  },
+  videoSortToggleAria: {
+    en: "Sort videos by score or date",
+    fr: "Trier les vidéos par score ou par date",
+  },
   videoKindHintNoLong: {
     en: "No long videos for this day. Switch to Short to see them.",
     fr: "Aucune vidéo longue ce jour. Bascule sur Short pour les voir.",
@@ -1460,7 +1472,7 @@ const strings = {
   },
   podcastChatEmpty: {
     en: "Ask a question about today's podcast. The full briefing — text, notes and source links — is used as context.",
-    fr: "Posez une question sur le podcast du jour. Tout le briefing — texte, notes et liens sources — sert de contexte.",
+    fr: "Posez une question sur le podcast du jour. Tout le briefing (texte, notes et liens sources) sert de contexte.",
   },
   podcastChatSignInHint: {
     en: "Type your question — you'll be asked to sign in (free) to get the answer.",

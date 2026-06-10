@@ -1,10 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, type CSSProperties } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, type CSSProperties } from "react";
 import { color, formInputStyle, spinnerStyle } from "@/lib/theme";
 import type { Lang } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
+import { getCookie, setCookie } from "@/lib/cookies";
 import { VideoCard, type VideoItem } from "@/app/components/VideoCard";
+
+const VIDEO_SORT_COOKIE = "videoSortOrder";
 
 /** Short: duration known and strictly under 2 minutes. Unknown duration is not treated as a short. */
 function isShortVideo(v: VideoItem): boolean {
@@ -13,6 +16,27 @@ function isShortVideo(v: VideoItem): boolean {
 
 function publishedTimeDesc(a: VideoItem, b: VideoItem): number {
   return new Date(b.published).getTime() - new Date(a.published).getTime();
+}
+
+type VideoSort = "score" | "date";
+
+function readVideoSortCookie(): VideoSort {
+  if (typeof document === "undefined") return "score";
+  const raw = getCookie(VIDEO_SORT_COOKIE);
+  return raw === "date" ? "date" : "score";
+}
+
+function scoreDesc(a: VideoItem, b: VideoItem): number {
+  const sa = a.summaryScore ?? -1;
+  const sb = b.summaryScore ?? -1;
+  if (sb !== sa) return sb - sa;
+  return publishedTimeDesc(a, b);
+}
+
+function sortVideos(list: VideoItem[], sort: VideoSort): VideoItem[] {
+  const copy = [...list];
+  copy.sort(sort === "score" ? scoreDesc : publishedTimeDesc);
+  return copy;
 }
 
 function pad2(n: number) { return String(n).padStart(2, "0"); }
@@ -150,6 +174,56 @@ const arrowBtn: CSSProperties = {
 
 type VideoKind = "long" | "shorts";
 
+function VideoSortToggle({
+  sort,
+  onChange,
+  lang,
+}: {
+  sort: VideoSort;
+  onChange: (v: VideoSort) => void;
+  lang: Lang;
+}) {
+  const segBtn = (active: boolean, isLeft: boolean): CSSProperties => ({
+    padding: "4px 10px",
+    fontSize: 10.4,
+    fontWeight: 600,
+    border: "none",
+    borderLeft: isLeft ? "none" : `1px solid ${color.gold}`,
+    cursor: "pointer",
+    background: active ? color.gold : "transparent",
+    color: active ? "#000" : color.gold,
+    transition: "all 0.15s",
+    fontFamily: "inherit",
+  });
+
+  return (
+    <div
+      role="group"
+      aria-label={t("videoSortToggleAria", lang)}
+      style={{ display: "flex", alignItems: "center", flexShrink: 0 }}
+    >
+      <div style={{ display: "flex", borderRadius: 5, overflow: "hidden", border: `1px solid ${color.gold}` }}>
+        <button
+          type="button"
+          onClick={() => onChange("score")}
+          style={segBtn(sort === "score", true)}
+          aria-pressed={sort === "score"}
+        >
+          {t("videoSortScore", lang)}
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange("date")}
+          style={segBtn(sort === "date", false)}
+          aria-pressed={sort === "date"}
+        >
+          {t("videoSortDate", lang)}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function VideoKindToggle({
   kind,
   onChange,
@@ -221,6 +295,7 @@ export function VideosPage({
 }) {
   const [date, setDate] = useState(() => toISODate(new Date()));
   const [videoKind, setVideoKind] = useState<VideoKind>("long");
+  const [videoSort, setVideoSort] = useState<VideoSort>(() => readVideoSortCookie());
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -229,9 +304,17 @@ export function VideosPage({
 
   const isToday = date === toISODate(new Date());
 
-  const visibleVideos = videoKind === "shorts"
-    ? videos.filter(isShortVideo)
-    : videos.filter((v) => !isShortVideo(v));
+  const visibleVideos = useMemo(() => {
+    const filtered = videoKind === "shorts"
+      ? videos.filter(isShortVideo)
+      : videos.filter((v) => !isShortVideo(v));
+    return sortVideos(filtered, videoSort);
+  }, [videos, videoKind, videoSort]);
+
+  const handleVideoSortChange = useCallback((next: VideoSort) => {
+    setVideoSort(next);
+    setCookie(VIDEO_SORT_COOKIE, next);
+  }, []);
 
   const fetchVideos = useCallback(async (d: string, l: Lang) => {
     setLoading(true);
@@ -253,7 +336,6 @@ export function VideosPage({
           sm[rest.videoId] = summaryMd;
         }
       }
-      clean.sort(publishedTimeDesc);
       setVideos(clean);
       setSummaries(sm);
     } catch (e) {
@@ -335,7 +417,10 @@ export function VideosPage({
           )}
         </div>
 
-        <VideoKindToggle kind={videoKind} onChange={setVideoKind} lang={lang} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <VideoSortToggle sort={videoSort} onChange={handleVideoSortChange} lang={lang} />
+          <VideoKindToggle kind={videoKind} onChange={setVideoKind} lang={lang} />
+        </div>
       </div>
 
       {/* ── Content ───────────────────────────────────────────── */}

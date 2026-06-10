@@ -417,14 +417,16 @@ function SubscriptionPanel({
   const benefits =
     lang === "fr"
       ? [
-          "Prix Early Adopter 2 € / mois (28 € / an, facturation annuelle en une fois).",
-          "Topics sur mesure avec découverte IA des flux.",
-          "Plus de résumés YouTube et suivi de chaînes personnelles — jusqu'à 5 chaînes YouTube.",
+          "Prix Early Adopter 28 € / an au lieu de 88 €, paiement annuel en une fois.",
+          "50+ chaînes YouTube incluses par défaut avec résumés IA et transcriptions en anglais et en français — ajoutez jusqu'à 5 chaînes personnelles au choix.",
+          "Ajoutez vos propres topics avec découverte IA de flux.",
+          "Chat IA ancré dans votre flux d'actualité — posez vos questions sur le briefing du jour, ses notes et ses sources.",
         ]
       : [
-          "Early Adopter price €2/month (€28/year, billed annually in one payment).",
-          "Custom topics with AI feed discovery.",
-          "More YouTube summaries and personal channel monitoring — up to 5 YouTube channels.",
+          "Early Adopter price €28/year instead of €88, billed annually in one payment.",
+          "50+ YouTube channels included by default with AI summaries and transcripts in English and French — add up to 5 personal channels of your choice.",
+          "Add your own topics with AI feed discovery.",
+          "AI chat grounded in your live news feed — ask anything about today's briefing, notes and source links.",
         ];
 
   return (

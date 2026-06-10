@@ -93,6 +93,10 @@ export async function GET(request: NextRequest) {
       title: b.title,
       refs: b.refs ?? [],
       importanceScore: b.importance_score,
+      // « Top videos of yesterday » bullets pinned at the head of the
+      // Daily Podcast — the UI hoists these groups first and renders a
+      // VIDEO badge; their single ref deep-links to the SSR video page.
+      isVideo: b.video_transcription_id !== null,
     };
   });
 

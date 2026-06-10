@@ -203,13 +203,6 @@ export function SeoNavBar({ lang, altLangUrl }: { lang: Lang; altLangUrl?: strin
               <polyline points="9 21 9 14 15 14 15 21" />
             </svg>
           </NavLink>
-          <NavLink href="/app/stats" ariaLabel={t("navStatsAria", lang)}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="12" width="4" height="9" rx="1" />
-              <rect x="10" y="7" width="4" height="14" rx="1" />
-              <rect x="17" y="3" width="4" height="18" rx="1" />
-            </svg>
-          </NavLink>
           <NavLink href="/app/crons" ariaLabel={t("cronMonitor", lang)}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />

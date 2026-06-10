@@ -234,6 +234,13 @@ export interface TopSummaryBulletRow {
    * found error).
    */
   importance_score: number | null;
+  /**
+   * Non-NULL on the « top videos of yesterday » bullets pinned at the
+   * head of the Daily Podcast — points at `video_transcriptions.id`.
+   * NULL on regular article bullets. Readers use this to hoist video
+   * groups first and to render the VIDEO badge.
+   */
+  video_transcription_id: number | null;
 }
 
 export async function getTopSummaryBulletsByDate(
@@ -251,8 +258,8 @@ export async function getTopSummaryBulletsByDate(
     // in `videos.ts` and `summary_score` in `/api/video-pages/recent`.
     // Keeps the deploy hot-fix safe regardless of migration order.
     const fullColumns =
-      "bullet_index, title, text, refs, importance_score";
-    const baseColumns = "bullet_index, title, text, refs";
+      "bullet_index, title, text, refs, importance_score, video_transcription_id";
+    const baseColumns = "bullet_index, title, text, refs, video_transcription_id";
     const run = (columns: string) =>
       supabase
         .from("summary_bullets")
@@ -280,6 +287,7 @@ export async function getTopSummaryBulletsByDate(
       text: string;
       refs: unknown;
       importance_score?: number | null;
+      video_transcription_id?: number | null;
     }>;
     for (const row of rows) {
       if (seen.has(row.bullet_index)) continue;
@@ -294,6 +302,10 @@ export async function getTopSummaryBulletsByDate(
         refs,
         importance_score:
           typeof row.importance_score === "number" ? row.importance_score : null,
+        video_transcription_id:
+          typeof row.video_transcription_id === "number"
+            ? row.video_transcription_id
+            : null,
       });
     }
     return out;

@@ -56,6 +56,8 @@ interface BulletForHero {
   title: string | null;
   refs: Array<{ title: string; link: string; source: string }>;
   importanceScore: number | null;
+  /** « Top videos of yesterday » bullets — hoisted first + VIDEO badge. */
+  isVideo: boolean;
 }
 
 function escapeRegExp(s: string): string {
@@ -103,6 +105,7 @@ export async function TopDayPage({ date, lang }: TopDayPageProps) {
       title: b.title,
       refs: b.refs ?? [],
       importanceScore: b.importance_score,
+      isVideo: b.video_transcription_id !== null,
     };
   });
 

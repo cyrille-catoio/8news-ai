@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireOwnerSession } from "@/lib/auth-api";
 import {
   getAllArticlesForStats,
   getActiveFeedsForStats,
@@ -8,6 +9,8 @@ import {
   type StatsArticleRow,
 } from "@/lib/supabase";
 import type { StatsResponse } from "@/lib/types";
+
+export const maxDuration = 30;
 
 function roundOne(n: number): number {
   return Math.round(n * 10) / 10;
@@ -145,6 +148,9 @@ function buildTopicComparison(
 }
 
 export async function GET(req: NextRequest) {
+  const auth = await requireOwnerSession();
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = req.nextUrl;
   const topic = searchParams.get("topic") || "all";
   const days = Math.max(0, parseFloat(searchParams.get("days") || "0") || 0);

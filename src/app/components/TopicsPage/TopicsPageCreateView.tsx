@@ -280,22 +280,7 @@ export function TopicsPageCreateView({
 
       <div style={sectionCard}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <h4 style={{ ...formSectionTitle, marginBottom: 0 }}>{t("rssFeedsBoxTitle", lang)}</h4>
-            <span
-              style={{
-                fontSize: 10,
-                fontWeight: 700,
-                color: color.gold,
-                border: `1px solid ${color.gold}`,
-                borderRadius: 999,
-                padding: "2px 8px",
-                letterSpacing: "0.04em",
-              }}
-            >
-              ✨ {t("generateAi", lang)}
-            </span>
-          </div>
+          <h4 style={{ ...formSectionTitle, marginBottom: 0 }}>{t("rssFeedsBoxTitle", lang)}</h4>
           {draftTopicId && <span style={{ color: color.gold, fontSize: 11, fontWeight: 600 }}>{t("draftTopicReady", lang)}</span>}
         </div>
         <div style={{ color: color.textDim, fontSize: 12, marginBottom: 12, lineHeight: 1.45 }}>{t("rssFeedsBoxDesc", lang)}</div>

@@ -24,6 +24,14 @@ export interface Bullet {
    * the meter is hidden in that case.
    */
   importanceScore?: number | null;
+  /**
+   * « Top videos of yesterday » bullets pinned at the head of the
+   * Daily Podcast (v2.13+). Hoisted before every article group by
+   * `groupBullets` and rendered with a VIDEO badge; their single ref
+   * deep-links to the per-video SSR page (full AI summary + player).
+   * Absent/false on regular article bullets and legacy snapshots.
+   */
+  isVideo?: boolean;
 }
 
 export interface Group {
@@ -56,15 +64,18 @@ export function groupBullets(bullets: Bullet[]): Group[] {
     if (last && last.title === t) last.bullets.push(b);
     else out.push({ title: t, bullets: [b] });
   }
-  // Stable sort by importance DESC; legacy groups without a score
-  // (NULL on snapshots predating mig 026) treat as 0 so they sink
-  // below scored groups instead of arbitrarily intermixing.
+  // Stable sort: video groups first (the « top videos of yesterday »
+  // bullets are pinned at the head of the Daily Podcast, v2.13+), then
+  // importance DESC. Legacy groups without a score (NULL on snapshots
+  // predating mig 026) treat as 0 so they sink below scored groups
+  // instead of arbitrarily intermixing.
   const decorated = out.map((g, i) => ({
     g,
     i,
+    v: g.bullets[0]?.isVideo ? 1 : 0,
     s: g.bullets[0]?.importanceScore ?? 0,
   }));
-  decorated.sort((a, b) => (b.s - a.s) || (a.i - b.i));
+  decorated.sort((a, b) => (b.v - a.v) || (b.s - a.s) || (a.i - b.i));
   return decorated.map((d) => d.g);
 }
 

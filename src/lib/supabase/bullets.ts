@@ -87,6 +87,13 @@ export async function insertTopSummaryBullets(
      * the score.
      */
     importance_score: number | null;
+    /**
+     * Set on the « top videos of yesterday » bullets pinned at the head
+     * of the Daily Podcast — points at `video_transcriptions.id` so
+     * readers can tell video bullets apart from article bullets.
+     * Omitted/NULL on regular article bullets.
+     */
+    video_transcription_id?: number | null;
   }>,
 ): Promise<boolean> {
   if (rows.length === 0) return true;

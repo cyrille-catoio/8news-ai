@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getServerClient } from "./client";
 
 /**
@@ -44,34 +45,88 @@ export interface GlobalKpis {
   hitRate: number;
 }
 
-export async function getGlobalKpis(): Promise<GlobalKpis> {
-  const clientP = getServerClient();
-  if (!clientP) return { totalArticles: 0, scoredArticles: 0, pctScored: 0, avgScore: 0, hitRate: 0 };
+interface GlobalArticleKpisRow {
+  total_articles: number | string;
+  scored_articles: number | string;
+  avg_score: number | string;
+  hit_rate: number | string;
+}
 
-  const supabase = await clientP;
-  const countByScore = (score: number) =>
-    supabase.from("articles").select("id", { count: "exact", head: true }).eq("relevance_score", score);
+function emptyGlobalKpis(): GlobalKpis {
+  return { totalArticles: 0, scoredArticles: 0, pctScored: 0, avgScore: 0, hitRate: 0 };
+}
 
-  const [totalRes, ...scoreCountRes] = await Promise.all([
-    supabase.from("articles").select("id", { count: "exact", head: true }),
-    countByScore(1), countByScore(2), countByScore(3), countByScore(4), countByScore(5),
-    countByScore(6), countByScore(7), countByScore(8), countByScore(9), countByScore(10),
-  ]);
+function roundOne(n: number): number {
+  return Math.round(n * 10) / 10;
+}
 
-  const total = totalRes.count ?? 0;
-  const counts = scoreCountRes.map((r) => r.count ?? 0);
-  const scored = counts.reduce((s, c) => s + c, 0);
-  const hit7 = counts[6] + counts[7] + counts[8] + counts[9];
-  const weightedSum = counts.reduce((s, c, i) => s + c * (i + 1), 0);
-  const avgScore = scored > 0 ? Math.round((weightedSum / scored) * 10) / 10 : 0;
-
+function buildGlobalKpis(total: number, scored: number, avgScore: number, hitRate: number): GlobalKpis {
   return {
     totalArticles: total,
     scoredArticles: scored,
-    pctScored: total > 0 ? Math.round((scored / total) * 1000) / 10 : 0,
-    avgScore,
-    hitRate: scored > 0 ? Math.round((hit7 / scored) * 1000) / 10 : 0,
+    pctScored: total > 0 ? roundOne((scored / total) * 100) : 0,
+    avgScore: roundOne(avgScore),
+    hitRate: roundOne(hitRate),
   };
+}
+
+/** Fallback when migration 035 has not been applied yet. */
+async function getGlobalKpisLegacy(supabase: SupabaseClient): Promise<GlobalKpis> {
+  const [totalRes, scoredRes, hitRes] = await Promise.all([
+    supabase.from("articles").select("*", { count: "exact", head: true }),
+    supabase
+      .from("articles")
+      .select("*", { count: "exact", head: true })
+      .not("relevance_score", "is", null),
+    supabase
+      .from("articles")
+      .select("*", { count: "exact", head: true })
+      .not("relevance_score", "is", null)
+      .gte("relevance_score", 7),
+  ]);
+
+  if (totalRes.error) {
+    console.error("[getGlobalKpis] total count failed:", totalRes.error.message);
+  }
+
+  const total = totalRes.count ?? 0;
+  const scored = scoredRes.count ?? 0;
+  const hit7 = hitRes.count ?? 0;
+
+  return buildGlobalKpis(
+    total,
+    scored,
+    0,
+    scored > 0 ? (hit7 / scored) * 100 : 0,
+  );
+}
+
+export async function getGlobalKpis(): Promise<GlobalKpis> {
+  const clientP = getServerClient();
+  if (!clientP) return emptyGlobalKpis();
+
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase.rpc("get_global_article_kpis");
+    if (!error && data && typeof data === "object") {
+      const row = data as GlobalArticleKpisRow;
+      const total = Number(row.total_articles) || 0;
+      const scored = Number(row.scored_articles) || 0;
+      return buildGlobalKpis(
+        total,
+        scored,
+        Number(row.avg_score) || 0,
+        Number(row.hit_rate) || 0,
+      );
+    }
+    if (error) {
+      console.error("[getGlobalKpis] RPC failed, using legacy counts:", error.message);
+    }
+    return await getGlobalKpisLegacy(supabase);
+  } catch (err) {
+    console.error("[getGlobalKpis] unexpected error:", err);
+    return emptyGlobalKpis();
+  }
 }
 
 /**

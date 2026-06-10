@@ -33,9 +33,11 @@ import { analyzeWithAI } from "./ai-analyze";
 import {
   getHiddenTopicIds,
   getTopArticlesForStats,
+  getTopVideosForDate,
   insertTopSummaryBullets,
   upsertTopSummary,
   type TopSummaryArticle,
+  type TopVideoForDateRow,
 } from "./supabase";
 import type { Lang } from "./i18n";
 import type { ArticleSummary } from "./types";
@@ -51,6 +53,19 @@ const TOP_LIMIT = 50;
 /** Char cap on the snippet sent to the LLM (kept aligned with the
  *  legacy POST route to avoid surprising the prompt). */
 const PROMPT_SNIPPET_MAX = 250;
+
+/** How many « top videos of yesterday » bullets get pinned at the head
+ *  of the Daily Podcast. */
+const TOP_VIDEOS_COUNT = 2;
+
+/** Char cap on the condensed video summary used as the bullet body. */
+const VIDEO_BULLET_MAX_CHARS = 450;
+
+/** Absolute origin for the per-video SSR deep link stored in the
+ *  bullet's ref — must be absolute so the same ref works in the SPA
+ *  pills AND in the newsletter email. Same hardcoded origin as the SSR
+ *  canonical URLs (see `src/lib/summary-routes.ts`). */
+const SITE_ORIGIN = "https://8news.ai";
 
 export function generateTopSummaryPrompt(lang: Lang): string {
   if (lang === "fr") {
@@ -113,6 +128,154 @@ export function generateTopSummaryPrompt(lang: Lang): string {
     "",
     "Respond with JSON: {\"relevant\":[{\"index\":0,\"snippet\":\"short summary\"}],\"globalSummary\":[{\"title\":\"short punchy headline\",\"importance\":8,\"bullets\":[{\"text\":\"first angle, detailed\",\"refs\":[0,1]},{\"text\":\"second angle, detailed\",\"refs\":[2]}]}]}",
   ].join("\n");
+}
+
+/** Strip markdown decoration (bold/italic markers, list bullets,
+ *  heading hashes) so the extracted prose renders cleanly as the plain
+ *  bullet text the Top 24h surfaces display verbatim. */
+function stripMarkdownInline(s: string): string {
+  return s
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^\s*[-*]\s+/gm, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Condense a video `summary_md` into a few-line bullet body — no extra
+ * LLM round-trip. Takes the TL;DR / INTRO section first, appends the
+ * first key point when there's room, and caps at
+ * `VIDEO_BULLET_MAX_CHARS` on a word boundary.
+ *
+ * The summaries follow the `transcribe-video.ts` contract:
+ *   ## TL;DR (EN) / ## INTRO (FR) → one factual sentence
+ *   ## KEY POINTS / ## POINTS CLÉS → 5-15 titled bullets
+ *   ## CONCLUSION → 1-2 sentence wrap-up
+ * Falls back to the first non-heading paragraph for any summary that
+ * doesn't match the expected shape.
+ */
+export function extractVideoBulletText(
+  summaryMd: string,
+  maxChars = VIDEO_BULLET_MAX_CHARS,
+): string {
+  let md = (summaryMd ?? "").trim();
+  const fence = md.match(/^```[A-Za-z0-9_-]*\s*\n([\s\S]*?)\n```$/);
+  if (fence) md = fence[1].trim();
+  if (!md) return "";
+
+  let intro = "";
+  let firstPoint = "";
+  const sections = md.split(/^##\s+/m).filter((s) => s.trim().length > 0);
+  for (const sec of sections) {
+    const nl = sec.indexOf("\n");
+    const heading = (nl === -1 ? sec : sec.slice(0, nl)).trim().toUpperCase();
+    const body = nl === -1 ? "" : sec.slice(nl + 1).trim();
+    if (!intro && (heading.startsWith("TL;DR") || heading.startsWith("INTRO"))) {
+      intro = stripMarkdownInline(body);
+    } else if (
+      !firstPoint &&
+      (heading.startsWith("KEY POINT") || heading.startsWith("POINTS CL"))
+    ) {
+      // First key point = everything until the second `- ` bullet
+      // marker (loose-list form keeps the body indented under it).
+      const lines = body.split("\n");
+      const collected: string[] = [];
+      let bulletCount = 0;
+      for (const line of lines) {
+        if (/^\s*[-*]\s+/.test(line)) {
+          bulletCount += 1;
+          if (bulletCount > 1) break;
+        }
+        if (bulletCount >= 1) collected.push(line);
+      }
+      firstPoint = stripMarkdownInline(collected.join(" "));
+    }
+  }
+
+  if (!intro) {
+    // Fallback: first non-heading paragraph anywhere in the summary.
+    const para = md
+      .split(/\n{2,}/)
+      .map((p) => p.trim())
+      .find((p) => p.length > 0 && !p.startsWith("#"));
+    intro = stripMarkdownInline(para ?? "");
+  }
+
+  let out = intro;
+  if (firstPoint && out.length + firstPoint.length + 1 <= maxChars) {
+    out = out ? `${out} ${firstPoint}` : firstPoint;
+  }
+  if (out.length > maxChars) {
+    const cut = out.slice(0, maxChars);
+    const lastSpace = cut.lastIndexOf(" ");
+    out = `${cut.slice(0, lastSpace > maxChars * 0.6 ? lastSpace : maxChars).trimEnd()}…`;
+  }
+  return out;
+}
+
+/** Shape shared with the article bullet rows built in
+ *  `generateTopSummary` below. */
+interface TopSummaryBulletInsertRow {
+  topic_id: string | null;
+  lang: string;
+  summary_date: string;
+  bullet_index: number;
+  title: string | null;
+  text: string;
+  refs: unknown;
+  source_type: string;
+  entities: string[];
+  importance_score: number | null;
+  video_transcription_id?: number | null;
+}
+
+/**
+ * Build the « top videos of yesterday » bullets pinned at the head of
+ * the Daily Podcast (bullet_index 0..N-1; the article bullets are
+ * shifted by the returned array's length). One ref per bullet pointing
+ * at the per-video SSR page (full AI summary + embedded player).
+ */
+function buildVideoBulletRows(
+  videos: TopVideoForDateRow[],
+  lang: Lang,
+  summaryDate: string,
+): TopSummaryBulletInsertRow[] {
+  const rows: TopSummaryBulletInsertRow[] = [];
+  for (const v of videos) {
+    const body = extractVideoBulletText(v.summary_md);
+    if (!body) continue;
+    const ssrUrl = `${SITE_ORIGIN}/${v.topic_id}/v/${v.published_date}/${v.slug_keywords}`;
+    const importance = Math.max(1, Math.min(10, Math.round(v.summary_score)));
+    rows.push({
+      topic_id: v.topic_id,
+      lang,
+      summary_date: summaryDate,
+      bullet_index: rows.length,
+      title: v.title,
+      text: `**${v.title}**\n\n${body}`,
+      refs: [
+        {
+          title: v.title,
+          link: ssrUrl,
+          source: v.channel_title ?? "YouTube",
+        },
+      ],
+      source_type: "top50",
+      entities: [],
+      importance_score: importance,
+      video_transcription_id: v.id,
+    });
+  }
+  return rows;
+}
+
+/** UTC date string for the day before `dateISO` (YYYY-MM-DD). */
+function previousUtcDay(dateISO: string): string {
+  const d = new Date(`${dateISO}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
 }
 
 export type GenerateTopSummaryStatus =
@@ -241,32 +404,34 @@ export async function generateTopSummary(
     };
   }
 
+  // « Top videos of yesterday » — the 2 best-scored transcribed videos
+  // published the day before the snapshot, pinned at the head of the
+  // Daily Podcast (bullet_index 0..1, article bullets shifted by +2).
+  // Best-effort: a video fetch failure must never break the article
+  // briefing, so any error collapses to an empty array.
+  let videoBulletRows: TopSummaryBulletInsertRow[] = [];
+  try {
+    const videos = await getTopVideosForDate(
+      previousUtcDay(summaryDate),
+      lang,
+      TOP_VIDEOS_COUNT,
+    );
+    videoBulletRows = buildVideoBulletRows(videos, lang, summaryDate);
+  } catch (err) {
+    console.error(
+      `[generateTopSummary] top videos fetch failed (lang=${lang}, date=${summaryDate}):`,
+      err,
+    );
+  }
+
   // Mirror each bullet into `summary_bullets` (source_type='top50').
   // Same shape used by the legacy POST route + the daily-summary
   // pipeline: the embedded `**Title**\n\nbody` markdown in `text` lets
   // any plain-text consumer keep the visual hierarchy without joining
   // on the dedicated `title` column.
-  if (bullets.length > 0) {
-    const bulletRows: Array<{
-      topic_id: string | null;
-      lang: string;
-      summary_date: string;
-      bullet_index: number;
-      title: string | null;
-      text: string;
-      refs: unknown;
-      source_type: string;
-      entities: string[];
-      /**
-       * Editorial importance 1-10 propagated from the LLM `importance`
-       * field via `analyzeWithAI` flatten. Same value across every row
-       * of a same-`title` run, so the UI can read it off the first
-       * bullet of the rendered group (mirroring how `title` is shared).
-       * NULL when migration 026 isn't applied yet (the helper drops
-       * the column on a 42703 retry) or when the LLM omitted the score.
-       */
-      importance_score: number | null;
-    }> = [];
+  if (bullets.length > 0 || videoBulletRows.length > 0) {
+    const bulletRows: TopSummaryBulletInsertRow[] = [...videoBulletRows];
+    const indexOffset = videoBulletRows.length;
 
     for (let i = 0; i < bullets.length; i++) {
       const blt = bullets[i];
@@ -289,7 +454,7 @@ export async function generateTopSummary(
           topic_id: null,
           lang,
           summary_date: summaryDate,
-          bullet_index: i,
+          bullet_index: i + indexOffset,
           title: titleValue,
           text: persistedText,
           refs: blt.refs,
@@ -303,7 +468,7 @@ export async function generateTopSummary(
             topic_id: topicId,
             lang,
             summary_date: summaryDate,
-            bullet_index: i,
+            bullet_index: i + indexOffset,
             title: titleValue,
             text: persistedText,
             refs: blt.refs,
@@ -323,6 +488,6 @@ export async function generateTopSummary(
     summaryDate,
     lang,
     articleCount: articles.length,
-    bulletCount: bullets.length,
+    bulletCount: bullets.length + videoBulletRows.length,
   };
 }

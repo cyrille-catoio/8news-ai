@@ -138,7 +138,8 @@ export async function insertTopSummaryBullets(
 
     console.error("[insertTopSummaryBullets] insert failed:", msg);
     return false;
-  } catch {
+  } catch (err) {
+    console.error("[insertTopSummaryBullets]", err);
     return false;
   }
 }

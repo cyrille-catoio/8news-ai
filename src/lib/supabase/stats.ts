@@ -186,7 +186,8 @@ export async function getAllArticlesForStats(
     }
 
     return allRows;
-  } catch {
+  } catch (err) {
+    console.warn("[getAllArticlesForStats]", err);
     return [];
   }
 }
@@ -238,7 +239,8 @@ export async function getTopArticlesForStats(
         image_url: row.image_url ?? null,
       }),
     ) as TopArticleRow[];
-  } catch {
+  } catch (err) {
+    console.warn("[getTopArticlesForStats]", err);
     return [];
   }
 }
@@ -255,7 +257,8 @@ export async function getActiveFeedsForStats(): Promise<StatsFeedRow[]> {
       .eq("is_active", true);
     if (error || !data) return [];
     return data as StatsFeedRow[];
-  } catch {
+  } catch (err) {
+    console.warn("[getActiveFeedsForStats]", err);
     return [];
   }
 }
@@ -273,7 +276,8 @@ export async function getHiddenTopicIds(): Promise<string[]> {
 
     if (error || !data) return [];
     return data.map((r) => r.id);
-  } catch {
+  } catch (err) {
+    console.warn("[getHiddenTopicIds]", err);
     return [];
   }
 }

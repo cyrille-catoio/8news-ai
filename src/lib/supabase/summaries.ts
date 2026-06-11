@@ -49,7 +49,8 @@ export async function getDailySummary(
       .single();
     if (error || !data) return null;
     return data as DailySummaryRow;
-  } catch {
+  } catch (err) {
+    console.warn("[getDailySummary]", err);
     return null;
   }
 }
@@ -77,7 +78,8 @@ export async function getDailySummaryBySlug(
       .maybeSingle();
     if (error || !data) return null;
     return data as DailySummaryRow;
-  } catch {
+  } catch (err) {
+    console.warn("[getDailySummaryBySlug]", err);
     return null;
   }
 }
@@ -100,7 +102,8 @@ export async function getDailySummariesBySlug(
       .order("lang", { ascending: true });
     if (error || !data) return [];
     return data as DailySummaryRow[];
-  } catch {
+  } catch (err) {
+    console.warn("[getDailySummariesBySlug]", err);
     return [];
   }
 }
@@ -132,7 +135,8 @@ export async function listDailySummaries(
     ]);
     if (error || !data) return { rows: [], total: count ?? 0 };
     return { rows: data as DailySummaryRow[], total: count ?? 0 };
-  } catch {
+  } catch (err) {
+    console.warn("[listDailySummaries]", err);
     return { rows: [], total: 0 };
   }
 }
@@ -160,9 +164,13 @@ export async function insertDailySummary(row: {
       .upsert(row, { onConflict: "topic_id,summary_date,lang" })
       .select("id")
       .single();
-    if (error || !data) return null;
+    if (error || !data) {
+      if (error) console.error("[insertDailySummary] upsert failed:", error.message);
+      return null;
+    }
     return (data as { id: number }).id;
-  } catch {
+  } catch (err) {
+    console.error("[insertDailySummary]", err);
     return null;
   }
 }
@@ -195,8 +203,13 @@ export async function insertSummaryBullets(
       .delete()
       .eq("daily_summary_id", bullets[0].daily_summary_id);
     const { error } = await supabase.from("summary_bullets").insert(bullets);
-    return !error;
-  } catch {
+    if (error) {
+      console.error("[insertSummaryBullets] insert failed:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("[insertSummaryBullets]", err);
     return false;
   }
 }
@@ -216,7 +229,8 @@ export async function getAllSummaryRoutes(): Promise<
       .order("summary_date", { ascending: false });
     if (error || !data) return [];
     return data as Array<{ topic_id: string; summary_date: string; slug_keywords: string; lang: string }>;
-  } catch {
+  } catch (err) {
+    console.warn("[getAllSummaryRoutes]", err);
     return [];
   }
 }

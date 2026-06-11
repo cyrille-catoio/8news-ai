@@ -278,7 +278,15 @@ export async function generateDailySummary(
     source_type: "daily_summary",
   }));
 
-  await insertSummaryBullets(bulletRows);
+  const bulletsOk = await insertSummaryBullets(bulletRows);
+  if (!bulletsOk) {
+    // The daily_summaries row exists, so the SSR page renders — but the
+    // summary_bullets mirror is missing. Log loudly so the cron run
+    // surfaces it instead of silently reporting success.
+    console.error(
+      `[generateDailySummary] insertSummaryBullets failed (topic=${topicId}, date=${date}, lang=${lang}, rows=${bulletRows.length})`,
+    );
+  }
 
   return { summaryId, bulletCount: bullets.length, slug: slugKeywords, seoTitle, articleCount: items.length, status: "generated" as GenerateStatus };
 }

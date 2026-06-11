@@ -53,7 +53,8 @@ export async function getScoredArticles(
 
     if (error || !data) return [];
     return data as DbArticle[];
-  } catch {
+  } catch (err) {
+    console.warn("[getScoredArticles]", err);
     return [];
   }
 }
@@ -79,7 +80,8 @@ export async function getAllArticlesFromDb(
 
     if (error || !data) return [];
     return data as DbArticle[];
-  } catch {
+  } catch (err) {
+    console.warn("[getAllArticlesFromDb]", err);
     return [];
   }
 }
@@ -114,7 +116,8 @@ export async function countArticlesForPeriod(
       total: totalRes.count ?? 0,
       scored: scoredRes.count ?? 0,
     };
-  } catch {
+  } catch (err) {
+    console.warn("[countArticlesForPeriod]", err);
     return { total: 0, scored: 0 };
   }
 }
@@ -141,7 +144,8 @@ export async function getUserTopicPreferences(
     // Return the actual array: [] means "set but no filter" (onboarding done),
     // null means "no row" (onboarding not done yet).
     return (data as { topic_ids: string[] }).topic_ids;
-  } catch {
+  } catch (err) {
+    console.warn("[getUserTopicPreferences]", err);
     return null;
   }
 }
@@ -166,8 +170,13 @@ export async function setUserTopicPreferences(
         { onConflict: "user_id" },
       );
 
-    return !error;
-  } catch {
+    if (error) {
+      console.error("[setUserTopicPreferences] upsert failed:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("[setUserTopicPreferences]", err);
     return false;
   }
 }
@@ -195,7 +204,8 @@ export async function getUserFavorites(userId: string): Promise<UserFavoriteRow[
       .order("created_at", { ascending: false });
     if (error || !data) return [];
     return data as UserFavoriteRow[];
-  } catch {
+  } catch (err) {
+    console.warn("[getUserFavorites]", err);
     return [];
   }
 }
@@ -211,7 +221,8 @@ export async function getUserFavoriteUrls(userId: string): Promise<string[]> {
       .eq("user_id", userId);
     if (error || !data) return [];
     return (data as { article_url: string }[]).map((r) => r.article_url);
-  } catch {
+  } catch (err) {
+    console.warn("[getUserFavoriteUrls]", err);
     return [];
   }
 }
@@ -235,8 +246,13 @@ export async function addUserFavorite(
       },
       { onConflict: "user_id,article_url" },
     );
-    return !error;
-  } catch {
+    if (error) {
+      console.error("[addUserFavorite] upsert failed:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("[addUserFavorite]", err);
     return false;
   }
 }
@@ -251,8 +267,13 @@ export async function removeUserFavorite(userId: string, articleUrl: string): Pr
       .delete()
       .eq("user_id", userId)
       .eq("article_url", articleUrl);
-    return !error;
-  } catch {
+    if (error) {
+      console.error("[removeUserFavorite] delete failed:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("[removeUserFavorite]", err);
     return false;
   }
 }
@@ -289,7 +310,8 @@ export async function getArticleImageUrlsByLinks(
       if (url) out.set(row.link, url);
     }
     return out;
-  } catch {
+  } catch (err) {
+    console.warn("[getArticleImageUrlsByLinks]", err);
     return new Map();
   }
 }
@@ -337,7 +359,8 @@ export async function getTopArticlesForTopics(
         image_url: row.image_url ?? null,
       }),
     ) as TopArticleRow[];
-  } catch {
+  } catch (err) {
+    console.warn("[getTopArticlesForTopics]", err);
     return [];
   }
 }

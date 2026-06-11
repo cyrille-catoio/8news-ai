@@ -64,7 +64,8 @@ export async function getCategories(): Promise<CategoryRow[]> {
       .order("sort_order", { ascending: true });
     if (error || !data) return [];
     return data as CategoryRow[];
-  } catch {
+  } catch (err) {
+    console.warn("[getCategories]", err);
     return [];
   }
 }
@@ -81,9 +82,13 @@ export async function createCategory(
       .insert(data)
       .select()
       .single();
-    if (error || !row) return null;
+    if (error || !row) {
+      if (error) console.error("[createCategory] insert failed:", error.message);
+      return null;
+    }
     return row as CategoryRow;
-  } catch {
+  } catch (err) {
+    console.error("[createCategory]", err);
     return null;
   }
 }
@@ -102,9 +107,13 @@ export async function updateCategory(
       .eq("id", id)
       .select()
       .single();
-    if (error || !row) return null;
+    if (error || !row) {
+      if (error) console.error("[updateCategory] update failed:", error.message);
+      return null;
+    }
     return row as CategoryRow;
-  } catch {
+  } catch (err) {
+    console.error("[updateCategory]", err);
     return null;
   }
 }
@@ -115,8 +124,13 @@ export async function deleteCategory(id: number): Promise<boolean> {
   try {
     const supabase = await clientP;
     const { error } = await supabase.from("categories").delete().eq("id", id);
-    return !error;
-  } catch {
+    if (error) {
+      console.error("[deleteCategory] delete failed:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("[deleteCategory]", err);
     return false;
   }
 }
@@ -163,7 +177,8 @@ export async function getActiveTopics(includeInactive = false): Promise<
       category_label_en: cat?.label_en,
       category_label_fr: cat?.label_fr,
     }));
-  } catch {
+  } catch (err) {
+    console.warn("[getActiveTopics]", err);
     return [];
   }
 }
@@ -192,7 +207,8 @@ export async function getTopicWithFeeds(
       .order("created_at", { ascending: true });
 
     return { ...(topic as TopicRow), feeds: (feeds ?? []) as FeedRow[] };
-  } catch {
+  } catch (err) {
+    console.warn("[getTopicWithFeeds]", err);
     return null;
   }
 }
@@ -211,9 +227,13 @@ export async function createTopic(
       .select()
       .single();
 
-    if (error || !row) return null;
+    if (error || !row) {
+      if (error) console.error("[createTopic] insert failed:", error.message);
+      return null;
+    }
     return row as TopicRow;
-  } catch {
+  } catch (err) {
+    console.error("[createTopic]", err);
     return null;
   }
 }
@@ -234,9 +254,13 @@ export async function updateTopic(
       .select()
       .single();
 
-    if (error || !row) return null;
+    if (error || !row) {
+      if (error) console.error("[updateTopic] update failed:", error.message);
+      return null;
+    }
     return row as TopicRow;
-  } catch {
+  } catch (err) {
+    console.error("[updateTopic]", err);
     return null;
   }
 }
@@ -397,9 +421,13 @@ export async function createFeed(
       .select()
       .single();
 
-    if (error || !row) return null;
+    if (error || !row) {
+      if (error) console.error("[createFeed] insert failed:", error.message);
+      return null;
+    }
     return row as FeedRow;
-  } catch {
+  } catch (err) {
+    console.error("[createFeed]", err);
     return null;
   }
 }
@@ -420,9 +448,13 @@ export async function updateFeed(
       .select()
       .single();
 
-    if (error || !row) return null;
+    if (error || !row) {
+      if (error) console.error("[updateFeed] update failed:", error.message);
+      return null;
+    }
     return row as FeedRow;
-  } catch {
+  } catch (err) {
+    console.error("[updateFeed]", err);
     return null;
   }
 }
@@ -434,8 +466,13 @@ export async function deleteFeed(feedId: number): Promise<boolean> {
   try {
     const supabase = await clientP;
     const { error } = await supabase.from("feeds").delete().eq("id", feedId);
-    return !error;
-  } catch {
+    if (error) {
+      console.error("[deleteFeed] delete failed:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("[deleteFeed]", err);
     return false;
   }
 }
@@ -454,7 +491,8 @@ export async function getFeedById(feedId: number): Promise<FeedRow | null> {
 
     if (error || !data) return null;
     return data as FeedRow;
-  } catch {
+  } catch (err) {
+    console.warn("[getFeedById]", err);
     return null;
   }
 }
@@ -475,9 +513,13 @@ export async function deleteArticlesByTopicAndSource(
       .eq("source", source)
       .select("id");
 
-    if (error) return { ok: false, deleted: 0 };
+    if (error) {
+      console.error("[deleteArticlesByTopicAndSource] delete failed:", error.message);
+      return { ok: false, deleted: 0 };
+    }
     return { ok: true, deleted: data?.length ?? 0 };
-  } catch {
+  } catch (err) {
+    console.error("[deleteArticlesByTopicAndSource]", err);
     return { ok: false, deleted: 0 };
   }
 }
@@ -496,7 +538,8 @@ export async function getAllFeedsRows(): Promise<FeedRow[]> {
 
     if (error || !data) return [];
     return data as FeedRow[];
-  } catch {
+  } catch (err) {
+    console.warn("[getAllFeedsRows]", err);
     return [];
   }
 }
@@ -518,7 +561,8 @@ export async function getTopicPrompt(
 
     if (error || !data) return null;
     return data as { prompt_en: string; prompt_fr: string };
-  } catch {
+  } catch (err) {
+    console.warn("[getTopicPrompt]", err);
     return null;
   }
 }
@@ -537,7 +581,8 @@ export async function getTopicById(
       .single();
     if (error || !data) return null;
     return data as { id: string; label_en: string; label_fr: string; is_active: boolean };
-  } catch {
+  } catch (err) {
+    console.warn("[getTopicById]", err);
     return null;
   }
 }
@@ -553,7 +598,8 @@ export async function getActiveTopicIds(): Promise<string[]> {
       .eq("is_active", true);
     if (error || !data) return [];
     return data.map((r) => r.id);
-  } catch {
+  } catch (err) {
+    console.warn("[getActiveTopicIds]", err);
     return [];
   }
 }

@@ -553,7 +553,12 @@ export async function transcribeVideo(
         summaryMd,
       });
       if (bulletRows.length > 0) {
-        await insertVideoBullets(bulletRows);
+        const bulletsOk = await insertVideoBullets(bulletRows);
+        if (!bulletsOk) {
+          console.warn(
+            `[transcribe] insertVideoBullets failed (videoId=${videoId}, lang=${safeLang}, transcriptionId=${transcriptionId}, rows=${bulletRows.length}) — backfill pass will retry`,
+          );
+        }
       }
     }
 

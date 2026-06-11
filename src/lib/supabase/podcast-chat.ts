@@ -47,7 +47,8 @@ export async function getPodcastChatMessages(
       .order("id", { ascending: true });
     if (error || !data) return [];
     return data as PodcastChatMessageRow[];
-  } catch {
+  } catch (err) {
+    console.warn("[getPodcastChatMessages]", err);
     return [];
   }
 }
@@ -77,8 +78,13 @@ export async function insertPodcastChatMessages(
     const { error } = await supabase
       .from("podcast_chat_messages")
       .insert(payload);
-    return !error;
-  } catch {
+    if (error) {
+      console.error("[insertPodcastChatMessages] insert failed:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("[insertPodcastChatMessages]", err);
     return false;
   }
 }
@@ -98,8 +104,13 @@ export async function deletePodcastChatMessages(
       .delete()
       .eq("user_id", userId)
       .eq("summary_date", summaryDate);
-    return !error;
-  } catch {
+    if (error) {
+      console.error("[deletePodcastChatMessages] delete failed:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("[deletePodcastChatMessages]", err);
     return false;
   }
 }

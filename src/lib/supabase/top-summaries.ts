@@ -101,7 +101,8 @@ export async function getLatestTopSummary(
 
     if (error || !data) return null;
     return data as TopSummaryRow;
-  } catch {
+  } catch (err) {
+    console.warn("[getLatestTopSummary]", err);
     return null;
   }
 }
@@ -148,7 +149,8 @@ export async function getTopSummaryByOffset(
       snapshot: data[0] as TopSummaryRow,
       hasOlder: data.length > 1,
     };
-  } catch {
+  } catch (err) {
+    console.warn("[getTopSummaryByOffset]", err);
     return { snapshot: null, hasOlder: false };
   }
 }
@@ -182,7 +184,8 @@ export async function getTopSummaryByDate(
 
     if (error || !data) return null;
     return data as TopSummaryRow;
-  } catch {
+  } catch (err) {
+    console.warn("[getTopSummaryByDate]", err);
     return null;
   }
 }
@@ -216,7 +219,8 @@ export async function getAllTopSummaryRoutes(): Promise<
 
     if (error || !data) return [];
     return data as Array<{ summary_date: string; lang: "en" | "fr" }>;
-  } catch {
+  } catch (err) {
+    console.warn("[getAllTopSummaryRoutes]", err);
     return [];
   }
 }
@@ -309,7 +313,8 @@ export async function getTopSummaryBulletsByDate(
       });
     }
     return out;
-  } catch {
+  } catch (err) {
+    console.warn("[getTopSummaryBulletsByDate]", err);
     return [];
   }
 }

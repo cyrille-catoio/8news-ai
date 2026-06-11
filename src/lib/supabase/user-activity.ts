@@ -45,7 +45,8 @@ export async function getUserActivity(
       .order("last_clicked_at", { ascending: false });
     if (error || !data) return [];
     return data as UserActivityRow[];
-  } catch {
+  } catch (err) {
+    console.warn("[getUserActivity]", err);
     return [];
   }
 }
@@ -81,8 +82,13 @@ export async function upsertUserActivity(params: {
       },
       { onConflict: "user_id,activity_type,target_id" },
     );
-    return !error;
-  } catch {
+    if (error) {
+      console.error("[upsertUserActivity] upsert failed:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("[upsertUserActivity]", err);
     return false;
   }
 }

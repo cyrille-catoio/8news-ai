@@ -37,7 +37,8 @@ export async function getVideoTranscription(
       .single();
     if (error || !data) return null;
     return data as { id: number; summary_md: string; transcript: string; word_count: number | null };
-  } catch {
+  } catch (err) {
+    console.warn("[getVideoTranscription]", err);
     return null;
   }
 }
@@ -79,9 +80,13 @@ export async function insertVideoTranscription(row: {
       .insert(row)
       .select("id")
       .single();
-    if (error || !data) return null;
+    if (error || !data) {
+      if (error) console.error("[insertVideoTranscription] insert failed:", error.message);
+      return null;
+    }
     return (data as { id: number }).id;
-  } catch {
+  } catch (err) {
+    console.error("[insertVideoTranscription]", err);
     return null;
   }
 }
@@ -114,8 +119,13 @@ export async function insertVideoBullets(
       .eq("source_type", "video")
       .eq("video_transcription_id", bullets[0].video_transcription_id);
     const { error } = await supabase.from("summary_bullets").insert(bullets);
-    return !error;
-  } catch {
+    if (error) {
+      console.error("[insertVideoBullets] insert failed:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("[insertVideoBullets]", err);
     return false;
   }
 }
@@ -206,7 +216,8 @@ export async function getTopVideosForDate(
           channel_title: meta?.channel_title ?? null,
         };
       });
-  } catch {
+  } catch (err) {
+    console.warn("[getTopVideosForDate]", err);
     return [];
   }
 }
@@ -251,9 +262,13 @@ export async function upsertVideoRoundup(row: {
       .upsert(row, { onConflict: "topic_id,roundup_date,lang" })
       .select("*")
       .single();
-    if (error || !data) return null;
+    if (error || !data) {
+      if (error) console.error("[upsertVideoRoundup] upsert failed:", error.message);
+      return null;
+    }
     return data as VideoRoundupRow;
-  } catch {
+  } catch (err) {
+    console.error("[upsertVideoRoundup]", err);
     return null;
   }
 }
@@ -282,7 +297,8 @@ export async function getVideoRoundupBySlug(
       .maybeSingle();
     if (error || !data) return null;
     return data as VideoRoundupRow;
-  } catch {
+  } catch (err) {
+    console.warn("[getVideoRoundupBySlug]", err);
     return null;
   }
 }
@@ -311,7 +327,8 @@ export async function getVideoRoundupAltLang(
       .maybeSingle();
     if (error || !data) return null;
     return data as { slug_keywords: string; lang: string };
-  } catch {
+  } catch (err) {
+    console.warn("[getVideoRoundupAltLang]", err);
     return null;
   }
 }
@@ -363,7 +380,8 @@ export async function getVideoTranscriptionsForRoundup(
       slug_keywords: string;
       channel_id: string;
     }>;
-  } catch {
+  } catch (err) {
+    console.warn("[getVideoTranscriptionsForRoundup]", err);
     return [];
   }
 }
@@ -411,7 +429,8 @@ export async function getVideoTranscriptionsByIds(
       channel_id: string;
       published_date: string | null;
     }>;
-  } catch {
+  } catch (err) {
+    console.warn("[getVideoTranscriptionsByIds]", err);
     return [];
   }
 }
@@ -442,7 +461,8 @@ export async function getRecentVideoRoundups(
     const { data, error } = await q;
     if (error || !data) return [];
     return data as Array<{ roundup_date: string; slug_keywords: string; seo_title: string }>;
-  } catch {
+  } catch (err) {
+    console.warn("[getRecentVideoRoundups]", err);
     return [];
   }
 }
@@ -466,7 +486,8 @@ export async function getAllVideoRoundupRoutes(): Promise<
       .order("roundup_date", { ascending: false });
     if (error || !data) return [];
     return data as Array<{ topic_id: string; roundup_date: string; slug_keywords: string; lang: string }>;
-  } catch {
+  } catch (err) {
+    console.warn("[getAllVideoRoundupRoutes]", err);
     return [];
   }
 }
@@ -494,7 +515,8 @@ export async function getAllVideoPageRoutes(): Promise<
       .order("published_date", { ascending: false });
     if (error || !data) return [];
     return data as Array<{ topic_id: string; published_date: string; slug_keywords: string; lang: string }>;
-  } catch {
+  } catch (err) {
+    console.warn("[getAllVideoPageRoutes]", err);
     return [];
   }
 }
@@ -608,7 +630,8 @@ export async function getVideoPageBySlug(
         duration_sec: number | null; link: string;
       } | null) ?? null,
     };
-  } catch {
+  } catch (err) {
+    console.warn("[getVideoPageBySlug]", err);
     return null;
   }
 }
@@ -676,7 +699,8 @@ export async function getRecentVideoPagesForTopic(
       published_date: r.published_date ?? "",
       slug_keywords: r.slug_keywords ?? "",
     }));
-  } catch {
+  } catch (err) {
+    console.warn("[getRecentVideoPagesForTopic]", err);
     return [];
   }
 }
@@ -756,7 +780,8 @@ export async function getVideoPagesForTopicDate(
       slug_keywords: r.slug_keywords ?? "",
       summary_score: normalizeVideoScore(r.summary_score),
     }));
-  } catch {
+  } catch (err) {
+    console.warn("[getVideoPagesForTopicDate]", err);
     return [];
   }
 }
@@ -789,7 +814,8 @@ export async function getVideoPageAltLang(
       .maybeSingle();
     if (error || !data) return null;
     return data as { topic_id: string; published_date: string; slug_keywords: string; lang: string };
-  } catch {
+  } catch (err) {
+    console.warn("[getVideoPageAltLang]", err);
     return null;
   }
 }
@@ -810,7 +836,8 @@ export async function getVideoTranscriptionText(
       .single();
     if (error || !data) return null;
     return (data as { summary_md: string }).summary_md;
-  } catch {
+  } catch (err) {
+    console.warn("[getVideoTranscriptionText]", err);
     return null;
   }
 }
@@ -831,7 +858,8 @@ export async function getVideoIdsWithTranscription(
       .eq("lang", lang);
     if (error || !data) return new Set();
     return new Set((data as { video_id: string }[]).map((r) => r.video_id));
-  } catch {
+  } catch (err) {
+    console.warn("[getVideoIdsWithTranscription]", err);
     return new Set();
   }
 }
@@ -882,7 +910,8 @@ export async function getVideoPagePathsByVideoIds(
       );
     }
     return out;
-  } catch {
+  } catch (err) {
+    console.warn("[getVideoPagePathsByVideoIds]", err);
     return out;
   }
 }

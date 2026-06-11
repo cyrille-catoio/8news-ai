@@ -59,7 +59,8 @@ export async function getCachedResult(
 
     if (error || !data) return null;
     return (data as Record<string, unknown>).response as CachedResponse;
-  } catch {
+  } catch (err) {
+    console.warn("[getCachedResult]", err);
     return null;
   }
 }
@@ -83,8 +84,9 @@ export async function setCachedResult(
       max_articles: maxArticles,
       response: response as unknown,
     });
-  } catch {
+  } catch (err) {
     // Cache write failure is non-critical
+    console.warn("[setCachedResult]", err);
   }
 }
 
@@ -96,7 +98,8 @@ export async function cleanExpiredCache(): Promise<void> {
     const supabase = await clientP;
     const cutoff = new Date(Date.now() - 2 * 3_600_000).toISOString();
     await supabase.from("news_cache").delete().lt("created_at", cutoff);
-  } catch {
+  } catch (err) {
     // Cleanup failure is non-critical
+    console.warn("[cleanExpiredCache]", err);
   }
 }

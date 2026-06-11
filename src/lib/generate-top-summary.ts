@@ -480,7 +480,27 @@ export async function generateTopSummary(
       }
     }
 
-    await insertTopSummaryBullets(lang, summaryDate, bulletRows);
+    const bulletsOk = await insertTopSummaryBullets(lang, summaryDate, bulletRows);
+    if (!bulletsOk) {
+      // The snapshot row IS persisted (upsertTopSummary above), so the
+      // GET endpoint still renders the markdown — but the structured
+      // bullets (incl. the pinned video bullets) are missing. Surface
+      // it as db_error so the cron logs + retries instead of "ok".
+      console.error(
+        `[generateTopSummary] insertTopSummaryBullets failed (lang=${lang}, date=${summaryDate}, rows=${bulletRows.length}, videoRows=${videoBulletRows.length})`,
+      );
+      return {
+        status: "db_error",
+        summaryDate,
+        lang,
+        articleCount: articles.length,
+        bulletCount: bullets.length + videoBulletRows.length,
+        errorMessage: "insertTopSummaryBullets failed",
+      };
+    }
+    console.log(
+      `[generateTopSummary] bullets persisted (lang=${lang}, date=${summaryDate}, rows=${bulletRows.length}, videoBullets=${videoBulletRows.length})`,
+    );
   }
 
   return {

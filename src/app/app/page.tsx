@@ -54,7 +54,7 @@ import { DailyPodcastChatPanel } from "@/app/components/podcast-chat/DailyPodcas
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.13";
+const APP_VERSION = "2.13.1";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 // Daily Podcast chat panel width bounds (desktop). The panel is

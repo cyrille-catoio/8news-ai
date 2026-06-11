@@ -9,6 +9,16 @@ export interface ChangelogEntryDef {
 
 export const CHANGELOG_ENTRIES: ChangelogEntryDef[] = [
   {
+    version: "2.13.1",
+    title_en: "v2.13.1: home section renamed « Top transcribed videos »",
+    title_fr: "v2.13.1 : section home renommée « Top des vidéos transcrites »",
+    body_en:
+      "**Home copy tweak.** The paginated transcribed-videos block on the briefing homepage (`RecentVideoPagesSection`) is now titled **« Top transcribed videos »** instead of « All transcribed videos » — FR: **« Top des vidéos transcrites »** (was « Toutes les vidéos transcrites »).\n\n**Release.** Bump 2.13 → 2.13.1. No DB migration.",
+    body_fr:
+      "**Ajustement de copy sur la home.** Le bloc paginé des vidéos transcrites sur la page briefing (`RecentVideoPagesSection`) s'intitule désormais **« Top des vidéos transcrites »** (au lieu de « Toutes les vidéos transcrites ») — EN : **« Top transcribed videos »**.\n\n**Release.** Bump 2.13 → 2.13.1. Pas de migration DB.",
+    created_at: "2026-06-11T12:00:00Z",
+  },
+  {
     version: "2.13",
     title_en: "v2.13: top 2 videos of yesterday pinned in the Daily Podcast + newsletter, Stats KPI fix (RPC), annual-only Pro pricing, copy buttons on SSR video pages",
     title_fr: "v2.13 : top 2 vidéos de la veille épinglées dans le Daily Podcast + newsletter, fix KPI Stats (RPC), tarif Pro annuel unique, boutons copier sur les pages SSR vidéo",

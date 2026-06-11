@@ -147,7 +147,7 @@ export function RecentVideoPagesSection({
     <section style={{ marginBottom: 36 }}>
       <div className="recent-video-section-head">
         <div className="recent-video-heading" style={{ ...kicker(color.gold) }}>
-          {lang === "fr" ? "Toutes les vidéos transcrites" : "All transcribed videos"}
+          {lang === "fr" ? "Top des vidéos transcrites" : "Top transcribed videos"}
         </div>
       </div>
 

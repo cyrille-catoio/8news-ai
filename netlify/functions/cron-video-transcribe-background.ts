@@ -4,6 +4,7 @@ import { enrichDurations } from "../../src/lib/youtube-duration";
 import { refreshYoutubeVideosFromRss } from "../../src/lib/refresh-youtube-videos";
 import { buildVideoBulletRows } from "../../src/lib/video-bullets";
 import { insertVideoBullets } from "../../src/lib/supabase";
+import { startCronRun } from "./shared/cron-log";
 
 /**
  * 15-minute background function — pre-warms the AI summary cache for
@@ -74,9 +75,10 @@ interface CandidateVideo {
 }
 
 export default async () => {
-  const startedAt = Date.now();
-  const deadline = startedAt + Math.min(WALL_MS, BUDGET_MS);
-  const remaining = () => deadline - Date.now();
+  const { elapsedMs, remaining } = startCronRun(
+    "cron-video-transcribe",
+    Math.min(WALL_MS, BUDGET_MS),
+  );
   const lines: string[] = [];
 
   console.log("[cron-video-transcribe] Starting background function");
@@ -378,7 +380,7 @@ export default async () => {
     lines.push(`[backfill] skipped — remaining=${remaining()}ms`);
   }
 
-  const summary = `[run] cron=video-transcribe window=${WINDOW_HOURS}h candidates=${candidates.length} long_enough=${longEnough.length} shorts_skipped=${skippedShorts} processed=${processedBuckets} ok=${okCount} cached=${cachedCount} no_transcript=${noTranscriptCount} timeout=${timeoutCount} errors=${errorCount} capped=${cappedReached} backfill_scanned=${backfillScanned} backfill_wrote=${backfillWrote} backfill_no_bullets=${backfillSkippedNoBullets} backfill_errors=${backfillErrors} elapsed_ms=${Date.now() - startedAt}`;
+  const summary = `[run] cron=video-transcribe window=${WINDOW_HOURS}h candidates=${candidates.length} long_enough=${longEnough.length} shorts_skipped=${skippedShorts} processed=${processedBuckets} ok=${okCount} cached=${cachedCount} no_transcript=${noTranscriptCount} timeout=${timeoutCount} errors=${errorCount} capped=${cappedReached} backfill_scanned=${backfillScanned} backfill_wrote=${backfillWrote} backfill_no_bullets=${backfillSkippedNoBullets} backfill_errors=${backfillErrors} elapsed_ms=${elapsedMs()}`;
   lines.push(summary);
   console.log(lines.join("\n"));
   console.log(summary);

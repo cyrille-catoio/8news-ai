@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { scoreTopicForCron } from "./shared/score-topic";
+import { startCronRun } from "./shared/cron-log";
 
 // Background functions have a 15-minute hard timeout on Netlify and the
 // scoring cron is triggered every 15 minutes. Keep the default budget below
@@ -82,10 +83,11 @@ async function getBacklogCounts(
 }
 
 export default async () => {
-  const startedAt = Date.now();
   const effectiveBudgetMs = Math.min(CRON_INTERVAL_MS, CRON_TIMEOUT_MS, CRON_BUDGET_MS);
-  const deadline = startedAt + effectiveBudgetMs;
-  const budgetRemaining = () => deadline - Date.now();
+  const { elapsedMs, remaining: budgetRemaining } = startCronRun(
+    "cron-scoring-background",
+    effectiveBudgetMs,
+  );
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -208,7 +210,7 @@ export default async () => {
   }
 
   lines.push(
-    `[run] cron=score-background topics_total=${rows.length} passes=${totalPasses} scored=${totalScored} deadline_stops=${deadlineStops} elapsed_ms=${Date.now() - startedAt} budget_ms=${effectiveBudgetMs} interval_ms=${CRON_INTERVAL_MS} timeout_ms=${CRON_TIMEOUT_MS}`,
+    `[run] cron=score-background topics_total=${rows.length} passes=${totalPasses} scored=${totalScored} deadline_stops=${deadlineStops} elapsed_ms=${elapsedMs()} budget_ms=${effectiveBudgetMs} interval_ms=${CRON_INTERVAL_MS} timeout_ms=${CRON_TIMEOUT_MS}`,
   );
   console.log(lines.join("\n"));
 };

@@ -4,6 +4,7 @@ import {
   type VideoSummaryScoreInput,
 } from "../../src/lib/score-video-summary-batch";
 import { enqueueHomeSurface } from "../../src/lib/supabase/home-surface";
+import { startCronRun } from "./shared/cron-log";
 
 /**
  * Background (≤15 min): scores AI Markdown video recaps in `video_transcriptions`
@@ -55,9 +56,10 @@ async function runCron(): Promise<void> {
     return;
   }
 
-  const startedAt = Date.now();
-  const deadline = startedAt + Math.min(CRON_WALL_MS, CRON_BUDGET_MS);
-  const remaining = () => deadline - Date.now();
+  const { elapsedMs, remaining } = startCronRun(
+    "cron-video-summary-score",
+    Math.min(CRON_WALL_MS, CRON_BUDGET_MS),
+  );
 
   const supabase = createClient(url, key, { auth: { persistSession: false } });
 
@@ -181,7 +183,7 @@ async function runCron(): Promise<void> {
     }
   }
 
-  const summary = `[run] cron=video-summary-score batches=${batchNo} rows_touched=${totalRows} updates_ok=${totalScored} elapsed_ms=${Date.now() - startedAt} budget_ms=${Math.min(CRON_WALL_MS, CRON_BUDGET_MS)} batch_cap=${BATCH_CAP} model=${MODEL}`;
+  const summary = `[run] cron=video-summary-score batches=${batchNo} rows_touched=${totalRows} updates_ok=${totalScored} elapsed_ms=${elapsedMs()} budget_ms=${Math.min(CRON_WALL_MS, CRON_BUDGET_MS)} batch_cap=${BATCH_CAP} model=${MODEL}`;
   lines.push(summary);
   console.log(lines.join("\n"));
 }

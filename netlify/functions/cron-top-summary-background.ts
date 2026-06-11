@@ -5,6 +5,7 @@ import {
   type GenerateTopSummaryStatus,
 } from "../../src/lib/generate-top-summary";
 import { todayUtc } from "../../src/lib/dates-utc";
+import { startCronRun } from "./shared/cron-log";
 import type { Lang } from "../../src/lib/i18n";
 
 /**
@@ -39,17 +40,8 @@ import type { Lang } from "../../src/lib/i18n";
 const LANGS: readonly Lang[] = ["en", "fr"] as const;
 
 export default async () => {
-  const startedAt = Date.now();
+  const { log, elog, elapsedMs } = startCronRun("cron-top-summary");
   const summaryDate = process.env.TOP_SUMMARY_DATE?.trim() || todayUtc();
-
-  // Emit each line IMMEDIATELY (not buffered to the end) so partial
-  // progress survives a timeout / crash — the previous single end-of-run
-  // `console.log` left zero trace when the function died mid-way, which is
-  // exactly when we most need the logs. Failures go to `console.error` so
-  // Netlify surfaces them at error level and they're easy to filter.
-  const TAG = "[cron-top-summary]";
-  const log = (s: string) => console.log(`${TAG} ${s}`);
-  const elog = (s: string) => console.error(`${TAG} ${s}`);
 
   let generated = 0;
   let noArticles = 0;
@@ -149,10 +141,10 @@ export default async () => {
     // summary below) instead of an opaque function failure.
     errors += 1;
     const msg = fatal instanceof Error ? (fatal.stack ?? fatal.message) : String(fatal);
-    elog(`[fatal] date=${summaryDate} — ${msg} elapsed_ms=${Date.now() - startedAt}`);
+    elog(`[fatal] date=${summaryDate} — ${msg} elapsed_ms=${elapsedMs()}`);
   }
 
-  const summary = `[run] cron=top-summary date=${summaryDate} langs=${LANGS.length} generated=${generated} no_articles=${noArticles} errors=${errors} elapsed_ms=${Date.now() - startedAt}`;
+  const summary = `[run] cron=top-summary date=${summaryDate} langs=${LANGS.length} generated=${generated} no_articles=${noArticles} errors=${errors} elapsed_ms=${elapsedMs()}`;
   if (errors > 0) elog(summary);
   else log(summary);
 };

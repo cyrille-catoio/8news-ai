@@ -8,6 +8,7 @@ import type {
   TopSummaryBulletRow,
 } from "../../src/lib/supabase/top-summaries";
 import { renderDailyNewsletter } from "../../src/lib/email/render-daily-newsletter";
+import { startCronRun } from "./shared/cron-log";
 import type { Lang } from "../../src/lib/i18n";
 
 /**
@@ -100,13 +101,8 @@ async function runCron(): Promise<void> {
     process.env.NEWSLETTER_PUBLIC_ORIGIN?.trim() || DEFAULT_PUBLIC_ORIGIN
   ).replace(/\/+$/, "");
 
-  // Emit each line IMMEDIATELY (not buffered to a single end-of-run log)
-  // so partial progress survives a timeout / crash. Failures go to
-  // `console.error` so Netlify surfaces them at error level. Filter the
-  // function logs on `[cron-newsletter]`.
-  const TAG = "[cron-newsletter]";
-  const log = (s: string) => console.log(`${TAG} ${s}`);
-  const elog = (s: string) => console.error(`${TAG} ${s}`);
+  // Filter the function logs on `[cron-newsletter]`.
+  const { log, elog, elapsedMs } = startCronRun("cron-newsletter");
 
   log(
     `[start] env_resend=${apiKey ? "yes" : "NO"} env_supabase_url=${url ? "yes" : "NO"} env_supabase_srk=${key ? "yes" : "NO"} from=${fromAddress} origin=${publicOrigin}`,
@@ -120,8 +116,6 @@ async function runCron(): Promise<void> {
     elog("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY — aborting");
     return;
   }
-
-  const startedAt = Date.now();
 
   // ----------------------------------------------------------------
   // 1) Pull today's UTC snapshot per lang only. We do NOT fall back to
@@ -157,7 +151,7 @@ async function runCron(): Promise<void> {
 
   if (snapshots.size === 0) {
     elog(
-      `[run] cron=newsletter-daily aborted=no_snapshot_for_date=${targetDate} elapsed_ms=${Date.now() - startedAt}`,
+      `[run] cron=newsletter-daily aborted=no_snapshot_for_date=${targetDate} elapsed_ms=${elapsedMs()}`,
     );
     return;
   }
@@ -223,7 +217,7 @@ async function runCron(): Promise<void> {
 
   if (totalOptIn === 0) {
     log(
-      `[run] cron=newsletter-daily sent=0 errors=0 elapsed_ms=${Date.now() - startedAt} note=no_subscribers`,
+      `[run] cron=newsletter-daily sent=0 errors=0 elapsed_ms=${elapsedMs()} note=no_subscribers`,
     );
     return;
   }
@@ -317,7 +311,7 @@ async function runCron(): Promise<void> {
   const summaryDates = Array.from(snapshots.entries())
     .map(([l, b]) => `${l}=${b.snapshot.summary_date}`)
     .join(",");
-  const summary = `[run] cron=newsletter-daily snapshots=${summaryDates} sent=${totalSent} errors=${totalErrors} elapsed_ms=${Date.now() - startedAt}`;
+  const summary = `[run] cron=newsletter-daily snapshots=${summaryDates} sent=${totalSent} errors=${totalErrors} elapsed_ms=${elapsedMs()}`;
   if (totalErrors > 0) elog(summary);
   else log(summary);
 }

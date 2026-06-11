@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { previousUtcDay } from "../../../src/lib/dates-utc";
+import { startCronRun } from "./cron-log";
 
 /**
  * Shared loop driver for the two « topic × date × lang » crons:
@@ -97,11 +98,12 @@ export interface RunTopicDateLangCronOptions<R> {
 }
 
 export async function runTopicDateLangCron<R>(opts: RunTopicDateLangCronOptions<R>): Promise<void> {
-  const startedAt = Date.now();
   const budgetMs = Number(process.env[opts.budgetEnv ?? ""] ?? DEFAULT_BUDGET_MS);
   const maxTopicsPerRun = Number(process.env[opts.maxTopicsEnv ?? ""] ?? opts.defaultMaxTopics);
-  const deadline = startedAt + Math.min(WALL_MS, budgetMs);
-  const remaining = () => deadline - Date.now();
+  const { elapsedMs, remaining } = startCronRun(
+    `cron-${opts.cronName}`,
+    Math.min(WALL_MS, budgetMs),
+  );
   const lines: string[] = [];
 
   console.log(`[cron-${opts.cronName}] Starting background function`);
@@ -215,7 +217,7 @@ export async function runTopicDateLangCron<R>(opts: RunTopicDateLangCronOptions<
     .map((k) => `${k}=${counters[k] ?? 0}`)
     .concat(counters.thrown > 0 ? [`thrown=${counters.thrown}`] : [])
     .join(" ");
-  const summary = `[run] cron=${opts.cronName} date=${targetDate} topics=${sortedTopics.length} processed=${processedTopics} skipped=${skippedTopics} remaining=${remainingTopics} ${counterParts} capped=${cappedReached} elapsed_ms=${Date.now() - startedAt}`;
+  const summary = `[run] cron=${opts.cronName} date=${targetDate} topics=${sortedTopics.length} processed=${processedTopics} skipped=${skippedTopics} remaining=${remainingTopics} ${counterParts} capped=${cappedReached} elapsed_ms=${elapsedMs()}`;
   lines.push(summary);
   console.log(lines.join("\n"));
   console.log(summary);

@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { fetchAndStoreTopicDynamic } from "./shared/fetch-topic";
+import { startCronRun } from "./shared/cron-log";
 
 // Background functions have a 15-minute hard wall on Netlify.
 // This cron is fetch-only: no AI scoring. Scoring is handled exclusively
@@ -30,10 +31,11 @@ function isStale(lastFetchedAt: string | null, nowMs: number): boolean {
 }
 
 export default async () => {
-  const startedAt = Date.now();
   const effectiveBudgetMs = Math.min(CRON_TIMEOUT_MS, CRON_BUDGET_MS);
-  const deadline = startedAt + effectiveBudgetMs;
-  const budgetRemaining = () => deadline - Date.now();
+  const { elapsedMs, remaining: budgetRemaining } = startCronRun(
+    "cron-fetching-background",
+    effectiveBudgetMs,
+  );
   const lines: string[] = [];
 
   const supabase = createClient(
@@ -144,7 +146,7 @@ export default async () => {
   }
 
   lines.push(
-    `[run] cron=fetch-background topics_total=${n} passes=${totalPasses} processed=${totalProcessed} claim_skipped=${totalClaimSkipped} inserted=${totalInserted} deadline_stops=${deadlineStops} elapsed_ms=${Date.now() - startedAt} budget_ms=${effectiveBudgetMs} interval_ms=${CRON_INTERVAL_MS} stale_ms=${STALE_THRESHOLD_MS}`,
+    `[run] cron=fetch-background topics_total=${n} passes=${totalPasses} processed=${totalProcessed} claim_skipped=${totalClaimSkipped} inserted=${totalInserted} deadline_stops=${deadlineStops} elapsed_ms=${elapsedMs()} budget_ms=${effectiveBudgetMs} interval_ms=${CRON_INTERVAL_MS} stale_ms=${STALE_THRESHOLD_MS}`,
   );
   console.log(lines.join("\n"));
 };

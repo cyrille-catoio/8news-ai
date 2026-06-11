@@ -16,7 +16,11 @@ import {
   type Bullet,
 } from "@/app/components/top24h/Top24hHeroHelpers";
 import { Top24hHistoryArrows } from "@/app/components/top24h/Top24hHistoryArrows";
-import { readCachedSnapshot, writeCachedSnapshot } from "@/app/components/top24h/top24h-cache";
+import {
+  readCachedSnapshot,
+  writeCachedSnapshot,
+  clearCachedSnapshots,
+} from "@/app/components/top24h/top24h-cache";
 import { todayUtc } from "@/lib/dates-utc";
 
 /**
@@ -394,6 +398,7 @@ export function Top24hHero({
             type="button"
             onClick={() => {
               trackEvent("nav.refresh_home", { lang });
+              clearCachedSnapshots();
               if (typeof window !== "undefined") window.location.reload();
             }}
             aria-label={lang === "fr" ? "Rafraîchir la page" : "Refresh page"}

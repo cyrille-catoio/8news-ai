@@ -82,3 +82,21 @@ export function writeCachedSnapshot<T>(lang: Lang, offset: number, data: T): voi
     /* quota / disabled storage — silent ignore, SWR still works without persistence */
   }
 }
+
+/** Drop every persisted Top 24h snapshot (all langs + history offsets).
+ *  Called by the home refresh pill before `location.reload()` so the
+ *  next paint always comes from a live `/api/news/top-summary/latest`
+ *  fetch instead of stale-while-revalidate localStorage. */
+export function clearCachedSnapshots(): void {
+  if (typeof window === "undefined") return;
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const k = window.localStorage.key(i);
+      if (k?.startsWith(KEY_PREFIX)) keys.push(k);
+    }
+    for (const k of keys) window.localStorage.removeItem(k);
+  } catch {
+    /* quota / disabled storage — reload still proceeds */
+  }
+}

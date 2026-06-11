@@ -9,6 +9,16 @@ export interface ChangelogEntryDef {
 
 export const CHANGELOG_ENTRIES: ChangelogEntryDef[] = [
   {
+    version: "2.13.2",
+    title_en: "v2.13.2: home refresh clears Daily Podcast localStorage cache",
+    title_fr: "v2.13.2 : le refresh home vide le cache localStorage du Daily Podcast",
+    body_en:
+      "**Daily Podcast stale-while-revalidate fix.** `<Top24hHero>` hydrates from a `localStorage` snapshot (`top24h-snapshot:*`) on mount for an instant paint, then revalidates via `GET /api/news/top-summary/latest` (`no-store` — no CDN cache). After a reload, visitors could keep seeing an older briefing (e.g. without the pinned video bullets) if the persisted snapshot predated a cron write. The home **Refresh** pill now calls `clearCachedSnapshots()` before `location.reload()` so the next paint always comes from a live API fetch.\n\n**Release.** Bump 2.13.1 → 2.13.2. No DB migration.",
+    body_fr:
+      "**Correctif stale-while-revalidate du Daily Podcast.** `<Top24hHero>` s'hydrate depuis un snapshot `localStorage` (`top24h-snapshot:*`) au mount pour un rendu instantané, puis revalide via `GET /api/news/top-summary/latest` (`no-store` — pas de cache CDN). Après un rechargement, les visiteurs pouvaient garder un briefing plus ancien (ex. sans les bullets vidéo épinglés) si le snapshot persisté datait d'avant l'écriture du cron. Le bouton **Rafraîchir** de la home appelle désormais `clearCachedSnapshots()` avant `location.reload()` pour que le prochain rendu parte toujours d'un fetch API live.\n\n**Release.** Bump 2.13.1 → 2.13.2. Pas de migration DB.",
+    created_at: "2026-06-11T14:00:00Z",
+  },
+  {
     version: "2.13.1",
     title_en: "v2.13.1: home section renamed « Top transcribed videos »",
     title_fr: "v2.13.1 : section home renommée « Top des vidéos transcrites »",

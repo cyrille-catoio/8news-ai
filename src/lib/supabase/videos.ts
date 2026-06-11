@@ -572,35 +572,16 @@ export async function getVideoPageBySlug(
   if (!clientP) return null;
   try {
     const supabase = await clientP;
-    // Try to read `title_localized` (migration 023). Fall back to the
-    // pre-023 column list when the column is missing (env not yet
-    // migrated) so the page keeps rendering with the YouTube title.
-    const baseColumns =
-      "id, video_id, channel_id, title, lang, summary_md, transcript, word_count, topic_id, published_date, slug_keywords, created_at";
-    const withTitle = `${baseColumns}, title_localized`;
-    const withScore = `${withTitle}, summary_score`;
-    const withTitleNoScore = withTitle;
-
-    const run = (columns: string) =>
-      supabase
-        .from("video_transcriptions")
-        .select(columns)
-        .eq("topic_id", topicId)
-        .eq("published_date", date)
-        .eq("slug_keywords", slug)
-        .limit(1)
-        .maybeSingle();
-
-    let res = await run(withScore);
-    if (res.error && /summary_score/i.test(res.error.message ?? "")) {
-      res = await run(withTitleNoScore);
-    }
-    if (res.error && /title_localized/i.test(res.error.message ?? "")) {
-      res = await run(`${baseColumns}, summary_score`);
-      if (res.error && /summary_score/i.test(res.error.message ?? "")) {
-        res = await run(baseColumns);
-      }
-    }
+    const res = await supabase
+      .from("video_transcriptions")
+      .select(
+        "id, video_id, channel_id, title, title_localized, lang, summary_md, summary_score, transcript, word_count, topic_id, published_date, slug_keywords, created_at",
+      )
+      .eq("topic_id", topicId)
+      .eq("published_date", date)
+      .eq("slug_keywords", slug)
+      .limit(1)
+      .maybeSingle();
     if (res.error || !res.data) return null;
 
     const row = res.data as unknown as {
@@ -664,27 +645,18 @@ export async function getRecentVideoPagesForTopic(
   if (!clientP) return [];
   try {
     const supabase = await clientP;
-    const buildQuery = (columns: string) => {
-      let q = supabase
-        .from("video_transcriptions")
-        .select(columns)
-        .eq("topic_id", topicId)
-        .eq("lang", lang)
-        .not("slug_keywords", "is", null)
-        .not("published_date", "is", null)
-        .order("published_date", { ascending: false })
-        .limit(limit);
-      if (excludeVideoId) q = q.neq("video_id", excludeVideoId);
-      return q;
-    };
+    let q = supabase
+      .from("video_transcriptions")
+      .select("video_id, title, title_localized, published_date, slug_keywords")
+      .eq("topic_id", topicId)
+      .eq("lang", lang)
+      .not("slug_keywords", "is", null)
+      .not("published_date", "is", null)
+      .order("published_date", { ascending: false })
+      .limit(limit);
+    if (excludeVideoId) q = q.neq("video_id", excludeVideoId);
 
-    const fullColumns = "video_id, title, title_localized, published_date, slug_keywords";
-    const baseColumns = "video_id, title, published_date, slug_keywords";
-
-    let res = await buildQuery(fullColumns);
-    if (res.error && /title_localized/i.test(res.error.message ?? "")) {
-      res = await buildQuery(baseColumns);
-    }
+    const res = await q;
     if (res.error || !res.data) return [];
     const rows = ((res.data ?? []) as Array<Partial<{
       video_id: string;
@@ -716,9 +688,6 @@ export async function getRecentVideoPagesForTopic(
  * page) plus an exact `published_date = date` constraint. Returns
  * `summary_score` so the list view can surface the meter; `title` and
  * `title_localized` so the renderer can prefer the translated title.
- *
- * Same 42703 fallback as the recent-videos helper for environments
- * where mig 023 / 021 hasn't been applied yet.
  */
 export async function getVideoPagesForTopicDate(
   topicId: string,
@@ -738,29 +707,16 @@ export async function getVideoPagesForTopicDate(
   if (!clientP) return [];
   try {
     const supabase = await clientP;
-    const buildQuery = (columns: string) =>
-      supabase
-        .from("video_transcriptions")
-        .select(columns)
-        .eq("topic_id", topicId)
-        .eq("lang", lang)
-        .eq("published_date", date)
-        .not("slug_keywords", "is", null)
-        .order("created_at", { ascending: false });
-
-    const fullColumns =
-      "video_id, title, title_localized, published_date, slug_keywords, summary_score";
-    const withoutTitle =
-      "video_id, title, published_date, slug_keywords, summary_score";
-    const minimal = "video_id, title, published_date, slug_keywords";
-
-    let res = await buildQuery(fullColumns);
-    if (res.error && /title_localized/i.test(res.error.message ?? "")) {
-      res = await buildQuery(withoutTitle);
-    }
-    if (res.error && /summary_score/i.test(res.error.message ?? "")) {
-      res = await buildQuery(minimal);
-    }
+    const res = await supabase
+      .from("video_transcriptions")
+      .select(
+        "video_id, title, title_localized, published_date, slug_keywords, summary_score",
+      )
+      .eq("topic_id", topicId)
+      .eq("lang", lang)
+      .eq("published_date", date)
+      .not("slug_keywords", "is", null)
+      .order("created_at", { ascending: false });
     if (res.error || !res.data) return [];
 
     const rows = (res.data ?? []) as Array<

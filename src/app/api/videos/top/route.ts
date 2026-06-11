@@ -178,23 +178,12 @@ async function fetchTranscriptionsById(
   db: SupabaseClient,
   refIds: number[],
 ): Promise<Map<number, TranscriptionRow> | null> {
-  // `title_localized` is added by migration 023; gracefully fall back to
-  // the pre-023 column list if the env hasn't been migrated yet so the
-  // home keeps rendering with the YouTube title.
-  const fullColumns =
-    "id, video_id, summary_md, topic_id, slug_keywords, published_date, summary_score, title_localized";
-  const baseColumns =
-    "id, video_id, summary_md, topic_id, slug_keywords, published_date, summary_score";
-  const runTr = (columns: string) =>
-    db
-      .from("video_transcriptions")
-      .select(columns)
-      .in("id", refIds);
-
-  let trRes = await runTr(fullColumns);
-  if (trRes.error && /title_localized/i.test(trRes.error.message ?? "")) {
-    trRes = await runTr(baseColumns);
-  }
+  const trRes = await db
+    .from("video_transcriptions")
+    .select(
+      "id, video_id, summary_md, topic_id, slug_keywords, published_date, summary_score, title_localized",
+    )
+    .in("id", refIds);
   if (trRes.error) {
     console.error(`[/api/videos/top] transcription SELECT error: ${trRes.error.message}`);
     return null;

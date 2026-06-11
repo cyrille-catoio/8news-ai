@@ -82,9 +82,7 @@ export async function insertTopSummaryBullets(
     /**
      * Editorial importance 1-10 propagated from the LLM `importance`
      * field (Top 24h pipeline, mig. 026+). Same value across every row
-     * of a same-`title` run. NULL when the column hasn't been migrated
-     * yet — see the 42703 retry path below — or when the LLM omitted
-     * the score.
+     * of a same-`title` run. NULL when the LLM omitted the score.
      */
     importance_score: number | null;
     /**
@@ -110,33 +108,7 @@ export async function insertTopSummaryBullets(
     const insertRes = await supabase.from("summary_bullets").insert(rows);
     if (!insertRes.error) return true;
 
-    // Migration 026 not applied yet — strip the unknown column and
-    // retry once. Same defensive pattern as the read path in
-    // `top-summaries.ts` so the cron keeps producing valid Top 24h
-    // snapshots even when the operator hasn't run the migration.
-    const msg = insertRes.error.message ?? "";
-    if (/importance_score/i.test(msg) || insertRes.error.code === "42703") {
-      const fallbackRows = rows.map(({ importance_score: _drop, ...rest }) => {
-        void _drop;
-        return rest;
-      });
-      const retryRes = await supabase
-        .from("summary_bullets")
-        .insert(fallbackRows);
-      if (!retryRes.error) {
-        console.warn(
-          "[insertTopSummaryBullets] importance_score column missing — inserted without it. Apply migrations/026-summary-bullets-importance.sql to enable group-level importance scores.",
-        );
-        return true;
-      }
-      console.error(
-        "[insertTopSummaryBullets] retry without importance_score failed:",
-        retryRes.error.message,
-      );
-      return false;
-    }
-
-    console.error("[insertTopSummaryBullets] insert failed:", msg);
+    console.error("[insertTopSummaryBullets] insert failed:", insertRes.error.message);
     return false;
   } catch (err) {
     console.error("[insertTopSummaryBullets]", err);

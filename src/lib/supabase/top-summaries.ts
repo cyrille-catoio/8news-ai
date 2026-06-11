@@ -231,10 +231,7 @@ export interface TopSummaryBulletRow {
   refs: Array<{ title: string; link: string; source: string }>;
   /**
    * Editorial importance 1-10 for the GROUP this bullet belongs to
-   * (mig. 026+). NULL on rows generated before the column existed and
-   * on environments where mig. 026 hasn't been applied yet (the
-   * SELECT below silently retries without the column on a 42703 / not
-   * found error).
+   * (mig. 026+). NULL on rows generated before the column existed.
    */
   importance_score: number | null;
   /**
@@ -255,27 +252,15 @@ export async function getTopSummaryBulletsByDate(
 
   try {
     const supabase = await clientP;
-    // Migration 026 added `importance_score`. We first try to read it,
-    // and fall back to the legacy column list when the database hasn't
-    // been migrated yet — same defensive pattern as `title_localized`
-    // in `videos.ts` and `summary_score` in `/api/video-pages/recent`.
-    // Keeps the deploy hot-fix safe regardless of migration order.
-    const fullColumns =
-      "bullet_index, title, text, refs, importance_score, video_transcription_id";
-    const baseColumns = "bullet_index, title, text, refs, video_transcription_id";
-    const run = (columns: string) =>
-      supabase
-        .from("summary_bullets")
-        .select(columns)
-        .eq("source_type", "top50")
-        .eq("lang", lang)
-        .eq("summary_date", summaryDate)
-        .order("bullet_index", { ascending: true });
-
-    let res = await run(fullColumns);
-    if (res.error && /importance_score/i.test(res.error.message ?? "")) {
-      res = await run(baseColumns);
-    }
+    const res = await supabase
+      .from("summary_bullets")
+      .select(
+        "bullet_index, title, text, refs, importance_score, video_transcription_id",
+      )
+      .eq("source_type", "top50")
+      .eq("lang", lang)
+      .eq("summary_date", summaryDate)
+      .order("bullet_index", { ascending: true });
     if (res.error || !res.data) return [];
 
     // The cron writes one row per (bullet, distinct topic) so a single

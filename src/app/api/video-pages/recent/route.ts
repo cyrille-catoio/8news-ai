@@ -63,63 +63,29 @@ interface VideoPageRow {
   summary_score: number | null;
 }
 
-/** PostgREST forwards the underlying Postgres error code. 42703 = undefined_column. */
-function isMissingColumn(err: unknown, name: string): boolean {
-  if (!err || typeof err !== "object") return false;
-  const e = err as { code?: string; message?: string };
-  if (e.code === "42703" && typeof e.message === "string" && new RegExp(name, "i").test(e.message)) {
-    return true;
-  }
-  return typeof e.message === "string" && new RegExp(name, "i").test(e.message);
-}
-
-/**
- * Read one page of rows (offset/limit). Tolerates a missing
- * `summary_score` column (migration 021 pending) and a missing
- * `title_localized` column (migration 023 pending) by retrying with
- * progressively narrower SELECT lists.
- */
+/** Read one page of rows (offset/limit). */
 async function fetchPageRows(
   db: SupabaseClient,
   lang: string,
   fromIdx: number,
   toIdx: number,
 ): Promise<{ data: VideoPageRow[] | null; error: unknown }> {
-  const baseColumns = "video_id, title, topic_id, published_date, slug_keywords, lang, created_at";
-  const withScore = `${baseColumns}, summary_score`;
-  const withScoreAndTitle = `${withScore}, title_localized`;
-
   // Ordering: highest AI quality score first (NULLS LAST so unscored
   // recaps sink to the bottom), then most recent. Applied globally so
   // every paginated slice walks from the top score down — each page is
-  // sorted descending and page 1 holds the best recaps. The score order
-  // is skipped on the legacy fallback that has no `summary_score` column.
-  const run = async (columns: string, withScoreOrder: boolean) => {
-    let q = db
-      .from("video_transcriptions")
-      .select(columns)
-      .eq("lang", lang)
-      .not("topic_id", "is", null)
-      .not("slug_keywords", "is", null);
-    if (withScoreOrder) {
-      q = q.order("summary_score", { ascending: false, nullsFirst: false });
-    }
-    return q
-      .order("published_date", { ascending: false })
-      .order("created_at", { ascending: false })
-      .range(fromIdx, toIdx);
-  };
-
-  let res = await run(withScoreAndTitle, true);
-  if (res.error && isMissingColumn(res.error, "title_localized")) {
-    res = await run(withScore, true);
-  }
-  if (res.error && isMissingColumn(res.error, "summary_score")) {
-    console.warn(
-      "[/api/video-pages/recent] summary_score column missing — falling back. Apply migrations/021-video-summary-score.sql to enable AI quality scores in the list.",
-    );
-    res = await run(baseColumns, false);
-  }
+  // sorted descending and page 1 holds the best recaps.
+  const res = await db
+    .from("video_transcriptions")
+    .select(
+      "video_id, title, title_localized, topic_id, published_date, slug_keywords, lang, created_at, summary_score",
+    )
+    .eq("lang", lang)
+    .not("topic_id", "is", null)
+    .not("slug_keywords", "is", null)
+    .order("summary_score", { ascending: false, nullsFirst: false })
+    .order("published_date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .range(fromIdx, toIdx);
 
   if (res.error) return { data: null, error: res.error };
 

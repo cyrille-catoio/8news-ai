@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "release:sync": "node scripts/release.mjs",
     "release:patch": "npm version patch --no-git-tag-version && node scripts/release.mjs",
     "release:minor": "npm version minor --no-git-tag-version && node scripts/release.mjs",
@@ -29,6 +31,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.6"
   }
 }

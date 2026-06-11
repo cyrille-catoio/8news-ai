@@ -134,7 +134,7 @@ export function generateTopSummaryPrompt(lang: Lang): string {
 /** Strip markdown decoration (bold/italic markers, list bullets,
  *  heading hashes) so the extracted prose renders cleanly as the plain
  *  bullet text the Top 24h surfaces display verbatim. */
-function stripMarkdownInline(s: string): string {
+export function stripMarkdownInline(s: string): string {
   return s
     .replace(/\*\*([^*]+)\*\*/g, "$1")
     .replace(/\*([^*]+)\*/g, "$1")

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { getServerClient } from "@/lib/supabase";
+import { parseLang } from "@/lib/api-helpers";
 
 /**
  * GET /api/topics/trending?since=24h&lang=fr&limit=10&topics=ai,crypto
@@ -19,8 +21,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
  */
 export async function GET(req: NextRequest) {
   const sinceParam = req.nextUrl.searchParams.get("since") ?? "24h";
-  const langParam = req.nextUrl.searchParams.get("lang") ?? "en";
-  const lang = langParam === "fr" ? "fr" : "en";
+  const lang = parseLang(req.nextUrl.searchParams.get("lang"));
 
   const topicsParam = req.nextUrl.searchParams.get("topics");
   const topicFilter = topicsParam
@@ -30,16 +31,15 @@ export async function GET(req: NextRequest) {
   const limitRaw = parseInt(req.nextUrl.searchParams.get("limit") ?? "10", 10);
   const limit = Math.min(20, Math.max(1, Number.isFinite(limitRaw) ? limitRaw : 10));
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
+  const dbP = getServerClient();
+  if (!dbP) {
     return NextResponse.json([], { headers: { "Cache-Control": "no-store" } });
   }
 
   const sinceMs = parseSinceWindow(sinceParam);
   const sinceISO = new Date(Date.now() - sinceMs).toISOString();
 
-  const db = createClient(url, key, { auth: { persistSession: false } });
+  const db = await dbP;
 
   const topicIds =
     topicFilter && topicFilter.length > 0

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { getServerClient } from "@/lib/supabase";
 
 /**
  * GET /api/youtube-channels/transcript?videoId=...
@@ -17,12 +17,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "videoId is required" }, { status: 400 });
   }
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
+  const dbP = getServerClient();
+  if (!dbP) {
     return NextResponse.json({ error: "DB not configured" }, { status: 500 });
   }
-  const db = createClient(url, key, { auth: { persistSession: false } });
+  const db = await dbP;
 
   const { data: trow, error: terr } = await db
     .from("video_transcriptions")

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { getServerClient } from "@/lib/supabase";
 import { normalizeVideoScore } from "@/lib/score-format";
 import { NO_STORE_HEADERS, parseLang, parsePositiveInt } from "@/lib/api-helpers";
 
@@ -137,8 +138,6 @@ async function fetchPageRows(
 }
 
 export async function GET(req: NextRequest) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const lang = parseLang(req.nextUrl.searchParams.get("lang"));
 
   const requestedPage = parsePositiveInt(req.nextUrl.searchParams.get("page"), 1);
@@ -148,14 +147,15 @@ export async function GET(req: NextRequest) {
   );
   const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, requestedPageSize));
 
-  if (!url || !key) {
+  const dbP = getServerClient();
+  if (!dbP) {
     const empty: PaginatedResponse = {
       items: [], page: 1, pageSize, totalCount: 0, totalPages: 0,
     };
     return NextResponse.json(empty, { headers: NO_STORE_HEADERS });
   }
 
-  const db = createClient(url, key, { auth: { persistSession: false } });
+  const db = await dbP;
 
   // Count first so we can clamp `page` against `totalPages` before
   // running the page query — avoids requesting a range past the end.

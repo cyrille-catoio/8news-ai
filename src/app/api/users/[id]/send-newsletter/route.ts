@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { getServerClient } from "@/lib/supabase";
 import { requireOwnerSession } from "@/lib/auth-api";
 import {
   getNewsletterSnapshotForLang,
@@ -53,9 +53,8 @@ export async function POST(
   if (!auth.ok) return auth.response;
 
   const apiKey = process.env.RESEND_API_KEY;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
+  const supabaseP = getServerClient();
+  if (!supabaseP) {
     return NextResponse.json(
       { error: "DB not configured", reason: "db_missing" },
       { status: 500 },
@@ -78,7 +77,7 @@ export async function POST(
   ).replace(/\/+$/, "");
 
   const { id } = await params;
-  const supabase = createClient(url, key, { auth: { persistSession: false } });
+  const supabase = await supabaseP;
 
   const { data: existing, error: getErr } = await supabase.auth.admin.getUserById(id);
   if (getErr || !existing?.user) {

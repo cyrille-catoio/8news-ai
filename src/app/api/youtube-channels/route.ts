@@ -1,15 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireOwnerSession } from "@/lib/auth-api";
 import { resolveChannel, getChannelLatest } from "@/lib/transcript-api";
-import { createClient } from "@supabase/supabase-js";
-
-type DB = ReturnType<typeof getDb>;
-
-function getDb() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  return createClient(url, key, { auth: { persistSession: false } });
-}
+import { getServerClient } from "@/lib/supabase";
 
 /**
  * Try multiple inputs to get channel metadata from the RSS endpoint.
@@ -43,7 +35,9 @@ export async function GET() {
   const auth = await requireOwnerSession();
   if (!auth.ok) return auth.response;
 
-  const db = getDb();
+  const dbP = getServerClient();
+  if (!dbP) return NextResponse.json({ error: "DB not configured" }, { status: 500 });
+  const db = await dbP;
   const { data, error } = await db
     .from("youtube_channels")
     .select("*")
@@ -70,7 +64,9 @@ export async function POST(req: Request) {
     const title = meta.title || handle.trim();
     const thumbnailUrl = meta.thumbnail;
 
-    const db = getDb();
+    const dbP = getServerClient();
+    if (!dbP) return NextResponse.json({ error: "DB not configured" }, { status: 500 });
+    const db = await dbP;
     const { data, error } = await db
       .from("youtube_channels")
       .insert({
@@ -101,7 +97,9 @@ export async function PATCH() {
   const auth = await requireOwnerSession();
   if (!auth.ok) return auth.response;
 
-  const db: DB = getDb();
+  const dbP = getServerClient();
+  if (!dbP) return NextResponse.json({ error: "DB not configured" }, { status: 500 });
+  const db = await dbP;
   const { data: channels, error } = await db
     .from("youtube_channels")
     .select("id, channel_id, handle, title, thumbnail_url");

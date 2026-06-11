@@ -12,10 +12,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * usable in environments where Supabase isn't configured (preview
  * builds, local dev without `.env`).
  *
- * Internal utility — exported only so the sibling modules in this
- * directory can share the same cached promise. NOT re-exported from
- * `src/lib/supabase.ts` so it stays effectively module-private from
- * the rest of the codebase's POV.
+ * Re-exported from `src/lib/supabase.ts` (cleanup pass) so API routes
+ * that need raw table/auth-admin access share this single cached
+ * client instead of creating one inline per request.
  */
 
 let _clientPromise: Promise<SupabaseClient> | null = null;

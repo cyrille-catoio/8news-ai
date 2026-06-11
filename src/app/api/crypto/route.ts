@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { getServerClient } from "@/lib/supabase";
 
 /**
  * GET /api/crypto
@@ -172,14 +172,13 @@ export async function GET() {
   }
 
   // ── Setup Supabase service-role client ────────────────────────
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
+  const dbP = getServerClient();
+  if (!dbP) {
     // No DB → no cache fallback possible. Fail open with empty payload.
     const empty: CryptoPayload = { prices: [], stale: true };
     return jsonResponse(empty);
   }
-  const db = createClient(url, key, { auth: { persistSession: false } });
+  const db = await dbP;
 
   // ── Tier 2: read DB, decide if upstream refresh is needed ────
   const { data: rows, error } = await db

@@ -1,18 +1,17 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { requireOwnerSession } from "@/lib/auth-api";
+import { getServerClient } from "@/lib/supabase";
 
 export async function GET() {
   const auth = await requireOwnerSession();
   if (!auth.ok) return auth.response;
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
+  const supabaseP = getServerClient();
+  if (!supabaseP) {
     return NextResponse.json({ error: "DB not configured" }, { status: 500 });
   }
 
-  const supabase = createClient(url, key, { auth: { persistSession: false } });
+  const supabase = await supabaseP;
 
   const { data, error } = await supabase.auth.admin.listUsers();
   if (error) {

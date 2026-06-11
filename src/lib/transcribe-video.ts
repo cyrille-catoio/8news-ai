@@ -30,9 +30,9 @@
  */
 
 import OpenAI from "openai";
-import { createClient } from "@supabase/supabase-js";
 import { getVideoTranscript } from "./transcript-api";
 import {
+  getServerClient,
   getVideoTranscription,
   insertVideoTranscription,
   insertVideoBullets,
@@ -445,12 +445,11 @@ export async function transcribeVideo(
       // Persist duration on the cached video row (best-effort).
       if (durationSec > 0) {
         try {
-          const db = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!,
-            { auth: { persistSession: false } },
-          );
-          await db.from("youtube_videos").update({ duration_sec: durationSec }).eq("video_id", videoId);
+          const dbP = getServerClient();
+          if (dbP) {
+            const db = await dbP;
+            await db.from("youtube_videos").update({ duration_sec: durationSec }).eq("video_id", videoId);
+          }
         } catch { /* non-critical */ }
       }
     }
@@ -467,11 +466,9 @@ export async function transcribeVideo(
     let publishedDate: string | null = null;
     let channelTitle: string | null = null;
     try {
-      const db = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        { auth: { persistSession: false } },
-      );
+      const dbP = getServerClient();
+      if (!dbP) throw new Error("Supabase env missing");
+      const db = await dbP;
       const { data: vid } = await db
         .from("youtube_videos")
         .select("topic_id, published_date, channel_title")
@@ -489,11 +486,9 @@ export async function transcribeVideo(
       const base = slugifyVideoTitle(title ?? "Untitled", safeLang);
       if (base) {
         try {
-          const db = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!,
-            { auth: { persistSession: false } },
-          );
+          const dbP = getServerClient();
+          if (!dbP) throw new Error("Supabase env missing");
+          const db = await dbP;
           slug = await uniquifyVideoSlug(db, base, topicId, publishedDate, safeLang, videoId);
         } catch (err) {
           // Fall back to the base slug if the uniquifier query fails — a

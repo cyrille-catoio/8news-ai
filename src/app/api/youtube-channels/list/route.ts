@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { getServerClient } from "@/lib/supabase";
 import { NO_STORE_HEADERS } from "@/lib/api-helpers";
 
 /**
@@ -21,13 +21,12 @@ export interface ChannelListItem {
 }
 
 export async function GET() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
+  const dbP = getServerClient();
+  if (!dbP) {
     return NextResponse.json({ channels: [] }, { headers: NO_STORE_HEADERS });
   }
 
-  const db = createClient(url, key, { auth: { persistSession: false } });
+  const db = await dbP;
   const { data, error } = await db
     .from("youtube_channels")
     .select("channel_id, handle, title, thumbnail_url, is_active")

@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { getServerClient } from "@/lib/supabase";
 import { LANDING_CONTENT, type LandingLang } from "@/lib/landing-content";
 
 /**
@@ -34,12 +34,11 @@ interface ConsoleRow {
 }
 
 async function fetchConsoleData(): Promise<{ rows: PoolRow[]; total: number } | null> {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
+  const dbP = getServerClient();
+  if (!dbP) return null;
 
   try {
-    const db = createClient(url, key, { auth: { persistSession: false } });
+    const db = await dbP;
     const sinceISO = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
 
     // Two queries in parallel: total count + a wide pool of recently

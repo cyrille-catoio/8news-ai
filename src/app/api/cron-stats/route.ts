@@ -1,15 +1,6 @@
 import { NextResponse } from "next/server";
-import { getActiveTopics } from "@/lib/supabase";
+import { getActiveTopics, getServerClient } from "@/lib/supabase";
 import type { CronStatsResponse } from "@/lib/types";
-
-function getServerClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { createClient } = require("@supabase/supabase-js");
-  return createClient(url, key, { auth: { persistSession: false } });
-}
 
 function roundOne(n: number): number {
   return Math.round(n * 10) / 10;
@@ -40,10 +31,11 @@ const FETCH_HIGH_AFTER_MINUTES = 120;
 const FETCH_TO_SCORE_SLA_MINUTES = SCORING_CRON_INTERVAL_MINUTES;
 
 export async function GET() {
-  const supabase = getServerClient();
-  if (!supabase) {
+  const supabaseP = getServerClient();
+  if (!supabaseP) {
     return NextResponse.json({ error: "DB not configured" }, { status: 500 });
   }
+  const supabase = await supabaseP;
 
   const topics = await getActiveTopics(true);
   const now = Date.now();

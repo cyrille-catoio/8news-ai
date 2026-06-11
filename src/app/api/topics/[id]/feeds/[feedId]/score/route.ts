@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
-import { createClient } from "@supabase/supabase-js";
 import type { ScoreResult } from "@/lib/types";
-import { getFeedById } from "@/lib/supabase";
+import { getFeedById, getServerClient } from "@/lib/supabase";
 import { requireOwnerSession } from "@/lib/auth-api";
 import { enqueueHomeSurface } from "@/lib/supabase/home-surface";
 
@@ -46,17 +45,16 @@ export async function POST(
       );
     }
 
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const apiKey = process.env.OPENAI_API_KEY;
-    if (!url || !key) {
+    const supabaseP = getServerClient();
+    if (!supabaseP) {
       return NextResponse.json({ error: "Missing Supabase env" }, { status: 500 });
     }
     if (!apiKey || apiKey === "sk-your-key-here") {
       return NextResponse.json({ error: "Missing OpenAI API key" }, { status: 500 });
     }
 
-    const supabase = createClient(url, key, { auth: { persistSession: false } });
+    const supabase = await supabaseP;
 
     const { data: topicRow, error: topicError } = await supabase
       .from("topics")

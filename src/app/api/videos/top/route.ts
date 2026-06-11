@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Lang } from "@/lib/i18n";
 import { normalizeSummaryHeadings } from "@/lib/summary-headings";
-import { getHiddenTopicIds } from "@/lib/supabase";
+import { getHiddenTopicIds, getServerClient } from "@/lib/supabase";
 import { normalizeVideoScore } from "@/lib/score-format";
 import { parseLang } from "@/lib/api-helpers";
 
@@ -365,14 +365,13 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
+  const dbP = getServerClient();
+  if (!dbP) {
     const empty: TopVideoPayload = { video: null, hasOlder: false, offset };
     return jsonResponse(empty, bucket, now);
   }
 
-  const db = createClient(url, key, { auth: { persistSession: false } });
+  const db = await dbP;
   const hiddenTopics = await getHiddenTopicIds();
 
   if (isLive) {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { fetchAndStoreTopicDynamic } from "@/lib/fetch-topic-dynamic";
+import { getServerClient } from "@/lib/supabase";
 
 export const maxDuration = 60;
 
@@ -18,13 +18,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Missing topic parameter" }, { status: 400 });
   }
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
+  const supabaseP = getServerClient();
+  if (!supabaseP) {
     return NextResponse.json({ error: "Missing Supabase env vars" }, { status: 500 });
   }
 
-  const supabase = createClient(url, key, { auth: { persistSession: false } });
+  const supabase = await supabaseP;
 
   const result = await fetchAndStoreTopicDynamic(topicParam, supabase, {
     userAgent: "8news-test/1.0",

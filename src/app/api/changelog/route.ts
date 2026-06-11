@@ -1,19 +1,12 @@
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { CHANGELOG_ENTRIES } from "@/lib/changelog-entries";
-
-function getServerClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { createClient } = require("@supabase/supabase-js");
-  return createClient(url, key, { auth: { persistSession: false } });
-}
+import { getServerClient } from "@/lib/supabase";
 
 let syncDone = false;
 
-async function ensureChangelogSynced(supabase: ReturnType<typeof getServerClient>) {
-  if (syncDone || !supabase) return;
+async function ensureChangelogSynced(supabase: SupabaseClient) {
+  if (syncDone) return;
 
   const { data: existing } = await supabase
     .from("changelog")
@@ -30,10 +23,11 @@ async function ensureChangelogSynced(supabase: ReturnType<typeof getServerClient
 }
 
 export async function GET() {
-  const supabase = getServerClient();
-  if (!supabase) {
+  const supabaseP = getServerClient();
+  if (!supabaseP) {
     return NextResponse.json({ error: "DB not configured" }, { status: 500 });
   }
+  const supabase = await supabaseP;
 
   await ensureChangelogSynced(supabase);
 

@@ -8,13 +8,13 @@
  * domain module (cache / stats / topics / articles / summaries /
  * videos / bullets) and add it to the matching `export *` below.
  *
- * The shared `getServerClient()` and `SITEMAP_RECENT_DAYS` live in
- * `./supabase/client.ts` and are NOT re-exported here on purpose —
- * they're intra-module-private (sibling modules import them
- * directly), keeping the public surface focused on the domain
- * helpers.
+ * `getServerClient()` is re-exported (cleanup pass) so API routes that
+ * need raw table access share the single cached service-role client
+ * instead of each calling `createClient()` inline. `SITEMAP_RECENT_DAYS`
+ * stays intra-module-private.
  */
 
+export { getServerClient } from "./supabase/client";
 export * from "./supabase/cache";
 export * from "./supabase/stats";
 export * from "./supabase/topics";

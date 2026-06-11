@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeSummaryHeadings } from "@/lib/summary-headings";
 import { enrichDurations } from "@/lib/youtube-duration";
 import { transcribeVideo } from "@/lib/transcribe-video";
 import { refreshYoutubeVideosFromRss } from "@/lib/refresh-youtube-videos";
 import { normalizeVideoScore } from "@/lib/score-format";
+import { getServerClient } from "@/lib/supabase";
+import { parseLang } from "@/lib/api-helpers";
 import type { VideoItem } from "@/lib/types";
-
-function getDb() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  return createClient(url, key, { auth: { persistSession: false } });
-}
 
 /** API list row: persisted AI summary for the requested UI language, if any. */
 export type VideoListResponseItem = VideoItem & {
@@ -86,7 +82,7 @@ function zonedDayBounds(dateStr: string, tz: string): { start: Date; end: Date }
  * upsert them into youtube_videos. Logic shared with the transcribe
  * cron (see `src/lib/refresh-youtube-videos.ts`).
  */
-async function refreshFromRss(db: ReturnType<typeof getDb>) {
+async function refreshFromRss(db: SupabaseClient) {
   await refreshYoutubeVideosFromRss(db);
 }
 
@@ -151,12 +147,15 @@ async function prewarmLatestMissingTranscription({
 }
 
 export async function GET(req: NextRequest) {
-  const db = getDb();
+  const dbP = getServerClient();
+  if (!dbP) {
+    return NextResponse.json({ error: "DB not configured" }, { status: 500 });
+  }
+  const db = await dbP;
 
   const dateParam = req.nextUrl.searchParams.get("date");
   const targetDate = dateParam ?? toDateStr(new Date());
-  const langParam = req.nextUrl.searchParams.get("lang");
-  const uiLang = langParam === "fr" ? "fr" : "en";
+  const uiLang = parseLang(req.nextUrl.searchParams.get("lang"));
   const tz = safeTimeZone(req.nextUrl.searchParams.get("tz"));
   const prewarm = req.nextUrl.searchParams.get("prewarm") === "1";
   const refreshRss = req.nextUrl.searchParams.get("refresh") !== "0";

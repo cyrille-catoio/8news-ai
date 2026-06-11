@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { scoreTopicForAdmin } from "@/lib/score-topic-dynamic";
+import { getServerClient } from "@/lib/supabase";
 
 export const maxDuration = 60;
 
@@ -25,13 +25,12 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(200, Math.max(1, parseInt(params.get("limit") ?? String(DEFAULT_LIMIT), 10) || DEFAULT_LIMIT));
   const showDebug = params.get("debug") === "1";
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
+  const supabaseP = getServerClient();
+  if (!supabaseP) {
     return NextResponse.json({ error: "Missing Supabase env vars" }, { status: 500 });
   }
 
-  const supabase = createClient(url, key, { auth: { persistSession: false } });
+  const supabase = await supabaseP;
 
   const { data: topicRow, error: topicError } = await supabase
     .from("topics")

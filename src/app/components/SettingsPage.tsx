@@ -2,7 +2,7 @@
 
 import { type CSSProperties, useCallback, useEffect, useMemo, useState } from "react";
 import { t, type Lang } from "@/lib/i18n";
-import { color } from "@/lib/theme";
+import { color, sectionCard as sectionStyle, formSectionTitle as sectionTitle } from "@/lib/theme";
 import { VoiceAccordion, TTS_VOICES_EN, TTS_VOICES_FR } from "@/app/components/VoiceAccordion";
 import { useAuth } from "@/app/providers";
 import { MyAccountSection } from "@/app/components/MyAccountSection";
@@ -53,24 +53,6 @@ export function SettingsPage({
   const [voiceEnOpen, setVoiceEnOpen] = useState(false);
   const [voiceFrOpen, setVoiceFrOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
-
-  const sectionStyle: CSSProperties = {
-    background: color.surface,
-    border: `1px solid ${color.border}`,
-    borderRadius: 10,
-    padding: "16px 20px",
-    marginBottom: 16,
-  };
-
-  const sectionTitle: CSSProperties = {
-    color: color.gold,
-    fontSize: 12,
-    fontWeight: 700,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    marginBottom: 14,
-    marginTop: 0,
-  };
 
   return (
     <div>

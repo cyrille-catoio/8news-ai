@@ -20,7 +20,7 @@ import {
   toggleLink,
   videoSsrHref,
 } from "@/app/components/video-card/VideoCardHelpers";
-import { VideoCardMarkdown } from "@/app/components/video-card/VideoCardMarkdown";
+import { VideoCardMarkdown } from "@/app/components/video-markdown";
 
 // v2.12 — re-export for back-compat; `isTranscriptionErrorMarkdown` and
 // `buildSummaryPreview` used to live in this file. New code should

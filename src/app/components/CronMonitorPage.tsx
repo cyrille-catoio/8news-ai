@@ -3,7 +3,7 @@
 import { type CSSProperties, useState, useEffect, useCallback } from "react";
 import type { CronStatsResponse } from "@/lib/types";
 import { t, type Lang } from "@/lib/i18n";
-import { color, sectionHeading, spinnerStyle, sectionCard, formSectionTitle } from "@/lib/theme";
+import { color, sectionHeading, spinnerStyle, sectionCard, formSectionTitle, kpiCard, kpiLbl } from "@/lib/theme";
 
 export function CronMonitorPage({ lang }: { lang: Lang }) {
   const [data, setData] = useState<CronStatsResponse | null>(null);
@@ -73,9 +73,7 @@ export function CronMonitorPage({ lang }: { lang: Lang }) {
     return "#ef4444";
   }
 
-  const kpiCard: CSSProperties = { background: color.surface, border: `1px solid ${color.border}`, borderRadius: 8, padding: "10px 6px", textAlign: "center" };
   const kpiVal: CSSProperties = { fontSize: 17, fontWeight: 700 };
-  const kpiLbl: CSSProperties = { fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: color.textMuted, marginTop: 2 };
   const thStyle: CSSProperties = { textAlign: "left", padding: "6px 10px", fontSize: 11, fontWeight: 600, color: color.textMuted, borderBottom: `1px solid ${color.border}`, whiteSpace: "nowrap" };
   const tdStyle: CSSProperties = { padding: "6px 10px", fontSize: 13, borderBottom: `1px solid ${color.border}`, whiteSpace: "nowrap" };
 

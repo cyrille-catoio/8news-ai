@@ -10,6 +10,7 @@ import { SeoGeneralMenu } from "@/app/components/GeneralMenu";
 import { SeoNavBar } from "@/app/components/SeoNavBar";
 import { Top24hHero } from "@/app/components/Top24hHero";
 import { dateLocale, type Lang } from "@/lib/i18n";
+import type { Bullet } from "@/app/components/top24h/Top24hHeroHelpers";
 
 /**
  * Cross-topic Top 24h archive page (v2.7.1+) at `/{YYYY-MM-DD}`.
@@ -51,15 +52,6 @@ export interface TopDayPageProps {
   lang: Lang;
 }
 
-interface BulletForHero {
-  text: string;
-  title: string | null;
-  refs: Array<{ title: string; link: string; source: string }>;
-  importanceScore: number | null;
-  /** « Top videos of yesterday » bullets — hoisted first + VIDEO badge. */
-  isVideo: boolean;
-}
-
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -96,7 +88,7 @@ export async function TopDayPage({ date, lang }: TopDayPageProps) {
   // does for /top-articles. Same logic as the /api/news/top-summary/latest
   // route (intentionally duplicated rather than shared because we'd
   // otherwise need a server-only utility module just for one regex).
-  const bullets: BulletForHero[] = bulletRows.map((b) => {
+  const bullets: Bullet[] = bulletRows.map((b) => {
     const text = b.title
       ? b.text.replace(new RegExp(`^\\*\\*${escapeRegExp(b.title)}\\*\\*\\s*\\n+`), "").trim()
       : b.text.trim();

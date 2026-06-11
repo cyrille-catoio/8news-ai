@@ -11,11 +11,11 @@ import { Chevron, DoubleChevron, RefIcon } from "@/app/components/top24h/Top24hH
 import {
   groupBullets,
   countGroups,
-  kickerStyle,
   formatSummaryDayLabel,
   type Bullet,
 } from "@/app/components/top24h/Top24hHeroHelpers";
-import { Top24hHistoryArrows } from "@/app/components/top24h/Top24hHistoryArrows";
+import { kicker as kickerStyle } from "@/app/components/briefing/styles";
+import { HistoryArrows } from "@/app/components/briefing/HistoryArrows";
 import {
   readCachedSnapshot,
   writeCachedSnapshot,
@@ -371,10 +371,10 @@ export function Top24hHero({
       >
         <div style={kickerStyle(color.gold)}>{t("top24hHeroKicker", lang)}</div>
         {showHistoryControls && isSelfFetched && (
-          <Top24hHistoryArrows
+          <HistoryArrows
             offset={historyOffset}
             canGoOlder={historyHasOlder}
-            onOlder={() => {
+            onPrev={() => {
               if (!historyHasOlderRef.current) return;
               trackEvent("top24h.history_older", {
                 lang,
@@ -382,7 +382,7 @@ export function Top24hHero({
               });
               setHistoryOffset((o) => o + 1);
             }}
-            onNewer={() => {
+            onNext={() => {
               if (historyOffset === 0) return;
               trackEvent("top24h.history_newer", {
                 lang,
@@ -391,6 +391,8 @@ export function Top24hHero({
               setHistoryOffset((o) => Math.max(0, o - 1));
             }}
             lang={lang}
+            newerLabel={lang === "fr" ? "Podcast plus récent" : "Newer podcast"}
+            olderLabel={lang === "fr" ? "Podcast précédent" : "Previous podcast"}
           />
         )}
         {showHomeRefresh && (

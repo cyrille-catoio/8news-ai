@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { t, dateLocale, type Lang } from "@/lib/i18n";
-import { color, spinnerStyle } from "@/lib/theme";
+import { color, spinnerStyle, sectionCard as sectionStyle, formSectionTitle as sectionTitle } from "@/lib/theme";
 import type { AppUserType } from "@/lib/user-type";
 
 interface UserRow {
@@ -26,24 +26,6 @@ interface UserRow {
   dailyNewsletter: boolean;
   createdAt: string;
 }
-
-const sectionStyle: CSSProperties = {
-  background: color.surface,
-  border: `1px solid ${color.border}`,
-  borderRadius: 10,
-  padding: "16px 20px",
-  marginBottom: 16,
-};
-
-const sectionTitle: CSSProperties = {
-  color: color.gold,
-  fontSize: 12,
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: "0.08em",
-  marginBottom: 14,
-  marginTop: 0,
-};
 
 const thStyle: CSSProperties = {
   textAlign: "left",

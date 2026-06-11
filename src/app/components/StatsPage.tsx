@@ -3,7 +3,7 @@
 import { type CSSProperties, useState, useEffect, useRef } from "react";
 import type { StatsResponse, TopicLabel } from "@/lib/types";
 import { t, dateLocale, type Lang } from "@/lib/i18n";
-import { color, scoreClr, hitClr, covClr, spinnerStyle, sectionCard, formSectionTitle } from "@/lib/theme";
+import { color, scoreClr, hitClr, covClr, spinnerStyle, sectionCard, formSectionTitle, kpiCard, kpiLbl } from "@/lib/theme";
 import { CopyLinkButton } from "@/app/components/CopyLinkButton";
 import { FavoriteButton } from "@/app/components/FavoriteButton";
 
@@ -128,9 +128,7 @@ export function StatsPage({
     key === tcSortKey ? (tcSortDir === "desc" ? " ▼" : " ▲") : "";
 
   // ── Shared styles ──
-  const kpiCard: CSSProperties = { background: color.surface, border: `1px solid ${color.border}`, borderRadius: 8, padding: "10px 6px", textAlign: "center" };
   const kpiVal: CSSProperties = { fontSize: 17, fontWeight: 700, color: color.gold };
-  const kpiLbl: CSSProperties = { fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: color.textMuted, marginTop: 2 };
   const periodOpts = [
     { label: t("allTime", lang), value: 0 },
     { label: t("last1h", lang), value: 1 / 24 },

@@ -4,7 +4,7 @@ import ReactMarkdown from "react-markdown";
 import { color } from "@/lib/theme";
 import type { Lang } from "@/lib/i18n";
 import { CopyTextButton } from "@/app/components/CopyLinkButton";
-import { videoPageMdComponents } from "@/app/components/video-page-markdown";
+import { videoPageMdComponents } from "@/app/components/video-markdown";
 import { trackEvent } from "@/lib/track";
 
 /**

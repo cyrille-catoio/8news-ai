@@ -5,11 +5,11 @@ import { color } from "@/lib/theme";
 import type { Lang } from "@/lib/i18n";
 
 /**
- * Newer / older history chevrons used on the home Top Story and
- * Top Video heroes. v2.12 extracted from `BriefingPage.tsx` — same
- * visual register as the Top 24h hero's `Top24hHistoryArrows` (which
- * lives next to its own component because it interacts with its
- * internal `historyOffset` state).
+ * Newer / older history chevrons used on the home Top Story, Top Video
+ * and Top 24h (Daily Podcast) heroes. v2.12 extracted from
+ * `BriefingPage.tsx`; the Top 24h hero's near-identical copy
+ * (`Top24hHistoryArrows`) was merged into this one — pass
+ * `newerLabel` / `olderLabel` to override the default aria-labels.
  */
 export function HistoryArrows({
   offset,
@@ -17,12 +17,18 @@ export function HistoryArrows({
   onPrev,
   onNext,
   lang,
+  newerLabel,
+  olderLabel,
 }: {
   offset: number;
   canGoOlder: boolean;
   onPrev: () => void;
   onNext: () => void;
   lang: Lang;
+  /** Optional aria-label override for the « newer » chevron. */
+  newerLabel?: string;
+  /** Optional aria-label override for the « older » chevron. */
+  olderLabel?: string;
 }) {
   const canGoNewer = offset > 0;
   // Match the visible "fold/unfold" affordance used elsewhere: bordered
@@ -66,7 +72,7 @@ export function HistoryArrows({
         type="button"
         onClick={onNext}
         disabled={!canGoNewer}
-        aria-label={lang === "fr" ? "Plus récent" : "Newer"}
+        aria-label={newerLabel ?? (lang === "fr" ? "Plus récent" : "Newer")}
         style={{
           ...baseBtn,
           opacity: canGoNewer ? 1 : 0.32,
@@ -90,7 +96,7 @@ export function HistoryArrows({
         type="button"
         onClick={onPrev}
         disabled={!canGoOlder}
-        aria-label={lang === "fr" ? "Plus ancien" : "Older"}
+        aria-label={olderLabel ?? (lang === "fr" ? "Plus ancien" : "Older")}
         style={{
           ...baseBtn,
           opacity: canGoOlder ? 1 : 0.32,

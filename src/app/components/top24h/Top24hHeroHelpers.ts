@@ -1,10 +1,8 @@
-import { type CSSProperties } from "react";
 import { type Lang, dateLocale } from "@/lib/i18n";
 
 /**
  * Pure helpers used by `Top24hHero` — bullet grouping, group counting,
- * shared kicker style, and the day-label formatter for the history
- * arrows.
+ * and the day-label formatter for the history arrows.
  *
  * v2.12 extracted from `src/app/components/Top24hHero.tsx`. The
  * `Bullet` and `Group` shapes live here too so the helpers stay
@@ -98,22 +96,6 @@ export function countGroups(bullets: Bullet[]): number {
     }
   }
   return n;
-}
-
-/** Inline kicker style (matches the rest of `BriefingPage`'s sections
- *  — gold mono uppercase, low contrast). Duplicated here on purpose
- *  so the component stays self-contained and importable from any
- *  surface, not just BriefingPage. */
-export function kickerStyle(c: string): CSSProperties {
-  return {
-    color: c,
-    fontSize: 11,
-    fontWeight: 700,
-    fontFamily: "ui-monospace, Menlo, monospace",
-    letterSpacing: "0.10em",
-    textTransform: "uppercase",
-    marginBottom: 8,
-  };
 }
 
 /** Day label rendered in the Daily Podcast title (home hero) and next

@@ -143,6 +143,25 @@ export function covClr(p: number): string {
   return p >= 90 ? "#4ade80" : p >= 70 ? color.gold : "#ff8888";
 }
 
+/** KPI tile (Stats page, Cron monitor). Pair with a local value style. */
+export const kpiCard: CSSProperties = {
+  background: color.surface,
+  border: `1px solid ${color.border}`,
+  borderRadius: 8,
+  padding: "10px 6px",
+  textAlign: "center",
+};
+
+/** Uppercase muted label under a KPI value. */
+export const kpiLbl: CSSProperties = {
+  fontSize: 9,
+  fontWeight: 600,
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  color: color.textMuted,
+  marginTop: 2,
+};
+
 /** Minimal text-style button (reorder arrows, etc.). */
 export const ghostBtn: CSSProperties = {
   background: "none",

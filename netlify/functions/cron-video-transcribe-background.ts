@@ -283,17 +283,28 @@ export default async () => {
   let backfillErrors = 0;
   if (remaining() > BACKFILL_MIN_REMAINING_MS) {
     try {
-      // PostgREST left-join: select transcriptions whose related
-      // summary_bullets join is null. We use the implicit FK relation
-      // so we don't have to enumerate the bullet columns.
-      const { data: missingRaw, error: missingErr } = await supabase
+      // Fetch the newest transcriptions with their bullet ids embedded
+      // and keep only the ones with ZERO bullets (filtered in JS).
+      //
+      // The previous `.is("summary_bullets.id", null)` filter was a
+      // broken anti-join: PostgREST applies embedded-column filters to
+      // the EMBEDDED rows, not the parent rows, so every tick returned
+      // the 50 newest transcriptions regardless of bullet count and
+      // rewrote their bullets (delete+insert) — pure churn, and the
+      // trigger for the v2.13 podcast video-bullet wipe (see
+      // `insertVideoBullets`). The proper PostgREST anti-join
+      // (`!left` + `.is(embed, null)`) times out on this table, so we
+      // filter client-side instead.
+      const { data: newestRaw, error: missingErr } = await supabase
         .from("video_transcriptions")
         .select(
           "id, video_id, topic_id, lang, summary_md, published_date, title, summary_bullets(id)",
         )
-        .is("summary_bullets.id", null)
         .order("id", { ascending: false })
         .limit(BACKFILL_BATCH);
+      const missingRaw = (newestRaw ?? []).filter(
+        (r) => ((r as { summary_bullets?: Array<{ id: number }> }).summary_bullets ?? []).length === 0,
+      );
       if (missingErr) {
         lines.push(`[backfill] DB error: ${missingErr.message}`);
       } else if (missingRaw && missingRaw.length > 0) {

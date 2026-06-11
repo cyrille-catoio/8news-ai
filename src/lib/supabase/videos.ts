@@ -104,9 +104,14 @@ export async function insertVideoBullets(
   if (!clientP) return false;
   try {
     const supabase = await clientP;
+    // Scope the delete to source_type='video'. Since v2.13 the Daily
+    // Podcast top50 bullets ALSO carry a `video_transcription_id`
+    // (« top videos of yesterday » pins) — an unscoped delete here
+    // wiped them on every video-cron rewrite of the same transcription.
     await supabase
       .from("summary_bullets")
       .delete()
+      .eq("source_type", "video")
       .eq("video_transcription_id", bullets[0].video_transcription_id);
     const { error } = await supabase.from("summary_bullets").insert(bullets);
     return !error;

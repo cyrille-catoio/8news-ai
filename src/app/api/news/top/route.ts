@@ -2,10 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getTopArticlesForStats, getHiddenTopicIds, getTopArticlesForTopics, type TopArticleRow } from "@/lib/supabase";
 import type { Lang } from "@/lib/i18n";
 import { SNIPPET_MAX } from "@/lib/constants";
-
-function parseLang(raw: string | null): Lang {
-  return raw === "fr" ? "fr" : "en";
-}
+import { parseLang } from "@/lib/api-helpers";
 
 function topArticleSnippet(r: TopArticleRow, lang: Lang): string {
   const aiSnippet = lang === "fr" ? r.snippet_ai_fr : r.snippet_ai_en;

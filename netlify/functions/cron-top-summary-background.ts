@@ -4,6 +4,7 @@ import {
   type GenerateTopSummaryResult,
   type GenerateTopSummaryStatus,
 } from "../../src/lib/generate-top-summary";
+import { todayUtc } from "../../src/lib/dates-utc";
 import type { Lang } from "../../src/lib/i18n";
 
 /**
@@ -36,10 +37,6 @@ import type { Lang } from "../../src/lib/i18n";
  */
 
 const LANGS: readonly Lang[] = ["en", "fr"] as const;
-
-function todayUtc(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 export default async () => {
   const startedAt = Date.now();

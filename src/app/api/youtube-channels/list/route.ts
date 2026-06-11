@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { NO_STORE_HEADERS } from "@/lib/api-helpers";
 
 /**
  * GET /api/youtube-channels/list
@@ -11,12 +12,6 @@ import { createClient } from "@supabase/supabase-js";
  */
 
 export const dynamic = "force-dynamic";
-
-const NO_STORE_HEADERS = {
-  "Cache-Control": "no-store, no-cache, max-age=0, must-revalidate",
-  "CDN-Cache-Control": "no-store",
-  "Netlify-CDN-Cache-Control": "no-store",
-} as const;
 
 export interface ChannelListItem {
   channelId: string;

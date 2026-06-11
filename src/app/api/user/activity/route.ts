@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth-api";
 import { getUserActivity, upsertUserActivity } from "@/lib/supabase";
+import { NO_STORE_HEADERS } from "@/lib/api-helpers";
 
 /**
  * Generic per-user UI activity log. v2.8.2+ first consumer is the
@@ -18,14 +19,6 @@ import { getUserActivity, upsertUserActivity } from "@/lib/supabase";
  * `HomeTop24hHero`). The route always returns `no-store` headers to
  * keep the per-user payload off any CDN.
  */
-
-const NO_STORE_HEADERS = {
-  "Cache-Control": "no-store, no-cache, max-age=0, must-revalidate",
-  "CDN-Cache-Control": "no-store",
-  "Netlify-CDN-Cache-Control": "no-store",
-  Pragma: "no-cache",
-  Expires: "0",
-} as const;
 
 const MAX_ACTIVITY_TYPE_LEN = 64;
 const MAX_TARGET_ID_LEN = 256;

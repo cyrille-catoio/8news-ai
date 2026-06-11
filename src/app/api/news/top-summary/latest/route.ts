@@ -6,7 +6,7 @@ import {
   getTopSummaryBulletsByDate,
   type TopSummaryArticle,
 } from "@/lib/supabase";
-import type { Lang } from "@/lib/i18n";
+import { NO_STORE_HEADERS, parseLang, parseOffset } from "@/lib/api-helpers";
 
 /**
  * Read endpoint backing the new `/top-articles` UX. Returns the
@@ -37,24 +37,6 @@ import type { Lang } from "@/lib/i18n";
 // production breakage.
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-
-const NO_STORE_HEADERS = {
-  "Cache-Control": "no-store, no-cache, max-age=0, must-revalidate",
-  "CDN-Cache-Control": "no-store",
-  "Netlify-CDN-Cache-Control": "no-store",
-  Pragma: "no-cache",
-  Expires: "0",
-} as const;
-
-function parseLang(raw: string | null): Lang {
-  return raw === "fr" ? "fr" : "en";
-}
-
-function parseOffset(raw: string | null): number {
-  const n = Number(raw);
-  if (!Number.isFinite(n) || n < 0) return 0;
-  return Math.min(366, Math.floor(n));
-}
 
 export async function GET(request: NextRequest) {
   const lang = parseLang(request.nextUrl.searchParams.get("lang"));

@@ -21,6 +21,7 @@ import {
   upsertVideoRoundup,
   insertVideoRoundupBullets,
 } from "./supabase";
+import { toUtcDateString } from "./dates-utc";
 
 /** OpenAI model for video roundup generation. */
 const AI_MODEL = "gpt-5.3-chat-latest";
@@ -172,7 +173,7 @@ export async function generateVideoRoundup(
   // just gives the model more material to converge on.
   const fromDate = new Date(`${date}T00:00:00Z`);
   fromDate.setUTCDate(fromDate.getUTCDate() - (WINDOW_DAYS - 1));
-  const fromDateStr = fromDate.toISOString().slice(0, 10);
+  const fromDateStr = toUtcDateString(fromDate);
   const videos = await getVideoTranscriptionsForRoundup(topicId, fromDateStr, date, lang);
   if (videos.length < MIN_VIDEOS) {
     return { status: "no_videos", videoCount: videos.length };

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { normalizeVideoScore } from "@/lib/score-format";
+import { NO_STORE_HEADERS, parseLang, parsePositiveInt } from "@/lib/api-helpers";
 
 /**
  * GET /api/youtube-channels/by-channel?channelId=...&page=1&pageSize=10
@@ -20,11 +21,6 @@ export const revalidate = 0;
 
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 50;
-const NO_STORE_HEADERS = {
-  "Cache-Control": "no-store, no-cache, max-age=0, must-revalidate",
-  "CDN-Cache-Control": "no-store",
-  "Netlify-CDN-Cache-Control": "no-store",
-} as const;
 
 export interface ChannelVideoItem {
   videoId: string;
@@ -53,19 +49,13 @@ interface ChannelVideosResponse {
   totalPages: number;
 }
 
-function parsePositiveInt(raw: string | null, fallback: number): number {
-  const n = parseInt(raw ?? "", 10);
-  return Number.isFinite(n) && n > 0 ? n : fallback;
-}
-
 function empty(page: number, pageSize: number): ChannelVideosResponse {
   return { items: [], page, pageSize, totalCount: 0, totalPages: 0 };
 }
 
 export async function GET(req: NextRequest) {
   const channelId = req.nextUrl.searchParams.get("channelId")?.trim();
-  const langParam = req.nextUrl.searchParams.get("lang");
-  const uiLang = langParam === "fr" ? "fr" : "en";
+  const uiLang = parseLang(req.nextUrl.searchParams.get("lang"));
   const requestedPage = parsePositiveInt(req.nextUrl.searchParams.get("page"), 1);
   const requestedPageSize = parsePositiveInt(
     req.nextUrl.searchParams.get("pageSize"),

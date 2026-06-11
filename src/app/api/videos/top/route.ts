@@ -4,6 +4,7 @@ import type { Lang } from "@/lib/i18n";
 import { normalizeSummaryHeadings } from "@/lib/summary-headings";
 import { getHiddenTopicIds } from "@/lib/supabase";
 import { normalizeVideoScore } from "@/lib/score-format";
+import { parseLang } from "@/lib/api-helpers";
 
 /**
  * GET /api/videos/top?lang=fr
@@ -75,10 +76,6 @@ interface CacheEntry {
 }
 
 const cache = new Map<string, CacheEntry>();
-
-function parseLang(raw: string | null): Lang {
-  return raw === "fr" ? "fr" : "en";
-}
 
 function parseThreshold(raw: string | null | undefined, fallback: number): number {
   if (!raw) return fallback;

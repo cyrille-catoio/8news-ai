@@ -3,6 +3,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Lang } from "@/lib/i18n";
 import { SNIPPET_MAX } from "@/lib/constants";
 import { getHiddenTopicIds } from "@/lib/supabase";
+import { parseLang } from "@/lib/api-helpers";
 
 /**
  * GET /api/news/top-story?lang=fr
@@ -91,10 +92,6 @@ interface CacheEntry {
 // it grow naturally; the keyspace is bounded by the (lang × 10 score
 // values) product ≈ 20 entries max.
 const heroCache = new Map<string, CacheEntry>();
-
-function parseLang(raw: string | null): Lang {
-  return raw === "fr" ? "fr" : "en";
-}
 
 function parseThreshold(raw: string | null | undefined, fallback: number): number {
   if (!raw) return fallback;

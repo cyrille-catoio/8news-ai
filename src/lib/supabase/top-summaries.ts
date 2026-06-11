@@ -1,4 +1,5 @@
 import { getServerClient, SITEMAP_RECENT_DAYS } from "./client";
+import { todayUtc, toUtcDateString } from "@/lib/dates-utc";
 
 /**
  * Read/write helpers for the `top_summaries` table — the pre-computed
@@ -115,7 +116,7 @@ export async function getLatestTopSummary(
 export async function getTopSummaryLiveLatest(
   lang: "en" | "fr",
 ): Promise<{ snapshot: TopSummaryRow | null; hasOlder: boolean }> {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayUtc();
   const todaySnap = await getTopSummaryByDate(lang, today);
   if (todaySnap) {
     const { snapshot: older } = await getTopSummaryByOffset(lang, 1);
@@ -208,9 +209,7 @@ export async function getAllTopSummaryRoutes(): Promise<
 
   try {
     const supabase = await clientP;
-    const sinceISO = new Date(Date.now() - SITEMAP_RECENT_DAYS * 86_400_000)
-      .toISOString()
-      .slice(0, 10);
+    const sinceISO = toUtcDateString(Date.now() - SITEMAP_RECENT_DAYS * 86_400_000);
     const { data, error } = await supabase
       .from("top_summaries")
       .select("summary_date, lang")

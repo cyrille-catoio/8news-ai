@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { insertUserEvents, type UserEventInsert } from "@/lib/supabase";
+import { NO_STORE_HEADERS } from "@/lib/api-helpers";
 
 /**
  * Append-only event ingest for the `user_event` table (mig. 030+).
@@ -30,14 +31,6 @@ const MAX_ACTION_LEN = 64;
 const MAX_LANG_LEN = 8;
 const MAX_PATH_LEN = 512;
 const MAX_META_BYTES = 4096;
-
-const NO_STORE_HEADERS = {
-  "Cache-Control": "no-store, no-cache, max-age=0, must-revalidate",
-  "CDN-Cache-Control": "no-store",
-  "Netlify-CDN-Cache-Control": "no-store",
-  Pragma: "no-cache",
-  Expires: "0",
-} as const;
 
 // ── Rate limiting ────────────────────────────────────────────────
 // 60 batches per minute per IP. A batch is up to 50 events, so the

@@ -1,5 +1,6 @@
 import { getServerClient, SITEMAP_RECENT_DAYS } from "./client";
 import { normalizeVideoScore } from "@/lib/score-format";
+import { toUtcDateString } from "@/lib/dates-utc";
 
 /**
  * YouTube videos surface — transcriptions, per-video SSR pages,
@@ -478,7 +479,7 @@ export async function getAllVideoRoundupRoutes(): Promise<
   if (!clientP) return [];
   try {
     const supabase = await clientP;
-    const sinceISO = new Date(Date.now() - SITEMAP_RECENT_DAYS * 86_400_000).toISOString().slice(0, 10);
+    const sinceISO = toUtcDateString(Date.now() - SITEMAP_RECENT_DAYS * 86_400_000);
     const { data, error } = await supabase
       .from("video_roundups")
       .select("topic_id, roundup_date, slug_keywords, lang")
@@ -505,7 +506,7 @@ export async function getAllVideoPageRoutes(): Promise<
   if (!clientP) return [];
   try {
     const supabase = await clientP;
-    const sinceISO = new Date(Date.now() - SITEMAP_RECENT_DAYS * 86_400_000).toISOString().slice(0, 10);
+    const sinceISO = toUtcDateString(Date.now() - SITEMAP_RECENT_DAYS * 86_400_000);
     const { data, error } = await supabase
       .from("video_transcriptions")
       .select("topic_id, published_date, slug_keywords, lang")

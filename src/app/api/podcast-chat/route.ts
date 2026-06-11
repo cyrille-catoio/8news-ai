@@ -10,6 +10,7 @@ import {
   deletePodcastChatMessages,
 } from "@/lib/supabase";
 import { buildPodcastSystemPrompt } from "@/lib/podcast-chat-context";
+import { NO_STORE_HEADERS, parseLang } from "@/lib/api-helpers";
 import type { Lang } from "@/lib/i18n";
 import type { TopSummaryRow } from "@/lib/supabase/top-summaries";
 
@@ -39,21 +40,9 @@ import type { TopSummaryRow } from "@/lib/supabase/top-summaries";
 
 export const dynamic = "force-dynamic";
 
-const NO_STORE_HEADERS = {
-  "Cache-Control": "no-store, no-cache, max-age=0, must-revalidate",
-  "CDN-Cache-Control": "no-store",
-  "Netlify-CDN-Cache-Control": "no-store",
-  Pragma: "no-cache",
-  Expires: "0",
-} as const;
-
 const DEFAULT_MODEL = "gpt-5.5";
 const MAX_QUESTION_LEN = 4000;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-function parseLang(raw: string | null | undefined): Lang {
-  return raw === "fr" ? "fr" : "en";
-}
 
 /** Resolves the podcast day to operate on: an explicit valid `date`
  *  (history), otherwise the live-latest snapshot for the lang. Returns

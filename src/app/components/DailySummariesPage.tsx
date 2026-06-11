@@ -5,6 +5,7 @@ import { t, type Lang } from "@/lib/i18n";
 import { color, sectionCard, formInputStyle, primaryButtonStyle, spinnerStyle } from "@/lib/theme";
 import type { TopicLabel } from "@/lib/types";
 import { summaryPath } from "@/lib/summary-routes";
+import { toUtcDateString } from "@/lib/dates-utc";
 
 interface GenerateResult {
   lang: string;
@@ -164,16 +165,10 @@ export function DailySummariesPage({ lang, topics }: { lang: Lang; topics: Topic
       setSelectedTopic(topics[0].id);
     }
   }, [topics, selectedTopic]);
-  const [date, setDate] = useState(() => {
-    const d = new Date(Date.now() - 86_400_000);
-    return d.toISOString().slice(0, 10);
-  });
+  const [date, setDate] = useState(() => toUtcDateString(Date.now() - 86_400_000));
   const [generating, setGenerating] = useState(false);
   const [generatingAll, setGeneratingAll] = useState(false);
-  const [allDate, setAllDate] = useState(() => {
-    const d = new Date(Date.now() - 86_400_000);
-    return d.toISOString().slice(0, 10);
-  });
+  const [allDate, setAllDate] = useState(() => toUtcDateString(Date.now() - 86_400_000));
   const [results, setResults] = useState<Array<{ topic: string; date: string; results: GenerateResult[] }>>([]);
   const [error, setError] = useState<string | null>(null);
 

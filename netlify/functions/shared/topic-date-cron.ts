@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { previousUtcDay } from "../../../src/lib/dates-utc";
 
 /**
  * Shared loop driver for the two « topic × date × lang » crons:
@@ -48,18 +49,12 @@ type Lang = (typeof ALL_LANGS)[number];
  * from the same date string passed here. Targeting "yesterday in UTC"
  * keeps the date key in lockstep with what the libs actually fetch.
  */
-function yesterdayUtc(): string {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() - 1);
-  return d.toISOString().slice(0, 10);
-}
-
 function resolveTargetDate(overrideEnv: string): { date: string; source: "override" | "yesterday-utc" } {
   const override = (process.env[overrideEnv] ?? "").trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(override)) {
     return { date: override, source: "override" };
   }
-  return { date: yesterdayUtc(), source: "yesterday-utc" };
+  return { date: previousUtcDay(), source: "yesterday-utc" };
 }
 
 /**

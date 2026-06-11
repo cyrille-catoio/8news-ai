@@ -5,6 +5,7 @@ import {
   getTopSummaryBulletsByDate,
 } from "@/lib/supabase";
 import { generateTopSummary } from "@/lib/generate-top-summary";
+import { todayUtc } from "@/lib/dates-utc";
 import type { Lang } from "@/lib/i18n";
 import type { ArticleSummary, SummaryResponse } from "@/lib/types";
 
@@ -43,10 +44,6 @@ interface TopSummaryBody {
   lang: "en" | "fr";
   /** Optional snapshot date (YYYY-MM-DD). Defaults to today UTC. */
   date?: string;
-}
-
-function todayUtc(): string {
-  return new Date().toISOString().slice(0, 10);
 }
 
 export async function POST(request: NextRequest) {

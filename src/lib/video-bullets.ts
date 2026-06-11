@@ -16,6 +16,8 @@
  * those rows via the dedicated pass.
  */
 
+import { todayUtc } from "./dates-utc";
+
 /** Per-bullet row shape inserted into `summary_bullets` for videos. */
 export interface VideoBulletRow {
   video_transcription_id: number;
@@ -93,7 +95,7 @@ export function buildVideoBulletRows(input: VideoBulletInput): VideoBulletRow[] 
 
   const summaryDate = input.publishedDate
     ? input.publishedDate.slice(0, 10)
-    : new Date().toISOString().slice(0, 10);
+    : todayUtc();
 
   const ref = {
     title: (input.videoTitle ?? "").trim() || "Untitled",

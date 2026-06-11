@@ -5,6 +5,7 @@ import { color, formInputStyle, spinnerStyle } from "@/lib/theme";
 import { type Lang, dateLocale } from "@/lib/i18n";
 import type { TopicItem } from "@/lib/types";
 import type { ArchivesPayload } from "@/lib/supabase/archives";
+import { toUtcDateString } from "@/lib/dates-utc";
 import { ArchivesTimeline } from "./ArchivesTimeline";
 
 /**
@@ -27,9 +28,7 @@ export interface ArchivesPageProps {
   initialData?: ArchivesPayload;
 }
 
-function toIso(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
+const toIso = toUtcDateString;
 
 function countStats(data: ArchivesPayload | null) {
   let topicRows = 0;

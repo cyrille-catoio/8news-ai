@@ -1,4 +1,5 @@
 import { getServerClient, SITEMAP_RECENT_DAYS } from "./client";
+import { toUtcDateString } from "@/lib/dates-utc";
 
 /**
  * Daily summaries — the per-(topic, date, lang) editorial roundup
@@ -221,7 +222,7 @@ export async function getAllSummaryRoutes(): Promise<
   if (!clientP) return [];
   try {
     const supabase = await clientP;
-    const sinceISO = new Date(Date.now() - SITEMAP_RECENT_DAYS * 86_400_000).toISOString().slice(0, 10);
+    const sinceISO = toUtcDateString(Date.now() - SITEMAP_RECENT_DAYS * 86_400_000);
     const { data, error } = await supabase
       .from("daily_summaries")
       .select("topic_id, summary_date, slug_keywords, lang")

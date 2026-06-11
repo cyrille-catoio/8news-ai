@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getArchives } from "@/lib/supabase";
-import type { Lang } from "@/lib/i18n";
+import { parseLang } from "@/lib/api-helpers";
+import { toUtcDateString } from "@/lib/dates-utc";
 
 /**
  * GET /api/archives?lang=fr&from=YYYY-MM-DD&to=YYYY-MM-DD&topic=&type=all|articles|videos
@@ -24,13 +25,9 @@ import type { Lang } from "@/lib/i18n";
  * without re-pinging the edge for every range tweak.
  */
 
-function parseLang(raw: string | null): Lang {
-  return raw === "fr" ? "fr" : "en";
-}
-
 function parseDate(raw: string | null, fallback: Date): string {
   if (raw && /^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-  return fallback.toISOString().slice(0, 10);
+  return toUtcDateString(fallback);
 }
 
 function parseType(raw: string | null): "all" | "articles" | "videos" {

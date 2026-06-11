@@ -11,6 +11,7 @@ import { SeoNavBar } from "@/app/components/SeoNavBar";
 import { SeoGeneralMenu } from "@/app/components/GeneralMenu";
 import type { Lang } from "@/lib/i18n";
 import { summaryAbsoluteUrl, summaryPath } from "@/lib/summary-routes";
+import { toUtcDateString } from "@/lib/dates-utc";
 
 interface DailySummaryPageArgs {
   lang: Lang;
@@ -98,8 +99,8 @@ export async function renderDailySummaryPage({
   const altLang = lang === "fr" ? "en" : "fr";
   const altSummary = await getDailySummary(topicId, date, altLang);
 
-  const prevDate = new Date(new Date(date).getTime() - 86_400_000).toISOString().slice(0, 10);
-  const nextDate = new Date(new Date(date).getTime() + 86_400_000).toISOString().slice(0, 10);
+  const prevDate = toUtcDateString(new Date(date).getTime() - 86_400_000);
+  const nextDate = toUtcDateString(new Date(date).getTime() + 86_400_000);
   const prevSummary = await getDailySummary(topicId, prevDate, lang);
   const nextSummary = await getDailySummary(topicId, nextDate, lang);
 

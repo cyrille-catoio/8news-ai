@@ -1,4 +1,5 @@
 import { getServerClient } from "./client";
+import { toUtcDateString } from "@/lib/dates-utc";
 
 /**
  * Service-role helpers around the `user_event` table (mig. 030+).
@@ -133,7 +134,7 @@ function isoWeekStart(d: Date): string {
   // Shift to ISO Monday: -1 from JS Sunday(0), keep Monday(1) as-is.
   const shift = day === 0 ? -6 : 1 - day;
   x.setUTCDate(x.getUTCDate() + shift);
-  return x.toISOString().slice(0, 10);
+  return toUtcDateString(x);
 }
 
 /** Pulls every `user_event` row strictly after `sinceISO` (inclusive).

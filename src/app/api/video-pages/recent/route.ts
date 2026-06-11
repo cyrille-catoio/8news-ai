@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { normalizeVideoScore } from "@/lib/score-format";
+import { NO_STORE_HEADERS, parseLang, parsePositiveInt } from "@/lib/api-helpers";
 
 /**
  * GET /api/video-pages/recent?page=1&pageSize=10&lang=fr
@@ -27,13 +28,6 @@ export const revalidate = 0;
 
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 50;
-const NO_STORE_HEADERS = {
-  "Cache-Control": "no-store, no-cache, max-age=0, must-revalidate",
-  "CDN-Cache-Control": "no-store",
-  "Netlify-CDN-Cache-Control": "no-store",
-  Pragma: "no-cache",
-  Expires: "0",
-} as const;
 
 interface VideoPageItem {
   videoId: string;
@@ -66,11 +60,6 @@ interface VideoPageRow {
   lang: string;
   created_at: string;
   summary_score: number | null;
-}
-
-function parsePositiveInt(raw: string | null, fallback: number): number {
-  const n = parseInt(raw ?? "", 10);
-  return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
 /** PostgREST forwards the underlying Postgres error code. 42703 = undefined_column. */
@@ -150,8 +139,7 @@ async function fetchPageRows(
 export async function GET(req: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const langParam = req.nextUrl.searchParams.get("lang");
-  const lang = langParam === "fr" ? "fr" : "en";
+  const lang = parseLang(req.nextUrl.searchParams.get("lang"));
 
   const requestedPage = parsePositiveInt(req.nextUrl.searchParams.get("page"), 1);
   const requestedPageSize = parsePositiveInt(

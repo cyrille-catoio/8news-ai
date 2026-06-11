@@ -6,6 +6,7 @@ import { SeoNavBar } from "@/app/components/SeoNavBar";
 import { SeoGeneralMenu } from "@/app/components/GeneralMenu";
 import { ArchivesPage } from "@/app/components/ArchivesPage";
 import { resolveServerLang } from "@/lib/server-lang";
+import { toUtcDateString } from "@/lib/dates-utc";
 import type { TopicItem } from "@/lib/types";
 
 /**
@@ -56,10 +57,8 @@ export default async function ArchivesIndexPage({
   // only the initial paint.
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const from = new Date(today.getTime() - (PAGE_DAYS - 1) * DAY_MS)
-    .toISOString()
-    .slice(0, 10);
-  const to = today.toISOString().slice(0, 10);
+  const from = toUtcDateString(today.getTime() - (PAGE_DAYS - 1) * DAY_MS);
+  const to = toUtcDateString(today);
 
   const [topicsRaw, initialData] = await Promise.all([
     getActiveTopics(false),

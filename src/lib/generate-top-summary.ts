@@ -42,6 +42,7 @@ import {
 import type { Lang } from "./i18n";
 import type { ArticleSummary } from "./types";
 import { SNIPPET_MAX } from "./constants";
+import { previousUtcDay } from "./dates-utc";
 
 /** OpenAI model used for the editorial Top articles summary. */
 export const TOP_SUMMARY_MODEL = "gpt-5.5";
@@ -269,13 +270,6 @@ function buildVideoBulletRows(
     });
   }
   return rows;
-}
-
-/** UTC date string for the day before `dateISO` (YYYY-MM-DD). */
-function previousUtcDay(dateISO: string): string {
-  const d = new Date(`${dateISO}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() - 1);
-  return d.toISOString().slice(0, 10);
 }
 
 export type GenerateTopSummaryStatus =

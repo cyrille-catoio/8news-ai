@@ -13,7 +13,6 @@
     "release:major": "npm version major --no-git-tag-version && node scripts/release.mjs"
   },
   "dependencies": {
-    "@netlify/functions": "^5.1.4",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.99.2",
     "next": "16.1.6",

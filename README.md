@@ -76,6 +76,6 @@ Open **http://127.0.0.1:3000** in the browser (Next is configured for `127.0.0.1
 | [`docs/SPEC.md`](docs/SPEC.md) | Technical specification — routes, cron, DB, env vars, SEO |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Planned work |
 | [`docs/COMMITS.md`](docs/COMMITS.md) | Commit & release conventions |
-| [`src/lib/changelog-entries.ts`](src/lib/changelog-entries.ts) | Release history shown in the app |
+| [`src/data/changelog-entries.json`](src/data/changelog-entries.json) | Release history shown in the app |
 
 For architecture detail, behavior of pipelines, and deployment notes, **`docs/SPEC.md` is the source of truth** — avoid duplicating long sections in this README.

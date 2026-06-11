@@ -1,7 +1,9 @@
 # 8news.ai — Technical Specification
 
-**Version**: v2.5.4
-**Last updated**: 25 April 2026
+**Version**: v2.13.3
+**Last updated**: 11 June 2026
+
+> **Note**: sections of this spec are historical — they describe the system as of the version tagged inline (`**vX.Y+**` markers). The file tree and migration list below are kept current; for feature-level details, the changelog (`src/data/changelog-entries.json`) is the most up-to-date reference.
 
 ---
 
@@ -145,7 +147,7 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 │       ├── transcript-api.ts           # TranscriptAPI client (resolve, latest, transcript)
 │       ├── youtube-duration.ts         # `enrichDurations()` — YouTube Data API v3 backfill of `youtube_videos.duration_sec` (Shorts filter)
 │       ├── landing-content.ts          # Static content for the SSR landing page (EN+FR copy, pricing plans)
-│       └── changelog-entries.ts        # Release entries (auto-synced to DB on first /api/changelog after deploy)
+│       └── changelog-entries.ts        # Type + re-export of src/data/changelog-entries.json (release entries) (auto-synced to DB on first /api/changelog after deploy)
 ├── netlify/
 │   └── functions/
 │       ├── shared/
@@ -190,7 +192,10 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 │   ├── 029-user-activity.sql               # **v2.9+**: per-user UI toggle state (e.g. home Top 24h « Lu » per snapshot date)
 │   ├── 030-user-event.sql                  # **v2.10+**: append-only event log (anonymous + authenticated visitors, owner-only User Activity dashboard)
 │   ├── 031-summary-bullets-uniqueness.sql  # **v2.10.3+**: UNIQUE DEFERRABLE on (daily_summary_id|video_roundup_id|video_transcription_id, bullet_index) — must run AFTER 032
-│   └── 032-summary-bullets-cleanup.sql     # **v2.10.3+**: normalize legacy source_type 'article'→'daily_summary'; dedup historical doubles per business key
+│   ├── 032-summary-bullets-cleanup.sql     # **v2.10.3+**: normalize legacy source_type 'article'→'daily_summary'; dedup historical doubles per business key
+│   ├── 033-podcast-chat-messages.sql       # **v2.11+**: podcast_chat_messages — per-user Daily Podcast chat threads keyed (user_id, summary_date)
+│   ├── 034-video-summary-score-decimal.sql # **v2.12+**: video_transcriptions.summary_score SMALLINT → NUMERIC(3,1) (decimal AI quality scores)
+│   └── 035-global-article-kpis-rpc.sql     # **v2.12+**: global_article_kpis() RPC — single-query KPI rollup for the Stats page
 ├── .gitignore
 ├── .env                                    # API keys (not committed)
 ├── netlify.toml                            # Netlify build + redirect config
@@ -248,7 +253,7 @@ api/
 ├── cron-stats/route.ts           # GET — cron monitoring KPIs + timeline
 ├── tts/route.ts                  # POST — ElevenLabs Text-to-Speech
 ├── crypto/route.ts               # **v2.5.17+**: GET — BTC/ETH/SOL/XRP prices for the AppHeader ticker (60 s Supabase + edge cache, ≤ 1 CoinGecko call/min shared across all users) — see §19
-└── changelog/route.ts            # GET — release notes (auto-syncs `changelog-entries.ts` to DB on first call)
+└── changelog/route.ts            # GET — release notes (auto-syncs `src/data/changelog-entries.json` to DB on first call)
 ```
 
 ---
@@ -358,7 +363,7 @@ Users can create new topics from the Topics page. Each topic includes:
 | `body_en` / `body_fr` | text | Detail text |
 | `created_at` | timestamptz | Display order / metadata |
 
-Entries are defined in **`src/lib/changelog-entries.ts`** and auto-synced to the DB on first `GET /api/changelog` call after deploy. Legacy seed data lives in `migrations/005-changelog.sql`. No manual SQL needed for new releases.
+Entries are defined in **`src/data/changelog-entries.json`** (typed and re-exported by `src/data/changelog-entries.json`) and auto-synced to the DB on first `GET /api/changelog` call after deploy. Legacy seed data lives in `migrations/005-changelog.sql`. No manual SQL needed for new releases.
 
 ### 5.6 Cache TTL (based on time window)
 
@@ -1048,7 +1053,7 @@ The SPA checks `public/version.json` every **5 minutes**. If the version string 
 
 **Release workflow** — single-source-of-truth via `scripts/release.mjs`:
 1. `npm run release:patch` (or `:minor` / `:major`) — bumps `package.json`, then runs `release.mjs` which propagates the new version to `public/version.json`, the SPA's `APP_VERSION`, the footer, and any other tracked spot in one atomic edit
-2. Add an entry to `src/lib/changelog-entries.ts` (auto-synced to the `changelog` DB table on first `/api/changelog` after deploy)
+2. Add an entry to `src/data/changelog-entries.json` (auto-synced to the `changelog` DB table on first `/api/changelog` after deploy)
 3. Commit + push
 
 ### 8.24 Version Footer
@@ -1350,7 +1355,7 @@ The topic immediately appears in the homepage topic selector, stats page, and cr
 
 ## 17. Changelog
 
-Release history is maintained in **`src/lib/changelog-entries.ts`** and auto-synced to the `changelog` DB table on first `GET /api/changelog` call after deploy. The in-app Changelog page displays all entries. This SPEC does not duplicate the changelog — see the source file or the in-app page for the full history.
+Release history is maintained in **`src/data/changelog-entries.json`** and auto-synced to the `changelog` DB table on first `GET /api/changelog` call after deploy. The in-app Changelog page displays all entries. This SPEC does not duplicate the changelog — see the source file or the in-app page for the full history.
 
 **Recent (v2.x highlights)**:
 - **v2.6.11** — Unified `/archives` hub replaces the previously parallel `/summaries` (article daily summaries) and `/briefings` (video roundups) — both now 308-redirect to `/archives`. Single timeline grouped by date desc, topic + type filters, sticky chevron pagination. Per-day video drill-down at `/[topic]/videos/[date]`. Cross-topic Top 24h archive at `/{YYYY-MM-DD}` (mounted via a date-fork in `[topic]/page.tsx`). Gold « ALL TOPICS » box pinned at the top of each archives day card when a `top_summaries` snapshot exists. Click-target dedup on HeroStory + DailySummaryArticles + TopFeedSection. Sitemap: drops `/briefings`, advertises `/archives` and `/{date}` instead.

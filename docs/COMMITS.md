@@ -72,7 +72,7 @@ When you say "push" after a working dev session:
 2. The script bumps `package.json`, then re-runs `release.mjs` which
    propagates the new version to every dependent file. Idempotent — safe
    to re-run any time.
-3. Add a bilingual entry at the top of `src/lib/changelog-entries.ts`
+3. Add a bilingual entry at the top of `src/data/changelog-entries.json`
    (the in-product Changelog page reads this; the API filter hides
    versions that aren't in the array, so list everything you want users
    to see). The `created_at` timestamp controls ordering.
@@ -88,5 +88,5 @@ When the release rhythm stabilises we'll wire
 [release-please](https://github.com/googleapis/release-please) as a GitHub
 Action so the version bump + `CHANGELOG.md` generation happen in a PR
 opened automatically on every push to `main`. The bilingual narrative
-changelog in `src/lib/changelog-entries.ts` will stay manual but become
+changelog in `src/data/changelog-entries.json` will stay manual but become
 optional (write 1 entry per milestone, not per deploy).

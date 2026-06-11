@@ -46,7 +46,3 @@ next-env.d.ts
 
 # Claude / Cursor agent worktrees (local only)
 .claude/
-
-# Landing source (raw HTML/JS bundle from design tool, kept locally for reference;
-# the production landing lives in src/app/page.tsx + src/app/components/landing/).
-/landing-source/

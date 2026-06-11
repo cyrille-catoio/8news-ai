@@ -2,7 +2,7 @@
 
 > Source unique des grandes lignes de développement à venir. Vit dans le repo
 > pour rester en lockstep avec le code (cf. [`SPEC.md`](SPEC.md) pour le
-> contrat technique courant et [`src/lib/changelog-entries.ts`](src/lib/changelog-entries.ts)
+> contrat technique courant et [`src/data/changelog-entries.json`](src/data/changelog-entries.json)
 > pour ce qui est déjà livré).
 >
 > **Convention** :
@@ -78,5 +78,5 @@
 ## Done
 
 Les releases livrées sont documentées dans
-[`src/lib/changelog-entries.ts`](src/lib/changelog-entries.ts) (entrée par
+[`src/data/changelog-entries.json`](src/data/changelog-entries.json) (entrée par
 version, FR + EN, body détaillé). Pas de double tracking ici.

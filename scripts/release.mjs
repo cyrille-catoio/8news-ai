@@ -62,16 +62,6 @@ const targets = [
   // ON 8NEWS.AI", now "Tech / AI / Crypto"). If you put the version back
   // into a kicker, add a target here.
   {
-    file: "src/lib/landing-content.ts",
-    find: /(Everything we shipped in v)[0-9.]+(\.)/g,
-    replace: `$1__VERSION__$2`,
-  },
-  {
-    file: "src/lib/landing-content.ts",
-    find: /(Tout ce qu'on a livré en v)[0-9.]+(\.)/g,
-    replace: `$1__VERSION__$2`,
-  },
-  {
     file: "src/app/components/landing/LandingFooter.tsx",
     find: /v[0-9.]+(\s·\s8NEWS\.AI)/g,
     replace: `v__VERSION__$1`,
@@ -156,14 +146,14 @@ function safeGit(args) {
 
 console.log("");
 
-// 1. Is the current version listed in CHANGELOG_ENTRIES?
+// 1. Is the current version listed in the changelog JSON?
 try {
-  const cl = await fs.readFile(path.join(ROOT, "src/lib/changelog-entries.ts"), "utf8");
-  // Match `version: "1.109.2"` or `version: "1.109"` (with or without trailing .0).
-  const versionRe = new RegExp(`version:\\s*"${escapeRe(version)}"`);
+  const cl = await fs.readFile(path.join(ROOT, "src/data/changelog-entries.json"), "utf8");
+  // Match `"version": "1.109.2"` or `"version": "1.109"` (with or without trailing .0).
+  const versionRe = new RegExp(`"version":\\s*"${escapeRe(version)}"`);
   if (!versionRe.test(cl)) {
-    console.log(`⚠  Changelog: no entry found for v${version} in src/lib/changelog-entries.ts`);
-    console.log(`   Add a { version: "${version}", title_en, title_fr, body_en, body_fr, created_at } block at the top of CHANGELOG_ENTRIES before pushing.`);
+    console.log(`⚠  Changelog: no entry found for v${version} in src/data/changelog-entries.json`);
+    console.log(`   Add a { version: "${version}", title_en, title_fr, body_en, body_fr, created_at } block at the top of the JSON array before pushing.`);
   } else {
     console.log(`✓ Changelog: entry for v${version} found.`);
   }

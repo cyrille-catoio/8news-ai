@@ -1,6 +1,6 @@
 # 8news.ai — Technical Specification
 
-**Version**: v2.13.7
+**Version**: v2.13.8
 **Last updated**: 12 June 2026
 
 > **Note**: sections of this spec are historical — they describe the system as of the version tagged inline (`**vX.Y+**` markers). The mechanical parts (header version, file tree, migration list, cron list, API route list) are kept current and **enforced by `npm run spec:check`** (also run by `npm test`, hence by the Netlify build — drift blocks the deploy). The spec is updated automatically as part of the release ritual (see `AGENTS.md` § 3 and § 11 for the content contract). For feature-level details, the changelog (`src/data/changelog-entries.json`) is the most up-to-date reference.
@@ -141,6 +141,7 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 │       ├── constants.ts                # Cross-cutting constants
 │       ├── api-helpers.ts              # **v2.13.4+** NO_STORE_HEADERS, parseLang, parsePositiveInt, parseOffset — shared by ~18 API routes
 │       ├── dates-utc.ts                # UTC date helpers (todayUtc, previousUtcDay, toUtcDateString) — crons work in UTC only
+│       ├── topic-strips.ts             # **v2.13.8+** groupArticlesByTopic() — pure per-topic regroup/cap + localized titles for GET /api/news/strips
 │       ├── supabase.ts                 # Barrel re-export of src/lib/supabase/* (server-only queries)
 │       ├── supabase/                   # **v2.13.4-structured** server data layer — every read/write logs its errors (no silent catch)
 │       │   ├── client.ts               #   `getServerClient()` — the ONLY service-role client factory (returns null if env vars missing)
@@ -259,6 +260,7 @@ api/
 │   ├── route.ts                  # GET /api/news — Supabase read + AI analysis (per-topic relevant articles, v2.6.6+ gpt-4.1-nano)
 │   ├── all/route.ts              # GET /api/news/all — All articles (lazy load, up to 1000)
 │   ├── top/route.ts              # GET /api/news/top — Top scored articles (Top 50)
+│   ├── strips/route.ts           # **v2.13.8+** GET /api/news/strips — batch per-topic mini-feeds for the home « Vos topics » section (single Supabase read, no LLM)
 │   ├── top-story/route.ts        # **v2.6+** GET — home TOP STORY hero pick from `home_surface_queue` (10-min buckets, `?offset=` history)
 │   ├── top-summary/route.ts            # POST — manual replay/debug for the Top articles snapshot. Delegates to `generateTopSummary` (gpt-5.5). UI no longer calls it.
 │   └── top-summary/latest/route.ts     # **v2.6.5+** GET — read latest pre-computed `top_summaries` snapshot (used by /top-articles + the home `Top24hHero` accordion).
@@ -606,6 +608,17 @@ Homepage default feed. Returns top-scored articles across all topics (by `releva
 | `lang` | `"en"` \| `"fr"` | `en` | **v1.76+**. Chooses AI snippet (`snippet_ai_fr` / `snippet_ai_en`), else RSS `snippet` / `content` (truncated ~600 chars) |
 
 **Response** (`articles[]`): `title`, `link`, `source`, `topic`, `pubDate`, `score`, **`snippet`** (**v1.76+**; empty string if nothing to show).
+
+#### `GET /api/news/strips` — **v2.13.8+** home « Vos topics » batch feed
+
+One-shot replacement for the previous one-`/api/news`-call-per-topic pattern of the home « Vos topics · 24 dernières heures » section (each cold call re-ran a gpt-4.1-nano analysis; the section took ~30 s to fill). Single Supabase batch read (`getScoredArticlesForTopics`, `.in("topic", …)`), **no LLM call**; per-topic regroup/cap + title localization (`title_ai_fr` / `title_ai_en`, fallback raw `title`) by the pure `groupArticlesByTopic()` (`src/lib/topic-strips.ts`, vitest-covered). Fixed 24 h window, `relevance_score ≥ 6` (mirror of `getMinScore(24)`), 6 articles per topic (spares for `selectTopicStrips()` cross-topic dedup), 50 topics max per call. `force-dynamic` + `NO_STORE_HEADERS`.
+
+| Param | Type | Description |
+|---|---|---|
+| `topics` | string | Comma-separated topic IDs (preferred + fill candidates), required |
+| `lang` | `"en"` \| `"fr"` | Title localization |
+
+**Response**: `{ strips: { [topicId]: { title, link, source, pubDate, score }[] } }`.
 
 #### `GET /api/news/top-summary/latest` — **v2.6.5+** primary read path
 

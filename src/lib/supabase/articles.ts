@@ -59,6 +59,59 @@ export async function getScoredArticles(
   }
 }
 
+/** Light row shape returned by `getScoredArticlesForTopics` — just what
+ *  the home « Vos topics » strips render (no content/snippet payload). */
+export interface TopicStripRow {
+  topic: string;
+  title: string;
+  title_ai_en: string | null;
+  title_ai_fr: string | null;
+  link: string;
+  source: string;
+  pub_date: string;
+  relevance_score: number | null;
+}
+
+/**
+ * Batch read powering `GET /api/news/strips` (home « Vos topics »
+ * section): one `.in("topic", …)` query over every candidate topic
+ * instead of one `/api/news` round-trip (and LLM analysis) per topic.
+ * Rows come back globally sorted by score desc then recency; the
+ * per-topic regrouping/capping is `groupArticlesByTopic()` in
+ * `src/lib/topic-strips.ts`.
+ */
+export async function getScoredArticlesForTopics(
+  topicIds: string[],
+  since: string,
+  minScore: number,
+  limit: number,
+): Promise<TopicStripRow[]> {
+  const clientP = getServerClient();
+  if (!clientP || topicIds.length === 0) return [];
+
+  try {
+    const supabase = await clientP;
+    const { data, error } = await supabase
+      .from("articles")
+      .select("topic, title, title_ai_en, title_ai_fr, link, source, pub_date, relevance_score")
+      .in("topic", topicIds)
+      .gte("fetched_at", since)
+      .gte("relevance_score", minScore)
+      .order("relevance_score", { ascending: false })
+      .order("fetched_at", { ascending: false })
+      .limit(limit);
+
+    if (error || !data) {
+      if (error) console.warn("[getScoredArticlesForTopics]", error.message);
+      return [];
+    }
+    return data as TopicStripRow[];
+  } catch (err) {
+    console.warn("[getScoredArticlesForTopics]", err);
+    return [];
+  }
+}
+
 export async function getAllArticlesFromDb(
   topic: string,
   since: string,

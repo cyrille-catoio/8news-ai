@@ -18,7 +18,7 @@ import { HeroStory } from "@/app/components/briefing/HeroStory";
 import { Top5Section } from "@/app/components/briefing/Top5Section";
 import { VideosBriefingSection } from "@/app/components/briefing/VideosBriefingSection";
 import { YourTopicsSection, type MiniArticle } from "@/app/components/briefing/YourTopicsSection";
-import { selectTopicStrips, MAX_TOPIC_STRIPS } from "@/app/components/briefing/select-topic-strips";
+import { selectTopicStrips } from "@/app/components/briefing/select-topic-strips";
 import { NewsletterSignupPrompt } from "@/app/components/briefing/NewsletterSignupPrompt";
 import { DailySummaryTeaser, type SummaryRoute } from "@/app/components/briefing/DailySummaryTeaser";
 import { RecentVideoPagesSection } from "@/app/components/briefing/RecentVideoPagesSection";
@@ -288,10 +288,12 @@ export function BriefingPage({
   // the pure `selectTopicStrips()` — see its header comment. The section
   // targets a stable 4 blocks: every preferred topic is a candidate (not
   // just the first 4), and when fewer than 4 blocks survive — a topic
-  // with no article ≥ min-score in 24 h, or emptied by dedup — a second
-  // fetch round pulls the site's other topics as fill candidates, ranked
-  // by best article score. State is set once per round, so the section
-  // never renders a partial set that later shrinks.
+  // with no article ≥ min-score in 24 h, or emptied by dedup — the
+  // site's other topics serve as fill candidates, ranked by best
+  // article score. Data comes from ONE call to `/api/news/strips`
+  // covering preferred + fill topics (a single Supabase batch read, no
+  // LLM) — the previous one-`/api/news`-call-per-topic pattern re-ran a
+  // gpt-4.1-nano analysis per cold topic and took ~30 s to fill.
   const [yourTopicArticles, setYourTopicArticles] = useState<Record<string, MiniArticle[]>>({});
   useEffect(() => {
     if (!isAuthenticated || !preferredTopicIds || preferredTopicIds.length === 0) {
@@ -299,36 +301,26 @@ export function BriefingPage({
       return;
     }
     let cancelled = false;
-    const fetchStrip = (id: string) =>
-      fetch(`/api/news?topic=${encodeURIComponent(id)}&hours=24&lang=${lang}&count=3`, { cache: "no-store" })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((data: { articles?: MiniArticle[] } | null) => ({ id, articles: data?.articles ?? [] }))
-        .catch(() => ({ id, articles: [] as MiniArticle[] }));
+    const fillIds = topicLabels
+      .map((tl) => tl.id)
+      .filter((id) => !preferredTopicIds.includes(id));
+    const allIds = [...preferredTopicIds, ...fillIds];
 
-    (async () => {
-      const byTopic: Record<string, MiniArticle[]> = {};
-      const prefResults = await Promise.all(preferredTopicIds.map(fetchStrip));
-      for (const r of prefResults) byTopic[r.id] = r.articles;
-
-      let strips = selectTopicStrips({ preferredIds: preferredTopicIds, articlesByTopic: byTopic });
-
-      if (Object.keys(strips).length < MAX_TOPIC_STRIPS) {
-        const fillIds = topicLabels
-          .map((tl) => tl.id)
-          .filter((id) => !preferredTopicIds.includes(id));
-        const fillResults = await Promise.all(fillIds.map(fetchStrip));
+    fetch(`/api/news/strips?topics=${encodeURIComponent(allIds.join(","))}&lang=${lang}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { strips?: Record<string, MiniArticle[]> } | null) => {
         if (cancelled) return;
-        for (const r of fillResults) byTopic[r.id] = r.articles;
-        strips = selectTopicStrips({
-          preferredIds: preferredTopicIds,
-          fillIds,
-          articlesByTopic: byTopic,
-        });
-      }
-
-      if (cancelled) return;
-      setYourTopicArticles(strips);
-    })();
+        setYourTopicArticles(
+          selectTopicStrips({
+            preferredIds: preferredTopicIds,
+            fillIds,
+            articlesByTopic: data?.strips ?? {},
+          }),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setYourTopicArticles({});
+      });
     return () => { cancelled = true; };
   }, [isAuthenticated, preferredTopicIds, lang, topicLabels]);
 

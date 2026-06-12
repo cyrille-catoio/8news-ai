@@ -1,7 +1,8 @@
-import { createClient } from "@supabase/supabase-js";
 import { todayUtc } from "../../src/lib/dates-utc";
+import { getServerClient } from "../../src/lib/supabase/client";
 import {
   evaluateWatchdog,
+  missingPodcastLangs,
   FETCH_STALE_MINUTES,
   type WatchdogSnapshot,
 } from "../../src/lib/watchdog-checks";
@@ -23,6 +24,16 @@ import { sendCronAlert } from "./shared/cron-alert";
  *      the scoring stamp is itself stale.
  *   4. At least one video transcription landed in the last 36 h.
  *
+ * Self-heal (check 1 only): when today's snapshot is missing for a
+ * lang, the watchdog doesn't just email — it re-triggers
+ * `cron-top-summary-background?langs=<missing>` (fire-and-forget, the
+ * background function ACKs 202 immediately) so the Daily Podcast
+ * repairs itself within the hour whatever killed the 02:00 UTC tick
+ * (transient DB/OpenAI error, wall-budget kill, cold-start crash).
+ * Only the missing lang(s) are regenerated: the healthy lang's edition
+ * is neither replaced nor re-billed. Convergent by construction: as
+ * soon as the row lands, the next hourly tick stops re-triggering.
+ *
  * Scheduling: cron-job.org, timezone UTC, hourly (`0 * * * *`) →
  *   https://8news.ai/.netlify/functions/cron-watchdog
  * Synchronous function (a handful of indexed reads, well under the 30 s
@@ -38,17 +49,21 @@ import { sendCronAlert } from "./shared/cron-alert";
 export default async (): Promise<Response> => {
   const { log, elog, elapsedMs } = startCronRun("cron-watchdog");
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
+  // Shared cached service-role client (AGENTS.md § 6) — returns null
+  // when the Supabase env vars are missing.
+  const supabaseP = getServerClient();
+  if (!supabaseP) {
     elog("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY — aborting");
     return Response.json({ ok: false, problems: ["watchdog: supabase env missing"] });
   }
-  const supabase = createClient(url, key, { auth: { persistSession: false } });
+  const supabase = await supabaseP;
 
   const nowMs = Date.now();
   const today = todayUtc();
   const problems: string[] = [];
+  // Operator-facing notes about self-heal actions taken this tick —
+  // appended to the alert email detail, but NOT counted as problems.
+  const healNotes: string[] = [];
 
   try {
     const staleCutoff = new Date(nowMs - FETCH_STALE_MINUTES * 60_000).toISOString();
@@ -112,6 +127,29 @@ export default async (): Promise<Response> => {
     };
 
     problems.push(...evaluateWatchdog(snapshot));
+
+    // Self-heal: re-trigger the top-summary cron for the missing
+    // lang(s). Best-effort — a failed trigger must not take the
+    // watchdog down, and the next hourly tick will retry anyway.
+    const missing = missingPodcastLangs(snapshot);
+    if (missing.length > 0) {
+      const origin = process.env.URL?.trim() || "https://8news.ai";
+      const healUrl = `${origin}/.netlify/functions/cron-top-summary-background?langs=${missing.join(",")}`;
+      try {
+        const res = await fetch(healUrl, {
+          method: "GET",
+          signal: AbortSignal.timeout(10_000),
+        });
+        const note = `Auto-réparation : cron-top-summary-background relancé pour langs=${missing.join(",")} (http=${res.status})`;
+        healNotes.push(note);
+        log(`[self-heal] ${note}`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "unknown";
+        problems.push(
+          `Auto-réparation impossible : le déclenchement de cron-top-summary-background (langs=${missing.join(",")}) a échoué — ${msg}`,
+        );
+      }
+    }
   } catch (fatal) {
     const msg = fatal instanceof Error ? (fatal.stack ?? fatal.message) : String(fatal);
     problems.push(`Watchdog : exception inattendue — ${msg}`);
@@ -124,11 +162,11 @@ export default async (): Promise<Response> => {
     await sendCronAlert(
       "watchdog",
       `${problems.length} problème(s) de fraîcheur détecté(s) sur les pipelines 8news.`,
-      problems,
+      [...problems, ...healNotes],
     );
   } else {
     log(summary);
   }
 
-  return Response.json({ ok: problems.length === 0, problems });
+  return Response.json({ ok: problems.length === 0, problems, healNotes });
 };

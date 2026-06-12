@@ -1,5 +1,6 @@
 import {
   generateTopSummary,
+  parseTopSummaryLangsParam,
   TOP_SUMMARY_MODEL,
   type GenerateTopSummaryResult,
   type GenerateTopSummaryStatus,
@@ -36,28 +37,45 @@ import type { Lang } from "../../src/lib/i18n";
  * Date override: `TOP_SUMMARY_DATE=YYYY-MM-DD` env var lets the
  * operator replay a past date (useful for backfilling after a failed
  * tick). Default is today in UTC.
+ *
+ * Lang filter: `?langs=en` (or `fr`, or `en,fr`) regenerates only the
+ * given lang(s). Used by `cron-watchdog`'s self-heal re-trigger when a
+ * single lang is missing for today, so the healthy lang's edition is
+ * neither replaced nor re-billed. No param = both langs (daily tick).
  */
 
-const LANGS: readonly Lang[] = ["en", "fr"] as const;
-
-export default async () => {
+export default async (req: Request) => {
   const { log, elog, errorLines, elapsedMs } = startCronRun("cron-top-summary");
   const summaryDate = process.env.TOP_SUMMARY_DATE?.trim() || todayUtc();
+  const langs: readonly Lang[] = parseTopSummaryLangsParam(
+    new URL(req.url).searchParams.get("langs"),
+  );
 
   let generated = 0;
   let noArticles = 0;
   let errors = 0;
 
   log(
-    `[start] date=${summaryDate} langs=${LANGS.join(",")} model=${TOP_SUMMARY_MODEL}` +
+    `[start] date=${summaryDate} langs=${langs.join(",")} model=${TOP_SUMMARY_MODEL}` +
       (process.env.TOP_SUMMARY_DATE ? " (date overridden via TOP_SUMMARY_DATE)" : ""),
   );
 
-  // Statuses a retry could actually change. "ok"/"no_articles" are
-  // terminal; "no_openai" means the key is missing, so retrying is
-  // pointless. Everything else (ai_error, db_error, a thrown error) is
-  // treated as transient and retried once.
-  const RETRYABLE = new Set<GenerateTopSummaryStatus>(["ai_error", "db_error"]);
+  // Statuses a retry could actually change. "ok" is terminal and
+  // "no_openai" means the key is missing, so retrying is pointless.
+  // "no_articles" IS retryable: the Supabase read helpers
+  // (`getTopArticlesForStats`, `getHiddenTopicIds`) swallow transient
+  // DB errors into an empty array, so on the cold-started 02:00 UTC
+  // tick the FIRST lang (EN) can see a spurious "no articles" while FR
+  // succeeds minutes later on the warm client — that misclassification
+  // is exactly how prod shipped days with the EN podcast missing. A
+  // genuine empty day re-resolves to no_articles cheaply (one DB query,
+  // zero OpenAI tokens). Everything else (ai_error, db_error, a thrown
+  // error) is transient and retried too.
+  const RETRYABLE = new Set<GenerateTopSummaryStatus>([
+    "ai_error",
+    "db_error",
+    "no_articles",
+  ]);
 
   try {
     // Self-healing per-lang retry. The daily tick has intermittently
@@ -70,7 +88,7 @@ export default async () => {
     // throws on an LLM/JSON hiccup (it degrades to a fallback that still
     // persists a row), so an ABSENT row only happens on a thrown/transient
     // error — exactly what this retry covers.
-    for (const lang of LANGS) {
+    for (const lang of langs) {
       const langStart = Date.now();
       log(`[lang-start] lang=${lang} date=${summaryDate}`);
       let result: GenerateTopSummaryResult | null = null;
@@ -145,7 +163,7 @@ export default async () => {
     elog(`[fatal] date=${summaryDate} — ${msg} elapsed_ms=${elapsedMs()}`);
   }
 
-  const summary = `[run] cron=top-summary date=${summaryDate} langs=${LANGS.length} generated=${generated} no_articles=${noArticles} errors=${errors} elapsed_ms=${elapsedMs()}`;
+  const summary = `[run] cron=top-summary date=${summaryDate} langs=${langs.join(",")} generated=${generated} no_articles=${noArticles} errors=${errors} elapsed_ms=${elapsedMs()}`;
   if (errors > 0) {
     elog(summary);
     // The Top 24h snapshot feeds the home hero, the audio player, the

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   evaluateWatchdog,
+  missingPodcastLangs,
   type WatchdogSnapshot,
   FETCH_STALE_MINUTES,
   SCORE_BACKLOG_FLOOR,
@@ -56,6 +57,27 @@ describe("evaluateWatchdog", () => {
         podcastLangs: [],
       });
       expect(problems).toEqual([]);
+    });
+  });
+
+  describe("missingPodcastLangs (drives the watchdog self-heal)", () => {
+    it("returns the missing lang(s) after the grace hour", () => {
+      expect(
+        missingPodcastLangs({ ...healthy(utc(8)), podcastLangs: ["fr"] }),
+      ).toEqual(["en"]);
+      expect(
+        missingPodcastLangs({ ...healthy(utc(8)), podcastLangs: [] }),
+      ).toEqual(["en", "fr"]);
+    });
+
+    it("returns [] when both langs are present", () => {
+      expect(missingPodcastLangs(healthy(utc(8)))).toEqual([]);
+    });
+
+    it("returns [] before the grace hour even when langs are missing", () => {
+      expect(
+        missingPodcastLangs({ ...healthy(utc(3, 59)), podcastLangs: [] }),
+      ).toEqual([]);
     });
   });
 

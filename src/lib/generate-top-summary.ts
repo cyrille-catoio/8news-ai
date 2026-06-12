@@ -77,6 +77,25 @@ const VIDEO_BULLET_MAX_CHARS = 450;
  *  canonical URLs (see `src/lib/summary-routes.ts`). */
 const SITE_ORIGIN = "https://8news.ai";
 
+/**
+ * Parse the optional `?langs=` query param of
+ * `cron-top-summary-background` — a comma-separated subset of en/fr.
+ * Used by the watchdog's self-heal re-trigger to regenerate ONLY the
+ * missing lang without spending tokens on (and replacing) the healthy
+ * one. Empty / absent / garbage input falls back to both langs, so the
+ * daily cron-job.org tick (no param) keeps its existing behavior.
+ */
+export function parseTopSummaryLangsParam(raw: string | null | undefined): Lang[] {
+  const ALL: Lang[] = ["en", "fr"];
+  if (!raw) return ALL;
+  const requested = raw
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter((s): s is Lang => s === "en" || s === "fr");
+  const dedup = [...new Set(requested)];
+  return dedup.length > 0 ? dedup : ALL;
+}
+
 export function generateTopSummaryPrompt(lang: Lang): string {
   if (lang === "fr") {
     return [

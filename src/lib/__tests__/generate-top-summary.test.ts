@@ -3,7 +3,31 @@ import {
   extractVideoBulletText,
   stripMarkdownInline,
   selectTopArticleBullets,
+  parseTopSummaryLangsParam,
 } from "../generate-top-summary";
+
+describe("parseTopSummaryLangsParam", () => {
+  it("defaults to both langs when the param is absent or empty", () => {
+    expect(parseTopSummaryLangsParam(null)).toEqual(["en", "fr"]);
+    expect(parseTopSummaryLangsParam(undefined)).toEqual(["en", "fr"]);
+    expect(parseTopSummaryLangsParam("")).toEqual(["en", "fr"]);
+  });
+
+  it("selects a single lang (the watchdog self-heal case)", () => {
+    expect(parseTopSummaryLangsParam("en")).toEqual(["en"]);
+    expect(parseTopSummaryLangsParam("fr")).toEqual(["fr"]);
+  });
+
+  it("accepts a comma-separated list, trims, lowercases and dedups", () => {
+    expect(parseTopSummaryLangsParam("en,fr")).toEqual(["en", "fr"]);
+    expect(parseTopSummaryLangsParam(" FR , en , fr ")).toEqual(["fr", "en"]);
+  });
+
+  it("falls back to both langs on garbage input", () => {
+    expect(parseTopSummaryLangsParam("de,es")).toEqual(["en", "fr"]);
+    expect(parseTopSummaryLangsParam(",,,")).toEqual(["en", "fr"]);
+  });
+});
 
 describe("stripMarkdownInline", () => {
   it("strips bold and italic markers", () => {

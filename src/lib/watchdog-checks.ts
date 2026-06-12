@@ -53,6 +53,21 @@ function formatAge(minutes: number): string {
   return `${Math.round(minutes)} min`;
 }
 
+/**
+ * Langs whose today-snapshot is missing in `top_summaries` after the
+ * grace hour ([] before it, or when all langs are present). Shared by
+ * `evaluateWatchdog` (problem strings) and the watchdog cron's
+ * SELF-HEAL: each missing lang triggers a re-run of
+ * `cron-top-summary-background?langs=…`, so a failed 02:00 UTC tick is
+ * repaired within the hour instead of leaving the day broken until a
+ * manual replay (the recurring « EN podcast missing » incident).
+ */
+export function missingPodcastLangs(s: WatchdogSnapshot): ("en" | "fr")[] {
+  const utcHour = new Date(s.nowMs).getUTCHours();
+  if (utcHour < PODCAST_GRACE_UTC_HOUR) return [];
+  return (["en", "fr"] as const).filter((lang) => !s.podcastLangs.includes(lang));
+}
+
 /** Returns one French problem string per failed check ([] = all green). */
 export function evaluateWatchdog(s: WatchdogSnapshot): string[] {
   const problems: string[] = [];
@@ -60,15 +75,10 @@ export function evaluateWatchdog(s: WatchdogSnapshot): string[] {
   // 1. Daily Podcast snapshot (feeds home hero + newsletter + archives).
   //    Checked after the grace hour only, so the 02:00 UTC tick has time
   //    to run and retry before we declare the day broken.
-  const utcHour = new Date(s.nowMs).getUTCHours();
-  if (utcHour >= PODCAST_GRACE_UTC_HOUR) {
-    for (const lang of ["en", "fr"] as const) {
-      if (!s.podcastLangs.includes(lang)) {
-        problems.push(
-          `Podcast du jour absent : aucune ligne top_summaries pour ${s.todayUtc} lang=${lang} — vérifier cron-top-summary-background`,
-        );
-      }
-    }
+  for (const lang of missingPodcastLangs(s)) {
+    problems.push(
+      `Podcast du jour absent : aucune ligne top_summaries pour ${s.todayUtc} lang=${lang} — vérifier cron-top-summary-background`,
+    );
   }
 
   // 2. Fetch pipeline liveness.

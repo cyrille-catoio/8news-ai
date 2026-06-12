@@ -55,26 +55,25 @@ export async function upsertTopSummary(params: {
 
   try {
     const supabase = await clientP;
-    // Delete-then-insert keeps the (summary_date, lang) key unique
-    // without depending on a Postgres `ON CONFLICT` clause whose
-    // column-target syntax has bitten us in earlier migrations.
-    await supabase
-      .from("top_summaries")
-      .delete()
-      .eq("summary_date", params.summaryDate)
-      .eq("lang", params.lang);
-
-    const { error } = await supabase.from("top_summaries").insert({
-      summary_date: params.summaryDate,
-      lang: params.lang,
-      generated_at: new Date().toISOString(),
-      model: params.model,
-      articles: params.articles as unknown,
-      summary_md: params.summaryMd,
-    });
+    // True upsert on the (summary_date, lang) primary key (mig. 025).
+    // The previous delete-then-insert had a destructive failure mode:
+    // an unchecked delete followed by a failed insert wiped the
+    // existing edition instead of leaving it in place — with ON
+    // CONFLICT the row is replaced atomically or not at all.
+    const { error } = await supabase.from("top_summaries").upsert(
+      {
+        summary_date: params.summaryDate,
+        lang: params.lang,
+        generated_at: new Date().toISOString(),
+        model: params.model,
+        articles: params.articles as unknown,
+        summary_md: params.summaryMd,
+      },
+      { onConflict: "summary_date,lang" },
+    );
 
     if (error) {
-      console.error("[upsertTopSummary] insert failed:", error.message);
+      console.error("[upsertTopSummary] upsert failed:", error.message);
       return false;
     }
     return true;

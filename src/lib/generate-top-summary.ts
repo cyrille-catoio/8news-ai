@@ -59,6 +59,15 @@ const PROMPT_SNIPPET_MAX = 250;
  *  of the Daily Podcast. */
 const TOP_VIDEOS_COUNT = 2;
 
+/** Hard cap on the bullet points persisted for the Daily Podcast —
+ *  videos INCLUDED (2 videos + 6 article bullets on a normal day).
+ *  Applies to every consumer of the snapshot (home hero, audio,
+ *  newsletter, /{date} archive) since they all read `summary_bullets`.
+ *  The LLM still produces its full 6-12 group briefing (kept in
+ *  `summary_md` for the podcast-chat grounding); we keep only the most
+ *  important bullets here. */
+const TOTAL_BULLETS_MAX = 8;
+
 /** Char cap on the condensed video summary used as the bullet body. */
 const VIDEO_BULLET_MAX_CHARS = 450;
 
@@ -272,6 +281,50 @@ function buildVideoBulletRows(
   return rows;
 }
 
+/**
+ * Keep only the `budget` most important article bullets out of the
+ * LLM's full output. Consecutive same-title bullets are folded into
+ * their thematic group (same logic as the UI's `groupBullets`), groups
+ * are stable-sorted by `importance` DESC (missing scores sink to 0),
+ * then bullets are taken group by group — preserving the narrative
+ * order within a group — until the budget is reached. A group may be
+ * truncated mid-way when it straddles the budget boundary.
+ */
+export function selectTopArticleBullets<
+  T extends { title?: string | null; importance?: number | null },
+>(bullets: T[], budget: number): T[] {
+  if (budget <= 0) return [];
+  if (bullets.length <= budget) return bullets;
+
+  const groups: Array<{ importance: number; bullets: T[] }> = [];
+  for (const b of bullets) {
+    const t = (b.title ?? "").trim();
+    const last = groups[groups.length - 1];
+    if (t && last && (last.bullets[0].title ?? "").trim() === t) {
+      last.bullets.push(b);
+    } else {
+      groups.push({
+        importance: typeof b.importance === "number" ? b.importance : 0,
+        bullets: [b],
+      });
+    }
+  }
+
+  const sorted = groups
+    .map((g, i) => ({ g, i }))
+    .sort((a, b) => (b.g.importance - a.g.importance) || (a.i - b.i))
+    .map((d) => d.g);
+
+  const out: T[] = [];
+  for (const g of sorted) {
+    for (const b of g.bullets) {
+      if (out.length >= budget) return out;
+      out.push(b);
+    }
+  }
+  return out;
+}
+
 export type GenerateTopSummaryStatus =
   | "ok"
   | "no_articles"
@@ -418,17 +471,24 @@ export async function generateTopSummary(
     );
   }
 
+  // Cap the podcast at TOTAL_BULLETS_MAX bullet points, videos
+  // included: the pinned videos always open the briefing, then the most
+  // important article bullets fill the remaining slots. The full LLM
+  // briefing stays in `summary_md` (podcast-chat grounding).
+  const articleBudget = Math.max(0, TOTAL_BULLETS_MAX - videoBulletRows.length);
+  const selectedBullets = selectTopArticleBullets(bullets, articleBudget);
+
   // Mirror each bullet into `summary_bullets` (source_type='top50').
   // Same shape used by the legacy POST route + the daily-summary
   // pipeline: the embedded `**Title**\n\nbody` markdown in `text` lets
   // any plain-text consumer keep the visual hierarchy without joining
   // on the dedicated `title` column.
-  if (bullets.length > 0 || videoBulletRows.length > 0) {
+  if (selectedBullets.length > 0 || videoBulletRows.length > 0) {
     const bulletRows: TopSummaryBulletInsertRow[] = [...videoBulletRows];
     const indexOffset = videoBulletRows.length;
 
-    for (let i = 0; i < bullets.length; i++) {
-      const blt = bullets[i];
+    for (let i = 0; i < selectedBullets.length; i++) {
+      const blt = selectedBullets[i];
       const refIndices = (blt.refs ?? [])
         .map((ref) => articles.findIndex((a) => a.link === ref.link))
         .filter((idx) => idx >= 0);
@@ -488,12 +548,12 @@ export async function generateTopSummary(
         summaryDate,
         lang,
         articleCount: articles.length,
-        bulletCount: bullets.length + videoBulletRows.length,
+        bulletCount: selectedBullets.length + videoBulletRows.length,
         errorMessage: "insertTopSummaryBullets failed",
       };
     }
     console.log(
-      `[generateTopSummary] bullets persisted (lang=${lang}, date=${summaryDate}, rows=${bulletRows.length}, videoBullets=${videoBulletRows.length})`,
+      `[generateTopSummary] bullets persisted (lang=${lang}, date=${summaryDate}, rows=${bulletRows.length}, videoBullets=${videoBulletRows.length}, articleBullets=${selectedBullets.length}/${bullets.length})`,
     );
   }
 
@@ -502,6 +562,6 @@ export async function generateTopSummary(
     summaryDate,
     lang,
     articleCount: articles.length,
-    bulletCount: bullets.length + videoBulletRows.length,
+    bulletCount: selectedBullets.length + videoBulletRows.length,
   };
 }

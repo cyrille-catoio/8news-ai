@@ -693,12 +693,12 @@ const strings = {
    *  The key name `generalMenuArticlesBtn` is kept as a compatibility
    *  alias to avoid a sweep across unrelated callsites. */
   generalMenuArticlesBtn: {
-    en: "My briefing",
-    fr: "Ma veille",
+    en: "Briefing",
+    fr: "Veille",
   },
   myTopicsMenuBtn: {
-    en: "My topics",
-    fr: "Mes topics",
+    en: "Topics",
+    fr: "Topics",
   },
   myBriefingTitle: {
     en: "My AI briefing",
@@ -997,8 +997,8 @@ const strings = {
    *  ~360px). The intent is unchanged: "the day's top stories across all
    *  your topics". */
   analyzeTopArticlesBtn: {
-    en: "Top articles 24h",
-    fr: "Top articles 24h",
+    en: "Top 24h",
+    fr: "Top 24h",
   },
   topSummaryGeneratedOn: {
     en: "Generated on {date}",
@@ -1397,8 +1397,8 @@ const strings = {
   },
   // « Chaînes YouTube » browse page (v2.13+).
   channelsBtn: {
-    en: "YouTube channels",
-    fr: "Chaînes YouTube",
+    en: "YT channels",
+    fr: "Chaînes YT",
   },
   channelsTitle: {
     en: "YouTube channels",

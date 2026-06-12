@@ -17,6 +17,7 @@ import {
   isTranscriptionErrorMarkdown,
   formatViews,
   formatDuration,
+  stripEmojis,
   toggleLink,
   videoSsrHref,
 } from "@/app/components/video-card/VideoCardHelpers";
@@ -146,12 +147,17 @@ export function VideoCard({
   const transcriptionFailed = isTranscriptionErrorMarkdown(summaryMd);
   const hasTranscription = !!summaryMd && !transcriptionFailed;
 
+  // YouTube creators pad titles/descriptions with 🚀🔥👇 — strip them so
+  // the card matches the app's editorial register.
+  const displayTitle = stripEmojis(v.title);
+  const displayDescription = v.description ? stripEmojis(v.description) : "";
+
   /** Hero homepage: AI summary preview shown next to the thumbnail. */
   const heroSummaryPreview =
     variant === "hero" && hasTranscription ? buildSummaryPreview(summaryMd, 432) : "";
   /** Hero homepage fallback when no AI summary yet — degrade gracefully to YouTube description. */
   const heroDescriptionFallback =
-    variant === "hero" && !hasTranscription ? (v.description ?? "") : "";
+    variant === "hero" && !hasTranscription ? displayDescription : "";
 
   /**
    * « Lire la suite » CTA next to the thumb — opens the full summary
@@ -326,7 +332,7 @@ export function VideoCard({
     flexShrink: 0,
   });
 
-  const descTruncated = v.description && v.description.length > DESC_MAX && !descExpanded;
+  const descTruncated = displayDescription.length > DESC_MAX && !descExpanded;
   const youtubeEmbedSrc = (() => {
     const isLocal =
       typeof window !== "undefined" &&
@@ -353,7 +359,7 @@ export function VideoCard({
   const thumbMedia = playing ? (
     <iframe
       src={youtubeEmbedSrc}
-      title={v.title}
+      title={displayTitle}
       style={{ width: "100%", height: "100%", border: "none", display: "block" }}
       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
       referrerPolicy="strict-origin-when-cross-origin"
@@ -363,7 +369,7 @@ export function VideoCard({
     <button
       type="button"
       onClick={startPlayback}
-      aria-label={lang === "fr" ? `Lire la vidéo : ${v.title}` : `Play video: ${v.title}`}
+      aria-label={lang === "fr" ? `Lire la vidéo : ${displayTitle}` : `Play video: ${displayTitle}`}
       style={{
         position: "relative",
         display: "block",
@@ -444,9 +450,9 @@ export function VideoCard({
               style={{ textDecoration: "none", flex: 1, minWidth: 0 }}
             >
               {isHero ? (
-                <h2 style={titleStyle}>{v.title}</h2>
+                <h2 style={titleStyle}>{displayTitle}</h2>
               ) : (
-                <div className="app-title-sm" style={{ color: color.text, fontWeight: 600 }}>{v.title}</div>
+                <div className="app-title-sm" style={{ color: color.text, fontWeight: 600 }}>{displayTitle}</div>
               )}
             </a>
             {typeof v.summaryScore === "number" && v.summaryScore >= 1 && v.summaryScore <= 10 && (
@@ -460,19 +466,19 @@ export function VideoCard({
               In hero we show the AI summary teaser to the right of the
               thumbnail instead, so the YT marketing copy is hidden to
               avoid duplicating the editorial preview. */}
-          {!isHero && v.description && (
+          {!isHero && displayDescription && (
             <div className="app-paragraph-sm" style={{ color: color.textMuted, marginBottom: 8 }}>
               {descTruncated ? (
                 <>
-                  {v.description.slice(0, DESC_MAX)}…{" "}
+                  {displayDescription.slice(0, DESC_MAX)}…{" "}
                   <button type="button" onClick={() => setDescExpanded(true)} style={toggleLink}>
                     {lang === "fr" ? "Voir plus" : "See more"}
                   </button>
                 </>
               ) : (
                 <>
-                  {v.description}
-                  {v.description.length > DESC_MAX && (
+                  {displayDescription}
+                  {displayDescription.length > DESC_MAX && (
                     <>
                       {" "}
                       <button type="button" onClick={() => setDescExpanded(false)} style={toggleLink}>
@@ -669,7 +675,7 @@ export function VideoCard({
             <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 2 }}>
               <FavoriteButton
                 url={v.link}
-                title={v.title}
+                title={displayTitle}
                 source={v.channelTitle}
                 pubDate={v.published}
                 sourceType="video"
@@ -714,7 +720,7 @@ export function VideoCard({
                 videoId={v.videoId}
                 hasTranscription={hasTranscription}
                 summaryMd={summaryMd}
-                title={v.title}
+                title={displayTitle}
                 lang={lang}
               />
               <CopyLinkButton url={v.link} />
@@ -797,7 +803,7 @@ export function VideoCard({
                 .replace(/^\s*[-*]\s+/gm, "")
                 .replace(/\n{2,}/g, "\n")
                 .trim();
-              const intro = lang === "fr" ? `Résumé de la vidéo ${v.title}.` : `Summary of the video ${v.title}.`;
+              const intro = lang === "fr" ? `Résumé de la vidéo ${displayTitle}.` : `Summary of the video ${displayTitle}.`;
               const maxBody = TTS_TEXT_MAX_CHARS - intro.length;
               const body = plain.length > maxBody ? plain.slice(0, maxBody) + "…" : plain;
               return body.length > 0 ? (

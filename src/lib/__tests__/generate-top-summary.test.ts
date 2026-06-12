@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { extractVideoBulletText, stripMarkdownInline } from "../generate-top-summary";
+import {
+  extractVideoBulletText,
+  stripMarkdownInline,
+  selectTopArticleBullets,
+} from "../generate-top-summary";
 
 describe("stripMarkdownInline", () => {
   it("strips bold and italic markers", () => {
@@ -70,5 +74,69 @@ describe("extractVideoBulletText", () => {
   it("returns empty string for empty input", () => {
     expect(extractVideoBulletText("")).toBe("");
     expect(extractVideoBulletText("   ")).toBe("");
+  });
+});
+
+type B = { id: string; title: string | null; importance: number | null };
+const mk = (id: string, title: string | null, importance: number | null): B => ({
+  id,
+  title,
+  importance,
+});
+
+describe("selectTopArticleBullets", () => {
+  it("returns everything untouched when under budget", () => {
+    const bullets = [mk("a", "A", 9), mk("b", "B", 3)];
+    expect(selectTopArticleBullets(bullets, 6)).toEqual(bullets);
+  });
+
+  it("keeps the most important groups when over budget", () => {
+    const bullets = [
+      mk("low", "Low", 2),
+      mk("high", "High", 9),
+      mk("mid", "Mid", 6),
+    ];
+    expect(selectTopArticleBullets(bullets, 2).map((b) => b.id)).toEqual(["high", "mid"]);
+  });
+
+  it("keeps a multi-bullet group together, in narrative order", () => {
+    const bullets = [
+      mk("n1", "Nvidia", 9),
+      mk("n2", "Nvidia", 9),
+      mk("solo", "Solo", 5),
+    ];
+    expect(selectTopArticleBullets(bullets, 3).map((b) => b.id)).toEqual(["n1", "n2", "solo"]);
+  });
+
+  it("truncates inside the group straddling the budget boundary", () => {
+    const bullets = [
+      mk("n1", "Nvidia", 9),
+      mk("n2", "Nvidia", 9),
+      mk("n3", "Nvidia", 9),
+      mk("solo", "Solo", 8),
+    ];
+    expect(selectTopArticleBullets(bullets, 2).map((b) => b.id)).toEqual(["n1", "n2"]);
+  });
+
+  it("treats missing importance as 0 and keeps stable order on ties", () => {
+    const bullets = [
+      mk("u1", "Untitled1", null),
+      mk("s", "Scored", 5),
+      mk("u2", "Untitled2", null),
+    ];
+    expect(selectTopArticleBullets(bullets, 2).map((b) => b.id)).toEqual(["s", "u1"]);
+  });
+
+  it("does not merge non-consecutive same-title runs", () => {
+    const bullets = [
+      mk("a1", "A", 4),
+      mk("b", "B", 9),
+      mk("a2", "A", 4),
+    ];
+    expect(selectTopArticleBullets(bullets, 2).map((b) => b.id)).toEqual(["b", "a1"]);
+  });
+
+  it("returns [] on zero or negative budget", () => {
+    expect(selectTopArticleBullets([mk("a", "A", 9)], 0)).toEqual([]);
   });
 });

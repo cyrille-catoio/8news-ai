@@ -17,6 +17,23 @@ import type { VideoItem } from "@/lib/types";
  *  toggle in the card body. */
 export const DESC_MAX = 120;
 
+/**
+ * Remove emojis (pictographs, modifiers, ZWJ sequences, flags, keycaps)
+ * from YouTube titles / descriptions — creators pad them with 🚀🔥👇
+ * which clashes with the app's sober editorial register. Keeps the
+ * text-like symbols © ® ™ which Unicode also tags as pictographic.
+ */
+export function stripEmojis(s: string): string {
+  return s
+    .replace(
+      /(?![©®™])[\p{Extended_Pictographic}\p{Emoji_Modifier}\u{FE0F}\u{200D}\u{20E3}\u{1F1E6}-\u{1F1FF}]/gu,
+      "",
+    )
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/ +([,.!?;:])/g, "$1")
+    .trim();
+}
+
 /** Internal SSR page URL when the video has been transcribed with a topic + slug. */
 export function videoSsrHref(
   v: Pick<VideoItem, "topicId" | "slugKeywords" | "publishedDate">,

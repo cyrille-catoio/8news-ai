@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { fetchAndStoreTopicDynamic } from "./shared/fetch-topic";
 import { startCronRun } from "./shared/cron-log";
+import { sendCronAlert } from "./shared/cron-alert";
 
 // Background functions have a 15-minute hard wall on Netlify.
 // This cron is fetch-only: no AI scoring. Scoring is handled exclusively
@@ -30,7 +31,7 @@ function isStale(lastFetchedAt: string | null, nowMs: number): boolean {
   return nowMs - new Date(lastFetchedAt).getTime() > STALE_THRESHOLD_MS;
 }
 
-export default async () => {
+async function runCron(): Promise<void> {
   const effectiveBudgetMs = Math.min(CRON_TIMEOUT_MS, CRON_BUDGET_MS);
   const { elapsedMs, remaining: budgetRemaining } = startCronRun(
     "cron-fetching-background",
@@ -149,4 +150,18 @@ export default async () => {
     `[run] cron=fetch-background topics_total=${n} passes=${totalPasses} processed=${totalProcessed} claim_skipped=${totalClaimSkipped} inserted=${totalInserted} deadline_stops=${deadlineStops} elapsed_ms=${elapsedMs()} budget_ms=${effectiveBudgetMs} interval_ms=${CRON_INTERVAL_MS} stale_ms=${STALE_THRESHOLD_MS}`,
   );
   console.log(lines.join("\n"));
+}
+
+export default async (): Promise<void> => {
+  try {
+    await runCron();
+  } catch (fatal) {
+    // Per-feed failures are tolerated inside the loop and the watchdog
+    // covers a silently-stale pipeline — this catch + alert only exists
+    // for the catastrophic case (throw before the loop) which would
+    // otherwise be an opaque function failure with no email.
+    const msg = fatal instanceof Error ? (fatal.stack ?? fatal.message) : String(fatal);
+    console.error(`[cron-fetching-background] [fatal] — ${msg}`);
+    await sendCronAlert("fetching", `[fatal] — ${msg}`);
+  }
 };

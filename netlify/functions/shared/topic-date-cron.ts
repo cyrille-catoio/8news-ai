@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { previousUtcDay } from "../../../src/lib/dates-utc";
 import { startCronRun } from "./cron-log";
+import { sendCronAlert } from "./cron-alert";
 
 /**
  * Shared loop driver for the two « topic × date × lang » crons:
@@ -221,4 +222,17 @@ export async function runTopicDateLangCron<R>(opts: RunTopicDateLangCronOptions<
   lines.push(summary);
   console.log(lines.join("\n"));
   console.log(summary);
+
+  // Operator alert: `thrown` covers code-level failures in any cron of
+  // this family; the optional `errors` counter covers lib-reported
+  // failures (e.g. video-roundup's `errors` key). One email per run,
+  // body = the per-row `[error]` digest lines.
+  const errorCount = counters.thrown + (counters.errors ?? 0);
+  if (errorCount > 0) {
+    await sendCronAlert(
+      opts.cronName,
+      summary,
+      lines.filter((l) => l.startsWith("[error]")),
+    );
+  }
 }

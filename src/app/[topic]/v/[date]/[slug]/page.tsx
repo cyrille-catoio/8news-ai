@@ -15,6 +15,7 @@ import { VideoPageAudio } from "@/app/components/VideoPageAudio";
 import { VideoPageFavoriteButton } from "@/app/components/VideoPageFavoriteButton";
 import { VideoPageTranscript } from "@/app/components/VideoPageTranscript";
 import { VideoPageSummary } from "@/app/components/VideoPageSummary";
+import { SharePageButton } from "@/app/components/SharePageButton";
 import { ScoreMeter } from "@/app/components/ScoreMeter";
 import type { Lang } from "@/lib/i18n";
 
@@ -252,29 +253,29 @@ export default async function VideoSeoPage({ params }: PageProps) {
                 {page.video.channel_title}
               </span>
             )}
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
-              <span style={{ color: color.textMuted, fontSize: 13 }}>
-                {new Date(favoritePubDate).toLocaleString(locale, {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </span>
-              <VideoPageFavoriteButton
-                url={favoriteUrl}
-                title={videoTitle}
-                source={favoriteSource}
-                pubDate={favoritePubDate}
-                lang={lang}
-              />
+            <span style={{ color: color.textMuted, fontSize: 13 }}>
+              {new Date(favoritePubDate).toLocaleString(locale, {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
             </span>
             {durationLabel && (
               <span style={{ color: color.textMuted, fontSize: 13 }}>
                 {durationLabel}
               </span>
             )}
+            <VideoPageFavoriteButton
+              url={favoriteUrl}
+              title={videoTitle}
+              source={favoriteSource}
+              pubDate={favoritePubDate}
+              lang={lang}
+              variant="pill"
+            />
+            <SharePageButton url={canonical} title={videoTitle} lang={lang} />
           </div>
         </header>
 

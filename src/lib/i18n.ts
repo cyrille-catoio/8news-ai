@@ -828,6 +828,88 @@ const strings = {
     en: "Close",
     fr: "Fermer",
   },
+  /**
+   * « Share » feature — button next to the title on SSR detail pages
+   * (video page, daily summary, video roundup) opening a modal that
+   * sends the page link by email (`POST /api/share`, Resend) or copies
+   * the URL to the clipboard.
+   */
+  shareButton: {
+    en: "Share",
+    fr: "Partager",
+  },
+  shareModalTitle: {
+    en: "Share this page",
+    fr: "Partager cette page",
+  },
+  shareRecipientLabel: {
+    en: "Recipient email",
+    fr: "E-mail du destinataire",
+  },
+  shareMessageLabel: {
+    en: "Message (optional)",
+    fr: "Message (optionnel)",
+  },
+  shareMessagePlaceholder: {
+    en: "Add a personal note…",
+    fr: "Ajoutez un mot personnel…",
+  },
+  shareSend: {
+    en: "Send by email",
+    fr: "Envoyer par e-mail",
+  },
+  shareSending: {
+    en: "Sending…",
+    fr: "Envoi…",
+  },
+  shareSent: {
+    en: "Email sent.",
+    fr: "E-mail envoyé.",
+  },
+  shareErrorInvalidEmail: {
+    en: "Enter a valid email address.",
+    fr: "Saisissez une adresse e-mail valide.",
+  },
+  shareErrorRateLimited: {
+    en: "Too many emails sent. Try again in a few minutes.",
+    fr: "Trop d'e-mails envoyés. Réessayez dans quelques minutes.",
+  },
+  shareErrorGeneric: {
+    en: "The email could not be sent. Please try again.",
+    fr: "L'e-mail n'a pas pu être envoyé. Réessayez.",
+  },
+  shareLinkLabel: {
+    en: "Or copy the link",
+    fr: "Ou copiez le lien",
+  },
+  shareCopy: {
+    en: "Copy",
+    fr: "Copier",
+  },
+  shareCopied: {
+    en: "Copied",
+    fr: "Copié",
+  },
+  shareCloseAria: {
+    en: "Close",
+    fr: "Fermer",
+  },
+  shareEmailSubject: {
+    en: "Shared with you: {title}",
+    fr: "Partagé avec vous : {title}",
+  },
+  shareEmailIntro: {
+    en: "Someone wants to share this 8news.ai page with you:",
+    fr: "Quelqu'un souhaite partager cette page 8news.ai avec vous :",
+  },
+  shareEmailCta: {
+    en: "Read on 8news.ai",
+    fr: "Lire sur 8news.ai",
+  },
+  shareEmailFooter: {
+    en: "8news.ai — Tech intelligence decoded by AI",
+    fr: "8news.ai — Veille tech décodée par IA",
+  },
   usersSection: {
     en: "Users",
     fr: "Utilisateurs",

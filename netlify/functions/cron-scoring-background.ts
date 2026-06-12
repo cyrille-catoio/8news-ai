@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { scoreTopicForCron } from "./shared/score-topic";
 import { startCronRun } from "./shared/cron-log";
+import { sendCronAlert } from "./shared/cron-alert";
 
 // Background functions have a 15-minute hard timeout on Netlify and the
 // scoring cron is triggered every 15 minutes. Keep the default budget below
@@ -82,7 +83,7 @@ async function getBacklogCounts(
   return counts;
 }
 
-export default async () => {
+async function runCron(): Promise<void> {
   const effectiveBudgetMs = Math.min(CRON_INTERVAL_MS, CRON_TIMEOUT_MS, CRON_BUDGET_MS);
   const { elapsedMs, remaining: budgetRemaining } = startCronRun(
     "cron-scoring-background",
@@ -213,4 +214,18 @@ export default async () => {
     `[run] cron=score-background topics_total=${rows.length} passes=${totalPasses} scored=${totalScored} deadline_stops=${deadlineStops} elapsed_ms=${elapsedMs()} budget_ms=${effectiveBudgetMs} interval_ms=${CRON_INTERVAL_MS} timeout_ms=${CRON_TIMEOUT_MS}`,
   );
   console.log(lines.join("\n"));
+}
+
+export default async (): Promise<void> => {
+  try {
+    await runCron();
+  } catch (fatal) {
+    // Per-topic scoring errors are tolerated inside the loop and the
+    // watchdog covers a silently-growing backlog — this catch + alert
+    // only exists for the catastrophic case (throw before the loop)
+    // which would otherwise be an opaque function failure.
+    const msg = fatal instanceof Error ? (fatal.stack ?? fatal.message) : String(fatal);
+    console.error(`[cron-scoring-background] [fatal] — ${msg}`);
+    await sendCronAlert("scoring", `[fatal] — ${msg}`);
+  }
 };

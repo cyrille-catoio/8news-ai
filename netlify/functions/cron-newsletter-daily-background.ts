@@ -9,6 +9,7 @@ import type {
 } from "../../src/lib/supabase/top-summaries";
 import { renderDailyNewsletter } from "../../src/lib/email/render-daily-newsletter";
 import { startCronRun } from "./shared/cron-log";
+import { sendCronAlert } from "./shared/cron-alert";
 import type { Lang } from "../../src/lib/i18n";
 
 /**
@@ -102,7 +103,7 @@ async function runCron(): Promise<void> {
   ).replace(/\/+$/, "");
 
   // Filter the function logs on `[cron-newsletter]`.
-  const { log, elog, elapsedMs } = startCronRun("cron-newsletter");
+  const { log, elog, errorLines, elapsedMs } = startCronRun("cron-newsletter");
 
   log(
     `[start] env_resend=${apiKey ? "yes" : "NO"} env_supabase_url=${url ? "yes" : "NO"} env_supabase_srk=${key ? "yes" : "NO"} from=${fromAddress} origin=${publicOrigin}`,
@@ -152,6 +153,13 @@ async function runCron(): Promise<void> {
   if (snapshots.size === 0) {
     elog(
       `[run] cron=newsletter-daily aborted=no_snapshot_for_date=${targetDate} elapsed_ms=${elapsedMs()}`,
+    );
+    // No snapshot at send time means NOBODY gets today's newsletter —
+    // the exact silent-failure mode of the June 3/4 double-send bug.
+    await sendCronAlert(
+      "newsletter-daily",
+      `Newsletter NON envoyée : aucun snapshot top_summaries pour la date ${targetDate}. Vérifier cron-top-summary-background, puis relancer avec NEWSLETTER_SUMMARY_DATE.`,
+      errorLines(),
     );
     return;
   }
@@ -312,8 +320,12 @@ async function runCron(): Promise<void> {
     .map(([l, b]) => `${l}=${b.snapshot.summary_date}`)
     .join(",");
   const summary = `[run] cron=newsletter-daily snapshots=${summaryDates} sent=${totalSent} errors=${totalErrors} elapsed_ms=${elapsedMs()}`;
-  if (totalErrors > 0) elog(summary);
-  else log(summary);
+  if (totalErrors > 0) {
+    elog(summary);
+    await sendCronAlert("newsletter-daily", summary, errorLines());
+  } else {
+    log(summary);
+  }
 }
 
 export default async (): Promise<void> => {
@@ -324,5 +336,6 @@ export default async (): Promise<void> => {
     // opaque function failure with no logs.
     const msg = fatal instanceof Error ? (fatal.stack ?? fatal.message) : String(fatal);
     console.error(`[cron-newsletter] [fatal] — ${msg}`);
+    await sendCronAlert("newsletter-daily", `[fatal] — ${msg}`);
   }
 };

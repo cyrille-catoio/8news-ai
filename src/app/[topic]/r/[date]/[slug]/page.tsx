@@ -14,6 +14,7 @@ import { normalizeSummaryHeadings } from "@/lib/summary-headings";
 import { SeoNavBar } from "@/app/components/SeoNavBar";
 import { SeoGeneralMenu } from "@/app/components/GeneralMenu";
 import { VideoRoundupAudio } from "@/app/components/VideoRoundupAudio";
+import { SharePageButton } from "@/app/components/SharePageButton";
 import type { Lang } from "@/lib/i18n";
 
 interface PageProps {
@@ -249,6 +250,7 @@ export default async function VideoRoundupPage({ params }: PageProps) {
             <span style={{ color: color.textDim, fontSize: 12 }}>
               · {videos.length} {lang === "fr" ? "vidéos" : "videos"}
             </span>
+            <SharePageButton url={canonical} title={roundup.seo_title} lang={lang} />
           </div>
         </header>
 

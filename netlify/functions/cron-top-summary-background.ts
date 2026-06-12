@@ -6,6 +6,7 @@ import {
 } from "../../src/lib/generate-top-summary";
 import { todayUtc } from "../../src/lib/dates-utc";
 import { startCronRun } from "./shared/cron-log";
+import { sendCronAlert } from "./shared/cron-alert";
 import type { Lang } from "../../src/lib/i18n";
 
 /**
@@ -40,7 +41,7 @@ import type { Lang } from "../../src/lib/i18n";
 const LANGS: readonly Lang[] = ["en", "fr"] as const;
 
 export default async () => {
-  const { log, elog, elapsedMs } = startCronRun("cron-top-summary");
+  const { log, elog, errorLines, elapsedMs } = startCronRun("cron-top-summary");
   const summaryDate = process.env.TOP_SUMMARY_DATE?.trim() || todayUtc();
 
   let generated = 0;
@@ -145,6 +146,13 @@ export default async () => {
   }
 
   const summary = `[run] cron=top-summary date=${summaryDate} langs=${LANGS.length} generated=${generated} no_articles=${noArticles} errors=${errors} elapsed_ms=${elapsedMs()}`;
-  if (errors > 0) elog(summary);
-  else log(summary);
+  if (errors > 0) {
+    elog(summary);
+    // The Top 24h snapshot feeds the home hero, the audio player, the
+    // archives AND the newsletter — a failed lang is a user-visible
+    // outage, so it warrants an operator email, not just a log line.
+    await sendCronAlert("top-summary", summary, errorLines());
+  } else {
+    log(summary);
+  }
 };

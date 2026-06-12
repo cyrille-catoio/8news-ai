@@ -5,6 +5,7 @@ import {
 } from "../../src/lib/score-video-summary-batch";
 import { enqueueHomeSurface } from "../../src/lib/supabase/home-surface";
 import { startCronRun } from "./shared/cron-log";
+import { sendCronAlert } from "./shared/cron-alert";
 
 /**
  * Background (≤15 min): scores AI Markdown video recaps in `video_transcriptions`
@@ -189,5 +190,13 @@ async function runCron(): Promise<void> {
 }
 
 export default async (): Promise<void> => {
-  await runCron();
+  try {
+    await runCron();
+  } catch (fatal) {
+    // Without this catch a throw is an opaque Netlify failure with no
+    // email; per-batch hiccups inside runCron stay log-only on purpose.
+    const msg = fatal instanceof Error ? (fatal.stack ?? fatal.message) : String(fatal);
+    console.error(`[cron-video-summary-score] [fatal] — ${msg}`);
+    await sendCronAlert("video-summary-score", `[fatal] — ${msg}`);
+  }
 };

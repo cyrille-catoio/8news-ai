@@ -9,6 +9,7 @@ import { DailySummaryAudio } from "@/app/components/DailySummaryAudio";
 import { DailySummaryFavoriteButton } from "@/app/components/DailySummaryFavoriteButton";
 import { SeoNavBar } from "@/app/components/SeoNavBar";
 import { SeoGeneralMenu } from "@/app/components/GeneralMenu";
+import { SharePageButton } from "@/app/components/SharePageButton";
 import type { Lang } from "@/lib/i18n";
 import { summaryAbsoluteUrl, summaryPath } from "@/lib/summary-routes";
 import { toUtcDateString } from "@/lib/dates-utc";
@@ -160,20 +161,9 @@ export async function renderDailySummaryPage({
         </nav>
 
         <header style={{ marginBottom: 32 }}>
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-            <h1 style={{ color: color.gold, fontSize: 24, fontWeight: 700, lineHeight: 1.3, marginBottom: 12, marginTop: 0, flex: 1 }}>
-              {summary.seo_h1 || summary.seo_title}
-            </h1>
-            <div style={{ flexShrink: 0, marginTop: 2 }}>
-              <DailySummaryFavoriteButton
-                url={summaryAbsoluteUrl(summary)}
-                title={summary.seo_h1 || summary.seo_title}
-                source={topicLabel}
-                pubDate={summary.period_to}
-                lang={lang}
-              />
-            </div>
-          </div>
+          <h1 style={{ color: color.gold, fontSize: 24, fontWeight: 700, lineHeight: 1.3, marginBottom: 12, marginTop: 0 }}>
+            {summary.seo_h1 || summary.seo_title}
+          </h1>
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             <span style={{
               fontSize: 11, fontWeight: 700, color: color.gold,
@@ -185,6 +175,18 @@ export async function renderDailySummaryPage({
             <span style={{ color: color.textMuted, fontSize: 13 }}>
               {new Date(date).toLocaleDateString(locale, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
             </span>
+            <DailySummaryFavoriteButton
+              url={summaryAbsoluteUrl(summary)}
+              title={summary.seo_h1 || summary.seo_title}
+              source={topicLabel}
+              pubDate={summary.period_to}
+              lang={lang}
+            />
+            <SharePageButton
+              url={summaryAbsoluteUrl(summary)}
+              title={summary.seo_h1 || summary.seo_title}
+              lang={lang}
+            />
           </div>
           {meta && (
             <p style={{ color: color.textDim, fontSize: 12, marginTop: 8 }}>

@@ -8,9 +8,10 @@ import { useAuth } from "@/app/providers";
 import type { Lang } from "@/lib/i18n";
 
 /**
- * Client wrapper that drops a star toggle on a daily-summary SEO page
- * (`/{topic}/{date}/{slug}` and its localised `/fr/...` & `/en/...`
- * variants). Mirrors `VideoPageFavoriteButton` but persists
+ * Client wrapper that drops a « Favoris » pill on a daily-summary SEO
+ * page (`/{topic}/{date}/{slug}` and its localised `/fr/...` & `/en/...`
+ * variants), next to the Share pill in the header meta row.
+ * Mirrors `VideoPageFavoriteButton` but persists
  * `sourceType: "article"` so the favorited row groups with article
  * bookmarks on the « Favoris » page instead of the videos list. The
  * favorited `url` is the canonical 8news.ai page URL itself — when the
@@ -48,7 +49,8 @@ export function DailySummaryFavoriteButton({
         onToggle={toggleFavorite}
         onRequestAuth={() => setAuthOpen(true)}
         isAuthenticated={isAuthenticated}
-        size={22}
+        variant="pill"
+        size={14}
       />
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} lang={lang} />
     </>

@@ -13,12 +13,14 @@ export function VideoPageFavoriteButton({
   source,
   pubDate,
   lang,
+  variant,
 }: {
   url: string;
   title: string;
   source: string;
   pubDate?: string;
   lang: Lang;
+  variant?: "icon" | "pill";
 }) {
   const { session } = useAuth();
   const isAuthenticated = Boolean(session?.user);
@@ -38,6 +40,8 @@ export function VideoPageFavoriteButton({
         onToggle={toggleFavorite}
         onRequestAuth={() => setAuthOpen(true)}
         isAuthenticated={isAuthenticated}
+        variant={variant}
+        size={variant === "pill" ? 14 : undefined}
       />
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} lang={lang} />
     </>

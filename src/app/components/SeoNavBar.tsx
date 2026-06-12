@@ -37,7 +37,7 @@ function LangToggle({ lang, altLangUrl }: { lang: Lang; altLangUrl?: string }) {
   }, []);
 
   const btn = (value: Lang, isLeft: boolean): CSSProperties => ({
-    padding: "13px 10px 4px",
+    padding: "4px 10px",
     fontSize: 10.4,
     fontWeight: 600,
     border: "none",

@@ -176,6 +176,19 @@ if (lastReleaseSha) {
   }
 }
 
+/* ── SPEC.md drift check (advisory at bump time) ────────────────────────
+ * Right after the bump, the spec header is necessarily behind — running
+ * the check in --warn mode here lists everything the SPEC.md step of the
+ * release ritual must fix. The STRICT run happens later via `npm test`
+ * (which the Netlify build also executes), so drift can't reach prod.
+ */
+console.log("");
+try {
+  execSync("node scripts/spec-check.mjs --warn", { cwd: ROOT, stdio: "inherit" });
+} catch (err) {
+  console.log(`⚠  spec-check skipped: ${err.message}`);
+}
+
 function escapeRe(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

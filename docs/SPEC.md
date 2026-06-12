@@ -1,9 +1,9 @@
 # 8news.ai — Technical Specification
 
-**Version**: v2.13.3
-**Last updated**: 11 June 2026
+**Version**: v2.13.6
+**Last updated**: 12 June 2026
 
-> **Note**: sections of this spec are historical — they describe the system as of the version tagged inline (`**vX.Y+**` markers). The file tree and migration list below are kept current; for feature-level details, the changelog (`src/data/changelog-entries.json`) is the most up-to-date reference.
+> **Note**: sections of this spec are historical — they describe the system as of the version tagged inline (`**vX.Y+**` markers). The mechanical parts (header version, file tree, migration list, cron list, API route list) are kept current and **enforced by `npm run spec:check`** (also run by `npm test`, hence by the Netlify build — drift blocks the deploy). The spec is updated automatically as part of the release ritual (see `AGENTS.md` § 3 and § 11 for the content contract). For feature-level details, the changelog (`src/data/changelog-entries.json`) is the most up-to-date reference.
 
 ---
 
@@ -69,11 +69,12 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 | AI (text-to-speech) | ElevenLabs API — `eleven_flash_v2_5` model | via REST API |
 | YouTube transcription | TranscriptAPI — `/channel/latest` (free), `/channel/resolve` (free), `/transcript` (1 credit) | via REST API |
 | YouTube metadata | YouTube Data API v3 — `/videos?part=contentDetails` to backfill `youtube_videos.duration_sec` (Shorts filter) | via REST API |
-| Markdown rendering | `react-markdown` (dynamic import, SSR disabled in SPA / inline in SSR pages) | ^9 |
+| Markdown rendering | `react-markdown` (dynamic import, SSR disabled in SPA / inline in SSR pages — **v2.13.4+** shared component maps in `video-markdown.tsx`, no inline maps) | ^10 |
+| Unit tests | vitest — **v2.13.4+** colocated `__tests__/` suites over pure helpers (71 tests as of v2.13.5), run by `npm test` and by the Netlify build (`npm test && npm run build`) | ^3.2 |
 | Database | Supabase (PostgreSQL) | via `@supabase/supabase-js` ^2.99.2 |
 | Auth (session cookies) | Supabase Auth + `@supabase/ssr` ^0.10.2 — browser anon client + `middleware.ts` refresh + `resolveServerLang()` SSR helper | — |
 | Hosting | Netlify | via `@netlify/plugin-nextjs` ^5.15.8 |
-| Cron Jobs | Netlify Background Functions (15 min budget) triggered every 15 min for fetching/scoring/transcribe/summary/roundup/video-summary-score, and **once a day** for `cron-top-summary-background` by **cron-job.org** | `@netlify/functions` ^5.1.4 |
+| Cron Jobs | Netlify Background Functions (15 min budget) triggered every 15 min for fetching/scoring/transcribe/summary/roundup/video-summary-score, and **once a day** for `cron-top-summary-background` + `cron-newsletter-daily-background` by **cron-job.org** (**v2.13.4+** unused `@netlify/functions` dependency dropped — plain handler signatures) | — |
 | Domain | 8news.ai (redirect from 8news.netlify.app) | |
 
 ---
@@ -82,17 +83,26 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 
 ```
 8news/
+├── AGENTS.md                           # **v2.13.5+** Working conventions for AI agents (release ritual, git, validation, code/DB/UI rules)
+├── docs/
+│   ├── SPEC.md                         # This file
+│   ├── ROADMAP.md                      # Product roadmap (Now / Next / Later)
+│   └── COMMITS.md                      # Conventional Commits conventions (types, scopes)
 ├── middleware.ts                       # Supabase session cookie refresh on each matched request
 ├── next.config.ts                      # Rewrites every /app/* SPA route to /app (otherwise hard refreshes 404)
+├── vitest.config.ts                    # **v2.13.4+** vitest config — collects src/**/*.test.ts (`npm test`)
 ├── public/
 │   ├── logo-8news.png                  # App logo (PNG, "8" gold / "news" light grey)
 │   ├── favicon.svg                     # Browser favicon — gold "8" on black, 512×512
 │   ├── apple-touch-icon.svg            # iOS home screen icon — gold "8" on black, 180×180
-│   ├── version.json                    # {"version":"2.5.4"} — kept in sync by `scripts/release.mjs`
+│   ├── version.json                    # {"version":"2.13.5"} — kept in sync by `scripts/release.mjs`
 │   └── landing/                        # Landing assets (yt-summary-preview.png, etc.)
 ├── scripts/
-│   └── release.mjs                     # Single-source-of-truth version sync — bumps version.json, APP_VERSION, landing copy, footer
+│   ├── release.mjs                     # Single-source-of-truth version sync — bumps version.json, APP_VERSION, footer + checks changelog coverage
+│   └── oneoffs/                        # One-shot maintenance scripts (e.g. backfill-video-slugs.mjs)
 ├── src/
+│   ├── data/
+│   │   └── changelog-entries.json      # **v2.13.4+** Release notes data (580 KB moved out of TS; typed re-export in src/lib/changelog-entries.ts)
 │   ├── app/
 │   │   ├── layout.tsx                  # Root layout, metadata, favicons, AuthProvider, Google Analytics, SSR footer hook
 │   │   ├── providers.tsx               # AuthProvider / useAuth (Supabase session, exposes user + session)
@@ -124,11 +134,18 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 │   │   ├── useFavorites.ts             # Article favorites (Set of URLs, optimistic toggle, auth-gated)
 │   │   └── useCryptoPrices.ts          # **v2.5.17+**: Live BTC/ETH/SOL/XRP prices for the AppHeader CryptoTicker (60 s poll, visibility-aware, single CoinGecko call/min shared across all users)
 │   └── lib/
+│       ├── __tests__/                  # **v2.13.4+** vitest suites for the pure helpers below (dates-utc, slug, cookies, video-bullets, generate-top-summary)
 │       ├── types.ts                    # TypeScript interfaces (TopicItem, TopicDetail, SummaryResponse, ArticleSummary, …)
-│       ├── theme.ts                    # Design tokens (colors, fonts, shared styles)
-│       ├── i18n.ts                     # EN/FR translation strings (1000+ lines)
+│       ├── theme.ts                    # Design tokens (colors, fonts, shared styles — **v2.13.4+** also sectionStyle/sectionTitle + kpiCard/kpiLbl)
+│       ├── i18n.ts                     # EN/FR translation strings (1500+ lines)
 │       ├── constants.ts                # Cross-cutting constants
-│       ├── supabase.ts                 # Service-role client + caching + article/topic/feed/video queries (server only)
+│       ├── api-helpers.ts              # **v2.13.4+** NO_STORE_HEADERS, parseLang, parsePositiveInt, parseOffset — shared by ~18 API routes
+│       ├── dates-utc.ts                # UTC date helpers (todayUtc, previousUtcDay, toUtcDateString) — crons work in UTC only
+│       ├── supabase.ts                 # Barrel re-export of src/lib/supabase/* (server-only queries)
+│       ├── supabase/                   # **v2.13.4-structured** server data layer — every read/write logs its errors (no silent catch)
+│       │   ├── client.ts               #   `getServerClient()` — the ONLY service-role client factory (returns null if env vars missing)
+│       │   ├── cache.ts                #   news_cache TTL helpers
+│       │   ├── articles.ts / topics.ts / summaries.ts / videos.ts / bullets.ts / top-summaries.ts / archives.ts / stats.ts / home-surface.ts / podcast-chat.ts / user-activity.ts / user-event.ts
 │       ├── supabase-browser.ts         # `createBrowserSupabaseClient()` — anon key for browser auth
 │       ├── auth-api.ts                 # `getSessionUser()`, `requireOwnerSession()` (cookie session helpers)
 │       ├── server-lang.ts              # **v2.5.3+**: `resolveServerLang()` — query > user_metadata.preferred_lang > cookie > default
@@ -140,26 +157,45 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 │       ├── topics.ts                   # Topic list helpers (active topics, sort)
 │       ├── fetch-topic-dynamic.ts      # RSS fetch + upsert (used by API + cron)
 │       ├── score-topic-dynamic.ts      # AI scoring batches → Supabase (used by API + cron)
+│       ├── score-video-summary-batch.ts # Batched 1-10 quality scoring of video recaps (cron-video-summary-score)
+│       ├── score-format.ts             # Score display helpers (e.g. one-decimal 9-10 band — v2.12+)
 │       ├── ai-analyze.ts               # Shared OpenAI analysis helpers (analyzeWithAI, prompts/messages)
 │       ├── generate-daily-summary.ts   # Daily SEO summary generation (`gpt-4.1-mini`, AI + DB insert + bullets mirror)
+│       ├── generate-top-summary.ts     # Daily Top 24h snapshot (`gpt-5.5`) — **v2.13.5+** `selectTopArticleBullets()` caps persisted bullets at 8 (2 pinned videos + 6 articles)
 │       ├── generate-video-roundup.ts   # **v2.4+**: Per-topic-per-day video roundup (`gpt-5.3-chat-latest`, 8 bullets, 48 h source window)
+│       ├── video-bullets.ts            # `extractBulletsFromMarkdown`, `buildVideoBulletRows` (per-video bullet mirror)
 │       ├── transcribe-video.ts         # **v2.5+**: Core video transcription pipeline — extracted from /api/youtube-channels/transcribe so it's shared between the sync route (`gpt-4.1-mini`, 25 s timeout) and the cron pre-warm (**v2.5.4+** `gpt-5.3-chat-latest`, 180 s timeout)
 │       ├── transcript-api.ts           # TranscriptAPI client (resolve, latest, transcript)
+│       ├── refresh-youtube-videos.ts   # RSS refresh of youtube_videos (shared by API + transcribe cron step 0)
 │       ├── youtube-duration.ts         # `enrichDurations()` — YouTube Data API v3 backfill of `youtube_videos.duration_sec` (Shorts filter)
+│       ├── newsletter-snapshot.ts      # **v2.6.12+** `getNewsletterSnapshotForLang()` — snapshot + bullets read for the newsletter cron
+│       ├── email/render-daily-newsletter.ts # **v2.6.12+** Pure renderer { subject, html, text } (inline styles, 600px table, Gmail/Outlook safe)
+│       ├── email/render-share-email.ts # Pure renderer for the « share by email » message (HTML-escaped user strings, same email constraints)
+│       ├── watchdog-checks.ts          # Pure freshness-watchdog evaluation (thresholds + problem strings, zero I/O) — consumed by cron-watchdog
+│       ├── podcast-chat-context.ts     # **v2.13+** Server-side system-prompt builder for the Daily Podcast chat (grounded in the day's snapshot)
+│       ├── news-fetch.ts / summary-routes.ts / spa-navigation.ts / track.ts / tts.ts / text-artifacts.ts / notification-sound.ts / crypto-cache.ts # Misc client/server helpers
 │       ├── landing-content.ts          # Static content for the SSR landing page (EN+FR copy, pricing plans)
-│       └── changelog-entries.ts        # Type + re-export of src/data/changelog-entries.json (release entries) (auto-synced to DB on first /api/changelog after deploy)
+│       └── changelog-entries.ts        # Type + re-export of src/data/changelog-entries.json (auto-synced to DB on first /api/changelog after deploy)
 ├── netlify/
 │   └── functions/
 │       ├── shared/
+│       │   ├── cron-log.ts                     # **v2.13.4+** `startCronRun()` → log/elog/elapsedMs/remaining — immediate (non-buffered) logging used by all 8 crons
 │       │   ├── fetch-topic.ts                  # Re-exports `@/lib/fetch-topic-dynamic` for cron bundling
 │       │   ├── score-topic.ts                  # Re-exports `@/lib/score-topic-dynamic` for cron bundling
+│       │   ├── generate-daily-summary.ts       # Re-exports `@/lib/generate-daily-summary`
+│       │   ├── generate-video-roundup.ts       # Re-exports `@/lib/generate-video-roundup`
+│       │   ├── topic-date-cron.ts              # Shared topic × date × lang loop driver (daily-summary + roundup crons)
+│       │   ├── cron-alert.ts                   # Operator alerting via Resend (`ALERT_EMAIL_TO`; unset = disabled; never throws, ≤ 10 s)
 │       │   └── transcribe-video.ts             # **v2.5+**: Re-exports `@/lib/transcribe-video` for cron bundling
 │       ├── cron-fetching-background.ts         # Claimed RSS fetch (15 min wall budget, every 15 min)
 │       ├── cron-scoring-background.ts          # Multi-pass AI scoring (15 min wall budget, every 15 min)
 │       ├── cron-daily-summary-background.ts    # Daily SEO summary generation (every 15 min, all topics × EN+FR, skip-if-exists)
 │       ├── cron-video-roundup-background.ts    # **v2.4+**: Per-topic-per-day roundups, **v2.4.1+** 48 h source window
 │       ├── cron-video-transcribe-background.ts # **v2.5+**: Pre-warm transcribe of every "today's" video, EN+FR; **v2.5.4+** uses `gpt-5.3-chat-latest` with a 180 s OpenAI timeout
-│       └── cron-top-summary-background.ts      # Daily Top 50 AI summary snapshot (gpt-5.5, EN+FR), persisted into `top_summaries`. Reads served by GET /api/news/top-summary/latest — no on-demand LLM call from /top-articles anymore.
+│       ├── cron-video-summary-score-background.ts # Batched 1-10 quality score for video recaps (`VIDEO_SUMMARY_SCORE_*` tunables)
+│       ├── cron-top-summary-background.ts      # Daily Top 50 AI summary snapshot (gpt-5.5, EN+FR), persisted into `top_summaries`. Reads served by GET /api/news/top-summary/latest — no on-demand LLM call from /top-articles anymore.
+│       ├── cron-newsletter-daily-background.ts # **v2.6.12+** Daily Top 24h newsletter via Resend (reads today's snapshot, 100-recipient batches)
+│       └── cron-watchdog.ts                    # Hourly synchronous freshness watchdog — checks OUTPUT data (today's snapshot, fetch/score staleness, transcriptions) and emails the operator via shared/cron-alert.ts
 ├── migrations/
 │   ├── 001-topics-feeds.sql                # topics + feeds tables, seed 8 topics + ~160 feeds
 │   ├── 002-prompts.sql                     # prompt_en/prompt_fr columns, seed prompts
@@ -198,17 +234,18 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 │   └── 035-global-article-kpis-rpc.sql     # **v2.12+**: global_article_kpis() RPC — single-query KPI rollup for the Stats page
 ├── .gitignore
 ├── .env                                    # API keys (not committed)
-├── netlify.toml                            # Netlify build + redirect config
+├── netlify.toml                            # Netlify build + redirect config — **v2.13.5+** build command is `npm test && npm run build` (a red test blocks the deploy)
 ├── package.json                            # version is the source of truth (synced by scripts/release.mjs)
-├── tsconfig.json
-└── SPEC.md                                 # This file
+└── tsconfig.json
 ```
 
 ### 3.1 `src/app/components/` — feature UI
 
 **SPA + shared**: `AppHeader` (**v2.5.17+** mounts the `CryptoTicker` on every page except `currentPage === "landing"`), `CryptoTicker` (**v2.5.17+** live BTC/ETH/SOL/XRP — see §19), `GeneralMenu` (+ `SeoGeneralMenu`), `SeoNavBar` (**v2.5.3+** intercepts language toggle to persist `preferred_lang`), `AuthModal`, `BriefingPage` (the SPA's default landing — **v2.6.6** order: `Top24hHero` → TOP VIDEO → Top story → All transcribed videos → Trending strip → daily summary teaser → Top 5 → Your topics → Footer CTAs), **`Top24hHero`** (v2.6.6 — gold accordion card pinned at the top of the home, reads `GET /api/news/top-summary/latest`, shows group titles only and expands sub-bullets on click), `TopFeedSection`, `SummaryBox` (v2.6.5+ renders an optional `bullet.title` in gold above each bullet body, groups consecutive same-title rows), `AllArticlesTab`, `StatsPage`, `CronMonitorPage`, `TopicsPage/`, `FeedsAdminPage`, `CategoriesPage`, `FavoritesPage`, `FavoriteButton`, `CopyLinkButton`, `ScoreMeter`, `ChangelogPage`, `SettingsPage` (`MyAccountSection`, `UsersSection`, `VoiceAccordion`), `AudioPlayer`, `TopicPersonalizationBar`, `TopicOnboardingModal`, `SummariesBrowsePage`.
 
-**Video surface**: `VideosPage` (today / day-by-day video list with Shorts toggle), `VideoCard` (iframe embed with **v2.x+** localhost-aware `youtube-nocookie` swap to fix black-screen), `VideoPageAudio`, `DownloadTranscriptButton`.
+**Video surface**: `VideosPage` (today / day-by-day video list with Shorts toggle), `VideoCard` (iframe embed with **v2.x+** localhost-aware `youtube-nocookie` swap to fix black-screen; **v2.13.5+** every displayed title/description/aria-label/TTS intro goes through `stripEmojis()` from `video-card/VideoCardHelpers.ts` — raw titles stay untouched in DB and API payloads), `VideoPageAudio`, `DownloadTranscriptButton`.
+
+**Helper subfolders (v2.13.4 dedup)**: `briefing/` (home sections + `styles.kicker()` + the single `HistoryArrows` component shared by TOP STORY / TOP VIDEO / Top 24h chevrons), `top24h/` (`Top24hHeroHelpers.ts` — `groupBullets`/`countGroups`, `top24h-cache.ts`), `video-card/` (`VideoCardHelpers.ts` — `stripEmojis`, `extractVideoBulletText`), `app-shell/`, `podcast-chat/` (**v2.13+** `DailyPodcastChatPanel` + `PodcastChatMarkdown`), and `video-markdown.tsx` (**v2.13.4+** single react-markdown component map with a `card`/`page` size variant — replaces the former `VideoCardMarkdown.tsx` + `video-page-markdown.tsx` duplicates). Pure helpers in these folders carry colocated `__tests__/` vitest suites.
 
 **SSR-page-specific**: `DailySummariesPage` (admin generator), `DailySummaryArticles`, `DailySummaryAudio`, `SummaryExplorer` (legacy quick-jump component; no longer mounted on `/archives` since v2.6.13 — kept in the tree for potential reuse but currently orphaned), `YouTubeChannelsPage` (admin), **`ArchivesPage`** + **`ArchivesTimeline`** + **`ArchivesBrowsePage`** (**v2.6.11+** unified hub on `/archives` — SSR shell renders initial 7-day snapshot, the client hydrates filters + pagination; SPA mirror at `/app/archives`), **`TopDayPage`** (**v2.6.11+** cross-topic Top 24h archive at `/{YYYY-MM-DD}`, reuses `Top24hHero` with `defaultOpen + showSeeAllLink=false` and lists the 50 frozen sources with score / topic chip).
 
@@ -222,8 +259,15 @@ api/
 │   ├── route.ts                  # GET /api/news — Supabase read + AI analysis (per-topic relevant articles, v2.6.6+ gpt-4.1-nano)
 │   ├── all/route.ts              # GET /api/news/all — All articles (lazy load, up to 1000)
 │   ├── top/route.ts              # GET /api/news/top — Top scored articles (Top 50)
+│   ├── top-story/route.ts        # **v2.6+** GET — home TOP STORY hero pick from `home_surface_queue` (10-min buckets, `?offset=` history)
 │   ├── top-summary/route.ts            # POST — manual replay/debug for the Top articles snapshot. Delegates to `generateTopSummary` (gpt-5.5). UI no longer calls it.
 │   └── top-summary/latest/route.ts     # **v2.6.5+** GET — read latest pre-computed `top_summaries` snapshot (used by /top-articles + the home `Top24hHero` accordion).
+├── videos/
+│   └── top/route.ts              # **v2.6+** GET — home TOP VIDEO hero pick from `home_surface_queue` (kind=video)
+├── archives/
+│   └── route.ts                  # **v2.6.11+** GET — paginated archives timeline data (topic/type filters, 7-day pages)
+├── podcast-chat/
+│   └── route.ts                  # **v2.13+** GET/POST/DELETE — Daily Podcast chat (requireSession; POST streams the answer, persists the turn; 409 when no snapshot)
 ├── summaries/
 │   ├── generate/route.ts         # POST — generate daily SEO summary (owner or CRON_SECRET)
 │   ├── routes/route.ts           # GET — all generated summary routes (used by SPA + sitemap)
@@ -234,6 +278,8 @@ api/
 │   └── recent/route.ts           # **v2.3+**: GET — paginated list of recent transcribed video pages (1 day per page since v2.5.2)
 ├── video-transcription/
 │   └── route.ts                  # GET — public read of a single transcribed video
+├── video-transcript/
+│   └── route.ts                  # GET — raw transcript download (.txt)
 ├── youtube-channels/
 │   ├── route.ts                  # GET/POST/PATCH — channels CRUD + metadata refresh (owner)
 │   ├── [id]/route.ts             # DELETE channel (owner)
@@ -244,7 +290,9 @@ api/
 ├── users/                        # owner-only user list / patch
 ├── user/
 │   ├── topics/route.ts           # GET/PUT user topic preferences
-│   └── favorites/route.ts        # GET/POST/DELETE article favorites
+│   ├── favorites/route.ts        # GET/POST/DELETE article favorites
+│   ├── activity/route.ts         # **v2.9+** GET/PUT per-user UI toggle state (e.g. Top 24h « Lu » per snapshot date)
+│   └── event/route.ts            # **v2.10+** POST append-only event log (anonymous + authenticated)
 ├── categories/                   # GET/POST/PATCH/DELETE — category CRUD (owner)
 ├── feeds-admin/route.ts          # GET — feeds + per-source stats (owner)
 ├── fetch-feeds/route.ts          # GET — manual RSS fetch (CRON_SECRET)
@@ -363,7 +411,7 @@ Users can create new topics from the Topics page. Each topic includes:
 | `body_en` / `body_fr` | text | Detail text |
 | `created_at` | timestamptz | Display order / metadata |
 
-Entries are defined in **`src/data/changelog-entries.json`** (typed and re-exported by `src/data/changelog-entries.json`) and auto-synced to the DB on first `GET /api/changelog` call after deploy. Legacy seed data lives in `migrations/005-changelog.sql`. No manual SQL needed for new releases.
+Entries are defined in **`src/data/changelog-entries.json`** (typed and re-exported by `src/lib/changelog-entries.ts` — **v2.13.4+**, was a 580 KB TS literal before) and auto-synced to the DB on first `GET /api/changelog` call after deploy. Legacy seed data lives in `migrations/005-changelog.sql`. No manual SQL needed for new releases.
 
 ### 5.6 Cache TTL (based on time window)
 
@@ -453,6 +501,8 @@ Canonical implementations live in `src/lib/`:
   - Calls `analyzeWithAI` with **`gpt-5.5`** and the editorial prompt. **v2.6.6+** the prompt produces a **grouped JSON shape** — `globalSummary[]` is a list of thematic groups `{ title (3-8 word headline), bullets: [{ text (3-5 sentences), refs }] }`. 6-12 groups, 8-15 bullets total (1-3 bullets per group). The parser flattens groups: every sub-bullet inherits its group's `title`, so the existing flat `summary_bullets` schema needs no migration. Renderers (`SummaryBox`, `Top24hHero`) fold consecutive same-title rows back into a visible group. **v2.6.9+** the same prompt also produces an integer `importance: 1-10` per group (calibrated like article `relevance_score`: 10 = breaking news at industry scale, 1-2 = anecdotal). The flattener clamps and propagates the score to every sub-bullet alongside `title`, persisted in `summary_bullets.importance_score` (migration 026, nullable + CHECK 1..10). `Top24hHero` reads it from `group.bullets[0]` and renders a `<ScoreMeter>` next to each group title — **replaces** the previous paragraph-count badge in the same slot.
   - **JSON parse retry (v2.6.6)**: `analyzeWithAI` retries the OpenAI call once if the first response fails to parse, and logs the first 400 chars of the raw response on the second failure. Fixes the prior "FR snapshot silently missing while EN succeeded" pattern caused by an occasional malformed JSON on the second sequential call.
   - Persists the snapshot atomically: a row in `top_summaries (summary_date, lang)` with the frozen 50-article list (JSONB) + the rendered markdown, then a bullet-by-bullet mirror into `summary_bullets` (`source_type='top50'`, keyed `(lang, summary_date)`). Each row gets the **shared** group title in the dedicated `title` column AND the same `**Title**\n\nbody` markdown prefix in `text` so plain-text consumers keep the visual hierarchy without joining on `title`.
+  - **v2.13+** Two pinned « top videos of yesterday » bullets (carrying a `video_transcription_id`) always open the briefing, ahead of the article groups. Home, audio player, `/{date}` archives and the daily newsletter all read the same rows.
+  - **v2.13.5+** The persisted bullets are **capped at 8 total**: 2 pinned video bullets + the 6 most important article bullets, selected at generation time by `selectTopArticleBullets()` in `generate-top-summary.ts` (consecutive same-title bullets folded into their group, groups stable-sorted by `importance` DESC, bullets taken group by group preserving narrative order). The LLM still produces the full 6-12 group briefing — the complete markdown stays in `top_summaries.summary_md` and keeps grounding the podcast chat.
 - Idempotent: re-ticking the same day deletes the previous row first (both for `top_summaries` and the matching `summary_bullets` rows). Useful when the operator wants a refresh after late-arriving high-score articles.
 - Date override: `TOP_SUMMARY_DATE=YYYY-MM-DD` to backfill or replay a past date.
 - Bootstrap after first deploy: `curl https://<host>/.netlify/functions/cron-top-summary-background` so the page has a row to render before the next scheduled tick.
@@ -733,6 +783,7 @@ The SPA at `/app` has 15+ pseudo-pages managed by `currentPage` state (`"briefin
 
 **General Menu** (`GeneralMenu`, visible on all SPA pages):
 - Persistent navigation bar (current pill labels, **v2.6.11**): **Today** (= Briefing, default), **All videos** (renamed in v2.6.6 to clarify it's the exhaustive archive vs. the TOP VIDEO hero card on the home), **All topics** (renamed in v2.6.5 from « Articles » so the affordance reads as the entry point to browse every topic), **Top articles 24h** (mirrors the home `Top24hHero` card and the page header), **Archives** (the unified `/archives` hub — replaces the previous standalone « Daily Summaries » + « Video recaps » pills since v2.6.11), **My Favorites** (authenticated only)
+- **v2.13.5+** Main labels shortened: « My briefing » → **Briefing** (FR « Ma veille » → **Veille**), « Top articles 24h » → **Top 24h** (both langs), « My topics » → **Topics** (FR « Mes topics » → **Topics**), « YouTube channels » → **YT channels** (FR « Chaînes YouTube » → **Chaînes YT**)
 - Active button highlighted with gold border/background
 - SSR variant (`SeoGeneralMenu`) used on every SSR page (landing, archives, `/[topic]/...`) with `next/link` `<Link>` (v2.6.8+ for SPA-soft navigation)
 
@@ -981,7 +1032,7 @@ Accessible via the General Menu "Videos" button (all users).
 - **Date navigation**: prev/next day arrows with MiniCalendar picker between them, plus "Today" shortcut
 - **Shorts toggle**: on/off switch on the same line as the date picker, right-aligned. **Default: off** — Shorts (`duration_sec < 120`, i.e. < 2 min) are hidden until the user flips the switch
 - **Transcribed badge**: when a `(video_id, lang)` has an existing `video_transcriptions` row, the action button renders a check icon (instead of the "T" text icon). Same color / no panel expansion — clicking still toggles the summary panel.
-- **Video cards**: horizontal layout (320 px thumbnail + title, truncated description with "See more", channel, time, views, duration)
+- **Video cards**: horizontal layout (320 px thumbnail + title, truncated description with "See more", channel, time, views, duration). **v2.13.5+** Titles and descriptions are emoji-stripped at display time (`stripEmojis()` — also applied to aria-labels, iframe title, transcript filename and the TTS intro); raw values stay untouched in DB and API payloads.
 - **Transcription button**: triggers AI transcription flow per video (TranscriptAPI + GPT-4.1-mini sync). **v2.x+** Inline spinner inside the button while loading.
 - **AI summary display**: Markdown rendered via `react-markdown` (dynamic import, SSR disabled), collapsible. The "Key Points" / "INTRO" headings are normalized via `summary-headings.ts` (FR uses `INTRO`; both langs put a blank line between bold title and body).
 - **YouTube embed**: `<iframe>` with `enablejsapi=1`, `playsinline=1`, `origin`, and `referrerPolicy="strict-origin-when-cross-origin"`. **v2.x+ localhost fix**: when `window.location.host` starts with `localhost`, swap the embed host to `youtube-nocookie.com` to bypass the strict-origin black-screen.
@@ -1064,7 +1115,7 @@ Fixed bottom-right: `v{APP_VERSION}`, kept in sync by `scripts/release.mjs` so i
 
 ## 9. Internationalisation (i18n)
 
-Defined in `src/lib/i18n.ts` — 1000+ lines of EN/FR keys covering all SPA, SSR, admin, toasts, error messages, video / briefing / roundup labels, and ARIA strings.
+Defined in `src/lib/i18n.ts` — 1500+ lines of EN/FR keys covering all SPA, SSR, admin, toasts, error messages, video / briefing / roundup labels, and ARIA strings.
 
 - **Languages**: English (`en`), French (`fr`)
 - **Resolution priority** (SSR pages, via `lib/server-lang.ts → resolveServerLang()`):
@@ -1110,6 +1161,8 @@ Re-exported from `theme.ts` for **Stats**, **Cron Monitor**, and **Topics** admi
 | `primaryButtonStyle` / `dangerButtonStyle` | Primary / destructive actions |
 
 Also: `sectionHeading`, `card`, `ghostBtn`, `ghostOutlineBtn`, `spinnerStyle`, and score/coverage colour helpers (`scoreClr`, `hitClr`, `covClr`).
+
+**v2.13.4+** `sectionStyle` / `sectionTitle` (previously 3 per-file copies) and `kpiCard` / `kpiLbl` (2 byte-identical copies) also live in `theme.ts` — never re-declare them inline.
 
 ---
 
@@ -1283,7 +1336,7 @@ User opens /archives, /[topic], /[topic]/[date]/[slug],
 
 ### Netlify
 
-- **Build command**: `npm run build`
+- **Build command**: `npm test && npm run build` (**v2.13.5+** — vitest runs first, ~2 s; a red unit test blocks the deploy)
 - **Publish directory**: `.next`
 - **Plugin**: `@netlify/plugin-nextjs`
 - **Background functions**: 8 cron jobs — `cron-fetching-background` (suggested cadence every 15 min), `cron-scoring-background`, `cron-daily-summary-background`, `cron-video-roundup-background`, `cron-video-transcribe-background`, `cron-video-summary-score-background` (batched 1-10 quality score for `video_transcriptions.summary_md`; same 15 min wall as other long crons; trigger on your cadence, e.g. every 15 min — no auth, URL-obscurity like the other background crons), **`cron-top-summary-background`** — daily Top articles AI summary snapshot (suggested cadence `0 2 * * *` UTC; one tick per day produces the EN+FR rows in `top_summaries`; bootstrap manually after first deploy with `curl https://<host>/.netlify/functions/cron-top-summary-background`), and **v2.6.12+ `cron-newsletter-daily-background`** — daily Top 24h newsletter (suggested cadence `30 6 * * *` UTC, runs 30 min after the snapshot cron; reads the latest `top_summaries` snapshot per lang + buckets opted-in subscribers by `user_metadata.preferred_lang`; ships in 100-recipient chunks via Resend's `POST /emails/batch`; details in § Cron jobs → `cron-newsletter-daily-background.ts`).
@@ -1358,6 +1411,10 @@ The topic immediately appears in the homepage topic selector, stats page, and cr
 Release history is maintained in **`src/data/changelog-entries.json`** and auto-synced to the `changelog` DB table on first `GET /api/changelog` call after deploy. The in-app Changelog page displays all entries. This SPEC does not duplicate the changelog — see the source file or the in-app page for the full history.
 
 **Recent (v2.x highlights)**:
+- **v2.13.5** — Daily Podcast persisted bullets capped at **8** (2 pinned videos + 6 article bullets via `selectTopArticleBullets()` — applies to home hero, audio player, `/{date}` archives and newsletter in one change); emoji-free video titles/descriptions everywhere via `stripEmojis()` (`VideoCardHelpers.ts`); main-menu labels shortened (Briefing / Veille, Top 24h, Topics, YT channels). Netlify build now runs `npm test` first. Suite at 71 tests.
+- **v2.13.4** — Six-phase cleanup, zero behavioral change: every silent `catch` in `src/lib/supabase/` now logs and ignored insert returns are checked; shared `api-helpers.ts`, extended `dates-utc.ts`, single `getServerClient()` (28 inline `createClient` removed), `cron-log.ts` (`startCronRun`) adopted by all 8 crons; obsolete 42703 migration latches (021/023/026) removed; UI dedup (`theme.ts` shared styles, merged `video-markdown.tsx`, single `HistoryArrows`); **first test infrastructure** (vitest, 56 unit tests); changelog moved to `src/data/changelog-entries.json`, `landing-source/` deleted, `@netlify/functions` dropped.
+- **v2.13 → v2.13.3** — Daily Podcast chat side panel (`/api/podcast-chat`, grounded in the day's snapshot, migration 033); « top videos of yesterday » pinned at the top of the Daily Podcast + newsletter; fix: `insertVideoBullets` delete scoped to `source_type='video'` + backfill anti-join rewritten (the video cron was wiping the podcast's pinned video bullets every tick).
+- **v2.9 → v2.12** — Per-user UI activity state (mig 029) + append-only visitor event log with owner-only dashboard (mig 030); `summary_bullets` uniqueness + CRON-only writers (migs 031/032); one-decimal video scores in the 9-10 band (mig 034); `global_article_kpis()` RPC for the Stats page (mig 035); daily newsletter; briefing redesign + YouTube channels browser.
 - **v2.6.11** — Unified `/archives` hub replaces the previously parallel `/summaries` (article daily summaries) and `/briefings` (video roundups) — both now 308-redirect to `/archives`. Single timeline grouped by date desc, topic + type filters, sticky chevron pagination. Per-day video drill-down at `/[topic]/videos/[date]`. Cross-topic Top 24h archive at `/{YYYY-MM-DD}` (mounted via a date-fork in `[topic]/page.tsx`). Gold « ALL TOPICS » box pinned at the top of each archives day card when a `top_summaries` snapshot exists. Click-target dedup on HeroStory + DailySummaryArticles + TopFeedSection. Sitemap: drops `/briefings`, advertises `/archives` and `/{date}` instead.
 - **v2.6.10** — Video recap scoring rewritten: composite « importance × quality » prompt with frontier-AI / Big Tech major-player whitelist + anti-cluster directive + concrete anchors per integer step; default model upgraded `gpt-4.1-nano → gpt-4.1-mini` for editorial-nuance discrimination; `temperature: 0` for run-to-run reproducibility. Cross-topic dedup on home « your topics » strips.
 - **v2.6.9** — Per-group editorial importance score 1-10 on the Top 24h (mig 026 adds `summary_bullets.importance_score`); the `gpt-5.5` generator emits the score inline (zero extra LLM round-trip), `analyzeWithAI` propagates it across same-`title` runs, `Top24hHero` renders a `ScoreMeter` next to each group title (replaces the previous paragraph counter). Home heroes (`/api/news/top-story`, `/api/videos/top`) now scan the `home_surface_queue` in round-robin order and keep only entries whose `pub_date` falls inside the last 24 h.

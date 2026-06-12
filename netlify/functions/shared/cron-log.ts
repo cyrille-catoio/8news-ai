@@ -16,6 +16,12 @@ export interface CronRun {
   log: (s: string) => void;
   /** `console.error` prefixed with `[tag]`. */
   elog: (s: string) => void;
+  /**
+   * Every line passed to `elog` since the run started, in order.
+   * Feed this into `sendCronAlert` at the end of the run so the alert
+   * email carries the actual error detail, not just the summary line.
+   */
+  errorLines: () => readonly string[];
   /** Milliseconds since `startedAt`. */
   elapsedMs: () => number;
   /**
@@ -28,10 +34,15 @@ export interface CronRun {
 export function startCronRun(tag: string, budgetMs?: number): CronRun {
   const startedAt = Date.now();
   const deadline = budgetMs != null ? startedAt + budgetMs : null;
+  const errors: string[] = [];
   return {
     startedAt,
     log: (s: string) => console.log(`[${tag}] ${s}`),
-    elog: (s: string) => console.error(`[${tag}] ${s}`),
+    elog: (s: string) => {
+      errors.push(s);
+      console.error(`[${tag}] ${s}`);
+    },
+    errorLines: () => errors,
     elapsedMs: () => Date.now() - startedAt,
     remaining: () => (deadline === null ? Number.POSITIVE_INFINITY : deadline - Date.now()),
   };

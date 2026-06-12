@@ -5,6 +5,7 @@ import { refreshYoutubeVideosFromRss } from "../../src/lib/refresh-youtube-video
 import { buildVideoBulletRows } from "../../src/lib/video-bullets";
 import { insertVideoBullets } from "../../src/lib/supabase";
 import { startCronRun } from "./shared/cron-log";
+import { sendCronAlert } from "./shared/cron-alert";
 
 /**
  * 15-minute background function — pre-warms the AI summary cache for
@@ -384,4 +385,16 @@ export default async () => {
   lines.push(summary);
   console.log(lines.join("\n"));
   console.log(summary);
+
+  // Per-video errors are routine (TranscriptAPI 408s, transient
+  // timeouts) and the 15-min cadence retries them naturally — only a
+  // run where EVERYTHING failed signals a real outage (dead API key,
+  // quota exhausted, schema drift), so that's the alert threshold.
+  if (errorCount > 0 && okCount === 0 && cachedCount === 0) {
+    await sendCronAlert(
+      "video-transcribe",
+      summary,
+      lines.filter((l) => l.includes("error") || l.includes("threw")),
+    );
+  }
 };

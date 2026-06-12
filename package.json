@@ -1,14 +1,15 @@
 {
   "name": "8news-ai",
-  "version": "2.13.5",
+  "version": "2.13.6",
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1 --port 3000",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run",
+    "test": "vitest run && node scripts/spec-check.mjs",
     "test:watch": "vitest",
+    "spec:check": "node scripts/spec-check.mjs",
     "release:sync": "node scripts/release.mjs",
     "release:patch": "npm version patch --no-git-tag-version && node scripts/release.mjs",
     "release:minor": "npm version minor --no-git-tag-version && node scripts/release.mjs",

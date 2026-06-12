@@ -1,5 +1,6 @@
 [build]
-  command = "npm run build"
+  # Tests run first: a red unit test blocks the deploy (~2 s overhead).
+  command = "npm test && npm run build"
   publish = ".next"
 
 [functions]

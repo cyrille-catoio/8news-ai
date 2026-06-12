@@ -18,6 +18,7 @@ import { HeroStory } from "@/app/components/briefing/HeroStory";
 import { Top5Section } from "@/app/components/briefing/Top5Section";
 import { VideosBriefingSection } from "@/app/components/briefing/VideosBriefingSection";
 import { YourTopicsSection, type MiniArticle } from "@/app/components/briefing/YourTopicsSection";
+import { selectTopicStrips, MAX_TOPIC_STRIPS } from "@/app/components/briefing/select-topic-strips";
 import { NewsletterSignupPrompt } from "@/app/components/briefing/NewsletterSignupPrompt";
 import { DailySummaryTeaser, type SummaryRoute } from "@/app/components/briefing/DailySummaryTeaser";
 import { RecentVideoPagesSection } from "@/app/components/briefing/RecentVideoPagesSection";
@@ -283,6 +284,14 @@ export function BriefingPage({
   // through history one day at a time.
 
   // ─── Per-preferred-topic mini strips (logged-in users) ──────────────
+  // Selection (incl. cross-topic dedup by link, first-selected-wins) is
+  // the pure `selectTopicStrips()` — see its header comment. The section
+  // targets a stable 4 blocks: every preferred topic is a candidate (not
+  // just the first 4), and when fewer than 4 blocks survive — a topic
+  // with no article ≥ min-score in 24 h, or emptied by dedup — a second
+  // fetch round pulls the site's other topics as fill candidates, ranked
+  // by best article score. State is set once per round, so the section
+  // never renders a partial set that later shrinks.
   const [yourTopicArticles, setYourTopicArticles] = useState<Record<string, MiniArticle[]>>({});
   useEffect(() => {
     if (!isAuthenticated || !preferredTopicIds || preferredTopicIds.length === 0) {
@@ -290,40 +299,38 @@ export function BriefingPage({
       return;
     }
     let cancelled = false;
-    const ids = preferredTopicIds.slice(0, 4); // cap at 4 strips
-    Promise.all(
-      ids.map((id) =>
-        fetch(`/api/news?topic=${encodeURIComponent(id)}&hours=24&lang=${lang}&count=3`, { cache: "no-store" })
-          .then((r) => (r.ok ? r.json() : null))
-          .then((data: { articles?: MiniArticle[] } | null) => ({ id, articles: data?.articles ?? [] }))
-          .catch(() => ({ id, articles: [] as MiniArticle[] })),
-      ),
-    ).then((results) => {
-      if (cancelled) return;
-      // Cross-topic dedup by `link`: a single article often scores high
-      // on multiple of the user's preferred topics (e.g. an OpenAI paper
-      // hits "AI", "OpenAI" and "Tech"), and it would otherwise render
-      // identically in N strips back-to-back. The user previously read
-      // that as « clicking opens 3 tabs on the same article » because
-      // they tapped each duplicate in turn. We process strips in
-      // preferred-topic order and drop any article whose link was
-      // already claimed by an earlier strip — first-strip-wins keeps
-      // the assignment intuitive (the article stays in the topic the
-      // user prioritized highest).
-      const seen = new Set<string>();
-      const map: Record<string, MiniArticle[]> = {};
-      for (const { id, articles } of results) {
-        const unique = articles.filter((a) => {
-          if (!a.link || seen.has(a.link)) return false;
-          seen.add(a.link);
-          return true;
+    const fetchStrip = (id: string) =>
+      fetch(`/api/news?topic=${encodeURIComponent(id)}&hours=24&lang=${lang}&count=3`, { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: { articles?: MiniArticle[] } | null) => ({ id, articles: data?.articles ?? [] }))
+        .catch(() => ({ id, articles: [] as MiniArticle[] }));
+
+    (async () => {
+      const byTopic: Record<string, MiniArticle[]> = {};
+      const prefResults = await Promise.all(preferredTopicIds.map(fetchStrip));
+      for (const r of prefResults) byTopic[r.id] = r.articles;
+
+      let strips = selectTopicStrips({ preferredIds: preferredTopicIds, articlesByTopic: byTopic });
+
+      if (Object.keys(strips).length < MAX_TOPIC_STRIPS) {
+        const fillIds = topicLabels
+          .map((tl) => tl.id)
+          .filter((id) => !preferredTopicIds.includes(id));
+        const fillResults = await Promise.all(fillIds.map(fetchStrip));
+        if (cancelled) return;
+        for (const r of fillResults) byTopic[r.id] = r.articles;
+        strips = selectTopicStrips({
+          preferredIds: preferredTopicIds,
+          fillIds,
+          articlesByTopic: byTopic,
         });
-        if (unique.length > 0) map[id] = unique.slice(0, 3);
       }
-      setYourTopicArticles(map);
-    });
+
+      if (cancelled) return;
+      setYourTopicArticles(strips);
+    })();
     return () => { cancelled = true; };
-  }, [isAuthenticated, preferredTopicIds, lang]);
+  }, [isAuthenticated, preferredTopicIds, lang, topicLabels]);
 
   // ─── TOP VIDEO · MAINTENANT ─────────────────────────────────────────
   // Single transcribed YouTube recap, scored ≥ 8/10 by the AI cron.

@@ -22,14 +22,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * missing migration 022 just stops queue growth, leaving the existing
  * scoring pipelines unaffected.
  */
-export function normalizeHomeSurfaceQueueScore(score: number): number {
-  if (!Number.isFinite(score)) return 0;
-  // `home_surface_queue.score` is an integer threshold field (mig 022).
-  // Video recap scores became decimal in mig 034 (e.g. 9.4), and sending
-  // the raw decimal into the SMALLINT column made the best 9.x videos fail
-  // to enqueue silently. Store the integer floor used for thresholding:
-  // 9.4 qualifies for a threshold of 9, not 10.
-  return Math.max(0, Math.min(10, Math.floor(score)));
+export function normalizeHomeSurfaceQueueScore(score: number): number | null {
+  if (!Number.isFinite(score) || score < 1 || score > 10) return null;
+  // `home_surface_queue.score` is NUMERIC(3,1) since mig 037. Preserve
+  // video recap decimals (9.4) while article integer scores remain
+  // integer-like (9.0 in DB, rendered/filtered as 9 by the app).
+  return Math.round(score * 10) / 10;
 }
 
 export async function enqueueHomeSurface(
@@ -43,6 +41,13 @@ export async function enqueueHomeSurface(
   },
 ): Promise<void> {
   try {
+    const score = normalizeHomeSurfaceQueueScore(row.score);
+    if (score === null) {
+      console.warn(
+        `[home-surface] enqueue ${row.kind}/${row.refId}/${row.lang} skipped: invalid score=${row.score}`,
+      );
+      return;
+    }
     const { error } = await client
       .from("home_surface_queue")
       .upsert(
@@ -50,7 +55,7 @@ export async function enqueueHomeSurface(
           kind: row.kind,
           ref_id: row.refId,
           lang: row.lang,
-          score: normalizeHomeSurfaceQueueScore(row.score),
+          score,
           topic_id: row.topicId,
         },
         { onConflict: "kind,ref_id,lang", ignoreDuplicates: true },

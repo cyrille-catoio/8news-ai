@@ -125,7 +125,7 @@ interface TranscriptionRow {
   topic_id: string | null;
   slug_keywords: string | null;
   published_date: string | null;
-  summary_score: number | null;
+  summary_score: number | string | null;
   /** Per-lang translated title (NULL for legacy rows; reader falls back to `youtube_videos.title`). */
   title_localized: string | null;
 }
@@ -470,11 +470,10 @@ export async function GET(request: NextRequest) {
       offset: 0,
     });
     if (candidates.length === 0) {
-      // Self-healing fallback: decimal 9.x video scores (mig 034) were
-      // not always mirrored into `home_surface_queue.score` (SMALLINT),
-      // so the queue can be empty even while fresh, high-scored recaps
-      // exist. Read directly from `video_transcriptions` so the home does
-      // not go blank until future scoring ticks repopulate the queue.
+      // Self-healing fallback: if the denormalized queue is empty or
+      // incomplete (e.g. rows missed before mig 037 decimal-score
+      // backfill), read directly from fresh `video_transcriptions` so
+      // the home does not go blank.
       candidates = await getFreshVideoCandidatesFromTranscriptions(db, {
         lang,
         threshold,

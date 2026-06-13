@@ -31,6 +31,7 @@
 
 import type { Lang } from "@/lib/i18n";
 import { t, dateLocale } from "@/lib/i18n";
+import { formatScore } from "@/lib/score-format";
 import type {
   TopSummaryRow,
   TopSummaryBulletRow,
@@ -309,7 +310,9 @@ function buildHtml(args: {
  *  on the product (article badges, video recap scores, daily summary
  *  scores). */
 function renderScoreBadgeHtml(score: number): string {
-  const clamped = Math.max(0, Math.min(10, Math.round(score)));
+  // Keep one-decimal precision for video bullets (« 9.3/10 », mig 036);
+  // integer scores still render without a decimal via `formatScore`.
+  const clamped = Math.max(0, Math.min(10, score));
   const tier =
     clamped >= 8
       ? { fg: "#22c55e", bg: "rgba(34,197,94,0.12)", border: "rgba(34,197,94,0.45)" }
@@ -318,7 +321,7 @@ function renderScoreBadgeHtml(score: number): string {
         : clamped >= 3
           ? { fg: "#f97316", bg: "rgba(249,115,22,0.12)", border: "rgba(249,115,22,0.45)" }
           : { fg: "#ef4444", bg: "rgba(239,68,68,0.12)", border: "rgba(239,68,68,0.45)" };
-  return `<span style="display:inline-block;font-family:ui-monospace,Menlo,monospace;font-size:13px;font-weight:700;letter-spacing:0.02em;color:${tier.fg};background:${tier.bg};border:1px solid ${tier.border};border-radius:999px;padding:3px 10px;line-height:1.2;white-space:nowrap;">${clamped}/10</span>`;
+  return `<span style="display:inline-block;font-family:ui-monospace,Menlo,monospace;font-size:13px;font-weight:700;letter-spacing:0.02em;color:${tier.fg};background:${tier.bg};border:1px solid ${tier.border};border-radius:999px;padding:3px 10px;line-height:1.2;white-space:nowrap;">${formatScore(clamped)}/10</span>`;
 }
 
 function renderGroupHtml(g: Group): string {
@@ -433,9 +436,9 @@ function renderGroupText(g: Group): string {
   if (g.title) {
     const score =
       typeof g.bullets[0]?.importance_score === "number"
-        ? Math.max(0, Math.min(10, Math.round(g.bullets[0].importance_score)))
+        ? Math.max(0, Math.min(10, g.bullets[0].importance_score))
         : null;
-    const scoreSuffix = score !== null ? ` [${score}/10]` : "";
+    const scoreSuffix = score !== null ? ` [${formatScore(score)}/10]` : "";
     const videoPrefix =
       g.bullets[0]?.video_transcription_id != null ? "[VIDEO] " : "";
     lines.push(`## ${videoPrefix}${g.title}${scoreSuffix}`);

@@ -1,5 +1,6 @@
 import { getServerClient, SITEMAP_RECENT_DAYS } from "./client";
 import { todayUtc, toUtcDateString } from "@/lib/dates-utc";
+import { normalizeVideoScore } from "@/lib/score-format";
 
 /**
  * Read/write helpers for the `top_summaries` table — the pre-computed
@@ -273,7 +274,7 @@ export async function getTopSummaryBulletsByDate(
       title: string | null;
       text: string;
       refs: unknown;
-      importance_score?: number | null;
+      importance_score?: number | string | null;
       video_transcription_id?: number | null;
     }>;
     for (const row of rows) {
@@ -287,8 +288,10 @@ export async function getTopSummaryBulletsByDate(
         title: row.title,
         text: row.text,
         refs,
-        importance_score:
-          typeof row.importance_score === "number" ? row.importance_score : null,
+        // NUMERIC(3,1) since mig 036 — PostgREST can hand it back as a
+        // string, so coerce (and keep the one decimal for video bullets)
+        // rather than dropping non-number values to null.
+        importance_score: normalizeVideoScore(row.importance_score),
         video_transcription_id:
           typeof row.video_transcription_id === "number"
             ? row.video_transcription_id

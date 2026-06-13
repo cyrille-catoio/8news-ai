@@ -380,15 +380,24 @@ export function BriefingPage({
           ? await r.json()
           : { video: null };
         if (cancelled) return;
-        setVideoHasOlder(Boolean(json.hasOlder));
         if (json.video) {
           const { summaryMd, ...rest } = json.video;
           setVideos([rest]);
           setVideoSummaries(summaryMd ? { [rest.videoId]: summaryMd } : {});
-        } else {
+          setVideoHasOlder(Boolean(json.hasOlder));
+        } else if (showLoading) {
+          // Explicit load (initial mount, lang switch, history chevron):
+          // honor the empty pick and hide the section.
           setVideos([]);
           setVideoSummaries({});
+          setVideoHasOlder(Boolean(json.hasOlder));
         }
+        // Silent background refresh (interval / visibilitychange) that
+        // returned no video: KEEP the one already on screen instead of
+        // blanking it out. A transient empty pick — a bucket flip, a
+        // cross-instance cache miss, or the rotation landing on a row
+        // whose backing video just aged past the 24h window — must not
+        // make the TOP VIDEO card appear then vanish under the user.
       } catch {
         // Silent refresh: keep the current top video on transient failures.
       } finally {

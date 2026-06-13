@@ -546,6 +546,12 @@ export function BriefingPage({
             </div>
           )}
 
+          {/* ─── Newsletter CTA (single placement, pinned right under the
+              daily podcast) — the component self-hides for owners and
+              already-subscribed users, so a single render covers
+              anonymous visitors + members. */}
+          <NewsletterSignupPrompt lang={lang} onRequestAuth={onRequestAuth} />
+
           {/* ─── 2 · TOP VIDEO · maintenant ───────────────────────────
               Kept at the top AND distinct from the Top story below
               (deliberate separation). */}
@@ -596,12 +602,7 @@ export function BriefingPage({
             />
           )}
 
-          {/* ─── 4 · Newsletter CTA (single placement) ────────────────
-              The component self-hides for owners and already-subscribed
-              users, so a single render covers anonymous + members. */}
-          <NewsletterSignupPrompt lang={lang} onRequestAuth={onRequestAuth} />
-
-          {/* ─── 5 · À lire maintenant : Top 5 (col. principale) +
+          {/* ─── 4 · À lire maintenant : Top 5 (col. principale) +
               Tendances 24h (rail). Two-column grid driven by a container
               query so it collapses to one column on phones AND whenever
               the chat panel narrows the content area (the section's

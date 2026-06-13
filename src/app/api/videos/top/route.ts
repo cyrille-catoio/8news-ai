@@ -43,6 +43,21 @@ const FRESH_WINDOW_MS = 24 * 60 * 60 * 1000;
 const QUEUE_SCAN_BATCH_SIZE = 100;
 const QUEUE_SCAN_MAX_ROWS = 1000;
 const DEFAULT_MIN_SCORE = 8;
+/**
+ * Only scan queue rows inserted within this window. `home_surface_queue`
+ * grows unbounded (every video scored ≥ 7 is appended at scoring time
+ * and never pruned), and the live scan orders by `display_count ASC` —
+ * so the ever-growing backlog of stale, never-shown rows (display_count
+ * 0, published > 24h ago) sorts to the FRONT and can exhaust the
+ * `QUEUE_SCAN_MAX_ROWS` budget before the scan ever reaches today's
+ * fresh video (which sinks behind the backlog as soon as it's shown
+ * once and its display_count rises). That made the TOP VIDEO card show
+ * once then vanish. A queue row is always inserted AT or AFTER the
+ * backing video's publication, so any video fresh enough to pass the
+ * 24h `published` filter below was necessarily inserted within the last
+ * 24h too — bounding the scan to a generous 48h `inserted_at` window
+ * never drops a fresh candidate while keeping the scan set tiny. */
+const QUEUE_INSERT_FRESH_WINDOW_MS = 2 * FRESH_WINDOW_MS;
 
 interface VideoTopItem {
   videoId: string;
@@ -135,7 +150,7 @@ interface QueueRow {
 }
 
 interface FreshVideoCandidate {
-  queue: QueueRow;
+  queue?: QueueRow;
   video: VideoTopItem;
 }
 
@@ -233,6 +248,7 @@ async function getFreshVideoCandidates(
 ): Promise<FreshVideoCandidate[]> {
   const cutoffIso = new Date(now - FRESH_WINDOW_MS).toISOString();
   const nowIso = new Date(now).toISOString();
+  const queueInsertCutoffIso = new Date(now - QUEUE_INSERT_FRESH_WINDOW_MS).toISOString();
   const fresh: FreshVideoCandidate[] = [];
   let scanned = 0;
 
@@ -244,7 +260,10 @@ async function getFreshVideoCandidates(
       .select("id, ref_id, display_count")
       .eq("kind", "video")
       .eq("lang", lang)
-      .gte("score", threshold);
+      .gte("score", threshold)
+      // Bound the scan to recently-queued rows so the stale backlog can't
+      // exhaust QUEUE_SCAN_MAX_ROWS before reaching today's fresh video.
+      .gte("inserted_at", queueInsertCutoffIso);
 
     if (mode === "live") {
       q = q
@@ -312,6 +331,84 @@ async function getFreshVideoCandidates(
   return fresh.slice(offset, offset + 2);
 }
 
+async function getFreshVideoCandidatesFromTranscriptions(
+  db: SupabaseClient,
+  {
+    lang,
+    threshold,
+    hiddenTopics,
+    now,
+    offset,
+  }: {
+    lang: Lang;
+    threshold: number;
+    hiddenTopics: string[];
+    now: number;
+    offset: number;
+  },
+): Promise<FreshVideoCandidate[]> {
+  const cutoffIso = new Date(now - FRESH_WINDOW_MS).toISOString();
+  const nowIso = new Date(now).toISOString();
+  const fresh: FreshVideoCandidate[] = [];
+
+  let q = db
+    .from("video_transcriptions")
+    .select(
+      "id, video_id, summary_md, topic_id, slug_keywords, published_date, summary_score, title_localized",
+    )
+    .eq("lang", lang)
+    .gte("summary_score", threshold)
+    .not("summary_md", "is", null)
+    .not("topic_id", "is", null)
+    .not("slug_keywords", "is", null)
+    .not("published_date", "is", null)
+    .order("summary_score", { ascending: false })
+    .order("summary_scored_at", { ascending: false })
+    .limit(100);
+
+  if (hiddenTopics.length > 0) {
+    q = q.not("topic_id", "in", `(${hiddenTopics.map((id) => `"${id}"`).join(",")})`);
+  }
+
+  const { data: trData, error: trErr } = await q;
+  if (trErr) {
+    console.error(`[/api/videos/top] fallback transcription SELECT error: ${trErr.message}`);
+    return [];
+  }
+
+  const transcriptions = (trData ?? []) as unknown as TranscriptionRow[];
+  if (transcriptions.length === 0) return [];
+
+  const videoIds = Array.from(new Set(transcriptions.map((row) => row.video_id)));
+  const { data: videoData, error: videoErr } = await db
+    .from("youtube_videos")
+    .select(
+      "video_id, title, description, channel_title, channel_id, published, thumbnail, view_count, duration_sec, link",
+    )
+    .in("video_id", videoIds)
+    .gte("published", cutoffIso)
+    .lte("published", nowIso);
+
+  if (videoErr) {
+    console.error(`[/api/videos/top] fallback youtube_videos SELECT error: ${videoErr.message}`);
+    return [];
+  }
+
+  const videoById = new Map<string, YoutubeVideoRow>();
+  for (const row of (videoData ?? []) as YoutubeVideoRow[]) {
+    videoById.set(row.video_id, row);
+  }
+
+  for (const tr of transcriptions) {
+    const yv = videoById.get(tr.video_id);
+    if (!yv) continue;
+    fresh.push({ video: toVideoTopItem(tr, yv, lang) });
+    if (fresh.length >= offset + 2) break;
+  }
+
+  return fresh.slice(offset, offset + 2);
+}
+
 async function markVideoDisplayed(db: SupabaseClient, queue: QueueRow, now: number): Promise<void> {
   const { error } = await db
     .from("home_surface_queue")
@@ -364,7 +461,7 @@ export async function GET(request: NextRequest) {
   const hiddenTopics = await getHiddenTopicIds();
 
   if (isLive) {
-    const candidates = await getFreshVideoCandidates(db, {
+    let candidates = await getFreshVideoCandidates(db, {
       lang,
       threshold,
       hiddenTopics,
@@ -372,13 +469,30 @@ export async function GET(request: NextRequest) {
       mode: "live",
       offset: 0,
     });
+    if (candidates.length === 0) {
+      // Self-healing fallback: decimal 9.x video scores (mig 034) were
+      // not always mirrored into `home_surface_queue.score` (SMALLINT),
+      // so the queue can be empty even while fresh, high-scored recaps
+      // exist. Read directly from `video_transcriptions` so the home does
+      // not go blank until future scoring ticks repopulate the queue.
+      candidates = await getFreshVideoCandidatesFromTranscriptions(db, {
+        lang,
+        threshold,
+        hiddenTopics,
+        now,
+        offset: 0,
+      });
+    }
+
     const picked = candidates[0];
     if (!picked) {
       const empty: TopVideoPayload = { video: null, hasOlder: false, offset };
       return jsonResponse(empty, bucket, now);
     }
 
-    await markVideoDisplayed(db, picked.queue, now);
+    if (picked.queue) {
+      await markVideoDisplayed(db, picked.queue, now);
+    }
 
     const payload: TopVideoPayload = {
       video: picked.video,
@@ -395,7 +509,7 @@ export async function GET(request: NextRequest) {
   // rows by insertion freshness. NULLS LAST keeps unshown candidates
   // accessible from the chevron browse. Offset is applied after the 24h
   // freshness filter, so chevrons never land on stale videos.
-  const candidates = await getFreshVideoCandidates(db, {
+  let candidates = await getFreshVideoCandidates(db, {
     lang,
     threshold,
     hiddenTopics,
@@ -403,6 +517,16 @@ export async function GET(request: NextRequest) {
     mode: "history",
     offset,
   });
+
+  if (candidates.length === 0) {
+    candidates = await getFreshVideoCandidatesFromTranscriptions(db, {
+      lang,
+      threshold,
+      hiddenTopics,
+      now,
+      offset,
+    });
+  }
 
   if (candidates.length === 0) {
     const empty: TopVideoPayload = { video: null, hasOlder: false, offset };

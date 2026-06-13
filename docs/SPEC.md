@@ -1,6 +1,6 @@
 # 8news.ai — Technical Specification
 
-**Version**: v2.13.8
+**Version**: v2.13.9
 **Last updated**: 12 June 2026
 
 > **Note**: sections of this spec are historical — they describe the system as of the version tagged inline (`**vX.Y+**` markers). The mechanical parts (header version, file tree, migration list, cron list, API route list) are kept current and **enforced by `npm run spec:check`** (also run by `npm test`, hence by the Netlify build — drift blocks the deploy). The spec is updated automatically as part of the release ritual (see `AGENTS.md` § 3 and § 11 for the content contract). For feature-level details, the changelog (`src/data/changelog-entries.json`) is the most up-to-date reference.
@@ -232,7 +232,8 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 │   ├── 032-summary-bullets-cleanup.sql     # **v2.10.3+**: normalize legacy source_type 'article'→'daily_summary'; dedup historical doubles per business key
 │   ├── 033-podcast-chat-messages.sql       # **v2.11+**: podcast_chat_messages — per-user Daily Podcast chat threads keyed (user_id, summary_date)
 │   ├── 034-video-summary-score-decimal.sql # **v2.12+**: video_transcriptions.summary_score SMALLINT → NUMERIC(3,1) (decimal AI quality scores)
-│   └── 035-global-article-kpis-rpc.sql     # **v2.12+**: global_article_kpis() RPC — single-query KPI rollup for the Stats page
+│   ├── 035-global-article-kpis-rpc.sql     # **v2.12+**: global_article_kpis() RPC — single-query KPI rollup for the Stats page
+│   └── 036-summary-bullets-importance-decimal.sql # summary_bullets.importance_score SMALLINT → NUMERIC(3,1) (decimal score for Daily Podcast video bullets)
 ├── .gitignore
 ├── .env                                    # API keys (not committed)
 ├── netlify.toml                            # Netlify build + redirect config — **v2.13.5+** build command is `npm test && npm run build` (a red test blocks the deploy)

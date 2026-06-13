@@ -123,23 +123,44 @@ describe("selectTopArticleBullets", () => {
     expect(selectTopArticleBullets(bullets, 2).map((b) => b.id)).toEqual(["high", "mid"]);
   });
 
-  it("keeps a multi-bullet group together, in narrative order", () => {
+  it("maximizes distinct subjects: one bullet per group before second angles", () => {
+    // 2-bullet Nvidia group + 2 solo groups, budget 2 → two DISTINCT
+    // subjects (Nvidia's top angle + the next group), NOT both Nvidia
+    // angles which would render as a single subject.
     const bullets = [
       mk("n1", "Nvidia", 9),
       mk("n2", "Nvidia", 9),
       mk("solo", "Solo", 5),
     ];
-    expect(selectTopArticleBullets(bullets, 3).map((b) => b.id)).toEqual(["n1", "n2", "solo"]);
+    expect(selectTopArticleBullets(bullets, 2).map((b) => b.id)).toEqual(["n1", "solo"]);
   });
 
-  it("truncates inside the group straddling the budget boundary", () => {
+  it("backfills extra angles only when there are fewer groups than the budget", () => {
+    // Thin day: a single 3-bullet group, budget 2 → no other subject to
+    // reach for, so the second angle backfills the slot.
     const bullets = [
       mk("n1", "Nvidia", 9),
       mk("n2", "Nvidia", 9),
       mk("n3", "Nvidia", 9),
       mk("solo", "Solo", 8),
     ];
-    expect(selectTopArticleBullets(bullets, 2).map((b) => b.id)).toEqual(["n1", "n2"]);
+    expect(selectTopArticleBullets(bullets, 3).map((b) => b.id)).toEqual([
+      "n1",
+      "n2",
+      "solo",
+    ]);
+  });
+
+  it("keeps each group's bullets consecutive and in narrative order when backfilling", () => {
+    const bullets = [
+      mk("a1", "A", 9),
+      mk("a2", "A", 9),
+      mk("b1", "B", 5),
+      mk("b2", "B", 5),
+    ];
+    // budget 3, 2 groups: 1 per group (a1, b1) then backfill the top
+    // group's second angle — a2 stays adjacent to a1.
+    expect(selectTopArticleBullets(bullets, 3).map((b) => b.id)).toEqual(["a1", "a2", "b1"]);
   });
 
   it("treats missing importance as 0 and keeps stable order on ties", () => {

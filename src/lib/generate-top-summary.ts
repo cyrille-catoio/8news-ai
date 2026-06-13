@@ -276,7 +276,10 @@ function buildVideoBulletRows(
     const body = extractVideoBulletText(v.summary_md);
     if (!body) continue;
     const ssrUrl = `${SITE_ORIGIN}/${v.topic_id}/v/${v.published_date}/${v.slug_keywords}`;
-    const importance = Math.max(1, Math.min(10, Math.round(v.summary_score)));
+    // Keep the recap quality score's one-decimal precision (mig 034 /
+    // 036): rounding to an integer here is what made « 9.3 » render as
+    // « 9 » in the podcast. Clamp to [1,10] and round to one decimal.
+    const importance = Math.round(Math.max(1, Math.min(10, v.summary_score)) * 10) / 10;
     rows.push({
       topic_id: v.topic_id,
       lang,
@@ -301,13 +304,26 @@ function buildVideoBulletRows(
 }
 
 /**
- * Keep only the `budget` most important article bullets out of the
- * LLM's full output. Consecutive same-title bullets are folded into
- * their thematic group (same logic as the UI's `groupBullets`), groups
- * are stable-sorted by `importance` DESC (missing scores sink to 0),
- * then bullets are taken group by group — preserving the narrative
- * order within a group — until the budget is reached. A group may be
- * truncated mid-way when it straddles the budget boundary.
+ * Pick the article bullets for the capped Daily Podcast, MAXIMIZING the
+ * number of distinct visible subjects.
+ *
+ * Consecutive same-title bullets are folded into their thematic group
+ * (same logic as the UI's `groupBullets`) and groups are stable-sorted
+ * by `importance` DESC (missing scores sink to 0). The selection then:
+ *
+ *  1. takes ONE bullet from each group, in importance order, until the
+ *     budget is reached — so `budget` slots yield `budget` DISTINCT
+ *     subjects (the UI folds same-title bullets into a single subject,
+ *     so spending two slots on one multi-angle group used to silently
+ *     drop the visible count, e.g. 8 bullets rendering as 6 subjects);
+ *  2. only when there are FEWER groups than the budget (a thin-news
+ *     day), backfills the remaining slots with the extra angles of the
+ *     highest-importance groups — so the podcast still fills its
+ *     `budget` bullets instead of shrinking.
+ *
+ * Output keeps each group's bullets consecutive and in narrative order,
+ * so the UI re-folds them into one subject. Total bullets never exceed
+ * `budget` (the 8-bullet podcast cap is preserved).
  */
 export function selectTopArticleBullets<
   T extends { title?: string | null; importance?: number | null },
@@ -334,12 +350,34 @@ export function selectTopArticleBullets<
     .sort((a, b) => (b.g.importance - a.g.importance) || (a.i - b.i))
     .map((d) => d.g);
 
+  // How many bullets to keep from each group. Pass 1: one per group
+  // (distinct subjects first). Pass 2: round-robin the extra angles of
+  // the top groups only if groups ran out before the budget did.
+  const take = new Map<(typeof sorted)[number], number>();
+  let used = 0;
+  for (const g of sorted) {
+    if (used >= budget) break;
+    take.set(g, 1);
+    used += 1;
+  }
+  let progressed = true;
+  while (used < budget && progressed) {
+    progressed = false;
+    for (const g of sorted) {
+      if (used >= budget) break;
+      const cur = take.get(g);
+      if (cur !== undefined && cur < g.bullets.length) {
+        take.set(g, cur + 1);
+        used += 1;
+        progressed = true;
+      }
+    }
+  }
+
   const out: T[] = [];
   for (const g of sorted) {
-    for (const b of g.bullets) {
-      if (out.length >= budget) return out;
-      out.push(b);
-    }
+    const n = take.get(g) ?? 0;
+    for (let i = 0; i < n; i++) out.push(g.bullets[i]);
   }
   return out;
 }

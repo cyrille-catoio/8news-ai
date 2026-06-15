@@ -255,18 +255,19 @@ export async function getTopSummaryBulletsByDate(
     const res = await supabase
       .from("summary_bullets")
       .select(
-        "bullet_index, title, text, refs, importance_score, video_transcription_id",
+        "id, bullet_index, title, text, refs, importance_score, video_transcription_id",
       )
       .eq("source_type", "top50")
       .eq("lang", lang)
       .eq("summary_date", summaryDate)
-      .order("bullet_index", { ascending: true });
+      .order("bullet_index", { ascending: true })
+      .order("id", { ascending: false });
     if (res.error || !res.data) return [];
 
     // The cron writes one row per (bullet, distinct topic) so a single
     // multi-topic bullet appears N times. Dedup by bullet_index keeping
-    // the first occurrence — the title / text / refs / importance are
-    // identical across the duplicates, only `topic_id` differs.
+    // the newest occurrence; this keeps the read path sane if the
+    // post-insert cleanup of an older generation fails.
     const seen = new Set<number>();
     const out: TopSummaryBulletRow[] = [];
     const rows = res.data as unknown as Array<{

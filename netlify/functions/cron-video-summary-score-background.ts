@@ -6,6 +6,7 @@ import {
 import { enqueueHomeSurface } from "../../src/lib/supabase/home-surface";
 import { startCronRun } from "./shared/cron-log";
 import { sendCronAlert } from "./shared/cron-alert";
+import { requireCronSecret } from "./shared/cron-auth";
 
 /**
  * Background (≤15 min): scores AI Markdown video recaps in `video_transcriptions`
@@ -20,8 +21,7 @@ import { sendCronAlert } from "./shared/cron-alert";
  * Uses Netlify v2 function signature (default export, returns Response | void),
  * matching the other cron-*-background.ts files in this folder. Returning a
  * plain `{ statusCode, body }` object would crash the v2 runtime with
- * "Function returned an unsupported value". No auth check (URL obscurity,
- * same as the other cron-*-background.ts files).
+ * "Function returned an unsupported value".
  */
 
 const CRON_WALL_MS = Number(process.env.CRON_VIDEO_SUMMARY_SCORE_WALL_MS ?? 840_000);
@@ -189,7 +189,9 @@ async function runCron(): Promise<void> {
   console.log(lines.join("\n"));
 }
 
-export default async (): Promise<void> => {
+export default async (req: Request): Promise<void> => {
+  if (!requireCronSecret(req, "cron-video-summary-score")) return;
+
   try {
     await runCron();
   } catch (fatal) {

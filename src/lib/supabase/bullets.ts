@@ -99,17 +99,35 @@ export async function insertTopSummaryBullets(
   if (!clientP) return false;
   try {
     const supabase = await clientP;
-    await supabase
+    const insertRes = await supabase.from("summary_bullets").insert(rows).select("id");
+    if (insertRes.error) {
+      console.error("[insertTopSummaryBullets] insert failed:", insertRes.error.message);
+      return false;
+    }
+
+    const insertedIds = ((insertRes.data ?? []) as { id: number }[])
+      .map((row) => row.id)
+      .filter((id) => Number.isInteger(id));
+    if (insertedIds.length === 0) {
+      console.error(
+        "[insertTopSummaryBullets] insert returned no ids; preserving previous top50 rows",
+      );
+      return false;
+    }
+
+    const deleteRes = await supabase
       .from("summary_bullets")
       .delete()
       .eq("source_type", "top50")
       .eq("lang", lang)
-      .eq("summary_date", summaryDate);
-    const insertRes = await supabase.from("summary_bullets").insert(rows);
-    if (!insertRes.error) return true;
+      .eq("summary_date", summaryDate)
+      .not("id", "in", `(${insertedIds.join(",")})`);
+    if (deleteRes.error) {
+      console.error("[insertTopSummaryBullets] cleanup failed:", deleteRes.error.message);
+      return false;
+    }
 
-    console.error("[insertTopSummaryBullets] insert failed:", insertRes.error.message);
-    return false;
+    return true;
   } catch (err) {
     console.error("[insertTopSummaryBullets]", err);
     return false;

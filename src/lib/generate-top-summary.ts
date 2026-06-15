@@ -23,10 +23,10 @@
  *     (source_type='top50') keyed on (lang, summary_date) so the GET
  *     read path can hydrate structured data without parsing markdown.
  *
- * Idempotent: a re-run on the same (summary_date, lang) deletes the
- * previous row first (both for `top_summaries` and the matching
- * `summary_bullets` rows) before re-inserting. This is what makes
- * intra-day re-ticks safe.
+ * Idempotent: a re-run on the same (summary_date, lang) replaces the
+ * `top_summaries` row and mirrors fresh `summary_bullets` rows before
+ * pruning the old mirror. This keeps the previous podcast intact if the
+ * new bullet insert fails.
  */
 
 import { analyzeWithAI } from "./ai-analyze";

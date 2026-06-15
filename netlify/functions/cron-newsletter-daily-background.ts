@@ -10,6 +10,7 @@ import type {
 import { renderDailyNewsletter } from "../../src/lib/email/render-daily-newsletter";
 import { startCronRun } from "./shared/cron-log";
 import { sendCronAlert } from "./shared/cron-alert";
+import { requireCronSecret } from "./shared/cron-auth";
 import type { Lang } from "../../src/lib/i18n";
 
 /**
@@ -55,8 +56,6 @@ import type { Lang } from "../../src/lib/i18n";
  *     handled out-of-band (the user toggles their preference in the
  *     admin or the future SettingsPage opt-out).
  *
- * Why no auth check on the URL: same convention as the other
- * `cron-*-background.ts` siblings (URL obscurity, see SPEC § Cron jobs).
  * Returning a bare `void` matches Netlify Functions v2 — any other
  * shape ("statusCode/body") crashes the runtime with
  * "Function returned an unsupported value".
@@ -328,7 +327,9 @@ async function runCron(): Promise<void> {
   }
 }
 
-export default async (): Promise<void> => {
+export default async (req: Request): Promise<void> => {
+  if (!requireCronSecret(req, "cron-newsletter")) return;
+
   try {
     await runCron();
   } catch (fatal) {

@@ -54,7 +54,7 @@ import { DailyPodcastChatPanel } from "@/app/components/podcast-chat/DailyPodcas
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.13.12";
+const APP_VERSION = "2.13.13";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 // Daily Podcast chat panel width bounds (desktop). The panel is
@@ -391,7 +391,7 @@ export default function Home() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!authOwner && (currentPage === "feeds" || currentPage === "categories" || currentPage === "dailySummaries" || currentPage === "youtubeChannels" || currentPage === "users" || currentPage === "stats" || currentPage === "userActivity")) {
+    if (!authOwner && (currentPage === "feeds" || currentPage === "categories" || currentPage === "dailySummaries" || currentPage === "youtubeChannels" || currentPage === "users" || currentPage === "stats" || currentPage === "userActivity" || currentPage === "crons")) {
       setCurrentPage("briefing", true);
     }
     if (!isAuthenticated && currentPage === "topics") {

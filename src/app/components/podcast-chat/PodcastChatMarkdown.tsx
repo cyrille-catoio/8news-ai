@@ -13,6 +13,49 @@ import { color } from "@/lib/theme";
 
 const ReactMarkdown = dynamic(() => import("react-markdown"), { ssr: false });
 
+const PLAIN_URL_RE = /https?:\/\/[^\s<>()\]]+/g;
+
+function autoLinkPlainUrlsInText(text: string): string {
+  return text.replace(PLAIN_URL_RE, (raw, offset, full) => {
+    const prev = full[offset - 1];
+    const prevPrev = full[offset - 2];
+    if (prev === "<" || (prev === "(" && prevPrev === "]")) {
+      return raw;
+    }
+
+    const trailing = raw.match(/[.,!?;:]+$/)?.[0] ?? "";
+    const url = trailing ? raw.slice(0, -trailing.length) : raw;
+    return `[${url}](${url})${trailing}`;
+  });
+}
+
+/**
+ * `react-markdown` renders markdown links as anchors but does not
+ * auto-link bare URLs. The Daily Podcast chat often streams plain source
+ * URLs from the model, so normalize those to markdown links before
+ * rendering. We deliberately skip fenced and inline code, existing
+ * markdown links (`[label](https://...)`) and autolinks
+ * (`<https://...>`).
+ */
+export function autoLinkPlainUrls(source: string): string {
+  let inFence = false;
+  return source
+    .split("\n")
+    .map((line) => {
+      if (/^\s*```/.test(line)) {
+        inFence = !inFence;
+        return line;
+      }
+      if (inFence) return line;
+
+      return line
+        .split(/(`[^`]*`)/g)
+        .map((part) => (part.startsWith("`") ? part : autoLinkPlainUrlsInText(part)))
+        .join("");
+    })
+    .join("\n");
+}
+
 const mdComponents = {
   h1: ({ children, ...props }: React.ComponentProps<"h1">) => (
     <h3 style={{ color: color.gold, fontWeight: 700, margin: "10px 0 6px", fontSize: 15 }} {...props}>{children}</h3>
@@ -67,5 +110,5 @@ const mdComponents = {
 
 export function PodcastChatMarkdown({ source }: { source: string }) {
   if (!source) return null;
-  return <ReactMarkdown components={mdComponents}>{source}</ReactMarkdown>;
+  return <ReactMarkdown components={mdComponents}>{autoLinkPlainUrls(source)}</ReactMarkdown>;
 }

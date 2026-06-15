@@ -18,6 +18,7 @@ function healthy(nowMs: number): WatchdogSnapshot {
     nowMs,
     todayUtc: "2026-06-12",
     podcastLangs: ["en", "fr"],
+    podcastBulletLangs: ["en", "fr"],
     lastFetchedAtMs: nowMs - 10 * 60_000,
     lastScoredAtMs: nowMs - 10 * 60_000,
     staleBacklogCount: 0,
@@ -49,6 +50,16 @@ describe("evaluateWatchdog", () => {
       expect(problems).toHaveLength(1);
       expect(problems[0]).toContain("lang=en");
       expect(problems[0]).toContain("2026-06-12");
+    });
+
+    it("flags a lang whose snapshot exists but mirrored bullets are missing", () => {
+      const problems = evaluateWatchdog({
+        ...healthy(utc(8)),
+        podcastBulletLangs: ["fr"],
+      });
+      expect(problems).toHaveLength(1);
+      expect(problems[0]).toContain("lang=en");
+      expect(problems[0]).toContain("summary_bullets");
     });
 
     it("stays silent before the grace hour (cron may not have run yet)", () => {
@@ -154,6 +165,7 @@ describe("evaluateWatchdog", () => {
       nowMs: now,
       todayUtc: "2026-06-12",
       podcastLangs: [],
+      podcastBulletLangs: [],
       lastFetchedAtMs: null,
       lastScoredAtMs: null,
       staleBacklogCount: SCORE_BACKLOG_FLOOR + 100,

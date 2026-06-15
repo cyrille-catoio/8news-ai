@@ -8,6 +8,11 @@ import {
 } from "../../src/lib/watchdog-checks";
 import { startCronRun } from "./shared/cron-log";
 import { sendCronAlert } from "./shared/cron-alert";
+import {
+  checkCronSecret,
+  cronSecretHeaders,
+  unauthorizedCronResponse,
+} from "./shared/cron-auth";
 
 /**
  * Freshness watchdog — checks that the pipelines' OUTPUT data is fresh
@@ -46,7 +51,10 @@ import { sendCronAlert } from "./shared/cron-alert";
  * alert channel, not the HTTP status).
  */
 
-export default async (): Promise<Response> => {
+export default async (req: Request): Promise<Response> => {
+  const auth = checkCronSecret(req, "cron-watchdog");
+  if (!auth.ok) return unauthorizedCronResponse(auth);
+
   const { log, elog, elapsedMs } = startCronRun("cron-watchdog");
 
   // Shared cached service-role client (AGENTS.md § 6) — returns null
@@ -68,8 +76,13 @@ export default async (): Promise<Response> => {
   try {
     const staleCutoff = new Date(nowMs - FETCH_STALE_MINUTES * 60_000).toISOString();
 
-    const [podcastRes, topicsRes, backlogRes, transcriptionRes] = await Promise.all([
+    const [podcastRes, podcastBulletsRes, topicsRes, backlogRes, transcriptionRes] = await Promise.all([
       supabase.from("top_summaries").select("lang").eq("summary_date", today),
+      supabase
+        .from("summary_bullets")
+        .select("lang")
+        .eq("summary_date", today)
+        .eq("source_type", "top50"),
       supabase
         .from("topics")
         .select("last_fetched_at, last_scored_at")
@@ -90,6 +103,7 @@ export default async (): Promise<Response> => {
     // schema drift or an outage that also affects the app.
     for (const [name, res] of [
       ["top_summaries", podcastRes],
+      ["summary_bullets_top50", podcastBulletsRes],
       ["topics", topicsRes],
       ["articles_backlog", backlogRes],
       ["video_transcriptions", transcriptionRes],
@@ -116,6 +130,9 @@ export default async (): Promise<Response> => {
       nowMs,
       todayUtc: today,
       podcastLangs: ((podcastRes.data ?? []) as { lang: string }[]).map((r) => r.lang),
+      podcastBulletLangs: ((podcastBulletsRes.data ?? []) as { lang: string }[]).map(
+        (r) => r.lang,
+      ),
       lastFetchedAtMs: maxMs(topics.map((t) => t.last_fetched_at)),
       lastScoredAtMs: maxMs(topics.map((t) => t.last_scored_at)),
       staleBacklogCount: backlogRes.count ?? 0,
@@ -138,6 +155,7 @@ export default async (): Promise<Response> => {
       try {
         const res = await fetch(healUrl, {
           method: "GET",
+          headers: cronSecretHeaders(),
           signal: AbortSignal.timeout(10_000),
         });
         const note = `Auto-réparation : cron-top-summary-background relancé pour langs=${missing.join(",")} (http=${res.status})`;

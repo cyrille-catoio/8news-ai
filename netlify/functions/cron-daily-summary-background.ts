@@ -1,5 +1,6 @@
 import { generateDailySummary } from "./shared/generate-daily-summary";
 import { runTopicDateLangCron } from "./shared/topic-date-cron";
+import { requireCronSecret } from "./shared/cron-auth";
 
 /**
  * Nightly background function — generates yesterday's daily summary
@@ -18,8 +19,10 @@ import { runTopicDateLangCron } from "./shared/topic-date-cron";
  * boundary the new code targets — see v2.5.9 changelog).
  */
 
-export default async () =>
-  runTopicDateLangCron({
+export default async (req: Request) => {
+  if (!requireCronSecret(req, "cron-daily-summary")) return;
+
+  return runTopicDateLangCron({
     cronName: "daily-summary",
     dateOverrideEnv: "DAILY_SUMMARY_DATE",
     budgetEnv: "DAILY_SUMMARY_BUDGET_MS",
@@ -68,3 +71,4 @@ export default async () =>
     },
     summaryCounterKeys: ["generated", "no_articles", "skipped"] as const,
   });
+};

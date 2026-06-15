@@ -6,6 +6,7 @@ import { buildVideoBulletRows } from "../../src/lib/video-bullets";
 import { insertVideoBullets } from "../../src/lib/supabase";
 import { startCronRun } from "./shared/cron-log";
 import { sendCronAlert } from "./shared/cron-alert";
+import { requireCronSecret } from "./shared/cron-auth";
 
 /**
  * 15-minute background function — pre-warms the AI summary cache for
@@ -75,7 +76,9 @@ interface CandidateVideo {
   published: string;
 }
 
-export default async () => {
+export default async (req: Request) => {
+  if (!requireCronSecret(req, "cron-video-transcribe")) return;
+
   const { elapsedMs, remaining } = startCronRun(
     "cron-video-transcribe",
     Math.min(WALL_MS, BUDGET_MS),

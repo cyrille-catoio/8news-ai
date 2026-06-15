@@ -32,6 +32,8 @@ export interface WatchdogSnapshot {
   todayUtc: string;
   /** Langs that have a `top_summaries` row for today. */
   podcastLangs: readonly string[];
+  /** Langs that have at least one mirrored `summary_bullets` top50 row for today. */
+  podcastBulletLangs: readonly string[];
   /** max(topics.last_fetched_at) over active topics, epoch ms. Null = never. */
   lastFetchedAtMs: number | null;
   /** max(topics.last_scored_at) over active topics, epoch ms. Null = never. */
@@ -65,7 +67,9 @@ function formatAge(minutes: number): string {
 export function missingPodcastLangs(s: WatchdogSnapshot): ("en" | "fr")[] {
   const utcHour = new Date(s.nowMs).getUTCHours();
   if (utcHour < PODCAST_GRACE_UTC_HOUR) return [];
-  return (["en", "fr"] as const).filter((lang) => !s.podcastLangs.includes(lang));
+  return (["en", "fr"] as const).filter(
+    (lang) => !s.podcastLangs.includes(lang) || !s.podcastBulletLangs.includes(lang),
+  );
 }
 
 /** Returns one French problem string per failed check ([] = all green). */
@@ -77,7 +81,7 @@ export function evaluateWatchdog(s: WatchdogSnapshot): string[] {
   //    to run and retry before we declare the day broken.
   for (const lang of missingPodcastLangs(s)) {
     problems.push(
-      `Podcast du jour absent : aucune ligne top_summaries pour ${s.todayUtc} lang=${lang} — vérifier cron-top-summary-background`,
+      `Podcast du jour absent ou incomplet : top_summaries/summary_bullets manquants pour ${s.todayUtc} lang=${lang} — vérifier cron-top-summary-background`,
     );
   }
 

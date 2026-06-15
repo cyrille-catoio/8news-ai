@@ -140,6 +140,7 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 │       ├── i18n.ts                     # EN/FR translation strings (1500+ lines)
 │       ├── constants.ts                # Cross-cutting constants
 │       ├── api-helpers.ts              # **v2.13.4+** NO_STORE_HEADERS, parseLang, parsePositiveInt, parseOffset — shared by ~18 API routes
+│       ├── cron-auth.ts                # Shared CRON_SECRET request guard for cron-job.org / Netlify cron endpoints
 │       ├── dates-utc.ts                # UTC date helpers (todayUtc, previousUtcDay, toUtcDateString) — crons work in UTC only
 │       ├── topic-strips.ts             # **v2.13.8+** groupArticlesByTopic() — pure per-topic regroup/cap + localized titles for GET /api/news/strips
 │       ├── supabase.ts                 # Barrel re-export of src/lib/supabase/* (server-only queries)
@@ -187,6 +188,7 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 │       │   ├── generate-video-roundup.ts       # Re-exports `@/lib/generate-video-roundup`
 │       │   ├── topic-date-cron.ts              # Shared topic × date × lang loop driver (daily-summary + roundup crons)
 │       │   ├── cron-alert.ts                   # Operator alerting via Resend (`ALERT_EMAIL_TO`; unset = disabled; never throws, ≤ 10 s)
+│       │   ├── cron-auth.ts                    # Netlify cron guard wrapper around `src/lib/cron-auth.ts`
 │       │   └── transcribe-video.ts             # **v2.5+**: Re-exports `@/lib/transcribe-video` for cron bundling
 │       ├── cron-fetching-background.ts         # Claimed RSS fetch (15 min wall budget, every 15 min)
 │       ├── cron-scoring-background.ts          # Multi-pass AI scoring (15 min wall budget, every 15 min)
@@ -521,7 +523,7 @@ Canonical implementations live in `src/lib/`:
   3. Render once per lang via `src/lib/email/render-daily-newsletter.ts` — pure function producing `{ subject, html, text }` from the snapshot + bullets. The HTML mirrors the website's `Top24hHero` register (gold serif group titles, white body, gold pill chips for source refs) using **inline styles + a 600px wrapper `<table>`** (no `<style>` blocks, no flex/grid — Gmail/Outlook safe in 2026). The full `snapshot.articles` array is intentionally NOT rendered — the user explicitly asked for the grouped bullets + refs only, to keep the email scannable on mobile.
   4. Ship in 100-recipient chunks via Resend's `POST /emails/batch` endpoint with a `List-Unsubscribe: <mailto:…>` header (RFC 8058) and a `List-Unsubscribe-Post` companion so Gmail surfaces one-click unsubscribe. Per-batch try/catch — a failed batch doesn't abort the run.
 - Required env: `RESEND_API_KEY`. Optional: `RESEND_FROM_ADDRESS` (default `"8news <newsletter@8news.ai>"` — the domain must be verified in Resend), `NEWSLETTER_UNSUBSCRIBE_MAILTO` (default `unsubscribe@8news.ai`), `NEWSLETTER_PUBLIC_ORIGIN` (default `https://8news.ai`, used for the « Read online » CTA pointing at `/{summary_date}`).
-- No auth check on the URL (URL obscurity — same convention as the other `cron-*-background.ts` siblings). Idempotency: there is no built-in dedup, so triggering the cron twice in a day will send twice. Trust the scheduler.
+- Protected by `CRON_SECRET` like the other `cron-*` endpoints. Idempotency: there is no built-in dedup, so triggering the cron twice with the secret in a day will send twice. Trust the scheduler.
 
 #### Daily Podcast chat side panel (v2.13+)
 

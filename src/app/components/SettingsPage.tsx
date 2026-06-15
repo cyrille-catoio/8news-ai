@@ -28,8 +28,6 @@ export function SettingsPage({
   onTtsVoiceFrChange,
   homeMinScoreArticle,
   onHomeMinScoreArticleChange,
-  homeMinScoreVideo,
-  onHomeMinScoreVideoChange,
   onRequestAuth,
 }: {
   lang: Lang;
@@ -157,26 +155,18 @@ export function SettingsPage({
 
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <label style={{ color: color.textLabel, fontSize: 14, fontWeight: 500, whiteSpace: "nowrap" }}>
-                {lang === "fr" ? "Score min. vidéos" : "Min. video score"}
+                {lang === "fr" ? "Score top vidéo" : "Top video score"}
               </label>
-              <input
-                type="range"
-                min={1}
-                max={10}
-                step={1}
-                value={homeMinScoreVideo}
-                onChange={(e) => onHomeMinScoreVideoChange(Number(e.target.value))}
-                style={{ flex: 1, accentColor: color.gold, cursor: "pointer" }}
-              />
+              <div style={{ flex: 1 }} />
               <span style={{ color: color.gold, fontSize: 15, fontWeight: 600, minWidth: 36, textAlign: "center" }}>
-                {homeMinScoreVideo}/10
+                8/10
               </span>
             </div>
 
             <p style={{ color: color.textMuted, fontSize: 12, lineHeight: 1.5, marginTop: 10, marginBottom: 0 }}>
               {lang === "fr"
-                ? "Filtre minimum pour le top story et la top vidéo de la home. Défauts : 9 / 8."
-                : "Minimum filter for the home page's top story and top video. Defaults: 9 / 8."}
+                ? "Le Top story garde son filtre configurable. La top vidéo utilise un seuil fixe 8/10 et retombe sur hier si aucune vidéo qualifiée n'existe aujourd'hui."
+                : "Top story keeps its configurable filter. Top video uses a fixed 8/10 threshold and falls back to yesterday when today has no qualifying video."}
             </p>
           </div>
 

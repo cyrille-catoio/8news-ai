@@ -5,6 +5,7 @@ import { normalizeSummaryHeadings } from "@/lib/summary-headings";
 import { getHiddenTopicIds, getServerClient } from "@/lib/supabase";
 import { normalizeVideoScore } from "@/lib/score-format";
 import { parseLang } from "@/lib/api-helpers";
+import { previousUtcDay } from "@/lib/dates-utc";
 
 /**
  * GET /api/videos/top?lang=fr
@@ -14,14 +15,16 @@ import { parseLang } from "@/lib/api-helpers";
  * (migration 022): every video transcription scored ≥ 7 with topic /
  * slug / published_date set is inserted into the queue at scoring
  * time. The route scans queue candidates in round-robin order, hydrates
- * the backing video/transcription, keeps only YouTube publications from
- * the last 24h, then bumps `display_count` on the selected fresh row.
+ * the backing video/transcription, first keeps today's UTC publications,
+ * and falls back to yesterday when today has no match. Then it bumps
+ * `display_count` on the selected fresh row.
  *
- * Per-user thresholds
- * -------------------
- * The visitor's `homeMinScoreVideo` cookie (default **8**, clamp 1..10)
- * filters which queue rows can be picked. Authenticated users have the
- * value mirrored into `auth.users.user_metadata.home_min_score_video`.
+ * Threshold
+ * ---------
+ * TOP VIDEO uses a fixed threshold of 8/10. The Settings UI can still
+ * store `homeMinScoreVideo` for now, but this endpoint deliberately
+ * ignores it so an overly strict user cookie (9 or 10) cannot blank the
+ * home card.
  *
  * Caching layers (preserved)
  * --------------------------
@@ -39,25 +42,26 @@ import { parseLang } from "@/lib/api-helpers";
  */
 
 const ROTATION_BUCKET_MS = 10 * 60 * 1000;
-const FRESH_WINDOW_MS = 24 * 60 * 60 * 1000;
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const QUEUE_SCAN_BATCH_SIZE = 100;
 const QUEUE_SCAN_MAX_ROWS = 1000;
+/** Fixed TOP VIDEO threshold: 8/10. */
 const DEFAULT_MIN_SCORE = 8;
 /**
  * Only scan queue rows inserted within this window. `home_surface_queue`
  * grows unbounded (every video scored ≥ 7 is appended at scoring time
  * and never pruned), and the live scan orders by `display_count ASC` —
  * so the ever-growing backlog of stale, never-shown rows (display_count
- * 0, published > 24h ago) sorts to the FRONT and can exhaust the
+ * 0, not today/yesterday) sorts to the FRONT and can exhaust the
  * `QUEUE_SCAN_MAX_ROWS` budget before the scan ever reaches today's
  * fresh video (which sinks behind the backlog as soon as it's shown
  * once and its display_count rises). That made the TOP VIDEO card show
  * once then vanish. A queue row is always inserted AT or AFTER the
  * backing video's publication, so any video fresh enough to pass the
- * 24h `published` filter below was necessarily inserted within the last
- * 24h too — bounding the scan to a generous 48h `inserted_at` window
+ * today/yesterday filter below was necessarily inserted recently too.
+ * Bounding the scan to a generous 72h `inserted_at` window
  * never drops a fresh candidate while keeping the scan set tiny. */
-const QUEUE_INSERT_FRESH_WINDOW_MS = 2 * FRESH_WINDOW_MS;
+const QUEUE_INSERT_FRESH_WINDOW_MS = 3 * ONE_DAY_MS;
 
 interface VideoTopItem {
   videoId: string;
@@ -92,11 +96,16 @@ interface CacheEntry {
 
 const cache = new Map<string, CacheEntry>();
 
-function parseThreshold(raw: string | null | undefined, fallback: number): number {
-  if (!raw) return fallback;
-  const n = Number.parseInt(raw, 10);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.min(10, Math.max(1, n));
+function topVideoDates(now: number): { today: string; yesterday: string } {
+  const today = new Date(now).toISOString().slice(0, 10);
+  return { today, yesterday: previousUtcDay(today) };
+}
+
+function isPublicationOnUtcDate(iso: string | null | undefined, targetDate: string, now: number): boolean {
+  if (!iso) return false;
+  const publishedAt = new Date(iso).getTime();
+  if (!Number.isFinite(publishedAt) || publishedAt > now) return false;
+  return new Date(publishedAt).toISOString().slice(0, 10) === targetDate;
 }
 
 function jsonResponse(
@@ -156,9 +165,9 @@ interface FreshVideoCandidate {
 
 function isFreshPublication(iso: string | null | undefined, now: number): boolean {
   if (!iso) return false;
-  const publishedAt = new Date(iso).getTime();
-  if (!Number.isFinite(publishedAt)) return false;
-  return publishedAt <= now && now - publishedAt < FRESH_WINDOW_MS;
+  const { today, yesterday } = topVideoDates(now);
+  return isPublicationOnUtcDate(iso, today, now)
+    || isPublicationOnUtcDate(iso, yesterday, now);
 }
 
 function toVideoTopItem(
@@ -235,6 +244,7 @@ async function getFreshVideoCandidates(
     threshold,
     hiddenTopics,
     now,
+    targetDate,
     mode,
     offset,
   }: {
@@ -242,12 +252,11 @@ async function getFreshVideoCandidates(
     threshold: number;
     hiddenTopics: string[];
     now: number;
+    targetDate: string;
     mode: "live" | "history";
     offset: number;
   },
 ): Promise<FreshVideoCandidate[]> {
-  const cutoffIso = new Date(now - FRESH_WINDOW_MS).toISOString();
-  const nowIso = new Date(now).toISOString();
   const queueInsertCutoffIso = new Date(now - QUEUE_INSERT_FRESH_WINDOW_MS).toISOString();
   const fresh: FreshVideoCandidate[] = [];
   let scanned = 0;
@@ -293,17 +302,21 @@ async function getFreshVideoCandidates(
     const transcriptionsById = await fetchTranscriptionsById(db, refIds);
     if (!transcriptionsById) return [];
 
-    const videoIds = Array.from(new Set(
-      Array.from(transcriptionsById.values()).map((row) => row.video_id),
-    ));
+    const targetTranscriptions = Array.from(transcriptionsById.values())
+      .filter((row) => row.published_date === targetDate);
+    if (targetTranscriptions.length === 0) {
+      if (queueRows.length < QUEUE_SCAN_BATCH_SIZE) break;
+      scanned += queueRows.length;
+      continue;
+    }
+
+    const videoIds = Array.from(new Set(targetTranscriptions.map((row) => row.video_id)));
     const { data: videoData, error: videoErr } = await db
       .from("youtube_videos")
       .select(
         "video_id, title, description, channel_title, channel_id, published, thumbnail, view_count, duration_sec, link",
       )
-      .in("video_id", videoIds)
-      .gte("published", cutoffIso)
-      .lte("published", nowIso);
+      .in("video_id", videoIds);
 
     if (videoErr) {
       console.error(`[/api/videos/top] fresh youtube_videos SELECT error: ${videoErr.message}`);
@@ -318,8 +331,10 @@ async function getFreshVideoCandidates(
     for (const queueRow of queueRows) {
       const tr = transcriptionsById.get(queueRow.ref_id);
       if (!tr) continue;
+      if (tr.published_date !== targetDate) continue;
       const yv = videoById.get(tr.video_id);
       if (!yv) continue;
+      if (!isPublicationOnUtcDate(yv.published, targetDate, now)) continue;
       fresh.push({ queue: queueRow, video: toVideoTopItem(tr, yv, lang) });
       if (fresh.length >= offset + 2) break;
     }
@@ -338,17 +353,17 @@ async function getFreshVideoCandidatesFromTranscriptions(
     threshold,
     hiddenTopics,
     now,
+    targetDate,
     offset,
   }: {
     lang: Lang;
     threshold: number;
     hiddenTopics: string[];
     now: number;
+    targetDate: string;
     offset: number;
   },
 ): Promise<FreshVideoCandidate[]> {
-  const cutoffIso = new Date(now - FRESH_WINDOW_MS).toISOString();
-  const nowIso = new Date(now).toISOString();
   const fresh: FreshVideoCandidate[] = [];
 
   let q = db
@@ -362,6 +377,7 @@ async function getFreshVideoCandidatesFromTranscriptions(
     .not("topic_id", "is", null)
     .not("slug_keywords", "is", null)
     .not("published_date", "is", null)
+    .eq("published_date", targetDate)
     .order("summary_score", { ascending: false })
     .order("summary_scored_at", { ascending: false })
     .limit(100);
@@ -385,9 +401,7 @@ async function getFreshVideoCandidatesFromTranscriptions(
     .select(
       "video_id, title, description, channel_title, channel_id, published, thumbnail, view_count, duration_sec, link",
     )
-    .in("video_id", videoIds)
-    .gte("published", cutoffIso)
-    .lte("published", nowIso);
+    .in("video_id", videoIds);
 
   if (videoErr) {
     console.error(`[/api/videos/top] fallback youtube_videos SELECT error: ${videoErr.message}`);
@@ -402,6 +416,7 @@ async function getFreshVideoCandidatesFromTranscriptions(
   for (const tr of transcriptions) {
     const yv = videoById.get(tr.video_id);
     if (!yv) continue;
+    if (!isPublicationOnUtcDate(yv.published, targetDate, now)) continue;
     fresh.push({ video: toVideoTopItem(tr, yv, lang) });
     if (fresh.length >= offset + 2) break;
   }
@@ -425,10 +440,10 @@ async function markVideoDisplayed(db: SupabaseClient, queue: QueueRow, now: numb
 
 export async function GET(request: NextRequest) {
   const lang = parseLang(request.nextUrl.searchParams.get("lang"));
-  const threshold = parseThreshold(
-    request.cookies.get("homeMinScoreVideo")?.value,
-    DEFAULT_MIN_SCORE,
-  );
+  // Fixed product threshold: TOP VIDEO should show any strong recap
+  // (>= 8/10). Ignore stale/over-strict cookies so the home card does
+  // not disappear for users who previously set 9 or 10.
+  const threshold = DEFAULT_MIN_SCORE;
   // `offset=0` (or absent) → live mode (fresh pick + display_count++).
   // `offset>0` → history mode (read-only, ordered by last_displayed_at DESC).
   const offset = Math.max(
@@ -459,28 +474,42 @@ export async function GET(request: NextRequest) {
 
   const db = await dbP;
   const hiddenTopics = await getHiddenTopicIds();
+  const { today, yesterday } = topVideoDates(now);
 
-  if (isLive) {
+  const getCandidatesForDate = async (
+    targetDate: string,
+    mode: "live" | "history",
+    candidateOffset: number,
+  ): Promise<FreshVideoCandidate[]> => {
     let candidates = await getFreshVideoCandidates(db, {
       lang,
       threshold,
       hiddenTopics,
       now,
-      mode: "live",
-      offset: 0,
+      targetDate,
+      mode,
+      offset: candidateOffset,
     });
     if (candidates.length === 0) {
-      // Self-healing fallback: if the denormalized queue is empty or
-      // incomplete (e.g. rows missed before mig 037 decimal-score
-      // backfill), read directly from fresh `video_transcriptions` so
-      // the home does not go blank.
       candidates = await getFreshVideoCandidatesFromTranscriptions(db, {
         lang,
         threshold,
         hiddenTopics,
         now,
-        offset: 0,
+        targetDate,
+        offset: candidateOffset,
       });
+    }
+    return candidates;
+  };
+
+  if (isLive) {
+    let candidates = await getCandidatesForDate(today, "live", 0);
+    if (candidates.length === 0) {
+      // Product contract: show today's top video first; if today has no
+      // qualifying recap, fall back to yesterday rather than hiding the
+      // home card.
+      candidates = await getCandidatesForDate(yesterday, "live", 0);
     }
 
     const picked = candidates[0];
@@ -506,25 +535,11 @@ export async function GET(request: NextRequest) {
   // Same ordering rationale as /api/news/top-story: most-recently-
   // displayed first (= previous bucket's pick), then never-displayed
   // rows by insertion freshness. NULLS LAST keeps unshown candidates
-  // accessible from the chevron browse. Offset is applied after the 24h
+  // accessible from the chevron browse. Offset is applied after the 48h
   // freshness filter, so chevrons never land on stale videos.
-  let candidates = await getFreshVideoCandidates(db, {
-    lang,
-    threshold,
-    hiddenTopics,
-    now,
-    mode: "history",
-    offset,
-  });
-
+  let candidates = await getCandidatesForDate(today, "history", offset);
   if (candidates.length === 0) {
-    candidates = await getFreshVideoCandidatesFromTranscriptions(db, {
-      lang,
-      threshold,
-      hiddenTopics,
-      now,
-      offset,
-    });
+    candidates = await getCandidatesForDate(yesterday, "history", offset);
   }
 
   if (candidates.length === 0) {

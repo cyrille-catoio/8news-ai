@@ -12,7 +12,9 @@ export function requireCronSecret(req: Request | undefined, cronName: string): b
   return checkCronSecret(req, cronName).ok;
 }
 
-export function unauthorizedCronResponse(result: CronAuthResult): Response {
+export function unauthorizedCronResponse(
+  result: Extract<CronAuthResult, { ok: false }>,
+): Response {
   return Response.json(
     { ok: false, error: "unauthorized_cron_request", reason: result.reason },
     { status: result.reason === "missing_config" ? 500 : 401 },

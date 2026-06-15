@@ -8,6 +8,7 @@ import {
 } from "../../src/lib/watchdog-checks";
 import { startCronRun } from "./shared/cron-log";
 import { sendCronAlert } from "./shared/cron-alert";
+import { checkCronSecret } from "./shared/cron-auth";
 
 /**
  * Freshness watchdog — checks that the pipelines' OUTPUT data is fresh
@@ -46,7 +47,11 @@ import { sendCronAlert } from "./shared/cron-alert";
  * alert channel, not the HTTP status).
  */
 
-export default async (): Promise<Response> => {
+export default async (req: Request): Promise<Response> => {
+  const cronAuth = checkCronSecret(req);
+  if (cronAuth.warning) console.warn(`[cron-watchdog] ${cronAuth.warning}`);
+  if (!cronAuth.ok && cronAuth.rejection) return cronAuth.rejection;
+
   const { log, elog, elapsedMs } = startCronRun("cron-watchdog");
 
   // Shared cached service-role client (AGENTS.md § 6) — returns null
@@ -135,9 +140,13 @@ export default async (): Promise<Response> => {
     if (missing.length > 0) {
       const origin = process.env.URL?.trim() || "https://8news.ai";
       const healUrl = `${origin}/.netlify/functions/cron-top-summary-background?langs=${missing.join(",")}`;
+      // Forward the cron secret via header (kept out of URL logs) so the
+      // self-heal keeps working once CRON_ENFORCE_SECRET is turned on.
+      const cronSecret = process.env.CRON_SECRET?.trim();
       try {
         const res = await fetch(healUrl, {
           method: "GET",
+          headers: cronSecret ? { "x-cron-secret": cronSecret } : undefined,
           signal: AbortSignal.timeout(10_000),
         });
         const note = `Auto-réparation : cron-top-summary-background relancé pour langs=${missing.join(",")} (http=${res.status})`;

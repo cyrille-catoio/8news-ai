@@ -8,6 +8,7 @@ import {
 import { todayUtc } from "../../src/lib/dates-utc";
 import { startCronRun } from "./shared/cron-log";
 import { sendCronAlert } from "./shared/cron-alert";
+import { checkCronSecret } from "./shared/cron-auth";
 import type { Lang } from "../../src/lib/i18n";
 
 /**
@@ -45,6 +46,10 @@ import type { Lang } from "../../src/lib/i18n";
  */
 
 export default async (req: Request) => {
+  const cronAuth = checkCronSecret(req);
+  if (cronAuth.warning) console.warn(`[cron-top-summary] ${cronAuth.warning}`);
+  if (!cronAuth.ok) return cronAuth.rejection;
+
   const { log, elog, errorLines, elapsedMs } = startCronRun("cron-top-summary");
   const summaryDate = process.env.TOP_SUMMARY_DATE?.trim() || todayUtc();
   const langs: readonly Lang[] = parseTopSummaryLangsParam(

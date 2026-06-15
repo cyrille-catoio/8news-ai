@@ -158,7 +158,10 @@ export async function generateDailySummary(
       : `Article list:\n${formatArticleList(items)}`,
   );
 
-  const openai = new OpenAI({ apiKey });
+  // Explicit timeout so a hung OpenAI request can't pin the background
+  // function for the SDK's 10-min default. 240 s matches `ai-analyze.ts`,
+  // the sibling article→summary generation.
+  const openai = new OpenAI({ apiKey, timeout: 240_000 });
   const messages: Array<{ role: "system" | "user"; content: string }> = [
     { role: "system", content: systemPrompt },
     { role: "user", content: userList },

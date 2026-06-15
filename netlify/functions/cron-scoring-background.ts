@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { scoreTopicForCron } from "./shared/score-topic";
 import { startCronRun } from "./shared/cron-log";
 import { sendCronAlert } from "./shared/cron-alert";
+import { checkCronSecret } from "./shared/cron-auth";
 
 // Background functions have a 15-minute hard timeout on Netlify and the
 // scoring cron is triggered every 15 minutes. Keep the default budget below
@@ -216,7 +217,10 @@ async function runCron(): Promise<void> {
   console.log(lines.join("\n"));
 }
 
-export default async (): Promise<void> => {
+export default async (req: Request): Promise<void> => {
+  const cronAuth = checkCronSecret(req);
+  if (cronAuth.warning) console.warn(`[cron-scoring-background] ${cronAuth.warning}`);
+  if (!cronAuth.ok) return;
   try {
     await runCron();
   } catch (fatal) {

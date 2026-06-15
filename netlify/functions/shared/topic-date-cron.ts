@@ -99,6 +99,21 @@ export interface RunTopicDateLangCronOptions<R> {
 }
 
 export async function runTopicDateLangCron<R>(opts: RunTopicDateLangCronOptions<R>): Promise<void> {
+  // Outer guard: the in-loop try/catch (below) only covers `generateOne`.
+  // A throw BEFORE/around the loop — Supabase client init, the initial
+  // topics/done-set reads, schema drift — would otherwise be an opaque
+  // Netlify failure with no email. Wrap the whole run so the operator
+  // always gets alerted on a catastrophic failure.
+  try {
+    await runTopicDateLangCronInner(opts);
+  } catch (fatal) {
+    const msg = fatal instanceof Error ? (fatal.stack ?? fatal.message) : String(fatal);
+    console.error(`[cron-${opts.cronName}] [fatal] — ${msg}`);
+    await sendCronAlert(opts.cronName, `[fatal] — ${msg}`);
+  }
+}
+
+async function runTopicDateLangCronInner<R>(opts: RunTopicDateLangCronOptions<R>): Promise<void> {
   const budgetMs = Number(process.env[opts.budgetEnv ?? ""] ?? DEFAULT_BUDGET_MS);
   const maxTopicsPerRun = Number(process.env[opts.maxTopicsEnv ?? ""] ?? opts.defaultMaxTopics);
   const { elapsedMs, remaining } = startCronRun(

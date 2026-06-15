@@ -10,6 +10,7 @@ import type {
 import { renderDailyNewsletter } from "../../src/lib/email/render-daily-newsletter";
 import { startCronRun } from "./shared/cron-log";
 import { sendCronAlert } from "./shared/cron-alert";
+import { checkCronSecret } from "./shared/cron-auth";
 import type { Lang } from "../../src/lib/i18n";
 
 /**
@@ -280,6 +281,10 @@ async function runCron(): Promise<void> {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(payload),
+          // Bound each batch POST so a hung Resend call can't pin the
+          // function up to the Netlify wall (~15 min). cron-alert uses 10 s
+          // for its single send; 30 s here covers a 100-recipient batch.
+          signal: AbortSignal.timeout(30_000),
         });
         const bodyText = await res.text();
         let json: ResendBatchResponse | null = null;
@@ -328,7 +333,10 @@ async function runCron(): Promise<void> {
   }
 }
 
-export default async (): Promise<void> => {
+export default async (req: Request): Promise<void> => {
+  const cronAuth = checkCronSecret(req);
+  if (cronAuth.warning) console.warn(`[cron-newsletter] ${cronAuth.warning}`);
+  if (!cronAuth.ok) return;
   try {
     await runCron();
   } catch (fatal) {

@@ -1,5 +1,6 @@
 import { generateVideoRoundup } from "./shared/generate-video-roundup";
 import { runTopicDateLangCron } from "./shared/topic-date-cron";
+import { checkCronSecret } from "./shared/cron-auth";
 
 /**
  * Nightly background function — generates yesterday's video roundup
@@ -24,8 +25,11 @@ import { runTopicDateLangCron } from "./shared/topic-date-cron";
  * v1.88, see SPEC).
  */
 
-export default async () =>
-  runTopicDateLangCron({
+export default async (req: Request) => {
+  const cronAuth = checkCronSecret(req);
+  if (cronAuth.warning) console.warn(`[cron-video-roundup] ${cronAuth.warning}`);
+  if (!cronAuth.ok) return;
+  return runTopicDateLangCron({
     cronName: "video-roundup",
     dateOverrideEnv: "ROUNDUP_DATE",
     budgetEnv: "VIDEO_ROUNDUP_BUDGET_MS",
@@ -74,3 +78,4 @@ export default async () =>
     },
     summaryCounterKeys: ["generated", "no_videos", "errors"] as const,
   });
+};

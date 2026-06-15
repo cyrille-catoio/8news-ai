@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireOwnerSession } from "@/lib/auth-api";
 import { getActiveTopics, getServerClient } from "@/lib/supabase";
 import type { CronStatsResponse } from "@/lib/types";
 
@@ -31,6 +32,11 @@ const FETCH_HIGH_AFTER_MINUTES = 120;
 const FETCH_TO_SCORE_SLA_MINUTES = SCORING_CRON_INTERVAL_MINUTES;
 
 export async function GET() {
+  // Owner-only: exposes internal pipeline metrics (fetch/score timestamps,
+  // latency percentiles, SLA, backlog) consumed by the Cron Monitor admin UI.
+  const auth = await requireOwnerSession();
+  if (!auth.ok) return auth.response;
+
   const supabaseP = getServerClient();
   if (!supabaseP) {
     return NextResponse.json({ error: "DB not configured" }, { status: 500 });

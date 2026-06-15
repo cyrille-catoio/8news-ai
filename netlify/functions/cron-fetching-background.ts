@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { fetchAndStoreTopicDynamic } from "./shared/fetch-topic";
 import { startCronRun } from "./shared/cron-log";
 import { sendCronAlert } from "./shared/cron-alert";
+import { checkCronSecret } from "./shared/cron-auth";
 
 // Background functions have a 15-minute hard wall on Netlify.
 // This cron is fetch-only: no AI scoring. Scoring is handled exclusively
@@ -152,7 +153,10 @@ async function runCron(): Promise<void> {
   console.log(lines.join("\n"));
 }
 
-export default async (): Promise<void> => {
+export default async (req: Request): Promise<void> => {
+  const cronAuth = checkCronSecret(req);
+  if (cronAuth.warning) console.warn(`[cron-fetching-background] ${cronAuth.warning}`);
+  if (!cronAuth.ok) return;
   try {
     await runCron();
   } catch (fatal) {

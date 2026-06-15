@@ -6,6 +6,7 @@ import { buildVideoBulletRows } from "../../src/lib/video-bullets";
 import { insertVideoBullets } from "../../src/lib/supabase";
 import { startCronRun } from "./shared/cron-log";
 import { sendCronAlert } from "./shared/cron-alert";
+import { checkCronSecret } from "./shared/cron-auth";
 
 /**
  * 15-minute background function — pre-warms the AI summary cache for
@@ -75,7 +76,7 @@ interface CandidateVideo {
   published: string;
 }
 
-export default async () => {
+async function runCron(): Promise<void> {
   const { elapsedMs, remaining } = startCronRun(
     "cron-video-transcribe",
     Math.min(WALL_MS, BUDGET_MS),
@@ -396,5 +397,22 @@ export default async () => {
       summary,
       lines.filter((l) => l.includes("error") || l.includes("threw")),
     );
+  }
+}
+
+export default async (req: Request): Promise<void> => {
+  const cronAuth = checkCronSecret(req);
+  if (cronAuth.warning) console.warn(`[cron-video-transcribe] ${cronAuth.warning}`);
+  if (!cronAuth.ok) return;
+  try {
+    await runCron();
+  } catch (fatal) {
+    // Per-video errors are handled (and alerted on total failure) inside
+    // runCron; this catch only exists for a catastrophic throw BEFORE/around
+    // the loop (env missing, schema drift, refresh blow-up) which would
+    // otherwise be an opaque Netlify failure with no email.
+    const msg = fatal instanceof Error ? (fatal.stack ?? fatal.message) : String(fatal);
+    console.error(`[cron-video-transcribe] [fatal] — ${msg}`);
+    await sendCronAlert("video-transcribe", `[fatal] — ${msg}`);
   }
 };

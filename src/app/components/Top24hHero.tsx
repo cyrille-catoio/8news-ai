@@ -358,7 +358,7 @@ export function Top24hHero({
     : baseTitle;
 
   return (
-    <section style={{ marginBottom: 36 }}>
+    <section style={{ marginBottom: isRead ? 16 : 36 }}>
       <div
         style={{
           display: "flex",
@@ -471,25 +471,66 @@ export function Top24hHero({
       <div
         style={{
           ...card,
-          padding: isRead ? "16px 22px 12px" : "22px 22px 16px",
+          padding: isRead ? "8px 14px" : "22px 22px 16px",
           borderColor: color.gold,
           background:
             "linear-gradient(180deg, rgba(201,162,39,0.04), transparent 60%), " + color.surface,
           transition: "padding 280ms ease",
         }}
       >
-        <div className="top24h-hero-header" style={{ marginBottom: isRead ? 4 : 14, transition: "margin-bottom 280ms ease" }}>
-          <div className="top24h-hero-heading-row">
+        <div className="top24h-hero-header" style={{ marginBottom: isRead ? 0 : 14, transition: "margin-bottom 280ms ease" }}>
+          <div
+            className="top24h-hero-heading-row"
+            style={{
+              alignItems: isRead ? "center" : undefined,
+              flexWrap: isRead ? "nowrap" : undefined,
+              gap: isRead ? 10 : undefined,
+            }}
+          >
+            {onToggleRead && isRead && (
+              <label
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  flexShrink: 0,
+                  cursor: "pointer",
+                  color: color.gold,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  lineHeight: 1,
+                  userSelect: "none",
+                  transition: "color 140ms ease",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked
+                  onChange={onToggleRead}
+                  style={{
+                    width: 13,
+                    height: 13,
+                    margin: 0,
+                    accentColor: color.gold,
+                    cursor: "pointer",
+                  }}
+                />
+                {t("top24hHeroReadLabel", lang)}
+              </label>
+            )}
           <h2
             className="top24h-hero-title"
             style={{
               fontFamily: "ui-serif, Georgia, serif",
-              fontSize: "clamp(20px, 2.6vw, 26px)",
-              lineHeight: 1.2,
+              fontSize: isRead ? "clamp(15px, 2vw, 18px)" : "clamp(20px, 2.6vw, 26px)",
+              lineHeight: isRead ? 1.15 : 1.2,
               color: color.text,
               margin: 0,
               fontWeight: 400,
               letterSpacing: "-0.01em",
+              overflow: isRead ? "hidden" : undefined,
+              textOverflow: isRead ? "ellipsis" : undefined,
+              whiteSpace: isRead ? "nowrap" : undefined,
             }}
           >
             {headingTitle}
@@ -501,15 +542,17 @@ export function Top24hHero({
                 the card opens with a tighter header. On phones the
                 CSS forces it back to its own line so neither the H2
                 nor the toggle get crammed. */}
-            <div
-              className="top24h-hero-generated"
-              style={{ color: color.textDim, fontSize: 12, letterSpacing: "0.02em" }}
-            >
-              {t("topSummaryGeneratedOn", lang).replace(
-                "{date}",
-                new Date(snap.generatedAt).toLocaleString(locale),
-              )}
-            </div>
+            {!isRead && (
+              <div
+                className="top24h-hero-generated"
+                style={{ color: color.textDim, fontSize: 12, letterSpacing: "0.02em" }}
+              >
+                {t("topSummaryGeneratedOn", lang).replace(
+                  "{date}",
+                  new Date(snap.generatedAt).toLocaleString(locale),
+                )}
+              </div>
+            )}
             {/* Master toggle. `allOpen` reflects « every group is
                 expanded »; clicking flips the whole set in one
                 update. Title attribute doubles as a tooltip for the
@@ -815,7 +858,7 @@ export function Top24hHero({
             as a single flex row so the two affordances sit side-by-side
             on a wide card; the row gracefully collapses when only one
             is present, keeping spacing balanced. */}
-        {(onToggleRead || (showSeeAllLink && onNavigate)) && (
+        {!isRead && (onToggleRead || (showSeeAllLink && onNavigate)) && (
           <div
             style={{
               marginTop: 14,

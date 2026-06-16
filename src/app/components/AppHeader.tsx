@@ -257,6 +257,8 @@ export function AppHeader({
   onLangChange,
   authModalOpen,
   onAuthModalChange,
+  chatOpen,
+  onToggleChat,
 }: {
   currentPage: AppNavPage;
   lang: Lang;
@@ -265,6 +267,10 @@ export function AppHeader({
   onLangChange: (l: Lang) => void;
   authModalOpen: boolean;
   onAuthModalChange: (open: boolean) => void;
+  /** Daily Podcast chat open state — drives the mobile in-header toggle. */
+  chatOpen: boolean;
+  /** Toggles the Daily Podcast chat panel. */
+  onToggleChat: () => void;
 }) {
   const { session, loading: authLoading, signOut } = useAuth();
   const authed = Boolean(session?.user);
@@ -328,6 +334,7 @@ export function AppHeader({
           with the brand below. */}
       {showCryptoTicker && (
         <div
+          className="crypto-ticker-strip"
           style={{
             display: "flex",
             justifyContent: "center",
@@ -400,6 +407,20 @@ export function AppHeader({
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
           </NavIconButton>
+          {/* Chat toggle — placed between the settings icon and the user
+              menu at every viewport size. This replaces the old floating
+              top-right bubble so the header has a single chat affordance. */}
+          <span className="header-chat-icon-wrap">
+            <NavIconButton
+              active={chatOpen}
+              onClick={() => { trackEvent("nav.header_icon", { target_id: "chat", lang }); onToggleChat(); }}
+              ariaLabel={chatOpen ? t("podcastChatClose", lang) : t("podcastChatOpen", lang)}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8 8.38 8.38 0 0 1 8.5-8.5 8.5 8.5 0 0 1 8.5 8.5z" />
+              </svg>
+            </NavIconButton>
+          </span>
           <UserMenu
             lang={lang}
             authed={authed}

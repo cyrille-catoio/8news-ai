@@ -23,6 +23,9 @@ import { PodcastChatMarkdown } from "@/app/components/podcast-chat/PodcastChatMa
  * This component only renders for authenticated users (the parent gates
  * on session). It hydrates the day's thread on first open, streams the
  * answer token-by-token, and offers a « clear conversation » action.
+ * On mobile, the parent floating close button is hidden to reclaim
+ * header height, so the panel renders its own close button in the
+ * title row.
  */
 
 interface ChatMessage {
@@ -406,6 +409,30 @@ export function DailyPodcastChatPanel({
                 </span>
                 {t("podcastChatTitle", lang)}
               </span>
+              <button
+                type="button"
+                className="podcast-chat-panel-close"
+                onClick={() => onOpenChange(false)}
+                aria-label={t("podcastChatClose", lang)}
+                title={t("podcastChatClose", lang)}
+                style={{
+                  marginLeft: "auto",
+                  width: 30,
+                  height: 30,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: 8,
+                  border: `1px solid ${color.border}`,
+                  background: color.bg,
+                  color: color.textMuted,
+                  cursor: "pointer",
+                }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
             </div>
             {/* Context chip — now spans the full header width since the
                 « clear » action moved to a top-right icon next to close. */}

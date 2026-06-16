@@ -172,6 +172,30 @@ body.podcast-chat-resizing .podcast-chat-resize::after {
   }
 }
 
+/* Chat toggle placement.
+   The chat affordance lives in the header icon cluster at every viewport
+   size, between the settings icon and the user menu. The old floating
+   top-right FAB is hidden to avoid a duplicate control; on mobile, where
+   the full-width panel covers the header, the panel owns its close
+   button in the title row. */
+.header-chat-icon-wrap {
+  display: inline-flex;
+}
+
+.podcast-chat-panel-close {
+  display: none !important;
+}
+
+.podcast-chat-fab {
+  display: none !important;
+}
+
+@media (max-width: 760px) {
+  .podcast-chat-panel-close {
+    display: inline-flex !important;
+  }
+}
+
 /* Smooth open animation for `Top24hHero` accordion rows — fades the
    expanded body in + drops it 4 px so the click visibly produces
    movement. Tied to inline `animation: top24hExpandFade …` in the

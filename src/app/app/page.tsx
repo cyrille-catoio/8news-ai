@@ -54,7 +54,7 @@ import { DailyPodcastChatPanel } from "@/app/components/podcast-chat/DailyPodcas
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.13.13";
+const APP_VERSION = "2.13.14";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 // Daily Podcast chat panel width bounds (desktop). The panel is
@@ -641,6 +641,8 @@ export default function Home() {
           onLangChange={handleLangChange}
           authModalOpen={authModalOpen}
           onAuthModalChange={setAuthModalOpen}
+          chatOpen={chatOpen}
+          onToggleChat={() => handleChatOpenChange(!chatOpen)}
         />
 
         {/* ── General menu (visible on all pages) ─────────────── */}
@@ -1066,6 +1068,7 @@ export default function Home() {
         <>
           <button
             type="button"
+            className={`podcast-chat-fab${chatOpen ? " is-open" : ""}`}
             onClick={() => handleChatOpenChange(!chatOpen)}
             aria-label={chatOpen ? t("podcastChatClose", lang) : t("podcastChatOpen", lang)}
             aria-expanded={chatOpen}

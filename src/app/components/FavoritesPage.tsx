@@ -102,6 +102,12 @@ function favoriteVideoHref(fav: FavoriteItem, lang: Lang): string {
   return "/app/videos";
 }
 
+function appAbsoluteUrl(path: string): string {
+  if (/^https?:\/\//i.test(path)) return path;
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://8news.ai";
+  return `${origin}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
 export function FavoritesPage({
   lang,
   favoriteUrls,
@@ -320,7 +326,7 @@ export function FavoritesPage({
                         </>
                       )}
                     </span>
-                    <CopyLinkButton url={fav.url} />
+                    <CopyLinkButton url={isVideo ? appAbsoluteUrl(titleHref) : fav.url} />
                   </div>
                   {isVideo && fav.videoId && expandedTranscriptions[fav.videoId] !== undefined && (
                     <div

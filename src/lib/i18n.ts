@@ -1245,6 +1245,54 @@ const strings = {
     en: "Updates every minute",
     fr: "Actualisation chaque minute",
   },
+  cryptoTickerPickerMenuItem: {
+    en: "Crypto ticker",
+    fr: "Ticker crypto",
+  },
+  cryptoTickerPickerTitle: {
+    en: "Header cryptos",
+    fr: "Cryptos du header",
+  },
+  cryptoTickerPickerHint: {
+    en: "Choose up to 10 coins from the CoinGecko top 50.",
+    fr: "Choisissez jusqu'à 10 cryptos parmi le top 50 CoinGecko.",
+  },
+  cryptoTickerPickerReset: {
+    en: "Reset default list",
+    fr: "Réinitialiser la liste par défaut",
+  },
+  cryptoTickerPickerLoading: {
+    en: "Loading top 50…",
+    fr: "Chargement du top 50…",
+  },
+  cryptoTickerPickerUnavailable: {
+    en: "Top 50 unavailable for now.",
+    fr: "Top 50 indisponible pour le moment.",
+  },
+  cryptoTickerPickerLimit: {
+    en: "Maximum 10 coins in the header.",
+    fr: "Maximum 10 cryptos dans le header.",
+  },
+  cryptoTickerSettingsTitle: {
+    en: "Crypto ticker settings",
+    fr: "Paramètres du ticker crypto",
+  },
+  cryptoTickerSettingsSubtitle: {
+    en: "Search the CoinGecko top 50 and choose the coins shown at the top of 8news.",
+    fr: "Recherchez dans le top 50 CoinGecko et choisissez les cryptos affichées tout en haut de 8news.",
+  },
+  cryptoTickerSettingsSelection: {
+    en: "Current selection",
+    fr: "Sélection actuelle",
+  },
+  cryptoTickerSearchPlaceholder: {
+    en: "Search by name, symbol or rank",
+    fr: "Rechercher par nom, symbole ou rang",
+  },
+  cryptoTickerSearchEmpty: {
+    en: "No crypto matches this search.",
+    fr: "Aucune crypto ne correspond à cette recherche.",
+  },
   favoritesTitle: {
     en: "My Favorites",
     fr: "Mes Favoris",
@@ -1546,15 +1594,15 @@ const strings = {
   },
   podcastChatPlaceholder: {
     en: "Ask anything about today's briefing…",
-    fr: "Posez une question sur le briefing du jour…",
+    fr: "Posez une question sur le briefing…",
   },
   podcastChatSend: {
     en: "Send",
     fr: "Envoyer",
   },
   podcastChatEmpty: {
-    en: "Ask a question about today's podcast. The full briefing — text, notes and source links — is used as context.",
-    fr: "Posez une question sur le podcast du jour. Tout le briefing (texte, notes et liens sources) sert de contexte.",
+    en: "Ask the AI a question about today's podcast. It uses the full briefing — text, notes and source links — as context, and is designed for technical questions, keyword definitions or more complex follow-ups.",
+    fr: "Posez une question à l'IA sur le podcast du jour. Elle utilise tout le briefing (texte, notes et liens sources) comme contexte, et sert aux questions techniques, aux définitions de mots-clés ou aux questions plus complexes.",
   },
   podcastChatSignInHint: {
     en: "Type your question — you'll be asked to sign in (free) to get the answer.",
@@ -1575,6 +1623,110 @@ const strings = {
   podcastChatClearConfirm: {
     en: "Hide today's conversation from view? It stays saved and won't be deleted.",
     fr: "Masquer la conversation du jour ? Elle reste enregistrée et ne sera pas supprimée.",
+  },
+  podcastChatCopyAnswer: {
+    en: "Copy answer",
+    fr: "Copier la réponse",
+  },
+  podcastChatCopiedAnswer: {
+    en: "Copied",
+    fr: "Copié",
+  },
+  podcastChatPlayAnswer: {
+    en: "Play answer",
+    fr: "Lire la réponse",
+  },
+
+  // ── Profile nickname (v2.14+) ───────────────────────────────────
+  nickname: {
+    en: "Nickname",
+    fr: "Surnom",
+  },
+  nicknameHint: {
+    en: "Optional — used as your name in the community chat, so you can stay anonymous.",
+    fr: "Optionnel — utilisé comme nom dans le chat de la communauté, pour rester anonyme.",
+  },
+  nicknamePlaceholder: {
+    en: "e.g. nightowl",
+    fr: "ex. noctambule",
+  },
+
+  // ── Community chat side panel (v2.14+) ──────────────────────────
+  userChatOpen: {
+    en: "Open community chat",
+    fr: "Ouvrir le chat de la communauté",
+  },
+  userChatClose: {
+    en: "Close",
+    fr: "Fermer",
+  },
+  userChatTitle: {
+    en: "Community chat",
+    fr: "Chat de la communauté",
+  },
+  userChatSubtitle: {
+    en: "Public room",
+    fr: "Salon public",
+  },
+  userChatPinnedNotice: {
+    en: "Public room for tech, AI and crypto. Ask, debate, share links — always respectfully.",
+    fr: "Salon public autour de la tech, de l'IA et de la crypto. Posez vos questions, débattez, partagez des liens — toujours avec respect.",
+  },
+  userChatResize: {
+    en: "Drag to resize",
+    fr: "Glisser pour redimensionner",
+  },
+  userChatPlaceholder: {
+    en: "Write a message…",
+    fr: "Écrire un message…",
+  },
+  userChatSend: {
+    en: "Send",
+    fr: "Envoyer",
+  },
+  userChatEmoji: {
+    en: "Add an emoji",
+    fr: "Ajouter un émoji",
+  },
+  userChatEmpty: {
+    en: "No messages yet. Be the first to say hello.",
+    fr: "Aucun message pour l'instant. Soyez le premier à dire bonjour.",
+  },
+  userChatLoading: {
+    en: "Loading messages…",
+    fr: "Chargement des messages…",
+  },
+  userChatSignInToPost: {
+    en: "Sign in (free) to join the conversation.",
+    fr: "Connectez-vous (gratuit) pour participer à la conversation.",
+  },
+  userChatError: {
+    en: "Couldn't send your message. Please try again.",
+    fr: "Impossible d'envoyer votre message. Veuillez réessayer.",
+  },
+  userChatAdminContextHint: {
+    en: "Right-click to moderate this message",
+    fr: "Clic droit pour modérer ce message",
+  },
+  userChatDeleteMessage: {
+    en: "Delete message",
+    fr: "Supprimer le message",
+  },
+  userChatDeleteError: {
+    en: "Couldn't delete this message. Please try again.",
+    fr: "Impossible de supprimer ce message. Veuillez réessayer.",
+  },
+  userChatRejectedOffTopic: {
+    en: "This chat is for technology (and related topics). Try rephrasing around tech.",
+    fr: "Ce chat est réservé à la technologie (et aux sujets connexes). Reformulez autour de la tech.",
+  },
+  userChatRejectedDisrespect: {
+    en: "Please keep it respectful. Your message wasn't posted.",
+    fr: "Merci de rester respectueux. Votre message n'a pas été publié.",
+  },
+  userChatRejectedGeneric: {
+    en: "Your message couldn't be posted. Please rephrase.",
+    fr: "Votre message n'a pas pu être publié. Veuillez le reformuler.",
   },
 } as const;
 

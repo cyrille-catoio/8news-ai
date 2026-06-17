@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { color } from "@/lib/theme";
 import { t, type Lang } from "@/lib/i18n";
+import { getCookie } from "@/lib/cookies";
+import { TTS_TEXT_MAX_CHARS } from "@/lib/tts";
+import { TTS_VOICES_EN, TTS_VOICES_FR } from "@/app/components/VoiceAccordion";
 import { formatSummaryDayLabel } from "@/app/components/top24h/Top24hHeroHelpers";
 import { PodcastChatMarkdown } from "@/app/components/podcast-chat/PodcastChatMarkdown";
 
@@ -23,9 +26,8 @@ import { PodcastChatMarkdown } from "@/app/components/podcast-chat/PodcastChatMa
  * This component only renders for authenticated users (the parent gates
  * on session). It hydrates the day's thread on first open, streams the
  * answer token-by-token, and offers a « clear conversation » action.
- * On mobile, the parent floating close button is hidden to reclaim
- * header height, so the panel renders its own close button in the
- * title row.
+ * The clear and close actions live in the panel title row so they stay
+ * aligned inside the chat panel on desktop and mobile.
  */
 
 interface ChatMessage {
@@ -300,38 +302,6 @@ export function DailyPodcastChatPanel({
 
   return (
     <>
-      {/* Clear-conversation icon — pinned top-right, just left of the
-          parent's close (X) toggle. Hides the thread (DB untouched).
-          Only shown when there's something to clear. */}
-      {messages.length > 0 && (
-        <button
-          type="button"
-          onClick={() => clearConversation()}
-          aria-label={t("podcastChatClear", lang)}
-          title={t("podcastChatClear", lang)}
-          style={{
-            position: "fixed",
-            top: 12,
-            right: 50,
-            zIndex: 80,
-            width: 30,
-            height: 30,
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: 8,
-            border: `1px solid ${color.border}`,
-            background: color.surface,
-            color: color.textMuted,
-            cursor: "pointer",
-            boxShadow: "0 4px 18px rgba(0,0,0,0.4)",
-            transition: "color 140ms ease, border-color 140ms ease",
-          }}
-        >
-          <TrashGlyph />
-        </button>
-      )}
-
       {/* Panel — docked right, no backdrop so the app stays usable. */}
       {
         <aside
@@ -390,8 +360,6 @@ export function DailyPodcastChatPanel({
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
-                // Leave room for the top-right icons (clear + close).
-                paddingRight: 84,
               }}
             >
               <span
@@ -409,33 +377,55 @@ export function DailyPodcastChatPanel({
                 </span>
                 {t("podcastChatTitle", lang)}
               </span>
-              <button
-                type="button"
-                className="podcast-chat-panel-close"
-                onClick={() => onOpenChange(false)}
-                aria-label={t("podcastChatClose", lang)}
-                title={t("podcastChatClose", lang)}
-                style={{
-                  marginLeft: "auto",
-                  width: 30,
-                  height: 30,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderRadius: 8,
-                  border: `1px solid ${color.border}`,
-                  background: color.bg,
-                  color: color.textMuted,
-                  cursor: "pointer",
-                }}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
+              <div style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                {messages.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => clearConversation()}
+                    aria-label={t("podcastChatClear", lang)}
+                    title={t("podcastChatClear", lang)}
+                    style={{
+                      width: 30,
+                      height: 30,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: 8,
+                      border: `1px solid ${color.border}`,
+                      background: color.bg,
+                      color: color.textMuted,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <TrashGlyph />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onOpenChange(false)}
+                  aria-label={t("podcastChatClose", lang)}
+                  title={t("podcastChatClose", lang)}
+                  style={{
+                    width: 30,
+                    height: 30,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: 8,
+                    border: `1px solid ${color.border}`,
+                    background: color.bg,
+                    color: color.textMuted,
+                    cursor: "pointer",
+                  }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
             </div>
-            {/* Context chip — now spans the full header width since the
-                « clear » action moved to a top-right icon next to close. */}
+            {/* Context chip. */}
             <div style={{ display: "flex", alignItems: "center" }}>
               <span
                 style={{
@@ -489,6 +479,7 @@ export function DailyPodcastChatPanel({
                   key={i}
                   role={m.role}
                   content={m.content}
+                  lang={lang}
                   thinkingLabel={t("podcastChatThinking", lang)}
                   isStreaming={
                     sending &&
@@ -588,18 +579,130 @@ export function DailyPodcastChatPanel({
   );
 }
 
+function readTtsSpeed(): number {
+  if (typeof document === "undefined") return 1.05;
+  const raw = getCookie("ttsSpeed");
+  if (raw && /^[\d.]+$/.test(raw)) return Math.min(1.2, Math.max(0.7, Number(raw)));
+  return 1.05;
+}
+
+function readTtsVoice(lang: Lang): string {
+  if (typeof document === "undefined") return lang === "fr" ? "george" : "sarah";
+  const raw = lang === "fr" ? getCookie("ttsVoiceFr") : getCookie("ttsVoice");
+  const defaultV = lang === "fr" ? "george" : "sarah";
+  const voices = lang === "fr" ? TTS_VOICES_FR : TTS_VOICES_EN;
+  return raw && voices.some((v) => v.id === raw) ? raw : defaultV;
+}
+
+/** Convert the assistant's Markdown answer into cleaner spoken text. */
+function markdownToPlainText(md: string): string {
+  return md
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^\s*[-*]\s+/gm, "• ")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/_{1,2}([^_]+)_{1,2}/g, "$1")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function MessageBubble({
   role,
   content,
+  lang,
   isStreaming,
   thinkingLabel,
 }: {
   role: "user" | "assistant";
   content: string;
+  lang: Lang;
   isStreaming: boolean;
   thinkingLabel: string;
 }) {
   const isUser = role === "user";
+  const [copied, setCopied] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
+  const playRequestRef = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      audioRef.current?.pause();
+      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    };
+  }, []);
+
+  async function copyAnswer() {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard can be blocked by browser permissions; keep the UI quiet.
+    }
+  }
+
+  async function playAnswer() {
+    if (playing) {
+      playRequestRef.current += 1;
+      audioRef.current?.pause();
+      setPlaying(false);
+      return;
+    }
+    audioRef.current?.pause();
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+    const requestId = playRequestRef.current + 1;
+    playRequestRef.current = requestId;
+    setPlaying(true);
+    try {
+      const plain = markdownToPlainText(content).slice(0, TTS_TEXT_MAX_CHARS);
+      const res = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: plain,
+          lang,
+          speed: readTtsSpeed(),
+          voice: readTtsVoice(lang),
+        }),
+      });
+      if (!res.ok) throw new Error("tts_failed");
+      const blob = await res.blob();
+      if (playRequestRef.current !== requestId) return;
+      const url = URL.createObjectURL(blob);
+      objectUrlRef.current = url;
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => setPlaying(false);
+      audio.onerror = () => setPlaying(false);
+      await audio.play();
+    } catch {
+      setPlaying(false);
+    }
+  }
+
+  const showAssistantActions = !isUser && Boolean(content) && !isStreaming;
+  const actionButtonStyle: React.CSSProperties = {
+    width: 24,
+    height: 24,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    border: "none",
+    borderRadius: 6,
+    background: "transparent",
+    color: color.textDim,
+    cursor: "pointer",
+    padding: 0,
+  };
+
   return (
     <div
       style={{
@@ -625,9 +728,33 @@ function MessageBubble({
           {content}
         </p>
       ) : content ? (
-        <div style={{ fontSize: 14 }}>
-          <PodcastChatMarkdown source={content} />
-        </div>
+        <>
+          <div style={{ fontSize: 14 }}>
+            <PodcastChatMarkdown source={content} />
+          </div>
+          {showAssistantActions && (
+            <div style={{ display: "flex", gap: 4, marginTop: 6, alignItems: "center" }}>
+              <button
+                type="button"
+                onClick={() => void copyAnswer()}
+                aria-label={copied ? t("podcastChatCopiedAnswer", lang) : t("podcastChatCopyAnswer", lang)}
+                title={copied ? t("podcastChatCopiedAnswer", lang) : t("podcastChatCopyAnswer", lang)}
+                style={{ ...actionButtonStyle, color: copied ? "#4ade80" : color.textDim }}
+              >
+                {copied ? <CheckGlyph /> : <CopyGlyph />}
+              </button>
+              <button
+                type="button"
+                onClick={() => void playAnswer()}
+                aria-label={t("podcastChatPlayAnswer", lang)}
+                title={t("podcastChatPlayAnswer", lang)}
+                style={{ ...actionButtonStyle, color: playing ? color.gold : color.textDim }}
+              >
+                <PlayGlyph active={playing} />
+              </button>
+            </div>
+          )}
+        </>
       ) : isStreaming ? (
         <p style={mutedTextStyle}>{thinkingLabel}</p>
       ) : null}
@@ -664,6 +791,36 @@ function SendGlyph() {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <line x1="22" y1="2" x2="11" y2="13" />
       <polygon points="22 2 15 22 11 13 2 9 22 2" />
+    </svg>
+  );
+}
+
+function CopyGlyph() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
+function CheckGlyph() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
+function PlayGlyph({ active }: { active: boolean }) {
+  return active ? (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <rect x="6" y="5" width="4" height="14" rx="1" />
+      <rect x="14" y="5" width="4" height="14" rx="1" />
+    </svg>
+  ) : (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M8 5v14l11-7z" />
     </svg>
   );
 }

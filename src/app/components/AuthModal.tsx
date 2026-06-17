@@ -23,6 +23,7 @@ export function AuthModal({
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [nickname, setNickname] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -39,6 +40,7 @@ export function AuthModal({
     setPassword("");
     setFirstName("");
     setLastName("");
+    setNickname("");
   }, []);
 
   useEffect(() => {
@@ -114,6 +116,7 @@ export function AuthModal({
 
       const fn = firstName.trim();
       const ln = lastName.trim();
+      const nick = nickname.trim();
       if (!fn || !ln) {
         setError(t("authErrorGeneric", lang));
         return;
@@ -124,7 +127,12 @@ export function AuthModal({
         password,
         options: {
           emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
-          data: { first_name: fn, last_name: ln, user_type: "member" },
+          data: {
+            first_name: fn,
+            last_name: ln,
+            user_type: "member",
+            ...(nick ? { nickname: nick } : {}),
+          },
         },
       });
 
@@ -299,6 +307,19 @@ export function AuthModal({
                     style={{ ...formInputStyle, marginBottom: 12 }}
                     disabled={busy}
                   />
+                  <label style={labelStyle}>{t("nickname", lang)}</label>
+                  <input
+                    type="text"
+                    autoComplete="nickname"
+                    value={nickname}
+                    onChange={(e) => setNickname(e.target.value)}
+                    placeholder={t("nicknamePlaceholder", lang)}
+                    style={{ ...formInputStyle, marginBottom: 6 }}
+                    disabled={busy}
+                  />
+                  <p style={{ color: color.textMuted, fontSize: 11, lineHeight: 1.4, margin: "0 0 12px" }}>
+                    {t("nicknameHint", lang)}
+                  </p>
                 </>
               )}
 

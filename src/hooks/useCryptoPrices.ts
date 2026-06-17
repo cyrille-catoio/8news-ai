@@ -1,10 +1,17 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { readCachedCrypto, writeCachedCrypto } from "@/lib/crypto-cache";
+import { sanitizeCryptoSymbols } from "@/lib/crypto-preferences";
 
-export interface CryptoPrice {
+export interface CryptoCoin {
   symbol: string;
+  coinId: string;
+  name: string;
+  marketCapRank: number;
+}
+
+export interface CryptoPrice extends CryptoCoin {
   price: number;
   change24h: number;
   updatedAt: string;
@@ -12,13 +19,14 @@ export interface CryptoPrice {
 
 interface CryptoApiResponse {
   prices?: CryptoPrice[];
+  availableCoins?: CryptoCoin[];
   stale?: boolean;
 }
 
 const POLL_MS = 60_000;
 
 /**
- * Live BTC/ETH/SOL/XRP/TAO/SUI prices for the AppHeader ticker. Mirrors the
+ * Live top-50 CoinGecko prices for the AppHeader ticker. Mirrors the
  * `useTopFeed` shape (poll flag + cleanup-safe effects) so the
  * AppHeader can pass `poll={currentPage !== "landing"}` and the hook
  * stops talking to the API on the marketing page.
@@ -39,26 +47,41 @@ const POLL_MS = 60_000;
  * window, so even if N tabs all poll at the same rate, at most one of
  * them triggers an actual CoinGecko call per minute.
  */
-export function useCryptoPrices({ poll }: { poll: boolean }) {
+export function useCryptoPrices({
+  poll,
+  selectedSymbols,
+}: {
+  poll: boolean;
+  selectedSymbols: string[];
+}) {
   const [prices, setPrices] = useState<CryptoPrice[]>([]);
+  const [availableCoins, setAvailableCoins] = useState<CryptoCoin[]>([]);
   const [stale, setStale] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const cancelledRef = useRef(false);
+  const normalizedSymbols = useMemo(() => sanitizeCryptoSymbols(selectedSymbols), [selectedSymbols]);
+  const symbolsKey = normalizedSymbols.join(",");
 
   const fetchOnce = useCallback(async () => {
     try {
-      const r = await fetch("/api/crypto", { cache: "no-store" });
+      const qs = symbolsKey ? `?symbols=${encodeURIComponent(symbolsKey)}` : "";
+      const r = await fetch(`/api/crypto${qs}`, { cache: "no-store" });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const json = (await r.json()) as CryptoApiResponse;
       if (cancelledRef.current) return;
       const nextPrices = json.prices ?? [];
+      const nextAvailableCoins = json.availableCoins ?? [];
       const nextStale = Boolean(json.stale);
       setPrices(nextPrices);
+      setAvailableCoins(nextAvailableCoins);
       setStale(nextStale);
       setError(false);
       if (nextPrices.length > 0) {
-        writeCachedCrypto({ prices: nextPrices, stale: nextStale });
+        writeCachedCrypto(
+          { prices: nextPrices, availableCoins: nextAvailableCoins, stale: nextStale },
+          normalizedSymbols,
+        );
       }
     } catch {
       if (cancelledRef.current) return;
@@ -66,7 +89,7 @@ export function useCryptoPrices({ poll }: { poll: boolean }) {
     } finally {
       if (!cancelledRef.current) setLoading(false);
     }
-  }, []);
+  }, [normalizedSymbols, symbolsKey]);
 
   const refresh = useCallback(() => {
     void fetchOnce();
@@ -74,17 +97,19 @@ export function useCryptoPrices({ poll }: { poll: boolean }) {
 
   useEffect(() => {
     cancelledRef.current = false;
-    const cached = readCachedCrypto();
+    const cached = readCachedCrypto(normalizedSymbols);
     if (cached?.prices?.length) {
       setPrices(cached.prices);
+      setAvailableCoins(cached.availableCoins ?? []);
       setStale(cached.stale);
       setLoading(false);
     }
+    if (!poll) return;
     void fetchOnce();
     return () => {
       cancelledRef.current = true;
     };
-  }, [fetchOnce]);
+  }, [fetchOnce, normalizedSymbols, poll]);
 
   useEffect(() => {
     if (!poll) return;
@@ -128,5 +153,5 @@ export function useCryptoPrices({ poll }: { poll: boolean }) {
     };
   }, [poll, fetchOnce]);
 
-  return { prices, stale, loading, error, refresh };
+  return { prices, availableCoins, stale, loading, error, refresh };
 }

@@ -70,9 +70,20 @@ function buildGlobalKpis(total: number, scored: number, avgScore: number, hitRat
   };
 }
 
+interface GlobalScoreAggRow {
+  avg_score?: number | string | null;
+}
+
+export function parseGlobalAvgScoreAgg(data: unknown): number {
+  const row = Array.isArray(data) ? (data[0] as GlobalScoreAggRow | undefined) : undefined;
+  const raw = row?.avg_score;
+  const n = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
+  return Number.isFinite(n) ? n : 0;
+}
+
 /** Fallback when migration 035 has not been applied yet. */
 async function getGlobalKpisLegacy(supabase: SupabaseClient): Promise<GlobalKpis> {
-  const [totalRes, scoredRes, hitRes] = await Promise.all([
+  const [totalRes, scoredRes, hitRes, avgRes] = await Promise.all([
     supabase.from("articles").select("*", { count: "exact", head: true }),
     supabase
       .from("articles")
@@ -83,6 +94,10 @@ async function getGlobalKpisLegacy(supabase: SupabaseClient): Promise<GlobalKpis
       .select("*", { count: "exact", head: true })
       .not("relevance_score", "is", null)
       .gte("relevance_score", 7),
+    supabase
+      .from("articles")
+      .select("avg_score:relevance_score.avg()")
+      .not("relevance_score", "is", null),
   ]);
 
   if (totalRes.error) {
@@ -92,11 +107,15 @@ async function getGlobalKpisLegacy(supabase: SupabaseClient): Promise<GlobalKpis
   const total = totalRes.count ?? 0;
   const scored = scoredRes.count ?? 0;
   const hit7 = hitRes.count ?? 0;
+  const avgScore = avgRes.error ? 0 : parseGlobalAvgScoreAgg(avgRes.data);
+  if (avgRes.error) {
+    console.error("[getGlobalKpis] avg score failed:", avgRes.error.message);
+  }
 
   return buildGlobalKpis(
     total,
     scored,
-    0,
+    avgScore,
     scored > 0 ? (hit7 / scored) * 100 : 0,
   );
 }

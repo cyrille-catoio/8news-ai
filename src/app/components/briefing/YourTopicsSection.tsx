@@ -72,9 +72,7 @@ export function YourTopicsSection({
           ...card,
           display: "block",
           padding: "18px 20px",
-          borderColor: color.gold,
-          background:
-            "linear-gradient(180deg, rgba(201,162,39,0.04), transparent 60%), " + color.surface,
+          background: color.surface,
         }}
       >
         {visibleIds.map((tid, blockIdx) => {

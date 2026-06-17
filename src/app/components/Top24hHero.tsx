@@ -312,9 +312,7 @@ export function Top24hHero({
           style={{
             ...card,
             padding: "26px 22px",
-            borderColor: color.gold,
-            background:
-              "linear-gradient(180deg, rgba(201,162,39,0.04), transparent 60%), " + color.surface,
+            background: color.surface,
             display: "flex",
             justifyContent: "center",
           }}
@@ -472,9 +470,7 @@ export function Top24hHero({
         style={{
           ...card,
           padding: isRead ? "8px 14px" : "22px 22px 16px",
-          borderColor: color.gold,
-          background:
-            "linear-gradient(180deg, rgba(201,162,39,0.04), transparent 60%), " + color.surface,
+          background: color.surface,
           transition: "padding 280ms ease",
         }}
       >

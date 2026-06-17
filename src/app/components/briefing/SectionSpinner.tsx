@@ -35,10 +35,7 @@ export function SectionSpinner({
           minHeight: 92,
           ...(goldBorder
             ? {
-                borderColor: color.gold,
-                background:
-                  "linear-gradient(180deg, rgba(201,162,39,0.04), transparent 60%), " +
-                  color.surface,
+                background: color.surface,
               }
             : {}),
         }}

@@ -1,7 +1,7 @@
 # 8news.ai — Technical Specification
 
-**Version**: v2.13.13
-**Last updated**: 15 June 2026
+**Version**: v2.14
+**Last updated**: 17 June 2026
 
 > **Note**: sections of this spec are historical — they describe the system as of the version tagged inline (`**vX.Y+**` markers). The mechanical parts (header version, file tree, migration list, cron list, API route list) are kept current and **enforced by `npm run spec:check`** (also run by `npm test`, hence by the Netlify build — drift blocks the deploy). The spec is updated automatically as part of the release ritual (see `AGENTS.md` § 3 and § 11 for the content contract). For feature-level details, the changelog (`src/data/changelog-entries.json`) is the most up-to-date reference.
 
@@ -132,7 +132,7 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 │   │   ├── useTopFeed.ts               # Top 50 hook (`/api/news/top?limit=50&days=1&lang=`), poll on Briefing-with-no-topic, lastUpdatedAt
 │   │   ├── useUserTopics.ts            # Per-user topic personalization (8/36 topics)
 │   │   ├── useFavorites.ts             # Article favorites (Set of URLs, optimistic toggle, auth-gated)
-│   │   └── useCryptoPrices.ts          # **v2.5.17+**: Live BTC/ETH/SOL/XRP prices for the AppHeader CryptoTicker (60 s poll, visibility-aware, single CoinGecko call/min shared across all users)
+│   │   └── useCryptoPrices.ts          # **v2.5.17+**: Live top-50 CoinGecko prices for the AppHeader CryptoTicker (selected 12 symbols max, 60 s poll, visibility-aware)
 │   └── lib/
 │       ├── __tests__/                  # **v2.13.4+** vitest suites for the pure helpers below (dates-utc, slug, cookies, video-bullets, generate-top-summary)
 │       ├── types.ts                    # TypeScript interfaces (TopicItem, TopicDetail, SummaryResponse, ArticleSummary, …)
@@ -146,7 +146,7 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 │       ├── supabase/                   # **v2.13.4-structured** server data layer — every read/write logs its errors (no silent catch)
 │       │   ├── client.ts               #   `getServerClient()` — the ONLY service-role client factory (returns null if env vars missing)
 │       │   ├── cache.ts                #   news_cache TTL helpers
-│       │   ├── articles.ts / topics.ts / summaries.ts / videos.ts / bullets.ts / top-summaries.ts / archives.ts / stats.ts / home-surface.ts / podcast-chat.ts / user-activity.ts / user-event.ts
+│       │   ├── articles.ts / topics.ts / summaries.ts / videos.ts / bullets.ts / top-summaries.ts / archives.ts / stats.ts / home-surface.ts / podcast-chat.ts / user-chat.ts / user-activity.ts / user-event.ts
 │       ├── supabase-browser.ts         # `createBrowserSupabaseClient()` — anon key for browser auth
 │       ├── auth-api.ts                 # `getSessionUser()`, `requireOwnerSession()` (cookie session helpers)
 │       ├── server-lang.ts              # **v2.5.3+**: `resolveServerLang()` — query > user_metadata.preferred_lang > cookie > default
@@ -174,7 +174,9 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 │       ├── email/render-share-email.ts # Pure renderer for the « share by email » message (HTML-escaped user strings, same email constraints)
 │       ├── watchdog-checks.ts          # Pure freshness-watchdog evaluation (thresholds + problem strings, zero I/O) — consumed by cron-watchdog
 │       ├── podcast-chat-context.ts     # **v2.13+** Server-side system-prompt builder for the Daily Podcast chat (grounded in the day's snapshot)
-│       ├── news-fetch.ts / summary-routes.ts / spa-navigation.ts / track.ts / tts.ts / text-artifacts.ts / notification-sound.ts / crypto-cache.ts # Misc client/server helpers
+│       ├── user-chat.ts                # **v2.14+** Pure Community-chat helpers (display-name resolution, avatar colour/initial, message grouping, URL split) — shared by route + panel + tests
+│       ├── user-chat-moderation.ts     # **v2.14+** Community-chat moderation gate (single cheap LLM verdict: respect + tech-only-but-lenient; trivial-allow fast-path; fail-open)
+│       ├── news-fetch.ts / summary-routes.ts / spa-navigation.ts / track.ts / tts.ts / text-artifacts.ts / notification-sound.ts / crypto-cache.ts / crypto-preferences.ts # Misc client/server helpers
 │       ├── landing-content.ts          # Static content for the SSR landing page (EN+FR copy, pricing plans)
 │       └── changelog-entries.ts        # Type + re-export of src/data/changelog-entries.json (auto-synced to DB on first /api/changelog after deploy)
 ├── netlify/
@@ -235,7 +237,9 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 │   ├── 034-video-summary-score-decimal.sql # **v2.12+**: video_transcriptions.summary_score SMALLINT → NUMERIC(3,1) (decimal AI quality scores)
 │   ├── 035-global-article-kpis-rpc.sql     # **v2.12+**: global_article_kpis() RPC — single-query KPI rollup for the Stats page
 │   ├── 036-summary-bullets-importance-decimal.sql # summary_bullets.importance_score SMALLINT → NUMERIC(3,1) (decimal score for Daily Podcast video bullets)
-│   └── 037-home-surface-queue-score-decimal.sql # home_surface_queue.score SMALLINT → NUMERIC(3,1) + video-score backfill + pick_home_surface NUMERIC threshold
+│   ├── 037-home-surface-queue-score-decimal.sql # home_surface_queue.score SMALLINT → NUMERIC(3,1) + video-score backfill + pick_home_surface NUMERIC threshold
+│   ├── 038-crypto-top50-metadata.sql # crypto_prices CoinGecko metadata (coin_id, name, market_cap_rank) for customizable top-50 ticker
+│   └── 039-user-chat-messages.sql # **v2.14+**: user_chat_messages — single global public Community chat room (public SELECT RLS + Realtime; writes via /api/user-chat service role)
 ├── .gitignore
 ├── .env                                    # API keys (not committed)
 ├── netlify.toml                            # Netlify build + redirect config — **v2.13.5+** build command is `npm test && npm run build` (a red test blocks the deploy)
@@ -245,7 +249,7 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 
 ### 3.1 `src/app/components/` — feature UI
 
-**SPA + shared**: `AppHeader` (**v2.5.17+** mounts the `CryptoTicker` on every page except `currentPage === "landing"`), `CryptoTicker` (**v2.5.17+** live BTC/ETH/SOL/XRP — see §19), `GeneralMenu` (+ `SeoGeneralMenu`), `SeoNavBar` (**v2.5.3+** intercepts language toggle to persist `preferred_lang`), `AuthModal`, `BriefingPage` (the SPA's default landing — **v2.6.6** order: `Top24hHero` → TOP VIDEO → Top story → All transcribed videos → Trending strip → daily summary teaser → Top 5 → Your topics → Footer CTAs), **`Top24hHero`** (v2.6.6 — gold accordion card pinned at the top of the home, reads `GET /api/news/top-summary/latest`, shows group titles only and expands sub-bullets on click), `TopFeedSection`, `SummaryBox` (v2.6.5+ renders an optional `bullet.title` in gold above each bullet body, groups consecutive same-title rows), `AllArticlesTab`, `StatsPage`, `CronMonitorPage`, `TopicsPage/`, `FeedsAdminPage`, `CategoriesPage`, `FavoritesPage`, `FavoriteButton`, `CopyLinkButton`, `ScoreMeter`, `ChangelogPage`, `SettingsPage` (`MyAccountSection`, `UsersSection`, `VoiceAccordion`), `AudioPlayer`, `TopicPersonalizationBar`, `TopicOnboardingModal`, `SummariesBrowsePage`.
+**SPA + shared**: `AppHeader` (**v2.5.17+** mounts the `CryptoTicker` on every page except `currentPage === "landing"`), `CryptoTicker` (**v2.5.17+** live top-50 CoinGecko ticker — see §19), `CryptoTickerSettingsPage` (settings-page section, search + max-12 checkbox selection), `GeneralMenu` (+ `SeoGeneralMenu`), `SeoNavBar` (**v2.5.3+** intercepts language toggle to persist `preferred_lang`), `AuthModal`, `BriefingPage` (the SPA's default landing — **v2.6.6** order: `Top24hHero` → TOP VIDEO → Top story → All transcribed videos → Trending strip → daily summary teaser → Top 5 → Your topics → Footer CTAs), **`Top24hHero`** (v2.6.6 — gold accordion card pinned at the top of the home, reads `GET /api/news/top-summary/latest`, shows group titles only and expands sub-bullets on click), `TopFeedSection`, `SummaryBox` (v2.6.5+ renders an optional `bullet.title` in gold above each bullet body, groups consecutive same-title rows), `AllArticlesTab`, `StatsPage`, `CronMonitorPage`, `TopicsPage/`, `FeedsAdminPage`, `CategoriesPage`, `FavoritesPage`, `FavoriteButton`, `CopyLinkButton`, `ScoreMeter`, `ChangelogPage`, `SettingsPage` (`MyAccountSection`, `UsersSection`, `VoiceAccordion`, crypto ticker top-50 selector), `AudioPlayer`, `TopicPersonalizationBar`, `TopicOnboardingModal`, `SummariesBrowsePage`.
 
 **Video surface**: `VideosPage` (today / day-by-day video list with Shorts toggle), `VideoCard` (iframe embed with **v2.x+** localhost-aware `youtube-nocookie` swap to fix black-screen; **v2.13.5+** every displayed title/description/aria-label/TTS intro goes through `stripEmojis()` from `video-card/VideoCardHelpers.ts` — raw titles stay untouched in DB and API payloads), `VideoPageAudio`, `DownloadTranscriptButton`.
 
@@ -273,6 +277,8 @@ api/
 │   └── route.ts                  # **v2.6.11+** GET — paginated archives timeline data (topic/type filters, 7-day pages)
 ├── podcast-chat/
 │   └── route.ts                  # **v2.13+** GET/POST/DELETE — Daily Podcast chat (requireSession; POST streams the answer, persists the turn; 409 when no snapshot)
+├── user-chat/
+│   └── route.ts                  # **v2.14+** GET (public history) / POST (requireSession, validated, service-role insert) / DELETE (owner-only moderation) — global Community chat room; live INSERTs/DELETEs via Supabase Realtime
 ├── summaries/
 │   ├── generate/route.ts         # POST — generate daily SEO summary (owner or CRON_SECRET)
 │   ├── routes/route.ts           # GET — all generated summary routes (used by SPA + sitemap)
@@ -532,6 +538,16 @@ A collapsible chat docked on the right edge of the SPA, **collapsed by default**
 - **Persistence.** `migrations/033-podcast-chat-messages.sql` — one row per message; a conversation is the rows sharing `(user_id, summary_date)`. The (user, podcast day) tuple IS the conversation key, so each new day starts a fresh thread for free. Service-role-only RLS, accessed via helpers in `src/lib/supabase/podcast-chat.ts`.
 - **API** `src/app/api/podcast-chat/route.ts` (`requireSession`, `no-store`): `GET` hydrates the day's thread; `POST { question, lang }` streams the answer (`text/plain`) and persists the turn server-side after the stream closes (the resolved day is echoed in `X-Summary-Date`), 409 when no snapshot exists; `DELETE` clears the day's thread.
 - **Model.** OpenAI `PODCAST_CHAT_MODEL` (default `gpt-5.5`), reusing `OPENAI_API_KEY`.
+
+#### Community chat side panel (v2.14+)
+
+A collapsible **user-to-user** chat docked on the LEFT edge of the SPA (mirror of the Daily Podcast chat, which sits on the right). One global public room — no AI participant for now. Open by default on desktop, closed on phones (full-width overlay). UI is `src/app/components/user-chat/UserChatPanel.tsx` (+ a dependency-free native-emoji `EmojiPicker.tsx`), mounted in [src/app/app/page.tsx](src/app/app/page.tsx) for everyone; a distinct « users » glyph in the header icon cluster toggles it.
+
+- **Read = public, live.** The room is readable by anyone (anonymous included): `migrations/039-user-chat-messages.sql` enables RLS with `SELECT USING (true)` and adds the table to the `supabase_realtime` publication. The panel hydrates via `GET /api/user-chat` then subscribes to INSERTs and DELETEs through the browser Supabase client (`postgres_changes`).
+- **Write = authenticated, server-validated.** `POST /api/user-chat` (`requireSession`) trims + length-caps the message and stamps a trusted `display_name` resolved server-side from `user_metadata` (nickname → first name → « Anonymous »), inserting via the service role (`src/lib/supabase/user-chat.ts`). Anonymous visitors can browse; posting routes them to sign-in.
+- **Owner moderation.** Signed-in owners/admins can right-click any chat message in the panel and choose « Delete message » / « Supprimer le message ». The client calls `DELETE /api/user-chat?id=...`, protected by `requireOwnerSession()`, and the service role deletes the row. Realtime DELETE events remove it from every open panel.
+- **Moderation gate.** `src/lib/user-chat-moderation.ts` runs before the insert: trivial social messages (greetings, yes/no, thanks, emoji) skip it, everything else gets a single cheap-LLM verdict (`USER_CHAT_MODERATION_MODEL`, default `gpt-4.1-nano`) judging respect AND tech-relevance (lenient on tech-adjacent topics) in EN or FR. A reject returns `422 { reason: "off_topic" | "disrespect" }`; the panel shows a localized message and keeps the text for rephrasing. **Fail-open**: missing key / OpenAI error / unparseable output allows the message and logs the incident.
+- **Identity.** A `nickname` field added to sign-up (`AuthModal`) and profile editing (`MyAccountSection`), stored in `user_metadata`, lets members stay anonymous in the room. Pure helpers (name resolution, avatar colour/initial, Discord-style message grouping, URL split) live in `src/lib/user-chat.ts` with colocated tests.
 
 **Scoring criteria** (stored in `topics` table, used by `gpt-4.1-nano` scoring runs):
 - **9-10**: Major breaking news
@@ -1385,6 +1401,7 @@ User opens /archives, /[topic], /[topic]/[date]/[slug],
 | `NEWSLETTER_UNSUBSCRIBE_MAILTO` | No | mailto target injected into the `List-Unsubscribe` header (RFC 8058). Default `unsubscribe@8news.ai`. Doesn't currently auto-unsubscribe — you'll get a reply and toggle the user manually from `<UsersSection>` until a self-serve opt-out lands on the SettingsPage. |
 | `NEWSLETTER_PUBLIC_ORIGIN` | No | Absolute origin used to build the « Read online » CTA inside the newsletter (`${origin}/${summary_date}`). Default `https://8news.ai`. |
 | `PODCAST_CHAT_MODEL` | No | **v2.13+** OpenAI model for the Daily Podcast chat side panel (`/api/podcast-chat`). Reuses `OPENAI_API_KEY`. Default `gpt-5.5`. |
+| `USER_CHAT_MODERATION_MODEL` | No | **v2.14+** OpenAI model for the Community chat moderation gate (`/api/user-chat`). Reuses `OPENAI_API_KEY`; fail-open if absent. Default `gpt-4.1-nano`. |
 | `CRON_VIDEO_SUMMARY_SCORE_SAFETY_MS` | No | Reserve before deadline — stop launching new batches. Default `45000`. |
 
 ---
@@ -1493,18 +1510,21 @@ CoinGecko /simple/price ──► /api/crypto (server) ──► Supabase crypto
 | File | Role |
 |---|---|
 | `migrations/020-crypto-cache.sql` | `crypto_prices(symbol PK, price_usd, change_24h, updated_at)` + service-role RLS |
-| `src/app/api/crypto/route.ts` | Public GET endpoint. Reads DB, refreshes from CoinGecko when any row is older than 60 s, returns `{ prices: [{ symbol, price, change24h, updatedAt }], stale: boolean }` |
-| `src/hooks/useCryptoPrices.ts` | Client hook. `{ poll }` flag, 60 s `setInterval`, paused on `document.visibilityState === "hidden"`, immediate refresh on `visibilitychange → visible` |
+| `migrations/038-crypto-top50-metadata.sql` | Adds `coin_id`, `name`, `market_cap_rank` to `crypto_prices` so stale fallback can rebuild the top-50 picker and CoinGecko links |
+| `src/app/api/crypto/route.ts` | Public GET endpoint. Reads DB, refreshes CoinGecko top 50 when rows are older than 60 s, returns `{ prices, availableCoins, stale }`; optional `?symbols=btc,eth,...` filters the displayed list to 12 max with private/no-store headers |
+| `src/hooks/useCryptoPrices.ts` | Client hook. `{ poll, selectedSymbols }`, 60 s `setInterval`, paused on `document.visibilityState === "hidden"`, immediate refresh on `visibilitychange → visible` |
+| `src/lib/crypto-preferences.ts` | Client preference helper. Default BTC/ETH/SOL/XRP/TAO/SUI, max 12 symbols, cookie persistence and sanitization before syncing to `auth.users.user_metadata.crypto_ticker_symbols` |
 | `src/app/components/CryptoTicker.tsx` | Compact horizontal row in the AppHeader. Symbol in gold, price in text, 24h % green/red. Click → CoinGecko coin page. Mounted by AppHeader only when `currentPage !== "landing"` |
-| `src/app/globals.css` | Adds `@keyframes cryptoFlash` (price update glow) + `.crypto-ticker`, `.crypto-ticker-change`, `.crypto-ticker-coin-extra` responsive classes |
-| `src/lib/i18n.ts` | `cryptoTickerStale` (« Stale data / Données obsolètes »), `cryptoTickerError` (« Prices unavailable / Cours indisponibles ») |
+| `src/app/components/CryptoTickerSettingsPage.tsx` | Section embedded in `/app/settings` for signed-in users, with search across the top 50 and max-12 checkbox selection |
+| `src/app/globals.css` | Adds `@keyframes cryptoFlash` (price update glow) + `.crypto-ticker` grid, `.crypto-ticker-change` responsive class |
+| `src/lib/i18n.ts` | `cryptoTickerStale` / `cryptoTickerError` plus the bilingual user-menu picker labels |
 
 ### 19.3 Cache strategy & rate limit math
 
-- **Tier 1 — module memo.** Inside the warm Function instance, the latest payload is kept in `let memo: { payload, cachedAt }`. Same-instance requests within 60 s return immediately, no DB round-trip.
-- **Tier 2 — Supabase row cache.** When the memo is cold or expired, the route reads `crypto_prices`. If every tracked symbol has `updated_at >= now - 60s`, those rows ARE the response — no upstream call.
-- **Tier 3 — CoinGecko refresh.** Only when at least one row is older than 60 s do we hit `https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,ripple&vs_currencies=usd&include_24hr_change=true` with a 5 s `AbortController` timeout. The response is upserted back into `crypto_prices` (fire-and-forget — the response payload uses the freshly-fetched values directly so users don't wait on the DB write).
-- **Tier 4 — CDN cache.** The route returns `Cache-Control: public, max-age=0, s-maxage=60, must-revalidate`. Netlify's edge serves the same payload to every visitor for up to 60 s; browsers always revalidate so a manual refresh picks up a freshly-flipped tick.
+- **Tier 1 — module memo.** Inside the warm Function instance, the latest top-50 price list is kept in `let memo: { prices, stale, cachedAt }`. Same-instance requests within 60 s return immediately, no DB round-trip.
+- **Tier 2 — Supabase row cache.** When the memo is cold or expired, the route reads `crypto_prices`. If the top-50 rows have `updated_at >= now - 60s`, those rows ARE the response — no upstream call.
+- **Tier 3 — CoinGecko refresh.** Only when the top-50 cache is old do we hit `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=50&page=1&sparkline=false&price_change_percentage=24h` with a 5 s `AbortController` timeout. The response is upserted back into `crypto_prices` (fire-and-forget, with write errors logged).
+- **Tier 4 — CDN cache.** The unfiltered route returns `Cache-Control: public, max-age=0, s-maxage=60, must-revalidate`. Personalized `?symbols=` responses return `private, no-store` so Netlify never reuses one user's selected symbols for another visitor.
 
 **Net rate**: with N concurrent users, at most 1 CoinGecko call per minute = **1,440 calls/day**, well within CoinGecko's free tier (30 calls/min, no API key required).
 
@@ -1523,9 +1543,11 @@ CoinGecko /simple/price ──► /api/crypto (server) ──► Supabase crypto
 
 | Viewport | Behavior |
 |---|---|
-| Default | All four coins (BTC ETH SOL XRP), each shows symbol + price + 24h % |
-| ≤ 640 px | All four coins, but the 24h % column hides (`.crypto-ticker-change { display: none }`) |
-| ≤ 480 px | Only BTC + ETH visible (SOL/XRP coins carry `.crypto-ticker-coin-extra` which hides at this breakpoint), still no 24h % |
+| Default | Up to 12 selected coins, six per line, each shows symbol + price + 24h % |
+| ≤ 1024 px | Grid reduces to four coins per line |
+| ≤ 760 px | Grid reduces to three coins per line |
+| ≤ 640 px | The 24h % column hides (`.crypto-ticker-change { display: none }`) |
+| ≤ 480 px | Grid reduces to two coins per line |
 
 ### 19.6 Validation
 

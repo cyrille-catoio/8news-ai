@@ -28,6 +28,11 @@ import { VideoCardMarkdown } from "@/app/components/video-markdown";
 // import from `@/app/components/video-card/VideoCardHelpers`.
 export { isTranscriptionErrorMarkdown, buildSummaryPreview };
 
+function appAbsoluteUrl(path: string): string {
+  if (/^https?:\/\//i.test(path)) return path;
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://8news.ai";
+  return `${origin}${path.startsWith("/") ? path : `/${path}`}`;
+}
 
 /** Slow layout push for summary panel + fade-in of content (respect reduced-motion below). */
 const VIDEO_SUMMARY_GRID_MS = 2200;
@@ -206,9 +211,8 @@ export function VideoCard({
 
   const cardStyle: CSSProperties = variant === "hero"
     ? {
-        background:
-          "linear-gradient(180deg, rgba(201,162,39,0.04), transparent 60%), " + color.surface,
-        border: `1px solid ${color.gold}`,
+        background: color.surface,
+        border: `1px solid ${color.border}`,
         borderRadius: 10,
         overflow: "hidden",
       }
@@ -432,6 +436,7 @@ export function VideoCard({
   );
 
   const ssrHref = videoSsrHref(v);
+  const copyHref = ssrHref ? appAbsoluteUrl(ssrHref) : v.link;
 
   const bodyBlock = (
         <div className="video-body" style={bodyStyle}>
@@ -723,7 +728,7 @@ export function VideoCard({
                 title={displayTitle}
                 lang={lang}
               />
-              <CopyLinkButton url={v.link} />
+              <CopyLinkButton url={copyHref} />
             </div>
           </div>
           {isHero && onSeeAll && (

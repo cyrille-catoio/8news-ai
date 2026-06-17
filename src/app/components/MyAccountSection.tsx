@@ -56,6 +56,7 @@ export function MyAccountSection({ lang }: { lang: Lang }) {
 
   const [firstName, setFirstName] = useState(meta.first_name ?? "");
   const [lastName, setLastName] = useState(meta.last_name ?? "");
+  const [nickname, setNickname] = useState(meta.nickname ?? "");
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -63,18 +64,25 @@ export function MyAccountSection({ lang }: { lang: Lang }) {
   useEffect(() => {
     setFirstName(meta.first_name ?? "");
     setLastName(meta.last_name ?? "");
-  }, [meta.first_name, meta.last_name]);
+    setNickname(meta.nickname ?? "");
+  }, [meta.first_name, meta.last_name, meta.nickname]);
 
   const hasChanges =
     firstName.trim() !== (meta.first_name ?? "") ||
-    lastName.trim() !== (meta.last_name ?? "");
+    lastName.trim() !== (meta.last_name ?? "") ||
+    nickname.trim() !== (meta.nickname ?? "");
 
   const handleSave = useCallback(async () => {
     setSaving(true);
     setToast(null);
     try {
       const { error } = await supabase.auth.updateUser({
-        data: { ...meta, first_name: firstName.trim(), last_name: lastName.trim() },
+        data: {
+          ...meta,
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          nickname: nickname.trim(),
+        },
       });
       if (error) throw error;
       setEditing(false);
@@ -85,14 +93,15 @@ export function MyAccountSection({ lang }: { lang: Lang }) {
     } finally {
       setSaving(false);
     }
-  }, [supabase, firstName, lastName, meta, lang]);
+  }, [supabase, firstName, lastName, nickname, meta, lang]);
 
   const handleCancel = useCallback(() => {
     setFirstName(meta.first_name ?? "");
     setLastName(meta.last_name ?? "");
+    setNickname(meta.nickname ?? "");
     setEditing(false);
     setToast(null);
-  }, [meta.first_name, meta.last_name]);
+  }, [meta.first_name, meta.last_name, meta.nickname]);
 
   if (!user) return null;
 
@@ -128,6 +137,27 @@ export function MyAccountSection({ lang }: { lang: Lang }) {
             />
           ) : (
             <div style={valueStyle}>{firstName || "—"}</div>
+          )}
+        </div>
+
+        {/* Nickname (used in the community chat) */}
+        <div style={{ gridColumn: "1 / -1" }}>
+          <div style={labelStyle}>{t("nickname", lang)}</div>
+          {editing ? (
+            <>
+              <input
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                placeholder={t("nicknamePlaceholder", lang)}
+                style={{ ...inputStyle, marginBottom: 4 }}
+                disabled={saving}
+              />
+              <div style={{ color: color.textMuted, fontSize: 11, lineHeight: 1.4, marginBottom: 12 }}>
+                {t("nicknameHint", lang)}
+              </div>
+            </>
+          ) : (
+            <div style={valueStyle}>{nickname || "—"}</div>
           )}
         </div>
 

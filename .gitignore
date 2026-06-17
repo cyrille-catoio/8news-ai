@@ -46,3 +46,6 @@ next-env.d.ts
 
 # Claude / Cursor agent worktrees (local only)
 .claude/
+
+# iCloud workaround: real Next build dir (ignored by iCloud via .nosync suffix), .next symlinks here locally
+.next.nosync

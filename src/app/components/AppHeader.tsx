@@ -1,13 +1,21 @@
 "use client";
 
-import { type CSSProperties, type ReactNode, useState, useRef, useEffect } from "react";
+import { type CSSProperties, type ReactNode, useMemo, useState, useRef, useEffect } from "react";
 import { color } from "@/lib/theme";
 import { t, type Lang } from "@/lib/i18n";
 import { useAuth } from "@/app/providers";
 import { AuthModal } from "@/app/components/AuthModal";
 import { CryptoTicker } from "@/app/components/CryptoTicker";
+import { useCryptoPrices } from "@/hooks/useCryptoPrices";
 import { isOwnerUser } from "@/lib/user-type";
 import { trackEvent } from "@/lib/track";
+import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
+import {
+  CRYPTO_TICKER_SYMBOLS_EVENT,
+  readCryptoTickerSymbols,
+  sanitizeCryptoSymbols,
+  writeCryptoTickerSymbols,
+} from "@/lib/crypto-preferences";
 
 export type AppNavPage =
   | "briefing"
@@ -210,11 +218,11 @@ function UserMenu({
               <button type="button" onClick={() => { trackEvent("nav.user_menu", { target_id: "youtubeChannels", lang }); onNavigate("youtubeChannels"); setOpen(false); }} style={adminItemStyle("youtubeChannels")}>
                 YouTube Channels
               </button>
-              <button type="button" onClick={() => { trackEvent("nav.user_menu", { target_id: "users", lang }); onNavigate("users"); setOpen(false); }} style={adminItemStyle("users")}>
-                {t("usersAdminAria", lang)}
-              </button>
               <button type="button" onClick={() => { trackEvent("nav.user_menu", { target_id: "stats", lang }); onNavigate("stats"); setOpen(false); }} style={adminItemStyle("stats")}>
                 {t("navStatsAria", lang)}
+              </button>
+              <button type="button" onClick={() => { trackEvent("nav.user_menu", { target_id: "users", lang }); onNavigate("users"); setOpen(false); }} style={adminItemStyle("users")}>
+                {t("usersAdminAria", lang)}
               </button>
               <button type="button" onClick={() => { trackEvent("nav.user_menu", { target_id: "userActivity", lang }); onNavigate("userActivity"); setOpen(false); }} style={adminItemStyle("userActivity")}>
                 {t("userActivityAdminAria", lang)}
@@ -223,17 +231,19 @@ function UserMenu({
             </>
           )}
           {authed ? (
-            <button
-              type="button"
-              onClick={() => {
-                trackEvent("auth.sign_out", { lang });
-                onSignOut();
-                setOpen(false);
-              }}
-              style={menuItemStyle}
-            >
-              {t("authSignOut", lang)}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  trackEvent("auth.sign_out", { lang });
+                  onSignOut();
+                  setOpen(false);
+                }}
+                style={menuItemStyle}
+              >
+                {t("authSignOut", lang)}
+              </button>
+            </>
           ) : (
             <button
               type="button"
@@ -259,6 +269,8 @@ export function AppHeader({
   onAuthModalChange,
   chatOpen,
   onToggleChat,
+  userChatOpen,
+  onToggleUserChat,
 }: {
   currentPage: AppNavPage;
   lang: Lang;
@@ -271,10 +283,18 @@ export function AppHeader({
   chatOpen: boolean;
   /** Toggles the Daily Podcast chat panel. */
   onToggleChat: () => void;
+  /** Community (user-to-user) chat open state. */
+  userChatOpen: boolean;
+  /** Toggles the Community chat side panel. */
+  onToggleUserChat: () => void;
 }) {
   const { session, loading: authLoading, signOut } = useAuth();
   const authed = Boolean(session?.user);
   const canManageTopicsAndFeeds = isOwnerUser(session?.user);
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const [cryptoTickerSymbols, setCryptoTickerSymbols] = useState<string[]>(() =>
+    readCryptoTickerSymbols(),
+  );
   // v2.11.1+ — hide the « Try Pro » CTA once the user has already
   // reserved the Pro plan from /app/settings. Same check pattern as
   // `SettingsPage.SubscriptionPanel` (line ~285): the reservation is
@@ -312,6 +332,50 @@ export function AppHeader({
   // want to keep prices visible without live updates on a specific
   // page, we can switch the prop to `false` for that one surface.
   const showCryptoTicker = currentPage !== "landing";
+  const crypto = useCryptoPrices({
+    poll: showCryptoTicker,
+    selectedSymbols: cryptoTickerSymbols,
+  });
+  const refreshCrypto = crypto.refresh;
+  const cryptoRefreshReadyRef = useRef(false);
+
+  useEffect(() => {
+    if (authLoading || !session?.user) return;
+    const rawSymbols = session.user.user_metadata?.crypto_ticker_symbols;
+    if (Array.isArray(rawSymbols)) {
+      const next = sanitizeCryptoSymbols(rawSymbols);
+      setCryptoTickerSymbols(next);
+      writeCryptoTickerSymbols(next);
+      return;
+    }
+    void supabase.auth.updateUser({
+      data: {
+        ...(session.user.user_metadata ?? {}),
+        crypto_ticker_symbols: cryptoTickerSymbols,
+      },
+    });
+  // Seed once when the authenticated user arrives; user changes go through
+  // `handleCryptoTickerSymbolsChange`.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, session?.user?.id]);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail;
+      setCryptoTickerSymbols(sanitizeCryptoSymbols(detail));
+    };
+    window.addEventListener(CRYPTO_TICKER_SYMBOLS_EVENT, handler);
+    return () => window.removeEventListener(CRYPTO_TICKER_SYMBOLS_EVENT, handler);
+  }, []);
+
+  useEffect(() => {
+    if (!showCryptoTicker) return;
+    if (!cryptoRefreshReadyRef.current) {
+      cryptoRefreshReadyRef.current = true;
+      return;
+    }
+    refreshCrypto();
+  }, [cryptoTickerSymbols, showCryptoTicker, refreshCrypto]);
 
   return (
     <header style={{ paddingBottom: 12, marginBottom: 20 }}>
@@ -345,7 +409,13 @@ export function AppHeader({
             minHeight: 22,
           }}
         >
-          <CryptoTicker lang={lang} poll={showCryptoTicker} />
+          <CryptoTicker
+            lang={lang}
+            prices={crypto.prices}
+            stale={crypto.stale}
+            loading={crypto.loading}
+            error={crypto.error}
+          />
         </div>
       )}
 
@@ -405,6 +475,20 @@ export function AppHeader({
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3" />
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </NavIconButton>
+          {/* Community chat (user-to-user) — a distinct « users » glyph so
+              it doesn't read as the Daily Podcast AI bubble next to it. */}
+          <NavIconButton
+            active={userChatOpen}
+            onClick={() => { trackEvent("nav.header_icon", { target_id: "user_chat", lang }); onToggleUserChat(); }}
+            ariaLabel={userChatOpen ? t("userChatClose", lang) : t("userChatOpen", lang)}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
           </NavIconButton>
           {/* Chat toggle — placed between the settings icon and the user

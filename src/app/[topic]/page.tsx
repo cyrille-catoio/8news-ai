@@ -115,7 +115,7 @@ export default async function TopicHubPage({ params, searchParams }: PageProps) 
 
   return (
     <div style={{ minHeight: "100vh", background: color.bg, color: color.text, fontFamily: font.base }}>
-      <div style={{ maxWidth: 916, margin: "0 auto", padding: "40px 20px" }}>
+      <div style={{ maxWidth: 916, margin: "0 auto", padding: "16px 20px 40px" }}>
         <SeoNavBar
           lang={lang}
           altLangUrl={`/${topicId}?lang=${lang === "fr" ? "en" : "fr"}`}

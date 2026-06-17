@@ -70,10 +70,7 @@ export function NewsletterSignupPrompt({
         ...card,
         marginBottom: 24,
         padding: "14px 16px",
-        borderColor: "rgba(201,162,39,0.40)",
-        background:
-          "linear-gradient(90deg, rgba(201,162,39,0.12), rgba(201,162,39,0.03) 55%, transparent), " +
-          color.surface,
+        background: color.surface,
       }}
     >
       <div

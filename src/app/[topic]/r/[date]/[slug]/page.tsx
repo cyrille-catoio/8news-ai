@@ -205,7 +205,7 @@ export default async function VideoRoundupPage({ params }: PageProps) {
 
   return (
     <div style={{ minHeight: "100vh", background: color.bg, color: color.text, fontFamily: font.base }}>
-      <div style={{ maxWidth: 916, margin: "0 auto", padding: "40px 20px" }}>
+      <div style={{ maxWidth: 916, margin: "0 auto", padding: "16px 20px 40px" }}>
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdCollection) }}

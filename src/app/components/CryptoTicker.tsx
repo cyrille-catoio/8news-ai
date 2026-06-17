@@ -3,37 +3,21 @@
 import { type CSSProperties } from "react";
 import { color } from "@/lib/theme";
 import { t, type Lang } from "@/lib/i18n";
-import { useCryptoPrices, type CryptoPrice } from "@/hooks/useCryptoPrices";
+import { type CryptoPrice } from "@/hooks/useCryptoPrices";
 
 /**
- * Compact live ticker for BTC / ETH / SOL / XRP (+ TAO / SUI on desktop)
- * side of the AppHeader. Powered by `useCryptoPrices` (60 s polling,
- * visibility-aware) which talks to `/api/crypto`. Cache layers
+ * Compact live ticker for up to ten user-selected top-50 CoinGecko coins
+ * in the AppHeader. Powered upstream by `useCryptoPrices` (60 s polling,
+ * visibility-aware), which talks to `/api/crypto`. Cache layers
  * upstream guarantee a single CoinGecko call per minute SHARED across
  * every concurrent visitor — see the route's docblock. Client-side
  * `localStorage` (via `useCryptoPrices`, after mount) shows the last tick
  * on the next paint for return visits; the 60 s poll still revalidates.
  *
- * Mobile responsiveness lives in `globals.css` via helper classes:
- * - `.crypto-ticker-change` (24h %) hides at ≤640 px
- * - `.crypto-ticker-coin-desktop` (TAO, SUI) hides at ≤768 px — mobile
- *   shows BTC / ETH / SOL / XRP only
- *
- * The ticker is mounted by AppHeader only when the parent decides to
- * — see the `<CryptoTicker poll={…} />` call site. The hook itself
- * also supports `poll={false}` so the marketing landing page (future
- * `/landing` route) can mount the component but skip the polling
- * cycle if we ever want to keep prices visible without live updates.
+ * Mobile responsiveness lives in `globals.css`: desktop renders five coins
+ * per line; narrower viewports reduce the column count and hide the 24h %
+ * cell at ≤640 px.
  */
-
-const COINGECKO_PAGES: Record<string, string> = {
-  btc: "https://www.coingecko.com/en/coins/bitcoin",
-  eth: "https://www.coingecko.com/en/coins/ethereum",
-  sol: "https://www.coingecko.com/en/coins/solana",
-  xrp: "https://www.coingecko.com/en/coins/ripple",
-  tao: "https://www.coingecko.com/en/coins/bittensor",
-  sui: "https://www.coingecko.com/en/coins/sui",
-};
 
 const POSITIVE_GREEN = "#4ade80";
 
@@ -64,17 +48,15 @@ function formatChange(c: number): string {
 
 function CoinCell({
   price,
-  isDesktopOnly,
   refreshHint,
 }: {
   price: CryptoPrice;
-  isDesktopOnly: boolean;
   refreshHint: string;
 }) {
   const positive = price.change24h >= 0;
   const changeColor = positive ? POSITIVE_GREEN : color.errorText;
-  const href = COINGECKO_PAGES[price.symbol] ?? "https://www.coingecko.com";
-  const title = `${price.symbol.toUpperCase()} · CoinGecko · ${refreshHint}`;
+  const href = `https://www.coingecko.com/en/coins/${price.coinId}`;
+  const title = `${price.name} (${price.symbol.toUpperCase()}) · CoinGecko · ${refreshHint}`;
 
   // Re-keying on price triggers `cryptoFlash` (defined in globals.css)
   // each time the value changes. The keyframe just fades a faint gold
@@ -102,11 +84,7 @@ function CoinCell({
       rel="noopener noreferrer"
       title={title}
       aria-label={title}
-      className={
-        isDesktopOnly
-          ? "crypto-ticker-coin crypto-ticker-coin-desktop"
-          : "crypto-ticker-coin"
-      }
+      className="crypto-ticker-coin"
       style={linkStyle}
       key={flashKey}
     >
@@ -123,8 +101,19 @@ function CoinCell({
   );
 }
 
-export function CryptoTicker({ lang, poll }: { lang: Lang; poll: boolean }) {
-  const { prices, stale, loading, error } = useCryptoPrices({ poll });
+export function CryptoTicker({
+  lang,
+  prices,
+  stale,
+  loading,
+  error,
+}: {
+  lang: Lang;
+  prices: CryptoPrice[];
+  stale: boolean;
+  loading: boolean;
+  error: boolean;
+}) {
   const refreshHint = t("cryptoTickerRefreshHint", lang);
 
   // Initial cold load: render an empty placeholder slot of similar
@@ -151,16 +140,14 @@ export function CryptoTicker({ lang, poll }: { lang: Lang; poll: boolean }) {
     <div
       className="crypto-ticker"
       role="group"
-      aria-label={`${refreshHint} — BTC, ETH, SOL, XRP`}
+      aria-label={`${refreshHint} — ${prices.map((p) => p.symbol.toUpperCase()).join(", ")}`}
       style={{ color: color.text }}
     >
-      {prices.map((p, i) => (
+      {prices.map((p) => (
         <CoinCell
           key={p.symbol}
           price={p}
           refreshHint={refreshHint}
-          // Mobile: BTC / ETH / SOL / XRP. Desktop adds TAO + SUI.
-          isDesktopOnly={i >= 4}
         />
       ))}
       {stale && (

@@ -6,6 +6,7 @@ import { color, sectionCard as sectionStyle, formSectionTitle as sectionTitle } 
 import { VoiceAccordion, TTS_VOICES_EN, TTS_VOICES_FR } from "@/app/components/VoiceAccordion";
 import { useAuth } from "@/app/providers";
 import { MyAccountSection } from "@/app/components/MyAccountSection";
+import { CryptoTickerSettingsSection } from "@/app/components/CryptoTickerSettingsPage";
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 import { trackEvent } from "@/lib/track";
 
@@ -228,10 +229,12 @@ export function SettingsPage({
             />
           </div>
 
+          {isSignedIn && <CryptoTickerSettingsSection lang={lang} />}
+
           {/* Users admin moved to its own owner-only SPA page in v2.7.x —
               reachable from the AppHeader's user-menu dropdown. Keeping the
               Settings page focused on per-account preferences (account
-              info, max articles, home thresholds, voice). */}
+              info, max articles, home thresholds, voice, crypto ticker). */}
 
     </div>
   );

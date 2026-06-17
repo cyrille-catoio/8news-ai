@@ -51,10 +51,11 @@ import { MyTopicsPage } from "@/app/components/app-shell/MyTopicsPage";
 import { ScrollToTop } from "@/app/components/app-shell/ScrollToTop";
 import { ArticleCard } from "@/app/components/app-shell/ArticleCard";
 import { DailyPodcastChatPanel } from "@/app/components/podcast-chat/DailyPodcastChatPanel";
+import { UserChatPanel } from "@/app/components/user-chat/UserChatPanel";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.13.14";
+const APP_VERSION = "2.14";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 // Daily Podcast chat panel width bounds (desktop). The panel is
@@ -63,6 +64,13 @@ const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 const PODCAST_CHAT_MIN_WIDTH = 320;
 const PODCAST_CHAT_MAX_WIDTH = 640;
 const PODCAST_CHAT_DEFAULT_WIDTH = 400;
+
+// Community chat panel width bounds (desktop). Same drag-to-resize model
+// as the Daily Podcast chat, but anchored on the LEFT edge; the layout
+// push mirrors the chosen width via the `--user-chat-width` CSS variable.
+const USER_CHAT_MIN_WIDTH = 300;
+const USER_CHAT_MAX_WIDTH = 560;
+const USER_CHAT_DEFAULT_WIDTH = 360;
 
 
 function PeriodButton({
@@ -378,6 +386,56 @@ export default function Home() {
     [clampChatWidth],
   );
 
+  // Community chat left-side panel — same open/width persistence model as
+  // the Daily Podcast chat. With no stored preference, the panel defaults
+  // OPEN on desktop and closed on small screens (full-width overlay).
+  const [userChatOpen, setUserChatOpen] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem("userChatOpen");
+    if (stored === "1") setUserChatOpen(true);
+    else if (stored === "0") setUserChatOpen(false);
+    else setUserChatOpen(window.innerWidth >= 761);
+  }, []);
+  const handleUserChatOpenChange = useCallback((next: boolean) => {
+    setUserChatOpen(next);
+    try {
+      window.localStorage.setItem("userChatOpen", next ? "1" : "0");
+    } catch {
+      /* storage disabled — in-memory state still works for the session */
+    }
+  }, []);
+
+  const [userChatWidth, setUserChatWidth] = useState(USER_CHAT_DEFAULT_WIDTH);
+  const clampUserChatWidth = useCallback((raw: number) => {
+    const viewportCap =
+      typeof window !== "undefined"
+        ? Math.max(USER_CHAT_MIN_WIDTH, window.innerWidth - 320)
+        : USER_CHAT_MAX_WIDTH;
+    const max = Math.min(USER_CHAT_MAX_WIDTH, viewportCap);
+    return Math.round(Math.max(USER_CHAT_MIN_WIDTH, Math.min(max, raw)));
+  }, []);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = Number.parseInt(
+      window.localStorage.getItem("userChatWidth") ?? "",
+      10,
+    );
+    if (Number.isFinite(stored)) setUserChatWidth(clampUserChatWidth(stored));
+  }, [clampUserChatWidth]);
+  const handleUserChatWidthChange = useCallback(
+    (raw: number) => {
+      const w = clampUserChatWidth(raw);
+      setUserChatWidth(w);
+      try {
+        window.localStorage.setItem("userChatWidth", String(w));
+      } catch {
+        /* storage disabled — width still applies for the session */
+      }
+    },
+    [clampUserChatWidth],
+  );
+
   const {
     preferredTopicIds,
     draftTopicIds,
@@ -616,16 +674,17 @@ export default function Home() {
 
   return (
     <div
-      className={`app-shell-root${chatOpen ? " chat-open" : ""}`}
+      className={`app-shell-root${chatOpen ? " chat-open" : ""}${userChatOpen ? " user-chat-open" : ""}`}
       style={{
         minHeight: "100vh",
         background: color.bg,
         color: color.text,
         fontFamily: font.base,
         ["--chat-width" as string]: `${chatWidth}px`,
+        ["--user-chat-width" as string]: `${userChatWidth}px`,
       } as CSSProperties}
     >
-      <div style={{ maxWidth: 916, margin: "0 auto", padding: "40px 20px" }}>
+      <div style={{ maxWidth: 916, margin: "0 auto", padding: "16px 20px 40px" }}>
 
         <AppHeader
           currentPage={currentPage}
@@ -643,6 +702,8 @@ export default function Home() {
           onAuthModalChange={setAuthModalOpen}
           chatOpen={chatOpen}
           onToggleChat={() => handleChatOpenChange(!chatOpen)}
+          userChatOpen={userChatOpen}
+          onToggleUserChat={() => handleUserChatOpenChange(!userChatOpen)}
         />
 
         {/* ── General menu (visible on all pages) ─────────────── */}
@@ -1113,6 +1174,19 @@ export default function Home() {
           />
         </>
       }
+
+      {/* Community chat — collapsible LEFT side panel. Public read for
+          everyone (anonymous can browse), posting routes to sign-in. The
+          panel pushes the interface right (no backdrop). */}
+      <UserChatPanel
+        lang={lang}
+        open={userChatOpen}
+        onOpenChange={handleUserChatOpenChange}
+        isAuthenticated={isAuthenticated}
+        canModerate={authOwner}
+        onRequestAuth={() => setAuthModalOpen(true)}
+        onWidthChange={handleUserChatWidthChange}
+      />
 
       {newVersionAvailable && (
         <div

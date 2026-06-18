@@ -1484,11 +1484,12 @@ body.podcast-chat-resizing .podcast-chat-resize::after {
 }
 
 /* CryptoTicker — header ticker for up to 10 selected top-50 coins.
-   - `.crypto-ticker-change` carries the 24h % cell. Hidden on ≤640px
-     so the ticker stays compact next to the icon row without pushing
-     it off-screen.
+   - `.crypto-ticker-change` carries the 24h % cell and stays visible
+     on mobile too.
    - Desktop uses five max-content columns, so a full 10-coin selection
-     renders as exactly two balanced rows of five. */
+     renders as two balanced rows of five.
+   - Mobile uses three columns, so the max 10-coin selection renders in
+     at most four rows. */
 .crypto-ticker {
   display: grid;
   grid-template-columns: repeat(5, max-content);
@@ -1513,26 +1514,35 @@ body.podcast-chat-resizing .podcast-chat-resize::after {
 
 @media (max-width: 760px) {
   .crypto-ticker {
-    grid-template-columns: repeat(3, max-content);
+    width: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .crypto-ticker-coin {
+    width: 100%;
+    justify-content: center;
+    box-sizing: border-box;
   }
 }
 
 @media (max-width: 640px) {
   .crypto-ticker {
-    gap: 8px;
-    font-size: 13.2px;
+    font-size: 11.8px;
   }
   .crypto-ticker-coin {
-    padding: 6px 8px !important;
-  }
-  .crypto-ticker-change {
-    display: none;
+    gap: 4px !important;
+    padding: 5px 6px !important;
   }
 }
 
 @media (max-width: 480px) {
   .crypto-ticker {
-    grid-template-columns: repeat(2, max-content);
-    gap: 6px;
+    font-size: 10.8px;
+    gap: 5px;
+  }
+
+  .crypto-ticker-coin {
+    padding: 5px 4px !important;
   }
 }

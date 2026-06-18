@@ -97,7 +97,8 @@ export function UserChatPanel({
     setLoading(true);
     setError(null);
 
-    void (async () => {
+    const loadMessages = async (showLoading: boolean) => {
+      if (showLoading) setLoading(true);
       try {
         const res = await fetch("/api/user-chat?limit=50", { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -105,11 +106,24 @@ export function UserChatPanel({
         if (cancelled) return;
         setMessages(json.messages ?? []);
       } catch {
-        if (!cancelled) setError(t("userChatError", lang));
+        if (!cancelled && showLoading) setError(t("userChatError", lang));
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled && showLoading) setLoading(false);
       }
-    })();
+    };
+
+    void loadMessages(true);
+
+    // Reconcile with the DB periodically and whenever the tab becomes
+    // visible again. This is a safety net for missed Realtime DELETE
+    // events (e.g. another already-open production tab, network blip,
+    // or an older deployed bundle): a deleted row disappears everywhere
+    // on the next refresh even if the live event was not received.
+    const reconcile = () => {
+      if (document.visibilityState === "visible") void loadMessages(false);
+    };
+    const interval = window.setInterval(reconcile, 30_000);
+    document.addEventListener("visibilitychange", reconcile);
 
     const channel = supabase
       .channel("user-chat-room")
@@ -134,6 +148,8 @@ export function UserChatPanel({
 
     return () => {
       cancelled = true;
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", reconcile);
       void supabase.removeChannel(channel);
     };
   }, [open, supabase, lang]);
@@ -419,9 +435,6 @@ export function UserChatPanel({
             lineHeight: 1.45,
           }}
         >
-          <span style={{ color: color.gold, fontWeight: 700 }}>
-            {lang === "fr" ? "Message épinglé : " : "Pinned: "}
-          </span>
           {t("userChatPinnedNotice", lang)}
         </p>
       </div>

@@ -15,8 +15,8 @@ import { type CryptoPrice } from "@/hooks/useCryptoPrices";
  * on the next paint for return visits; the 60 s poll still revalidates.
  *
  * Mobile responsiveness lives in `globals.css`: desktop renders five coins
- * per line; narrower viewports reduce the column count and hide the 24h %
- * cell at ≤640 px.
+ * per line; mobile renders three coins per line and keeps the 24h % cell
+ * visible like desktop.
  */
 
 const POSITIVE_GREEN = "#4ade80";

@@ -194,7 +194,9 @@ export function HomeTop24hHero({
       lang={lang}
       onNavigate={onNavigate}
       title={t("top24hHeroHomeTitle", lang)}
+      kickerLabel={t("top24hHeroHomeTitle", lang)}
       appendSummaryDateToTitle
+      hideTitlePrefix
       isRead={isRead}
       onToggleRead={onToggleRead}
       showHistoryControls

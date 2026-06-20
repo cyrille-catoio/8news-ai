@@ -26,7 +26,7 @@ export type VideoListResponseItem = VideoItem & {
 };
 
 const BRIEFING_PREWARM_BUCKET_MS = 10 * 60 * 1000;
-const MIN_BRIEFING_VIDEO_DURATION_SEC = 120;
+const MIN_BRIEFING_VIDEO_DURATION_SEC = 180;
 const briefingPrewarmDone = new Set<string>();
 const briefingPrewarmInFlight = new Map<string, Promise<boolean>>();
 

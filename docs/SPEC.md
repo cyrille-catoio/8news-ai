@@ -12,7 +12,7 @@
 **8news.ai** is an AI-powered tech / AI / crypto intelligence platform built around two complementary content pipelines:
 
 1. **RSS articles** — fetched from 400+ curated feeds across **dynamic, database-driven topics**, pre-scored 1-10 with AI via scheduled Netlify cron jobs, stored in Supabase, and surfaced as a daily Top 50 (homepage feed) and per-topic SEO daily summary pages.
-2. **YouTube transcriptions** — for a curated set of channels, the cron pre-transcribes every "today's" video (≥ 120 s) in EN+FR, GPT-summarises each one into a Markdown article, and aggregates them per topic per day into structured 8-bullet "video roundup" briefings.
+2. **YouTube transcriptions** — for a curated set of channels, the cron pre-transcribes every "today's" video (≥ 180 s) in EN+FR, GPT-summarises each one into a Markdown article, and aggregates them per topic per day into structured 8-bullet "video roundup" briefings.
 
 Both pipelines feed into a hybrid rendering model: a black-and-gold **client-side SPA at `/app`** for the authenticated / power-user surface, plus a **server-rendered SEO surface** at `/`, `/archives` (**v2.6.11+** unified hub, supersedes the previously parallel `/summaries` + `/briefings` which now 308-redirect here), `/[topic]`, `/[topic]/[date]/[slug]` (legacy article daily summary, redirects to `/en|fr/[topic]/[date]/[slug]`), `/[topic]/v/[date]/[slug]`, `/[topic]/r/[date]/[slug]` and `/[topic]/videos/[date]` (**v2.6.11+** drill-down from /archives) for indexability.
 
@@ -499,7 +499,7 @@ Canonical implementations live in `src/lib/`:
 - `WALL_MS = 840_000`, `BUDGET_MS = 810_000`, **v2.5.4+ `SAFETY_MS = 200_000`** (must be > the per-call OpenAI timeout so the budget guard never starts a transcribe it can't finish), `MAX_BUCKETS_PER_RUN = 40`
 - Source pool: `youtube_videos` published in the last 24 h, with `topic_id` set (so the `/v/` SSR page can be generated downstream)
 - Backfills missing `duration_sec` via `enrichDurations()` (YouTube Data API v3) before filtering
-- **Skip Shorts**: any video with `duration_sec < 120` is excluded (matches the SPA's default toggle)
+- **Skip Shorts**: any video with `duration_sec < 180` is excluded (matches the SPA's default toggle)
 - Single bulk SELECT on `video_transcriptions(video_id, lang)` builds a `Set<videoId|lang>` of already-done buckets — fast-skip pattern, no per-bucket cache check
 - For each candidate × `(en, fr)`: full pipeline on the first lang (~25-90 s on `gpt-5.3-chat-latest`), then translate path on the second lang (~15-25 s) since the alt-lang cache row now exists
 - **v2.5.4+** Calls `transcribeVideo()` with `model: "gpt-5.3-chat-latest"` and `openaiTimeoutMs: 180_000` (vs the synchronous route's `gpt-4.1-mini` + 25 s budget). Result: ~95 % of summaries a real visitor sees come from this higher-quality background pre-warm path; the synchronous on-demand button is now only a fallback for very-fresh videos not yet picked up by a tick
@@ -1063,7 +1063,7 @@ The previously-parallel `/summaries` (article daily summaries) and `/briefings` 
 Accessible via the General Menu "Videos" button (all users).
 
 - **Date navigation**: prev/next day arrows with MiniCalendar picker between them, plus "Today" shortcut
-- **Shorts toggle**: on/off switch on the same line as the date picker, right-aligned. **Default: off** — Shorts (`duration_sec < 120`, i.e. < 2 min) are hidden until the user flips the switch
+- **Shorts toggle**: on/off switch on the same line as the date picker, right-aligned. **Default: off** — Shorts (`duration_sec < 180`, i.e. < 3 min) are hidden until the user flips the switch
 - **Transcribed badge**: when a `(video_id, lang)` has an existing `video_transcriptions` row, the action button renders a check icon (instead of the "T" text icon). Same color / no panel expansion — clicking still toggles the summary panel.
 - **Video cards**: horizontal layout (320 px thumbnail + title, truncated description with "See more", channel, time, views, duration). **v2.13.5+** Titles and descriptions are emoji-stripped at display time (`stripEmojis()` — also applied to aria-labels, iframe title, transcript filename and the TTS intro); raw values stay untouched in DB and API payloads.
 - **Transcription button**: triggers AI transcription flow per video (TranscriptAPI + GPT-4.1-mini sync). **v2.x+** Inline spinner inside the button while loading.
@@ -1324,7 +1324,7 @@ interface CronStatsResponse {
           │  - gpt-4.1-mini → daily_summaries + summary_bullets        │
           │                                                            │
           │  cron-video-transcribe-background.ts (every 15 min)        │
-          │  - Today's videos with topic_id, duration_sec >= 120 s     │
+          │  - Today's videos with topic_id, duration_sec >= 180 s     │
           │  - First lang: full pipeline (transcript + summary)        │
           │  - Second lang: translate path (reuses transcript)         │
           │  - gpt-5.3-chat-latest, 180 s OpenAI timeout (v2.5.4+)     │
@@ -1456,7 +1456,7 @@ Release history is maintained in **`src/data/changelog-entries.json`** and auto-
 - **v2.5.4** — Hybrid OpenAI strategy: synchronous video transcription stays on `gpt-4.1-mini` (sub-30 s budget), pre-warm cron upgraded to `gpt-5.3-chat-latest` with a 180 s OpenAI timeout (cron `SAFETY_MS = 200_000`). Landing pricing: annual price for Pro displayed side-by-side with monthly via `.price-row`; "Choose 8 topics out of 36 available, powered by 400+ RSS feeds"; merged Top 50 + favorites + archive lines for Free; removed ElevenLabs / Webhooks-API / Priority-scoring lines; "Morning email digest covering all your topics".
 - **v2.5.3** — Language persistence: SSR pages now resolve via `resolveServerLang()` (query → `preferred_lang` → cookie → default); SPA + `SeoNavBar` write `preferred_lang` to `user_metadata` on every toggle; introduced `src/lib/server-lang.ts`.
 - **v2.5.2** — Briefing's "All transcribed videos" pagination = 1 day per page, default = today, section stays visible if today is empty; PostgREST `PGRST204` on missing `summary_bullets.video_roundup_id` logged as a single WARN (run migration 018).
-- **v2.5** — `cron-video-transcribe-background` (every 15 min): pre-transcribe today's videos in EN+FR (skip Shorts < 120 s) so the SPA shows instant summaries.
+- **v2.5** — `cron-video-transcribe-background` (every 15 min): pre-transcribe today's videos in EN+FR (skip Shorts < 180 s) so the SPA shows instant summaries.
 - **v2.4 / v2.4.1** — Video roundups rebuilt: 8 structured bullets (3-8 word bold title + 3-5 sentence body), `gpt-5.3-chat-latest`, mirrored to `summary_bullets` (migration 018), 48 h source window in the cron.
 - **v2.3 / v2.3.1** — Long videos transcribe reliably (3-tier sampling); recent transcribed videos block on the Briefing.
 - **v2.2** — SSR per-topic-per-day video roundups (`/{topic}/r/{date}/{slug}`) + per-video pages (`/{topic}/v/{date}/{slug}`) + `/briefings` hub (migrations 016 + 017).
@@ -1468,7 +1468,7 @@ Release history is maintained in **`src/data/changelog-entries.json`** and auto-
 
 - **Partial authentication / role-based admin** — Supabase Auth with `member` (default) vs `owner`. Topics, Feed management, Categories, Daily Summaries (admin), YouTube Channels and Users are owner-only. Guests and members still use the Briefing, Top 50, Daily Summaries, Videos, Favorites (signed-in only), stats, crons, changelog, settings, plus every public SSR page. No per-user data partitioning in the database; `owner` is an admin role for those screens.
 - **Synchronous video transcription budget** — `/api/youtube-channels/transcribe` runs on a regular Netlify route (30 s cap) and uses `gpt-4.1-mini` with a 25 s OpenAI timeout. For very long videos (> 1 h 30 min) it relies on a 3-tier transcript-sampling strategy in `lib/transcribe-video.ts`. Higher-quality summaries come from the cron pre-warm path (`gpt-5.3-chat-latest`, 180 s budget) — by the time most visitors arrive, the cache row is already populated.
-- **Cron pre-warm coverage** — `cron-video-transcribe-background` only picks up videos with `topic_id` set on the parent channel and `duration_sec ≥ 120`. Shorts and channels not yet linked to a topic stay on the on-demand sync path.
+- **Cron pre-warm coverage** — `cron-video-transcribe-background` only picks up videos with `topic_id` set on the parent channel and `duration_sec ≥ 180`. Shorts and channels not yet linked to a topic stay on the on-demand sync path.
 - **Migrations are not auto-applied** — Migrations under `migrations/` must be run manually in the Supabase SQL Editor. Code is defensive when a migration is missing (e.g. `summary_bullets.video_roundup_id` from migration 018 — the mirror logs a single WARN and skips). Always run pending migrations before promoting a release that depends on them.
 - **Serverless wall-time** — Netlify background functions cap at 15 min wall-time. Internal budgets (~13.5-14.5 min) + safety reserves (10-200 s depending on the cron) keep us inside that envelope. `POST /api/topics/[id]/feeds/[feedId]/score` is capped at `maxDuration 13` (synchronous route) and may return `partial: true` when its budget is exhausted.
 - **RSS availability** — Some feeds go offline; AI feed discovery validates upfront but feeds can break later.

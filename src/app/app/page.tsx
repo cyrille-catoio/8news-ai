@@ -55,7 +55,7 @@ import { UserChatPanel } from "@/app/components/user-chat/UserChatPanel";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.14.1";
+const APP_VERSION = "2.14.2";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 // Daily Podcast chat panel width bounds (desktop). The panel is

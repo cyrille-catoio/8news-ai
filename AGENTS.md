@@ -170,7 +170,7 @@ propriétaire dit « run localhost » ; vérifier d'abord qu'il ne tourne pas d�
   Ne pas ajouter d'émojis dans l'UI ni dans les sorties LLM.
 - **Scores** : format « 9/10 », vert à partir de 8/10, décimale possible
   entre 9 et 10 pour les vidéos (ex. 9.3/10). Affichage homogène partout.
-- « Short » YouTube = vidéo < 120 s.
+- « Short » YouTube = vidéo < 180 s.
 - Lecteur audio : toujours surmonté du label « LECTEUR AUDIO » / « AUDIO
   PLAYER », même composant partout.
 - Markdown rendu via les maps partagées (composants `react-markdown` dédupliqués

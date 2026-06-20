@@ -1,5 +1,13 @@
 [
   {
+    "version": "2.14.2",
+    "title_en": "v2.14.2: 3-minute Shorts threshold and cleaner Daily Podcast video links",
+    "title_fr": "v2.14.2 : seuil Shorts à 3 minutes et liens vidéo plus propres dans le Podcast du jour",
+    "body_en": "**Shorts threshold moved to 3 minutes.** Every video surface now treats a Short as `duration_sec < 180` instead of `< 120`: the `/app/videos` Long/Short toggle, the `/api/youtube-channels/videos` prewarm hint, and `cron-video-transcribe-background` all share the same contract. `AGENTS.md`, `docs/SPEC.md`, and `src/lib/youtube-duration.ts` comments were updated so the project convention no longer points back to 2 minutes.\n\n**Daily Podcast video rows are cleaner.** The home Daily Podcast section now uses « Podcast du jour » as the kicker above the card, while the title inside the card only shows the snapshot date (no repeated « Podcast du jour — … » prefix). The separate `VIDEO` badge disappeared from Top 24h video groups; video source-link pills now carry a small YouTube glyph via `YouTubeIcon`, while article refs keep the regular external-link glyph.\n\n**Release.** Bump 2.14.1 → 2.14.2. No DB migration.",
+    "body_fr": "**Le seuil Shorts passe à 3 minutes.** Toutes les surfaces vidéo considèrent désormais qu'un Short est `duration_sec < 180` au lieu de `< 120` : le toggle Long/Short de `/app/videos`, le préchauffage via `/api/youtube-channels/videos`, et `cron-video-transcribe-background` partagent le même contrat. `AGENTS.md`, `docs/SPEC.md` et les commentaires de `src/lib/youtube-duration.ts` ont été mis à jour pour que la convention projet ne pointe plus vers 2 minutes.\n\n**Les lignes vidéo du Podcast du jour sont plus propres.** Sur la home, la section Daily Podcast affiche maintenant « Podcast du jour » comme kicker au-dessus de la carte, tandis que le titre interne de la carte n'affiche plus que la date du snapshot (sans répéter « Podcast du jour — … »). Le badge séparé `VIDEO` disparaît des groupes vidéo Top 24h ; les liens sources vidéo portent désormais une petite icône YouTube via `YouTubeIcon`, tandis que les refs articles gardent l'icône de lien externe classique.\n\n**Release.** Bump 2.14.1 → 2.14.2. Pas de migration DB.",
+    "created_at": "2026-06-19T08:38:00Z"
+  },
+  {
     "version": "2.14.1",
     "title_en": "v2.14.1: community chat delete sync, mobile crypto grid, small UI polish",
     "title_fr": "v2.14.1 : synchro des suppressions du chat, grille crypto mobile, finitions UI",

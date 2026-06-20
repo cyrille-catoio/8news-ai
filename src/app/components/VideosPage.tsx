@@ -9,9 +9,9 @@ import { VideoCard, type VideoItem } from "@/app/components/VideoCard";
 
 const VIDEO_SORT_COOKIE = "videoSortOrder";
 
-/** Short: duration known and strictly under 2 minutes. Unknown duration is not treated as a short. */
+/** Short: duration known and strictly under 3 minutes. Unknown duration is not treated as a short. */
 function isShortVideo(v: VideoItem): boolean {
-  return v.durationSec != null && v.durationSec < 120;
+  return v.durationSec != null && v.durationSec < 180;
 }
 
 function publishedTimeDesc(a: VideoItem, b: VideoItem): number {

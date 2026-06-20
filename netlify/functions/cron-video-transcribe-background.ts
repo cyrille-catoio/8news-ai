@@ -19,7 +19,7 @@ import { checkCronSecret } from "./shared/cron-auth";
  * lang runs the full pipeline (~25s); the second lang hits the
  * translate path (~8s) since the alt-lang cache row now exists.
  *
- * Shorts (< 120s) are skipped to match the SPA's default "Vidéos du
+ * Shorts (< 180s) are skipped to match the SPA's default "Vidéos du
  * jour" filter and avoid spending OpenAI tokens on low-value content.
  *
  * The synchronous `/api/youtube-channels/transcribe` route stays in
@@ -47,7 +47,7 @@ const WINDOW_HOURS = 24;
 
 /** Anything shorter is treated as a Short and skipped. Mirrors the
  *  SPA's default toggle on `/app/videos`. */
-const MIN_DURATION_SEC = 120;
+const MIN_DURATION_SEC = 180;
 
 /** Background functions have a 15 min budget; we can afford a much
  *  longer per-call OpenAI timeout than the synchronous route. */

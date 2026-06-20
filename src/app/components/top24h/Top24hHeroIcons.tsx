@@ -74,3 +74,21 @@ export function RefIcon() {
     </svg>
   );
 }
+
+/** YouTube glyph rendered inside source-link pills for video bullets.
+ *  This replaces the separate « VIDEO » label in the Top 24h row so the
+ *  video nature is carried by the actual link affordance. */
+export function YouTubeIcon() {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      style={{ verticalAlign: "middle", opacity: 0.78 }}
+      aria-hidden
+    >
+      <path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 0 0 .5 6.2 31.5 31.5 0 0 0 0 12a31.5 31.5 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 0 0 2.1-2.1A31.5 31.5 0 0 0 24 12a31.5 31.5 0 0 0-.5-5.8ZM9.6 15.6V8.4L15.8 12l-6.2 3.6Z" />
+    </svg>
+  );
+}

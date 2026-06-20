@@ -10,7 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  *  - `GET /api/youtube-channels/videos` — lazy enrichment when the SPA
  *    fetches the day's videos and some rows are missing duration.
  *  - `netlify/functions/cron-video-transcribe-background.ts` — needs
- *    duration to filter out shorts (< 120s) before transcribing.
+ *    duration to filter out shorts (< 180s) before transcribing.
  */
 
 /** Parse ISO 8601 duration (PT1H2M33S) to seconds. */

@@ -7,7 +7,7 @@ import type { AppNavPage } from "@/app/components/AppHeader";
 import { ScoreMeter } from "@/app/components/ScoreMeter";
 import { Top24hAudio } from "@/app/components/Top24hAudio";
 import { trackEvent } from "@/lib/track";
-import { Chevron, DoubleChevron, RefIcon } from "@/app/components/top24h/Top24hHeroIcons";
+import { Chevron, DoubleChevron, RefIcon, YouTubeIcon } from "@/app/components/top24h/Top24hHeroIcons";
 import {
   groupBullets,
   countGroups,
@@ -76,6 +76,8 @@ export function Top24hHero({
   showHistoryControls = false,
   showHomeRefresh = false,
   onSnapshotChange,
+  kickerLabel,
+  hideTitlePrefix = false,
 }: {
   lang: Lang;
   /** Required when `showSeeAllLink` is `true` (default). The footer
@@ -129,6 +131,12 @@ export function Top24hHero({
   /** Home-only: full-page reload pill to the right of the history
    *  chevrons (podcast du jour header). */
   showHomeRefresh?: boolean;
+  /** Optional kicker above the card. Defaults to « Top articles · 24h ». */
+  kickerLabel?: string;
+  /** When true with `appendSummaryDateToTitle`, render only the date in
+   *  the card heading instead of `{title} — {date}`. Home uses this so
+   *  « Podcast du jour » appears only once, as the section kicker. */
+  hideTitlePrefix?: boolean;
   /** Notifies the parent each time the visible snapshot changes
    *  (initial load + every history-arrow navigation). v2.8.2+ used by
    *  `<HomeTop24hHero>` to know which `summaryDate` to look up in the
@@ -307,7 +315,7 @@ export function Top24hHero({
   if (isSelfFetched && loadingInternal) {
     return (
       <section style={{ marginBottom: 36 }}>
-        <div style={kickerStyle(color.gold)}>{t("top24hHeroKicker", lang)}</div>
+        <div style={kickerStyle(color.gold)}>{kickerLabel ?? t("top24hHeroKicker", lang)}</div>
         <div
           style={{
             ...card,
@@ -351,8 +359,11 @@ export function Top24hHero({
 
   const locale = dateLocale(lang);
   const baseTitle = title ?? t("top24hHeroTitle", lang);
+  const summaryDateLabel = formatSummaryDayLabel(snap.summaryDate, lang);
   const headingTitle = appendSummaryDateToTitle
-    ? `${baseTitle} — ${formatSummaryDayLabel(snap.summaryDate, lang)}`
+    ? hideTitlePrefix
+      ? summaryDateLabel
+      : `${baseTitle} — ${summaryDateLabel}`
     : baseTitle;
 
   return (
@@ -367,7 +378,7 @@ export function Top24hHero({
           marginBottom: 12,
         }}
       >
-        <div style={kickerStyle(color.gold)}>{t("top24hHeroKicker", lang)}</div>
+        <div style={kickerStyle(color.gold)}>{kickerLabel ?? t("top24hHeroKicker", lang)}</div>
         {showHistoryControls && isSelfFetched && (
           <HistoryArrows
             offset={historyOffset}
@@ -684,30 +695,6 @@ export function Top24hHero({
                   >
                     <span style={{ color: color.gold, flexShrink: 0, fontSize: 18, lineHeight: 1 }}>•</span>
                     <span style={{ flex: 1, minWidth: 0 }}>{g.title}</span>
-                    {/* « Top videos of yesterday » badge (v2.13+) —
-                        the two best-scored videos of the previous day
-                        are pinned at the head of the briefing; the
-                        mono pill tells them apart from article groups
-                        at a glance. */}
-                    {g.bullets[0]?.isVideo && (
-                      <span
-                        style={{
-                          flexShrink: 0,
-                          fontFamily: "ui-monospace, Menlo, monospace",
-                          fontSize: 9.5,
-                          fontWeight: 700,
-                          letterSpacing: "0.1em",
-                          color: color.gold,
-                          border: "1px solid rgba(201, 162, 39, 0.45)",
-                          background: "rgba(201, 162, 39, 0.10)",
-                          borderRadius: 999,
-                          padding: "2px 8px",
-                          lineHeight: 1.4,
-                        }}
-                      >
-                        VIDEO
-                      </span>
-                    )}
                     {/* Editorial importance score 1-10 (mig. 026+).
                         Read off the first bullet of the group — every
                         bullet of a same-title run carries the same
@@ -833,7 +820,7 @@ export function Top24hHero({
                                   e.currentTarget.style.borderColor = "rgba(201, 162, 39, 0.45)";
                                 }}
                               >
-                                {ref.source} <RefIcon />
+                                {ref.source} {b.isVideo ? <YouTubeIcon /> : <RefIcon />}
                               </a>
                             ))}
                           </div>

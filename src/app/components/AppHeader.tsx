@@ -6,6 +6,7 @@ import { t, type Lang } from "@/lib/i18n";
 import { useAuth } from "@/app/providers";
 import { AuthModal } from "@/app/components/AuthModal";
 import { CryptoTicker } from "@/app/components/CryptoTicker";
+import type { CryptoPrice } from "@/hooks/useCryptoPrices";
 import { useCryptoPrices } from "@/hooks/useCryptoPrices";
 import { isOwnerUser } from "@/lib/user-type";
 import { trackEvent } from "@/lib/track";
@@ -37,6 +38,7 @@ export type AppNavPage =
   | "myTopics"
   | "topArticles"
   | "summaries"
+  | "cryptoChart"
   /** v2.5.17+ — anticipated route for a future SPA-internal landing page
    *  (the public marketing landing already lives at `/` and is rendered
    *  by a separate Next route, not by this component). The CryptoTicker
@@ -271,6 +273,7 @@ export function AppHeader({
   onToggleChat,
   userChatOpen,
   onToggleUserChat,
+  onOpenCryptoChart,
 }: {
   currentPage: AppNavPage;
   lang: Lang;
@@ -287,6 +290,8 @@ export function AppHeader({
   userChatOpen: boolean;
   /** Toggles the Community chat side panel. */
   onToggleUserChat: () => void;
+  /** Opens the in-app TradingView chart for a ticker coin. */
+  onOpenCryptoChart: (coin: CryptoPrice) => void;
 }) {
   const { session, loading: authLoading, signOut } = useAuth();
   const authed = Boolean(session?.user);
@@ -415,6 +420,7 @@ export function AppHeader({
             stale={crypto.stale}
             loading={crypto.loading}
             error={crypto.error}
+            onCoinClick={onOpenCryptoChart}
           />
         </div>
       )}

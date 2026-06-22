@@ -1486,14 +1486,18 @@ body.podcast-chat-resizing .podcast-chat-resize::after {
 /* CryptoTicker — header ticker for up to 10 selected top-50 coins.
    - `.crypto-ticker-change` carries the 24h % cell and stays visible
      on mobile too.
-   - Desktop uses five max-content columns, so a full 10-coin selection
-     renders as two balanced rows of five.
+   - Desktop spans the full strip width: five max-content columns
+     distributed edge-to-edge (`space-between`), so the first coin hugs
+     the left edge and the last hugs the right, with the gap computed
+     evenly between them. A full 10-coin selection renders as two
+     balanced rows of five.
    - Mobile uses three columns, so the max 10-coin selection renders in
      at most four rows. */
 .crypto-ticker {
   display: grid;
+  width: 100%;
   grid-template-columns: repeat(5, max-content);
-  justify-content: center;
+  justify-content: space-between;
   align-items: center;
   gap: 8px 10px;
   font-size: 13.8px;

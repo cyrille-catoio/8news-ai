@@ -1293,6 +1293,34 @@ const strings = {
     en: "No crypto matches this search.",
     fr: "Aucune crypto ne correspond à cette recherche.",
   },
+  cryptoChartKicker: {
+    en: "Crypto chart",
+    fr: "Graphique crypto",
+  },
+  cryptoChartSubtitle: {
+    en: "Candles 1D · last 30 days · Bollinger Bands",
+    fr: "Bougies 1D · 30 derniers jours · Bandes de Bollinger",
+  },
+  cryptoChartPrice: {
+    en: "Price",
+    fr: "Prix",
+  },
+  cryptoChartRank: {
+    en: "Market rank",
+    fr: "Rang marché",
+  },
+  cryptoChartFallbackHint: {
+    en: "TradingView symbol fallback: {symbol}. If the chart does not load, try changing the symbol inside TradingView.",
+    fr: "Fallback symbole TradingView : {symbol}. Si le graphique ne charge pas, essayez de changer le symbole dans TradingView.",
+  },
+  cryptoChartLoading: {
+    en: "Loading chart…",
+    fr: "Chargement du graphique…",
+  },
+  cryptoChartUnavailable: {
+    en: "No daily candle data available for {symbol}.",
+    fr: "Aucune donnée de bougies journalières disponible pour {symbol}.",
+  },
   favoritesTitle: {
     en: "My Favorites",
     fr: "Mes Favoris",

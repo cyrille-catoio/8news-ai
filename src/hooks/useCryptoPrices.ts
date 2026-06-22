@@ -60,8 +60,12 @@ export function useCryptoPrices({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const cancelledRef = useRef(false);
-  const normalizedSymbols = useMemo(() => sanitizeCryptoSymbols(selectedSymbols), [selectedSymbols]);
-  const symbolsKey = normalizedSymbols.join(",");
+  const selectedSymbolsKey = selectedSymbols.join(",");
+  const symbolsKey = useMemo(
+    () => sanitizeCryptoSymbols(selectedSymbolsKey.split(",")).join(","),
+    [selectedSymbolsKey],
+  );
+  const normalizedSymbols = useMemo(() => symbolsKey.split(",").filter(Boolean), [symbolsKey]);
 
   const fetchOnce = useCallback(async () => {
     try {
@@ -109,7 +113,7 @@ export function useCryptoPrices({
     return () => {
       cancelledRef.current = true;
     };
-  }, [fetchOnce, normalizedSymbols, poll]);
+  }, [fetchOnce, normalizedSymbols, poll, symbolsKey]);
 
   useEffect(() => {
     if (!poll) return;

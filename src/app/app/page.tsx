@@ -52,10 +52,11 @@ import { ScrollToTop } from "@/app/components/app-shell/ScrollToTop";
 import { ArticleCard } from "@/app/components/app-shell/ArticleCard";
 import { DailyPodcastChatPanel } from "@/app/components/podcast-chat/DailyPodcastChatPanel";
 import { UserChatPanel } from "@/app/components/user-chat/UserChatPanel";
+import { CryptoChartPage, type CryptoChartTarget } from "@/app/components/CryptoChartPage";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.14.2";
+const APP_VERSION = "2.15";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 // Daily Podcast chat panel width bounds (desktop). The panel is
@@ -326,6 +327,7 @@ export default function Home() {
   // page-specific UX (scroll-to-top on /top-articles) stay in `Home`
   // below because they read auth state / lifecycle other than `currentPage`.
   const { currentPage, setCurrentPage } = useSpaNavigation();
+  const [cryptoChartTarget, setCryptoChartTarget] = useState<CryptoChartTarget | null>(null);
 
   const [topicsStartInCreate, setTopicsStartInCreate] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -704,6 +706,14 @@ export default function Home() {
           onToggleChat={() => handleChatOpenChange(!chatOpen)}
           userChatOpen={userChatOpen}
           onToggleUserChat={() => handleUserChatOpenChange(!userChatOpen)}
+          onOpenCryptoChart={(coin) => {
+            setCryptoChartTarget({ coinId: coin.coinId, symbol: coin.symbol });
+            setCurrentPage("cryptoChart");
+            if (typeof window !== "undefined") {
+              const url = `/app/crypto-chart?coin=${encodeURIComponent(coin.coinId)}&symbol=${encodeURIComponent(coin.symbol)}`;
+              window.history.replaceState({ page: "cryptoChart" }, "", url);
+            }
+          }}
         />
 
         {/* ── General menu (visible on all pages) ─────────────── */}
@@ -810,6 +820,8 @@ export default function Home() {
           />
         ) : currentPage === "channels" ? (
           <ChannelsPage lang={lang} />
+        ) : currentPage === "cryptoChart" ? (
+          <CryptoChartPage lang={lang} target={cryptoChartTarget} />
         ) : currentPage === "youtubeChannels" ? (
           authLoading ? (
             <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "80px 0" }}>

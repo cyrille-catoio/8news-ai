@@ -1,7 +1,7 @@
 # 8news.ai — Technical Specification
 
-**Version**: v2.14
-**Last updated**: 17 June 2026
+**Version**: v2.15
+**Last updated**: 22 June 2026
 
 > **Note**: sections of this spec are historical — they describe the system as of the version tagged inline (`**vX.Y+**` markers). The mechanical parts (header version, file tree, migration list, cron list, API route list) are kept current and **enforced by `npm run spec:check`** (also run by `npm test`, hence by the Netlify build — drift blocks the deploy). The spec is updated automatically as part of the release ritual (see `AGENTS.md` § 3 and § 11 for the content contract). For feature-level details, the changelog (`src/data/changelog-entries.json`) is the most up-to-date reference.
 
@@ -176,7 +176,7 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 │       ├── podcast-chat-context.ts     # **v2.13+** Server-side system-prompt builder for the Daily Podcast chat (grounded in the day's snapshot)
 │       ├── user-chat.ts                # **v2.14+** Pure Community-chat helpers (display-name resolution, avatar colour/initial, message grouping, URL split) — shared by route + panel + tests
 │       ├── user-chat-moderation.ts     # **v2.14+** Community-chat moderation gate (single cheap LLM verdict: respect + tech-only-but-lenient; trivial-allow fast-path; fail-open)
-│       ├── news-fetch.ts / summary-routes.ts / spa-navigation.ts / track.ts / tts.ts / text-artifacts.ts / notification-sound.ts / crypto-cache.ts / crypto-preferences.ts # Misc client/server helpers
+│       ├── news-fetch.ts / summary-routes.ts / spa-navigation.ts / track.ts / tts.ts / text-artifacts.ts / notification-sound.ts / crypto-cache.ts / crypto-preferences.ts / crypto-tradingview.ts / crypto-indicators.ts # Misc client/server helpers
 │       ├── landing-content.ts          # Static content for the SSR landing page (EN+FR copy, pricing plans)
 │       └── changelog-entries.ts        # Type + re-export of src/data/changelog-entries.json (auto-synced to DB on first /api/changelog after deploy)
 ├── netlify/

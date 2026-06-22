@@ -43,6 +43,7 @@ export const PAGE_PATHS: Record<AppNavPage, string> = {
   userActivity: "/app/user-activity",
   topArticles: "/app/top-articles",
   summaries: "/app/archives",
+  cryptoChart: "/app/crypto-chart",
   // v2.5.17+ — placeholder route for the future SPA-internal landing
   // page; the public marketing landing lives at `/` and is rendered
   // by a separate Next route. Wired here so the AppNavPage discriminator
@@ -110,7 +111,11 @@ export function useSpaNavigation(): {
   useEffect(() => {
     const initial = pathToPage(window.location.pathname);
     setCurrentPageRaw(initial);
-    window.history.replaceState({ page: initial }, "", window.location.pathname);
+    window.history.replaceState(
+      { page: initial },
+      "",
+      `${window.location.pathname}${window.location.search}${window.location.hash}`,
+    );
     trackEvent("page.view", { target_id: initial });
 
     const handler = (e: PopStateEvent) => {

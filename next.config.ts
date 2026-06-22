@@ -23,6 +23,7 @@ const SPA_ROUTES = [
   "/app/users",
   "/app/user-activity",
   "/app/top-articles",
+  "/app/crypto-chart",
   "/app/summaries-browse",
 ];
 

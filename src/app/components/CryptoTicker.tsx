@@ -49,14 +49,16 @@ function formatChange(c: number): string {
 function CoinCell({
   price,
   refreshHint,
+  onCoinClick,
 }: {
   price: CryptoPrice;
   refreshHint: string;
+  onCoinClick: (coin: CryptoPrice) => void;
 }) {
   const positive = price.change24h >= 0;
   const changeColor = positive ? POSITIVE_GREEN : color.errorText;
-  const href = `https://www.coingecko.com/en/coins/${price.coinId}`;
-  const title = `${price.name} (${price.symbol.toUpperCase()}) · CoinGecko · ${refreshHint}`;
+  const href = `/app/crypto-chart?coin=${encodeURIComponent(price.coinId)}&symbol=${encodeURIComponent(price.symbol)}`;
+  const title = `${price.name} (${price.symbol.toUpperCase()}) · TradingView · ${refreshHint}`;
 
   // Re-keying on price triggers `cryptoFlash` (defined in globals.css)
   // each time the value changes. The keyframe just fades a faint gold
@@ -80,13 +82,15 @@ function CoinCell({
   return (
     <a
       href={href}
-      target="_blank"
-      rel="noopener noreferrer"
       title={title}
       aria-label={title}
       className="crypto-ticker-coin"
       style={linkStyle}
       key={flashKey}
+      onClick={(e) => {
+        e.preventDefault();
+        onCoinClick(price);
+      }}
     >
       <span
         style={{ color: color.gold, fontWeight: 700, animation: "cryptoFlash 800ms ease-out" }}
@@ -107,12 +111,14 @@ export function CryptoTicker({
   stale,
   loading,
   error,
+  onCoinClick,
 }: {
   lang: Lang;
   prices: CryptoPrice[];
   stale: boolean;
   loading: boolean;
   error: boolean;
+  onCoinClick: (coin: CryptoPrice) => void;
 }) {
   const refreshHint = t("cryptoTickerRefreshHint", lang);
 
@@ -148,6 +154,7 @@ export function CryptoTicker({
           key={p.symbol}
           price={p}
           refreshHint={refreshHint}
+          onCoinClick={onCoinClick}
         />
       ))}
       {stale && (

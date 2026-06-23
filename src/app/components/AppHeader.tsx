@@ -383,7 +383,7 @@ export function AppHeader({
   }, [cryptoTickerSymbols, showCryptoTicker, refreshCrypto]);
 
   return (
-    <header style={{ paddingBottom: 12, marginBottom: 20 }}>
+    <header style={{ paddingBottom: 6, marginBottom: 10 }}>
       {/* ── Crypto ticker bandeau (v2.5.17) ─────────────────────────
           The ticker lives in a dedicated full-width strip *above* the
           brand zone, NOT inline with the six nav icons + user menu.
@@ -565,7 +565,7 @@ export function AppHeader({
         title="8news"
         style={{ height: "clamp(32px, 5vw, 48px)", width: "auto", display: "block", cursor: "pointer", userSelect: "none" }}
       />
-      <p style={{ color: color.textMuted, fontSize: 15, marginTop: 8, marginLeft: 0 }}>{t("subtitle", lang)}</p>
+      <p style={{ color: color.textMuted, fontSize: 15, margin: "6px 0 0", marginLeft: 0 }}>{t("subtitle", lang)}</p>
       </div>
     </header>
   );

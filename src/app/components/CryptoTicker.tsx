@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { color } from "@/lib/theme";
 import { t, type Lang } from "@/lib/i18n";
 import { type CryptoPrice } from "@/hooks/useCryptoPrices";
@@ -14,9 +14,10 @@ import { type CryptoPrice } from "@/hooks/useCryptoPrices";
  * `localStorage` (via `useCryptoPrices`, after mount) shows the last tick
  * on the next paint for return visits; the 60 s poll still revalidates.
  *
- * Mobile responsiveness lives in `globals.css`: desktop renders five coins
- * per line; mobile renders three coins per line and keeps the 24h % cell
- * visible like desktop.
+ * Collapsed by default to a SINGLE line on every screen size: the coins
+ * fill one row edge-to-edge and a small chevron at the far right expands
+ * to reveal the remaining rows (only shown when the selection overflows
+ * one line). Layout/responsive sizing lives in `globals.css`.
  */
 
 const POSITIVE_GREEN = "#4ade80";
@@ -121,13 +122,31 @@ export function CryptoTicker({
   onCoinClick: (coin: CryptoPrice) => void;
 }) {
   const refreshHint = t("cryptoTickerRefreshHint", lang);
+  const [expanded, setExpanded] = useState(false);
+  const [overflowing, setOverflowing] = useState(false);
+  const coinsRef = useRef<HTMLDivElement | null>(null);
+
+  // Detect whether the selection spills past a single row so the toggle
+  // only appears when there's something to expand. `scrollHeight` reports
+  // the full content height even while the collapsed `max-height` clips
+  // it, so the check works in either state. Re-runs on data change and on
+  // container resize (responsive breakpoints).
+  useEffect(() => {
+    const el = coinsRef.current;
+    if (!el) return;
+    const check = () => setOverflowing(el.scrollHeight > 40);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [prices, expanded]);
 
   // Initial cold load: render an empty placeholder slot of similar
   // width so the icon row doesn't jump when prices arrive a few hundred
   // ms later. We don't show a spinner — the ticker is ambient
   // information, never the focus of attention.
   if (loading && prices.length === 0) {
-    return <div className="crypto-ticker" aria-hidden="true" />;
+    return <div className="crypto-ticker-wrap" aria-hidden="true" />;
   }
 
   // Total upstream failure with no DB fallback (cold instance + cold
@@ -136,40 +155,70 @@ export function CryptoTicker({
   // attempted but unavailable.
   if (error && prices.length === 0) {
     return (
-      <div className="crypto-ticker" style={{ color: color.textMuted }}>
+      <div className="crypto-ticker-wrap" style={{ color: color.textMuted }}>
         <span title={t("cryptoTickerError", lang)}>—</span>
       </div>
     );
   }
 
+  const showToggle = overflowing || expanded;
+
   return (
-    <div
-      className="crypto-ticker"
-      role="group"
-      aria-label={`${refreshHint} — ${prices.map((p) => p.symbol.toUpperCase()).join(", ")}`}
-      style={{ color: color.text }}
-    >
-      {prices.map((p) => (
-        <CoinCell
-          key={p.symbol}
-          price={p}
-          refreshHint={refreshHint}
-          onCoinClick={onCoinClick}
-        />
-      ))}
-      {stale && (
-        <span
-          title={t("cryptoTickerStale", lang)}
-          aria-label={t("cryptoTickerStale", lang)}
-          style={{
-            display: "inline-block",
-            width: 6,
-            height: 6,
-            borderRadius: "50%",
-            background: color.textMuted,
-            opacity: 0.7,
-          }}
-        />
+    <div className="crypto-ticker-wrap">
+      <div
+        ref={coinsRef}
+        className={`crypto-ticker${expanded ? " is-expanded" : ""}`}
+        role="group"
+        aria-label={`${refreshHint} — ${prices.map((p) => p.symbol.toUpperCase()).join(", ")}`}
+        style={{ color: color.text }}
+      >
+        {prices.map((p) => (
+          <CoinCell
+            key={p.symbol}
+            price={p}
+            refreshHint={refreshHint}
+            onCoinClick={onCoinClick}
+          />
+        ))}
+        {stale && (
+          <span
+            title={t("cryptoTickerStale", lang)}
+            aria-label={t("cryptoTickerStale", lang)}
+            style={{
+              display: "inline-block",
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              background: color.textMuted,
+              opacity: 0.7,
+            }}
+          />
+        )}
+      </div>
+      {showToggle && (
+        <button
+          type="button"
+          className="crypto-ticker-toggle"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          aria-label={expanded ? t("cryptoTickerCollapse", lang) : t("cryptoTickerExpand", lang)}
+          title={expanded ? t("cryptoTickerCollapse", lang) : t("cryptoTickerExpand", lang)}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+            style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 160ms ease" }}
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
       )}
     </div>
   );

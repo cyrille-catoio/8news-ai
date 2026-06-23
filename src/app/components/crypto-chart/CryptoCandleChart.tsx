@@ -90,6 +90,8 @@ export function CryptoCandleChart({
         background: { type: ColorType.Solid, color: "#050505" },
         textColor: color.textMuted,
         fontFamily: "ui-monospace, Menlo, monospace",
+        // Hide the lightweight-charts default "TV" attribution badge.
+        attributionLogo: false,
       },
       grid: {
         vertLines: { color: "rgba(42,42,42,0.45)" },

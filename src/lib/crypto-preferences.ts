@@ -3,7 +3,7 @@
 import { getCookie, setCookie } from "@/lib/cookies";
 
 export const DEFAULT_CRYPTO_TICKER_SYMBOLS = ["btc", "eth", "sol", "xrp", "tao", "sui"] as const;
-export const MAX_CRYPTO_TICKER_SYMBOLS = 10;
+export const MAX_CRYPTO_TICKER_SYMBOLS = 20;
 
 const COOKIE_KEY = "cryptoTickerSymbols";
 export const CRYPTO_TICKER_SYMBOLS_EVENT = "cryptoTickerSymbolsChanged";

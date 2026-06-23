@@ -1484,55 +1484,70 @@ body.podcast-chat-resizing .podcast-chat-resize::after {
 }
 
 /* CryptoTicker — header ticker for up to 10 selected top-50 coins.
+   - Collapsed by default to a SINGLE row on every screen size: the
+     `.crypto-ticker` flex container wraps but is clipped to one row via
+     `max-height`; the chevron toggle (`.crypto-ticker-toggle`) at the
+     far right reveals the rest.
+   - The coins spread edge-to-edge (`space-between`) so the first hugs
+     the left and the last hugs the right.
    - `.crypto-ticker-change` carries the 24h % cell and stays visible
-     on mobile too.
-   - Desktop spans the full strip width: five max-content columns
-     distributed edge-to-edge (`space-between`), so the first coin hugs
-     the left edge and the last hugs the right, with the gap computed
-     evenly between them. A full 10-coin selection renders as two
-     balanced rows of five.
-   - Mobile uses three columns, so the max 10-coin selection renders in
-     at most four rows. */
-.crypto-ticker {
-  display: grid;
+     on mobile too. */
+.crypto-ticker-wrap {
+  display: flex;
   width: 100%;
-  grid-template-columns: repeat(5, max-content);
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.crypto-ticker {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: 8px 10px;
+  overflow: hidden;
+  max-height: 34px; /* one row collapsed */
   font-size: 13.8px;
   font-weight: 600;
   letter-spacing: 0.01em;
   white-space: nowrap;
 }
 
+.crypto-ticker.is-expanded {
+  max-height: none;
+}
+
 .crypto-ticker-coin {
   box-shadow: 0 0 0 1px rgba(201, 162, 39, 0.08) inset;
 }
 
-@media (max-width: 1024px) {
-  .crypto-ticker {
-    grid-template-columns: repeat(4, max-content);
-  }
+.crypto-ticker-toggle {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--ticker-border, #2a2a2a);
+  background: rgba(255, 255, 255, 0.035);
+  color: #c9a227;
+  cursor: pointer;
+  padding: 0;
+  transition: background 140ms ease, border-color 140ms ease;
 }
 
-@media (max-width: 760px) {
-  .crypto-ticker {
-    width: 100%;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 6px;
-  }
-
-  .crypto-ticker-coin {
-    width: 100%;
-    justify-content: center;
-    box-sizing: border-box;
-  }
+.crypto-ticker-toggle:hover {
+  background: rgba(201, 162, 39, 0.12);
+  border-color: #c9a227;
 }
 
 @media (max-width: 640px) {
   .crypto-ticker {
     font-size: 11.8px;
+    max-height: 30px;
   }
   .crypto-ticker-coin {
     gap: 4px !important;
@@ -1543,7 +1558,7 @@ body.podcast-chat-resizing .podcast-chat-resize::after {
 @media (max-width: 480px) {
   .crypto-ticker {
     font-size: 10.8px;
-    gap: 5px;
+    gap: 5px 6px;
   }
 
   .crypto-ticker-coin {

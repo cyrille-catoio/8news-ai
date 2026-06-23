@@ -47,7 +47,7 @@ import { getServerClient } from "@/lib/supabase";
 const CACHE_TTL_MS = 60_000;
 const FETCH_TIMEOUT_MS = 5_000;
 const TOP_COINS_LIMIT = 50;
-const MAX_SELECTED_SYMBOLS = 10;
+const MAX_SELECTED_SYMBOLS = 20;
 
 const COINGECKO_URL =
   `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=${TOP_COINS_LIMIT}&page=1&sparkline=false&price_change_percentage=24h`;

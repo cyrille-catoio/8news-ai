@@ -61,6 +61,7 @@ export function GeneralMenu({
   onNavigateHome,
   onNavigateFavorites,
   onAnalyzeTop,
+  onNavigateCrypto,
   onNavigateSummaries,
   onNavigateVideos,
   onNavigateChannels,
@@ -75,6 +76,7 @@ export function GeneralMenu({
   onNavigateHome: () => void;
   onNavigateFavorites: () => void;
   onAnalyzeTop: () => void;
+  onNavigateCrypto: () => void;
   onNavigateSummaries: () => void;
   onNavigateVideos: () => void;
   onNavigateChannels: () => void;
@@ -133,6 +135,16 @@ export function GeneralMenu({
         disabled={analyzeTopLoading}
       >
         {t("analyzeTopArticlesBtn", lang)}
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          trackEvent("nav.menu", { target_id: "cryptoChart", lang });
+          onNavigateCrypto();
+        }}
+        style={currentPage === "cryptoChart" ? activeStyle : base}
+      >
+        {t("cryptoMenuBtn", lang)}
       </button>
       {/* « Archives » pill (v2.7.0+) — points at the unified /archives
           hub (SPA route /app/archives). Replaces the previous separate
@@ -197,6 +209,9 @@ export function SeoGeneralMenu({
       </Link>
       <Link href="/app/top-articles" style={activePage === "topArticles" ? activeStyle : base}>
         {t("analyzeTopArticlesBtn", lang)}
+      </Link>
+      <Link href="/app/crypto-chart?coin=bitcoin&symbol=btc" style={base}>
+        {t("cryptoMenuBtn", lang)}
       </Link>
       {/* « Archives » SSR link (v2.7.0+) — points at the unified
           /archives hub. The previous /summaries route 308-redirects

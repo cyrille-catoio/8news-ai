@@ -1245,6 +1245,14 @@ const strings = {
     en: "Updates every minute",
     fr: "Actualisation chaque minute",
   },
+  cryptoTickerExpand: {
+    en: "Show all coins",
+    fr: "Afficher toutes les cryptos",
+  },
+  cryptoTickerCollapse: {
+    en: "Show one line",
+    fr: "Réduire à une ligne",
+  },
   cryptoTickerPickerMenuItem: {
     en: "Crypto ticker",
     fr: "Ticker crypto",
@@ -1254,8 +1262,8 @@ const strings = {
     fr: "Cryptos du header",
   },
   cryptoTickerPickerHint: {
-    en: "Choose up to 10 coins from the CoinGecko top 50.",
-    fr: "Choisissez jusqu'à 10 cryptos parmi le top 50 CoinGecko.",
+    en: "Choose up to 20 coins from the CoinGecko top 50.",
+    fr: "Choisissez jusqu'à 20 cryptos parmi le top 50 CoinGecko.",
   },
   cryptoTickerPickerReset: {
     en: "Reset default list",
@@ -1270,8 +1278,8 @@ const strings = {
     fr: "Top 50 indisponible pour le moment.",
   },
   cryptoTickerPickerLimit: {
-    en: "Maximum 10 coins in the header.",
-    fr: "Maximum 10 cryptos dans le header.",
+    en: "Maximum 20 coins in the header.",
+    fr: "Maximum 20 cryptos dans le header.",
   },
   cryptoTickerSettingsTitle: {
     en: "Crypto ticker settings",
@@ -1293,6 +1301,10 @@ const strings = {
     en: "No crypto matches this search.",
     fr: "Aucune crypto ne correspond à cette recherche.",
   },
+  cryptoMenuBtn: {
+    en: "Crypto",
+    fr: "Crypto",
+  },
   cryptoChartKicker: {
     en: "Crypto chart",
     fr: "Graphique crypto",
@@ -1312,6 +1324,14 @@ const strings = {
   cryptoChartFallbackHint: {
     en: "TradingView symbol fallback: {symbol}. If the chart does not load, try changing the symbol inside TradingView.",
     fr: "Fallback symbole TradingView : {symbol}. Si le graphique ne charge pas, essayez de changer le symbole dans TradingView.",
+  },
+  cryptoChartSelectCoin: {
+    en: "Switch coin",
+    fr: "Changer de crypto",
+  },
+  cryptoChartPickerTitle: {
+    en: "Choose a crypto (top 200)",
+    fr: "Choisir une crypto (top 200)",
   },
   cryptoChartLoading: {
     en: "Loading chart…",

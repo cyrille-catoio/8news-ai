@@ -56,7 +56,7 @@ import { CryptoChartPage, type CryptoChartTarget } from "@/app/components/Crypto
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.15";
+const APP_VERSION = "2.16";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 // Daily Podcast chat panel width bounds (desktop). The panel is
@@ -726,6 +726,13 @@ export default function Home() {
           onNavigateHome={() => { setCurrentPage("home"); handleReset(); }}
           onNavigateFavorites={() => setCurrentPage("favorites")}
           onAnalyzeTop={() => setCurrentPage("topArticles")}
+          onNavigateCrypto={() => {
+            setCryptoChartTarget({ coinId: "bitcoin", symbol: "btc" });
+            setCurrentPage("cryptoChart");
+            if (typeof window !== "undefined") {
+              window.history.replaceState({ page: "cryptoChart" }, "", "/app/crypto-chart?coin=bitcoin&symbol=btc");
+            }
+          }}
           onNavigateSummaries={() => setCurrentPage("summaries")}
           onNavigateVideos={() => setCurrentPage("videos")}
           onNavigateChannels={() => setCurrentPage("channels")}
@@ -821,7 +828,17 @@ export default function Home() {
         ) : currentPage === "channels" ? (
           <ChannelsPage lang={lang} />
         ) : currentPage === "cryptoChart" ? (
-          <CryptoChartPage lang={lang} target={cryptoChartTarget} />
+          <CryptoChartPage
+            lang={lang}
+            target={cryptoChartTarget}
+            onSelectCoin={(coin) => {
+              setCryptoChartTarget({ coinId: coin.coinId, symbol: coin.symbol });
+              if (typeof window !== "undefined") {
+                const url = `/app/crypto-chart?coin=${encodeURIComponent(coin.coinId)}&symbol=${encodeURIComponent(coin.symbol)}`;
+                window.history.replaceState({ page: "cryptoChart" }, "", url);
+              }
+            }}
+          />
         ) : currentPage === "youtubeChannels" ? (
           authLoading ? (
             <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "80px 0" }}>

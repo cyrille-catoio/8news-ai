@@ -1,7 +1,7 @@
 # 8news.ai — Technical Specification
 
-**Version**: v2.15
-**Last updated**: 22 June 2026
+**Version**: v2.16
+**Last updated**: 23 June 2026
 
 > **Note**: sections of this spec are historical — they describe the system as of the version tagged inline (`**vX.Y+**` markers). The mechanical parts (header version, file tree, migration list, cron list, API route list) are kept current and **enforced by `npm run spec:check`** (also run by `npm test`, hence by the Netlify build — drift blocks the deploy). The spec is updated automatically as part of the release ritual (see `AGENTS.md` § 3 and § 11 for the content contract). For feature-level details, the changelog (`src/data/changelog-entries.json`) is the most up-to-date reference.
 
@@ -1445,6 +1445,9 @@ The topic immediately appears in the homepage topic selector, stats page, and cr
 Release history is maintained in **`src/data/changelog-entries.json`** and auto-synced to the `changelog` DB table on first `GET /api/changelog` call after deploy. The in-app Changelog page displays all entries. This SPEC does not duplicate the changelog — see the source file or the in-app page for the full history.
 
 **Recent (v2.x highlights)**:
+- **v2.16** — Collapsible CryptoTicker: single collapsed row by default, chevron expands overflow (ResizeObserver). New `CryptoCoinPicker` component + `GET /api/crypto/coins` route (CoinGecko top 200, 1 h edge cache) for in-chart coin switching via `onSelectCoin`. Dedicated `Crypto` nav pill in `GeneralMenu` + `SeoGeneralMenu`. New i18n keys: `cryptoMenuBtn`, `cryptoTickerExpand`, `cryptoTickerCollapse`, `cryptoChartSelectCoin`, `cryptoChartPickerTitle`. No DB migration.
+- **v2.15** — In-app crypto candle charts: `CryptoChartPage` + `CryptoCandleChart` (`lightweight-charts`), `GET /api/crypto/ohlc` (Binance daily klines, 10 min edge cache), `computeBollingerBands()`, range buttons 1M/3M/6M/1Y, volume histogram. Ticker click opens the chart instead of CoinGecko tab. `crypto-tradingview.ts` maps CoinGecko ids to Binance pairs. No DB migration.
+- **v2.14** — Community chat room: `user_chat_messages` table (mig 039 + 040 Realtime), `GET/POST/DELETE /api/user-chat`, chat side panel with Realtime live INSERTs/DELETEs, moderation gate (`gpt-4.1-nano`), mobile crypto ticker grid.
 - **v2.13.5** — Daily Podcast persisted bullets capped at **8** (2 pinned videos + 6 article bullets via `selectTopArticleBullets()` — applies to home hero, audio player, `/{date}` archives and newsletter in one change); emoji-free video titles/descriptions everywhere via `stripEmojis()` (`VideoCardHelpers.ts`); main-menu labels shortened (Briefing / Veille, Top 24h, Topics, YT channels). Netlify build now runs `npm test` first. Suite at 71 tests.
 - **v2.13.4** — Six-phase cleanup, zero behavioral change: every silent `catch` in `src/lib/supabase/` now logs and ignored insert returns are checked; shared `api-helpers.ts`, extended `dates-utc.ts`, single `getServerClient()` (28 inline `createClient` removed), `cron-log.ts` (`startCronRun`) adopted by all 8 crons; obsolete 42703 migration latches (021/023/026) removed; UI dedup (`theme.ts` shared styles, merged `video-markdown.tsx`, single `HistoryArrows`); **first test infrastructure** (vitest, 56 unit tests); changelog moved to `src/data/changelog-entries.json`, `landing-source/` deleted, `@netlify/functions` dropped.
 - **v2.13 → v2.13.3** — Daily Podcast chat side panel (`/api/podcast-chat`, grounded in the day's snapshot, migration 033); « top videos of yesterday » pinned at the top of the Daily Podcast + newsletter; fix: `insertVideoBullets` delete scoped to `source_type='video'` + backfill anti-join rewritten (the video cron was wiping the podcast's pinned video bullets every tick).
@@ -1515,10 +1518,12 @@ CoinGecko /simple/price ──► /api/crypto (server) ──► Supabase crypto
 | `src/app/api/crypto/route.ts` | Public GET endpoint. Reads DB, refreshes CoinGecko top 50 when rows are older than 60 s, returns `{ prices, availableCoins, stale }`; optional `?symbols=btc,eth,...` filters the displayed list to 12 max with private/no-store headers |
 | `src/hooks/useCryptoPrices.ts` | Client hook. `{ poll, selectedSymbols }`, 60 s `setInterval`, paused on `document.visibilityState === "hidden"`, immediate refresh on `visibilitychange → visible` |
 | `src/lib/crypto-preferences.ts` | Client preference helper. Default BTC/ETH/SOL/XRP/TAO/SUI, max 12 symbols, cookie persistence and sanitization before syncing to `auth.users.user_metadata.crypto_ticker_symbols` |
-| `src/app/components/CryptoTicker.tsx` | Compact horizontal row in the AppHeader. Symbol in gold, price in text, 24h % green/red. Click → CoinGecko coin page. Mounted by AppHeader only when `currentPage !== "landing"` |
-| `src/app/components/CryptoTickerSettingsPage.tsx` | Section embedded in `/app/settings` for signed-in users, with search across the top 50 and max-12 checkbox selection |
-| `src/app/globals.css` | Adds `@keyframes cryptoFlash` (price update glow) + `.crypto-ticker` grid, `.crypto-ticker-change` responsive class |
-| `src/lib/i18n.ts` | `cryptoTickerStale` / `cryptoTickerError` plus the bilingual user-menu picker labels |
+| `src/app/components/CryptoTicker.tsx` | **v2.16+** Collapsible single-row ticker with expand chevron (ResizeObserver overflow detection). Click → in-app `CryptoChartPage`. Root class `crypto-ticker-wrap`. |
+| `src/app/components/CryptoTickerSettingsPage.tsx` | Section embedded in `/app/settings` for signed-in users, with search across the top 50 and max-20 checkbox selection |
+| `src/app/components/crypto-chart/CryptoCoinPicker.tsx` | **v2.16+** Modal coin switcher for `CryptoChartPage`. Fetches `GET /api/crypto/coins` (top 200 by market cap), live search, fires `onSelectCoin` callback. |
+| `src/app/api/crypto/coins/route.ts` | **v2.16+** GET endpoint. Fetches CoinGecko top 200 by market cap, server-side 1 h edge cache, returns `{ coins }`. |
+| `src/app/globals.css` | Adds `@keyframes cryptoFlash` (price update glow) + `.crypto-ticker-wrap` grid, `.crypto-ticker-change` responsive class, `.topic-pagination` mobile nav |
+| `src/lib/i18n.ts` | `cryptoTickerStale` / `cryptoTickerError` / `cryptoMenuBtn` / `cryptoTickerExpand` / `cryptoTickerCollapse` / `cryptoChartSelectCoin` / `cryptoChartPickerTitle` plus the bilingual user-menu picker labels |
 
 ### 19.3 Cache strategy & rate limit math
 
@@ -1542,13 +1547,12 @@ CoinGecko /simple/price ──► /api/crypto (server) ──► Supabase crypto
 
 ### 19.5 Mobile responsiveness
 
+**v2.16+** The ticker is collapsed to a single row by default on all screen sizes. A chevron at the far right expands/collapses when the selection overflows one row (detected by `ResizeObserver` comparing `scrollHeight > 40 px`).
+
 | Viewport | Behavior |
 |---|---|
-| Default | Up to 12 selected coins, six per line, each shows symbol + price + 24h % |
-| ≤ 1024 px | Grid reduces to four coins per line |
-| ≤ 760 px | Grid reduces to three coins per line |
+| Default | All selected coins on one collapsed row; chevron expands overflow |
 | ≤ 640 px | The 24h % column hides (`.crypto-ticker-change { display: none }`) |
-| ≤ 480 px | Grid reduces to two coins per line |
 
 ### 19.6 Validation
 

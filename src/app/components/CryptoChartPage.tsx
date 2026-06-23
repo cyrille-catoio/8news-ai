@@ -5,6 +5,7 @@ import { t, type Lang } from "@/lib/i18n";
 import { useCryptoPrices, type CryptoPrice } from "@/hooks/useCryptoPrices";
 import { resolveBinanceSymbol } from "@/lib/crypto-tradingview";
 import { CryptoCandleChart } from "@/app/components/crypto-chart/CryptoCandleChart";
+import { CryptoCoinPicker } from "@/app/components/crypto-chart/CryptoCoinPicker";
 
 export interface CryptoChartTarget {
   coinId: string;
@@ -40,9 +41,13 @@ function fallbackPrice(coinId: string, symbol: string): CryptoPrice {
 export function CryptoChartPage({
   lang,
   target,
+  onSelectCoin,
 }: {
   lang: Lang;
   target?: CryptoChartTarget | null;
+  /** Switch the chart to another coin (SPA navigation). Falls back to a
+   *  full navigation when not provided (e.g. direct/hard load). */
+  onSelectCoin?: (coin: CryptoChartTarget) => void;
 }) {
   const query = target ?? readQueryCoin();
   const crypto = useCryptoPrices({ poll: true, selectedSymbols: [query.symbol] });
@@ -50,25 +55,48 @@ export function CryptoChartPage({
   const binanceSymbol = resolveBinanceSymbol(price);
   const positive = price.change24h >= 0;
 
+  const availableCoins = [...crypto.availableCoins].sort((a, b) => a.marketCapRank - b.marketCapRank);
+
+  const handleSelect = (coin: CryptoChartTarget) => {
+    if (onSelectCoin) {
+      onSelectCoin(coin);
+    } else if (typeof window !== "undefined") {
+      window.location.assign(`/app/crypto-chart?coin=${encodeURIComponent(coin.coinId)}&symbol=${encodeURIComponent(coin.symbol)}`);
+    }
+  };
+
   return (
     <section>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 18 }}>
-        <div>
-          <div style={{ color: color.gold, fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>
-            {t("cryptoChartKicker", lang)}
-          </div>
-          <h1 style={{ margin: 0, color: color.text, fontFamily: "ui-serif, Georgia, serif", fontSize: "clamp(28px, 5vw, 44px)", fontWeight: 400, lineHeight: 1.08 }}>
-            {price.symbol.toUpperCase()} · {price.name}
-          </h1>
-          <p style={{ color: color.textMuted, margin: "10px 0 0", fontSize: 14, lineHeight: 1.5 }}>
-            {t("cryptoChartSubtitle", lang)}
-          </p>
+      {/* Compact one-row header so the chart is visible above the fold. */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap", marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", minWidth: 0 }}>
+          <CryptoCoinPicker
+            lang={lang}
+            currentSymbol={price.symbol}
+            currentLabel={price.symbol.toUpperCase()}
+            fallbackCoins={availableCoins}
+            onSelect={handleSelect}
+          />
+          <span style={{ color: color.gold, fontSize: 20, fontWeight: 800 }}>
+            {price.price > 0 ? `$${formatPrice(price.price)}` : "—"}
+          </span>
+          <span style={{ color: positive ? "#4ade80" : color.errorText, fontSize: 15, fontWeight: 700 }}>
+            {price.price > 0 ? `${positive ? "+" : ""}${price.change24h.toFixed(1)}%` : ""}
+          </span>
+          {price.marketCapRank > 0 && (
+            <span style={{ color: color.textMuted, fontSize: 13, fontWeight: 600 }}>
+              {t("cryptoChartRank", lang)} #{price.marketCapRank}
+            </span>
+          )}
+          <span style={{ color: color.textDim, fontSize: 12, fontWeight: 600, fontFamily: "ui-monospace, Menlo, monospace" }}>
+            {binanceSymbol} · Binance
+          </span>
         </div>
         <a
           href={`https://www.coingecko.com/en/coins/${price.coinId}`}
           target="_blank"
           rel="noopener noreferrer"
-          style={{ ...outlinedButtonStyle, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}
+          style={{ ...outlinedButtonStyle, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0 }}
         >
           CoinGecko
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -79,47 +107,13 @@ export function CryptoChartPage({
         </a>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 16 }}>
-        <div style={card}>
-          <div style={{ color: color.gold, fontSize: 22, fontWeight: 800 }}>
-            {price.price > 0 ? `$${formatPrice(price.price)}` : "—"}
-          </div>
-          <div style={{ color: color.textMuted, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 4 }}>
-            {t("cryptoChartPrice", lang)}
-          </div>
-        </div>
-        <div style={card}>
-          <div style={{ color: positive ? "#4ade80" : color.errorText, fontSize: 22, fontWeight: 800 }}>
-            {price.price > 0 ? `${positive ? "+" : ""}${price.change24h.toFixed(1)}%` : "—"}
-          </div>
-          <div style={{ color: color.textMuted, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 4 }}>
-            24h
-          </div>
-        </div>
-        <div style={card}>
-          <div style={{ color: color.text, fontSize: 22, fontWeight: 800 }}>
-            {price.marketCapRank > 0 ? `#${price.marketCapRank}` : "—"}
-          </div>
-          <div style={{ color: color.textMuted, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 4 }}>
-            {t("cryptoChartRank", lang)}
-          </div>
-        </div>
-        <div style={card}>
-          <div style={{ color: color.text, fontSize: 14, fontWeight: 800, wordBreak: "break-word" }}>
-            {binanceSymbol}
-          </div>
-          <div style={{ color: color.textMuted, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 4 }}>
-            Binance
-          </div>
-        </div>
-      </div>
-
       <div
         style={{
           ...card,
+          marginBottom: 0,
           padding: 0,
           overflow: "hidden",
-          height: "min(72vh, 680px)",
+          height: "min(82vh, 760px)",
           minHeight: 420,
           background: "#050505",
         }}

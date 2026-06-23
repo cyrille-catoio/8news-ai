@@ -1544,6 +1544,27 @@ body.podcast-chat-resizing .podcast-chat-resize::after {
   border-color: #c9a227;
 }
 
+/* Mobile: switch to a fixed 3-column grid so coins fill left-to-right
+   row by row. `space-between` on a wrapped flex row left big holes on
+   partially-filled rows (e.g. SUI … HYPE); equal grid columns pack the
+   pills cleanly with the last row left-aligned and no gaps. */
+@media (max-width: 760px) {
+  .crypto-ticker {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    max-height: 34px;
+  }
+  .crypto-ticker.is-expanded {
+    max-height: none;
+  }
+  .crypto-ticker-coin {
+    width: 100%;
+    justify-content: center;
+    box-sizing: border-box;
+  }
+}
+
 @media (max-width: 640px) {
   .crypto-ticker {
     font-size: 11.8px;

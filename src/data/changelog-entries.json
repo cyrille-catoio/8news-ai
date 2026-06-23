@@ -1,5 +1,13 @@
 [
   {
+    "version": "2.16.1",
+    "title_en": "v2.16.1: mobile crypto ticker grid (no gaps)",
+    "title_fr": "v2.16.1 : grille du ticker crypto sur mobile (sans trou)",
+    "body_en": "**Fix the mobile crypto ticker layout.** On phones the ticker used a wrapped flex row with `space-between`, which left large holes on partially-filled rows (e.g. a row showing `SUI … HYPE` with a gap pushed to the edges). On screens ≤ 760px the ticker now uses a fixed 3-column grid so the coins pack left-to-right, row by row, with the last row left-aligned and no gaps. The single-line collapse + chevron toggle and the desktop edge-to-edge layout are unchanged.\n\n**Release.** Bump 2.16.0 → 2.16.1. CSS-only, no DB migration.",
+    "body_fr": "**Correction de l'affichage du ticker crypto sur mobile.** Sur téléphone, le ticker utilisait une rangée flex wrap avec `space-between`, ce qui laissait de gros trous sur les rangées incomplètes (ex. une rangée `SUI … HYPE` avec un espace renvoyé aux bords). Sur les écrans ≤ 760px, le ticker passe désormais en grille fixe à 3 colonnes : les cryptos se remplissent de gauche à droite, ligne par ligne, la dernière rangée alignée à gauche et sans trou. Le repli sur une ligne + le bouton chevron et l'affichage desktop bord à bord restent inchangés.\n\n**Release.** Bump 2.16.0 → 2.16.1. CSS uniquement, pas de migration DB.",
+    "created_at": "2026-06-23T17:51:00Z"
+  },
+  {
     "version": "2.16",
     "title_en": "v2.16: collapsible crypto ticker, CoinPicker, Crypto nav button",
     "title_fr": "v2.16 : ticker crypto réductible, CoinPicker, bouton Crypto dans le menu",

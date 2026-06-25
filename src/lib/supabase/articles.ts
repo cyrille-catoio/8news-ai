@@ -191,11 +191,18 @@ export async function getUserTopicPreferences(
       .from("user_topic_preferences")
       .select("topic_ids")
       .eq("user_id", userId)
-      .single();
+      .maybeSingle();
 
-    if (error || !data) return null;
-    // Return the actual array: [] means "set but no filter" (onboarding done),
-    // null means "no row" (onboarding not done yet).
+    // `.maybeSingle()` distinguishes the two cases `.single()` used to
+    // conflate: a real DB failure (`error` set) vs a genuinely absent row
+    // (`data` null, no error). Log the former — silently returning null on
+    // an outage showed every topic instead of the user's filter.
+    if (error) {
+      console.warn("[getUserTopicPreferences]", error.message);
+      return null;
+    }
+    if (!data) return null; // no row → onboarding not done yet → show all
+    // Return the actual array: [] means "set but no filter" (onboarding done).
     return (data as { topic_ids: string[] }).topic_ids;
   } catch (err) {
     console.warn("[getUserTopicPreferences]", err);

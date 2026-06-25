@@ -198,7 +198,11 @@ export async function getAllArticlesForStats(
         .order("id", { ascending: true })
         .range(offset, offset + PAGE_SIZE - 1);
 
-      if (error || !data || data.length === 0) break;
+      if (error) {
+        console.warn("[getAllArticlesForStats] page query failed — stats truncated:", error.message);
+        break;
+      }
+      if (!data || data.length === 0) break;
       allRows.push(...(data as StatsArticleRow[]));
       if (data.length < PAGE_SIZE) break;
       offset += PAGE_SIZE;

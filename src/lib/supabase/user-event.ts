@@ -154,7 +154,13 @@ async function fetchEvents(sinceISO: string | null): Promise<RawEventRow[]> {
       .range(offset, offset + PAGE - 1);
     if (sinceISO) q = q.gte("created_at", sinceISO);
     const { data, error } = await q;
-    if (error || !data) break;
+    if (error) {
+      // Don't truncate silently: a failed page skews every downstream
+      // metric (DAU, funnel, retention) with no trace otherwise.
+      console.warn("[fetchEvents] page query failed — stats truncated:", error.message);
+      break;
+    }
+    if (!data) break;
     const batch = data as unknown as RawEventRow[];
     out.push(...batch);
     if (batch.length < PAGE) break;
@@ -186,7 +192,11 @@ async function fetchActivityRows(
       .eq("activity_type", activityType)
       .order("last_clicked_at", { ascending: false })
       .range(offset, offset + PAGE - 1);
-    if (error || !data) break;
+    if (error) {
+      console.warn("[fetchActivityRows] page query failed — stats truncated:", error.message);
+      break;
+    }
+    if (!data) break;
     const batch = data as unknown as Array<
       UserActivityRow & { user_id: string; target_id: string }
     >;

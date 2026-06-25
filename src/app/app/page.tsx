@@ -721,11 +721,9 @@ export default function Home() {
           lang={lang}
           currentPage={currentPage}
           isAuthenticated={isAuthenticated}
-          analyzeTopLoading={isTopArticlesPage && topFeedLoading && topFeed.length === 0}
           onNavigateBriefing={() => { setCurrentPage("briefing"); handleReset(); }}
           onNavigateHome={() => { setCurrentPage("home"); handleReset(); }}
           onNavigateFavorites={() => setCurrentPage("favorites")}
-          onAnalyzeTop={() => setCurrentPage("topArticles")}
           onNavigateCrypto={() => {
             setCryptoChartTarget({ coinId: "bitcoin", symbol: "btc" });
             setCurrentPage("cryptoChart");
@@ -890,6 +888,7 @@ export default function Home() {
             onHomeMinScoreArticleChange={updateHomeMinScoreArticle}
             homeMinScoreVideo={homeMinScoreVideo}
             onHomeMinScoreVideoChange={updateHomeMinScoreVideo}
+            onNavigateTopArticles={() => setCurrentPage("topArticles")}
             onRequestAuth={() => setAuthModalOpen(true)}
           />
         ) : currentPage === "favorites" ? (

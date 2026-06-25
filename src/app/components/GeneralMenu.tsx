@@ -56,11 +56,9 @@ export function GeneralMenu({
   lang,
   currentPage,
   isAuthenticated,
-  analyzeTopLoading,
   onNavigateBriefing,
   onNavigateHome,
   onNavigateFavorites,
-  onAnalyzeTop,
   onNavigateCrypto,
   onNavigateSummaries,
   onNavigateVideos,
@@ -71,11 +69,9 @@ export function GeneralMenu({
   lang: Lang;
   currentPage: AppNavPage;
   isAuthenticated: boolean;
-  analyzeTopLoading: boolean;
   onNavigateBriefing: () => void;
   onNavigateHome: () => void;
   onNavigateFavorites: () => void;
-  onAnalyzeTop: () => void;
   onNavigateCrypto: () => void;
   onNavigateSummaries: () => void;
   onNavigateVideos: () => void;
@@ -124,17 +120,6 @@ export function GeneralMenu({
         style={currentPage === "channels" ? activeStyle : base}
       >
         {t("channelsBtn", lang)}
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          trackEvent("nav.menu", { target_id: "topArticles", lang });
-          onAnalyzeTop();
-        }}
-        style={currentPage === "topArticles" ? activeStyle : base}
-        disabled={analyzeTopLoading}
-      >
-        {t("analyzeTopArticlesBtn", lang)}
       </button>
       <button
         type="button"
@@ -206,9 +191,6 @@ export function SeoGeneralMenu({
       </Link>
       <Link href="/app/videos" style={activePage === "videos" ? activeStyle : base}>
         {t("videosBtn", lang)}
-      </Link>
-      <Link href="/app/top-articles" style={activePage === "topArticles" ? activeStyle : base}>
-        {t("analyzeTopArticlesBtn", lang)}
       </Link>
       <Link href="/app/crypto-chart?coin=bitcoin&symbol=btc" style={base}>
         {t("cryptoMenuBtn", lang)}

@@ -693,8 +693,8 @@ const strings = {
    *  The key name `generalMenuArticlesBtn` is kept as a compatibility
    *  alias to avoid a sweep across unrelated callsites. */
   generalMenuArticlesBtn: {
-    en: "Briefing",
-    fr: "Veille",
+    en: "Topics",
+    fr: "Topics",
   },
   myTopicsMenuBtn: {
     en: "Topics",

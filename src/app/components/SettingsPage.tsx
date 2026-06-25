@@ -2,7 +2,7 @@
 
 import { type CSSProperties, useCallback, useEffect, useMemo, useState } from "react";
 import { t, type Lang } from "@/lib/i18n";
-import { color, sectionCard as sectionStyle, formSectionTitle as sectionTitle } from "@/lib/theme";
+import { color, sectionCard as sectionStyle, formSectionTitle as sectionTitle, outlinedButtonStyle } from "@/lib/theme";
 import { VoiceAccordion, TTS_VOICES_EN, TTS_VOICES_FR } from "@/app/components/VoiceAccordion";
 import { useAuth } from "@/app/providers";
 import { MyAccountSection } from "@/app/components/MyAccountSection";
@@ -29,6 +29,7 @@ export function SettingsPage({
   onTtsVoiceFrChange,
   homeMinScoreArticle,
   onHomeMinScoreArticleChange,
+  onNavigateTopArticles,
   onRequestAuth,
 }: {
   lang: Lang;
@@ -44,6 +45,8 @@ export function SettingsPage({
   onHomeMinScoreArticleChange: (v: number) => void;
   homeMinScoreVideo: number;
   onHomeMinScoreVideoChange: (v: number) => void;
+  /** Opens the « Top 24h » articles page (moved here from the general menu). */
+  onNavigateTopArticles?: () => void;
   onRequestAuth?: () => void;
 }) {
   const { session } = useAuth();
@@ -58,6 +61,30 @@ export function SettingsPage({
       <h2 style={{ color: color.gold, fontSize: 20, fontWeight: 600, marginBottom: 20, marginTop: 0 }}>
         {t("settingsTitle", lang)}
       </h2>
+
+          {/* ── Top 24h access (moved out of the general menu) ─────── */}
+          {onNavigateTopArticles && (
+            <div style={sectionStyle}>
+              <h4 style={sectionTitle}>{t("analyzeTopArticlesBtn", lang)}</h4>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <p style={{ color: color.textMuted, fontSize: 13, lineHeight: 1.5, margin: 0, flex: "1 1 240px" }}>
+                  {lang === "fr"
+                    ? "Le classement des meilleurs articles des dernières 24 heures."
+                    : "The ranking of the best articles from the last 24 hours."}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    trackEvent("nav.settings", { target_id: "topArticles", lang });
+                    onNavigateTopArticles();
+                  }}
+                  style={{ ...outlinedButtonStyle, flexShrink: 0 }}
+                >
+                  {t("analyzeTopArticlesBtn", lang)} →
+                </button>
+              </div>
+            </div>
+          )}
 
           <SubscriptionPanel lang={lang} onRequestAuth={onRequestAuth} />
 

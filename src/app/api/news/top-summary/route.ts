@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireOwnerSession } from "@/lib/auth-api";
 import { getServerMessages } from "@/lib/ai-analyze";
 import {
   getLatestTopSummary,
@@ -47,6 +48,13 @@ interface TopSummaryBody {
 }
 
 export async function POST(request: NextRequest) {
+  // Owner-only: this admin/debug replay triggers a billable OpenAI run and
+  // OVERWRITES the day's `top_summaries` snapshot that every visitor reads
+  // via GET /latest. No frontend calls it — only an admin/curl. Gate it
+  // like the other privileged endpoints (/api/stats, /api/cron-stats).
+  const auth = await requireOwnerSession();
+  if (!auth.ok) return auth.response;
+
   try {
     const body: TopSummaryBody = await request.json();
     const lang: Lang = body.lang === "fr" ? "fr" : "en";

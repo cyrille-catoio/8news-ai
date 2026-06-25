@@ -320,6 +320,11 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Monotonic token: each fetchNews() bumps it and only the latest run is
+  // allowed to apply its results, so a slow response for an old topic/period
+  // can't overwrite the state of a newer selection (same guard pattern as
+  // AudioPlayer's genId).
+  const fetchNewsGenRef = useRef(0);
   const [error, setError] = useState<string | null>(null);
   // v2.12+ — SPA navigation machine extracted to `src/lib/spa-navigation.ts`.
   // The hook owns the URL ↔ AppNavPage mapping, History API plumbing,
@@ -585,6 +590,7 @@ export default function Home() {
   async function fetchNews(hours: number, topicOverride?: string) {
     const targetTopic = topicOverride ?? topic;
     if (!targetTopic) return;
+    const gen = ++fetchNewsGenRef.current;
     unlockAudioContext();
     setSelected(hours);
     setLoading(true);
@@ -599,23 +605,27 @@ export default function Home() {
 
     try {
       const data = await fetchNewsApi(`/api/news?hours=${hours}&lang=${lang}&topic=${encodeURIComponent(targetTopic)}&count=${maxArticles}`, lang);
+      if (gen !== fetchNewsGenRef.current) return; // superseded by a newer fetch
       setData(data);
       playNotificationBeep();
 
       fetch(`/api/news/all?topic=${encodeURIComponent(targetTopic)}&since=${encodeURIComponent(sinceISO)}&lang=${lang}`, { cache: "no-store" })
         .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
-        .then((json) => setAllArticles(json.articles ?? []))
+        .then((json) => { if (gen === fetchNewsGenRef.current) setAllArticles(json.articles ?? []); })
         .catch(() => {})
-        .finally(() => setAllArticlesLoading(false));
+        .finally(() => { if (gen === fetchNewsGenRef.current) setAllArticlesLoading(false); });
     } catch (e) {
+      if (gen !== fetchNewsGenRef.current) return; // a stale error must not clobber newer state
       const msg = e instanceof Error ? e.message : t("unknownError", lang);
       const isNetworkError =
         msg === "Failed to fetch" || msg.includes("NetworkError") || msg.includes("Load failed");
       setError(isNetworkError ? t("connectionError", lang) : msg);
       setAllArticlesLoading(false);
     } finally {
-      stopProgress();
-      setLoading(false);
+      if (gen === fetchNewsGenRef.current) {
+        stopProgress();
+        setLoading(false);
+      }
     }
   }
 

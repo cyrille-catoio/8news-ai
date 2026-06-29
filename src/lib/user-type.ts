@@ -1,13 +1,13 @@
 import type { User } from "@supabase/supabase-js";
 
-/** Stored in Supabase `raw_user_meta_data.user_type`. Set to `owner` only via Supabase Dashboard. */
+/** Stored in Supabase `raw_app_meta_data.user_type`. Set with the service role only. */
 export type AppUserType = "member" | "owner";
 
 const USER_TYPE_METADATA_KEY = "user_type" as const;
 
-/** New sign-ups set `user_type: "member"` in metadata. Missing key is treated as `member`. */
+/** Missing key is treated as `member`; never trust client-writable `user_metadata` for roles. */
 export function getAppUserType(user: User | null | undefined): AppUserType {
-  const raw = user?.user_metadata?.[USER_TYPE_METADATA_KEY];
+  const raw = user?.app_metadata?.[USER_TYPE_METADATA_KEY];
   return raw === "owner" ? "owner" : "member";
 }
 

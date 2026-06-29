@@ -130,7 +130,6 @@ export function AuthModal({
           data: {
             first_name: fn,
             last_name: ln,
-            user_type: "member",
             ...(nick ? { nickname: nick } : {}),
           },
         },

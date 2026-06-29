@@ -61,6 +61,13 @@ export default async (req: Request) => {
           markDone: false,
         };
       }
+      if (result.status === "error") {
+        return {
+          counterKey: "errors",
+          line: `[error] topic=${topicId} lang=${lang} — daily summary persistence failed`,
+          markDone: false,
+        };
+      }
       // Both `generated` and `skipped` (existing row reused) succeeded
       // from the cron's POV. We mark them as done so the same tick
       // wouldn't double-visit the bucket if the loop ever re-enters.
@@ -70,6 +77,6 @@ export default async (req: Request) => {
         markDone: true,
       };
     },
-    summaryCounterKeys: ["generated", "no_articles", "skipped"] as const,
+    summaryCounterKeys: ["generated", "no_articles", "skipped", "errors"] as const,
   });
 };

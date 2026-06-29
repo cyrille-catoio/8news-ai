@@ -176,6 +176,23 @@ export async function insertDailySummary(row: {
   }
 }
 
+export async function deleteDailySummaryById(id: number): Promise<boolean> {
+  const clientP = getServerClient();
+  if (!clientP) return false;
+  try {
+    const supabase = await clientP;
+    const { error } = await supabase.from("daily_summaries").delete().eq("id", id);
+    if (error) {
+      console.error("[deleteDailySummaryById] delete failed:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("[deleteDailySummaryById]", err);
+    return false;
+  }
+}
+
 export async function insertSummaryBullets(
   bullets: Array<{
     daily_summary_id: number;
@@ -199,10 +216,14 @@ export async function insertSummaryBullets(
   if (!clientP) return false;
   try {
     const supabase = await clientP;
-    await supabase
+    const { error: deleteError } = await supabase
       .from("summary_bullets")
       .delete()
       .eq("daily_summary_id", bullets[0].daily_summary_id);
+    if (deleteError) {
+      console.error("[insertSummaryBullets] delete failed:", deleteError.message);
+      return false;
+    }
     const { error } = await supabase.from("summary_bullets").insert(bullets);
     if (error) {
       console.error("[insertSummaryBullets] insert failed:", error.message);

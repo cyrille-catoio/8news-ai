@@ -50,9 +50,11 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 
 `user_metadata` carries:
 - `first_name`, `last_name` — editable in Settings → My Account.
-- `user_type` — `member` (default at sign-up) or `owner`. Only `owner` may use Topics, Feed management, Categories, Daily Summaries (admin), YouTube Channels, and Users.
 - **v2.5.3+** `preferred_lang` — `en` | `fr`. Persisted on every language toggle (cookie + `auth.users.raw_user_meta_data`) so signed-in users keep their language across SSR navigation. Resolution priority on SSR pages: `?lang=` query param → `preferred_lang` → cookie `lang` → page default. Anonymous users use the cookie only.
 - **v2.6+** `home_min_score_article` — integer 1..10 (default 9). Per-user threshold applied by `/api/news/top-story` to filter the `home_surface_queue` rotation. Persisted on every change (cookie `homeMinScoreArticle` + `user_metadata`) and configurable from the SettingsPage. `home_min_score_video` / `homeMinScoreVideo` may exist as a legacy preference, but `/api/videos/top` now uses a fixed product threshold of **8/10** so over-strict stale cookies cannot blank the TOP VIDEO card.
+
+`app_metadata` carries:
+- `user_type` — `member` or `owner`. Only `owner` may use Topics, Feed management, Categories, Daily Summaries (admin), YouTube Channels, and Users. This role must never be read from client-writable `user_metadata`.
 
 ---
 
@@ -150,7 +152,7 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 │       ├── supabase-browser.ts         # `createBrowserSupabaseClient()` — anon key for browser auth
 │       ├── auth-api.ts                 # `getSessionUser()`, `requireOwnerSession()` (cookie session helpers)
 │       ├── server-lang.ts              # **v2.5.3+**: `resolveServerLang()` — query > user_metadata.preferred_lang > cookie > default
-│       ├── user-type.ts                # `user_type` metadata — `member` | `owner`; `isOwnerUser()`
+│       ├── user-type.ts                # `app_metadata.user_type` — `member` | `owner`; `isOwnerUser()`
 │       ├── html.ts                     # HTML entity decoder
 │       ├── slug.ts                     # `slugifyVideoTitle`, `uniquifyVideoSlug` (SEO slug generation)
 │       ├── summary-headings.ts         # `normalizeSummaryHeadings()` — KEY POINTS / INTRO renaming per lang
@@ -561,8 +563,8 @@ A collapsible **user-to-user** chat docked on the LEFT edge of the SPA (mirror o
 
 #### User authentication (v1.80+)
 
-- **Supabase Auth** with email + password; sign-up stores **`first_name`**, **`last_name`**, and **`user_type: "member"`** in **`user_metadata`** (**v1.81+** explicit default; earlier accounts without **`user_type`** are treated as **`member`**).
-- **User type** (`src/lib/user-type.ts`): **`member`** (default) or **`owner`**. Only **`owner`** may use **Topics** and **Feed management** (UI + admin APIs). Promote a user to **`owner`** in **Supabase Dashboard → Authentication → Users →** select user → **User Metadata**: set **`user_type`** to **`owner`** (string). The user must **sign out and sign in again** (or refresh the session) so the JWT includes the new claim.
+- **Supabase Auth** with email + password; sign-up stores **`first_name`** and **`last_name`** in **`user_metadata`**.
+- **User type** (`src/lib/user-type.ts`): **`member`** (default) or **`owner`**. Only **`owner`** may use **Topics** and **Feed management** (UI + admin APIs). Promote a user to **`owner`** in **Supabase Dashboard → Authentication → Users →** select user → **App Metadata**: set **`user_type`** to **`owner`** (string). The user must **sign out and sign in again** (or refresh the session) so the JWT includes the new claim. Client-writable **User Metadata** is ignored for roles.
 - **`middleware.ts`** refreshes the auth cookie on each matched request.
 - **Route Handlers** use **`requireOwnerSession()`** (`src/lib/auth-api.ts`): **`401`** if not signed in, **`403`** if signed in as **`member`**, success only for **`owner`**.
 - **Public without session**: `GET /api/topics` **without** `all=1` (homepage topic list), plus existing public endpoints (news, stats, changelog, cron-stats, etc.).
@@ -758,7 +760,7 @@ Returns `{ feeds: [...] }`: each row includes `id`, `topicId`, `source`, `url`, 
 | Route | Method | Description |
 |---|---|---|
 | `/api/users` | GET | List all registered users (id, email, firstName, lastName, userType, createdAt) |
-| `/api/users/[id]` | PATCH | Update user `first_name`, `last_name`, and/or `user_type` in user_metadata |
+| `/api/users/[id]` | PATCH | Update profile/preferences in `user_metadata` and `user_type` in service-role-only `app_metadata` |
 
 #### `GET /api/changelog`
 

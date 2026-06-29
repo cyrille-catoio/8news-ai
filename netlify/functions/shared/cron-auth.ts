@@ -55,10 +55,19 @@ export interface CronAuthResult {
  */
 export function checkCronSecret(req?: Request): CronAuthResult {
   const expected = process.env.CRON_SECRET?.trim();
+  const enforced = process.env.CRON_ENFORCE_SECRET?.trim() === "true";
 
   // Not configured: never block the pipelines on a missing env var, but
-  // make the gap visible so it gets fixed.
+  // make the gap visible so it gets fixed. Once enforcement is enabled,
+  // a missing/blank secret is a deployment error and must fail closed.
   if (!expected) {
+    if (enforced) {
+      return {
+        ok: false,
+        rejection: Response.json({ error: "Unauthorized" }, { status: 401 }),
+        warning: "Rejected (CRON_SECRET not configured) — CRON_ENFORCE_SECRET is on",
+      };
+    }
     return { ok: true, warning: "CRON_SECRET not configured — cron endpoint is unauthenticated" };
   }
 
@@ -67,7 +76,6 @@ export function checkCronSecret(req?: Request): CronAuthResult {
     return { ok: true };
   }
 
-  const enforced = process.env.CRON_ENFORCE_SECRET?.trim() === "true";
   const reason = provided ? "invalid cron secret" : "missing cron secret";
 
   if (enforced) {

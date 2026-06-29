@@ -32,7 +32,7 @@ export async function GET() {
       email: u.email ?? "",
       firstName: u.user_metadata?.first_name ?? "",
       lastName: u.user_metadata?.last_name ?? "",
-      userType: u.user_metadata?.user_type === "owner" ? "owner" : "member",
+      userType: u.app_metadata?.user_type === "owner" ? "owner" : "member",
       preferredLang,
       // Daily Newsletter opt-in (v2.6.12+). NULL / missing → false so a
       // legacy user without the flag defaults to NOT subscribed; the

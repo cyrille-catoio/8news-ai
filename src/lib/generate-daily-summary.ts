@@ -4,6 +4,7 @@ import type { ArticleSummary, SummaryBullet, AIAnalysis } from "@/lib/types";
 import { formatArticleList, generateFallbackPrompt } from "@/lib/ai-analyze";
 import { SNIPPET_MAX } from "@/lib/constants";
 import {
+  deleteDailySummaryById,
   getScoredArticles,
   getTopicPrompt,
   countArticlesForPeriod,
@@ -283,12 +284,23 @@ export async function generateDailySummary(
 
   const bulletsOk = await insertSummaryBullets(bulletRows);
   if (!bulletsOk) {
-    // The daily_summaries row exists, so the SSR page renders — but the
-    // summary_bullets mirror is missing. Log loudly so the cron run
-    // surfaces it instead of silently reporting success.
     console.error(
       `[generateDailySummary] insertSummaryBullets failed (topic=${topicId}, date=${date}, lang=${lang}, rows=${bulletRows.length})`,
     );
+    const cleanupOk = await deleteDailySummaryById(summaryId);
+    if (!cleanupOk) {
+      console.error(
+        `[generateDailySummary] cleanup failed for incomplete daily_summaries row id=${summaryId} (topic=${topicId}, date=${date}, lang=${lang})`,
+      );
+    }
+    return {
+      summaryId,
+      bulletCount: bullets.length,
+      slug: slugKeywords,
+      seoTitle,
+      articleCount: items.length,
+      status: "error" as GenerateStatus,
+    };
   }
 
   return { summaryId, bulletCount: bullets.length, slug: slugKeywords, seoTitle, articleCount: items.length, status: "generated" as GenerateStatus };

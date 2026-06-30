@@ -228,3 +228,30 @@ propriétaire dit « run localhost » ; vérifier d'abord qu'il ne tourne pas d�
   (toujours les deux langues).
 - Mettre des émojis dans l'UI ou le contenu éditorial.
 - Casser le plafond des 8 bullets du podcast ou l'ordre « 2 vidéos d'abord ».
+
+## Cursor Cloud specific instructions
+
+Produit unique : l'app Next.js 8news.ai. Commandes standard déjà documentées
+dans `README.md` et `CLAUDE.md` (`npm run dev`, `npm test`, `npx tsc --noEmit`,
+`npm run lint`, `npm run build`) — s'y référer plutôt que de les dupliquer.
+
+Gotchas non évidents pour cet environnement (sans secrets réels) :
+
+- **`npm run dev` ET `npm run build` exigent `NEXT_PUBLIC_SUPABASE_URL` et
+  `NEXT_PUBLIC_SUPABASE_ANON_KEY`**, sinon `createBrowserSupabaseClient()`
+  (`src/lib/supabase-browser.ts`) lève une erreur dès le rendu de
+  l'`AuthProvider` (`src/app/providers.tsx`) → toutes les pages renvoient 500,
+  et `next build` échoue au prerender de `/_not-found`. C'est le seul couple
+  de vars *obligatoire* pour démarrer ; les autres (`SUPABASE_SERVICE_ROLE_KEY`,
+  `OPENAI_API_KEY`, etc.) sont gérés en no-op via `getServerClient()` qui
+  retourne `null`.
+- Pour lancer le dev/build sans backend réel, mettre des **valeurs placeholder**
+  dans `.env` (gitignoré) : un URL `https://<x>.supabase.co` et n'importe quelle
+  chaîne pour l'anon key suffisent à faire rendre la SPA et la landing. Aucune
+  donnée ne se charge (les appels réseau Supabase échouent silencieusement),
+  mais le shell, le toggle EN/FR et la navigation SPA fonctionnent. Pour des
+  données/auth réelles, fournir les vraies clés Supabase (+ OpenAI, etc.).
+- Turbopack persistent cache est désactivé en dev (`next.config.ts`,
+  `turbopackFileSystemCacheForDev: false`) car il corrompait `.next/dev`
+  (pages blanches / manifests manquants). Si la SPA rend blanc, supprimer
+  `.next/dev` et relancer `npm run dev`.

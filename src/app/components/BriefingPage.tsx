@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Lang } from "@/lib/i18n";
 import { dateLocale, t } from "@/lib/i18n";
-import { color, spinnerStyle } from "@/lib/theme";
+import { color } from "@/lib/theme";
 import { useTopFeed, type TopFeedArticle } from "@/hooks/useTopFeed";
 import { type VideoItem } from "@/app/components/VideoCard";
 import { HomeTop24hHero } from "@/app/components/HomeTop24hHero";
@@ -527,12 +527,11 @@ export function BriefingPage({
 
   return (
     <div>
-      {heroBlocked ? (
-        <div style={{ display: "flex", justifyContent: "center", padding: "60px 0" }}>
-          <span style={spinnerStyle(28)} />
-        </div>
-      ) : (
-        <>
+      {/* Progressive render: the flagship Daily Podcast (below) self-fetches
+          and shows immediately; only the Top story block waits on its own
+          fetch (a section spinner), instead of a full-page spinner gating
+          the whole briefing on a secondary request. */}
+      <>
           {/* ─── 1 · Podcast du jour (flagship) ──────────────────────
               Pre-computed daily AI briefing pinned at the very top.
               Self-fetches the latest snapshot so its loading / 404
@@ -603,7 +602,7 @@ export function BriefingPage({
           )}
 
           {/* ─── 3 · Top story ───────────────────────────────────────── */}
-          {heroArticle && (
+          {heroArticle ? (
             <HeroStory
               article={heroArticle}
               lang={lang}
@@ -617,7 +616,12 @@ export function BriefingPage({
               onHistoryNext={onArticleHistoryNext}
               topicLabels={topicLabels}
             />
-          )}
+          ) : heroBlocked ? (
+            <SectionSpinner
+              label={lang === "fr" ? "TOP STORY · MAINTENANT" : "TOP STORY · NOW"}
+              goldBorder
+            />
+          ) : null}
 
           {/* ─── 4 · À lire maintenant : Top 5 puis Tendances 24h, empilés
               dans le flux de la page (plus de rail latéral). Les deux
@@ -741,8 +745,7 @@ export function BriefingPage({
             onSummaries={() => onNavigate("summaries")}
             onVideos={() => onNavigate("videos")}
           />
-        </>
-      )}
+      </>
     </div>
   );
 }

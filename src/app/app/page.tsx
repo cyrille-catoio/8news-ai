@@ -280,16 +280,24 @@ export default function Home() {
   // Daily Podcast chat side panel open/closed. Persisted to localStorage
   // so an expanded panel stays expanded across reloads and on every page
   // of the SPA. Hydrated after mount to avoid an SSR mismatch. With no
-  // stored preference, the panel defaults OPEN on desktop (incl. anonymous
-  // visitors) and closed on small screens (where it overlays full-width).
+  // stored preference, the panel defaults OPEN on desktop only for
+  // SIGNED-IN visitors; anonymous visitors get it CLOSED (the chat needs a
+  // session to use, so opening it just crushes the content column with an
+  // unusable panel). Always closed on small screens (full-width overlay).
   const [chatOpen, setChatOpen] = useState(false);
+  const chatDefaultAppliedRef = useRef(false);
   useEffect(() => {
     if (typeof window === "undefined") return;
+    // Wait until auth resolves so we don't briefly default-open for a
+    // signed-in user we haven't recognized yet. Apply the default once —
+    // never re-run it over a later explicit toggle.
+    if (authLoading || chatDefaultAppliedRef.current) return;
+    chatDefaultAppliedRef.current = true;
     const stored = window.localStorage.getItem("podcastChatOpen");
-    if (stored === "1") setChatOpen(true);
-    else if (stored === "0") setChatOpen(false);
-    else setChatOpen(window.innerWidth >= 761);
-  }, []);
+    if (stored === "1") { setChatOpen(true); return; }
+    if (stored === "0") { setChatOpen(false); return; }
+    setChatOpen(window.innerWidth >= 761 && isAuthenticated);
+  }, [authLoading, isAuthenticated]);
   const handleChatOpenChange = useCallback((next: boolean) => {
     setChatOpen(next);
     try {
@@ -335,15 +343,20 @@ export default function Home() {
 
   // Community chat left-side panel — same open/width persistence model as
   // the Daily Podcast chat. With no stored preference, the panel defaults
-  // OPEN on desktop and closed on small screens (full-width overlay).
+  // OPEN on desktop only for SIGNED-IN visitors (posting needs a session);
+  // anonymous visitors get it CLOSED so the briefing keeps the full column.
+  // Always closed on small screens (full-width overlay).
   const [userChatOpen, setUserChatOpen] = useState(false);
+  const userChatDefaultAppliedRef = useRef(false);
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (authLoading || userChatDefaultAppliedRef.current) return;
+    userChatDefaultAppliedRef.current = true;
     const stored = window.localStorage.getItem("userChatOpen");
-    if (stored === "1") setUserChatOpen(true);
-    else if (stored === "0") setUserChatOpen(false);
-    else setUserChatOpen(window.innerWidth >= 761);
-  }, []);
+    if (stored === "1") { setUserChatOpen(true); return; }
+    if (stored === "0") { setUserChatOpen(false); return; }
+    setUserChatOpen(window.innerWidth >= 761 && isAuthenticated);
+  }, [authLoading, isAuthenticated]);
   const handleUserChatOpenChange = useCallback((next: boolean) => {
     setUserChatOpen(next);
     try {

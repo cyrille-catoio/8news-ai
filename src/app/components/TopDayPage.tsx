@@ -155,9 +155,7 @@ export async function TopDayPage({ date, lang }: TopDayPageProps) {
 
         {/* Reuse the same accordion the home and /top-articles render.
             `defaultOpen` opens every group up front — the visitor came
-            here for the brief, not to scan headlines. `showSeeAllLink`
-            is forced false because the « See full briefing → » CTA
-            would loop back to the same route. */}
+            here for the brief, not to scan headlines. */}
         <Top24hHero
           lang={lang}
           data={{
@@ -166,7 +164,6 @@ export async function TopDayPage({ date, lang }: TopDayPageProps) {
             generatedAt: snapshot.generated_at,
           }}
           defaultOpen
-          showSeeAllLink={false}
         />
 
         {articles.length > 0 && (

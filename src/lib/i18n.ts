@@ -1632,6 +1632,10 @@ const strings = {
     en: "Ask the AI about today's briefing →",
     fr: "Poser une question à l'IA sur le briefing du jour →",
   },
+  homeAskAiButton: {
+    en: "Ask the AI",
+    fr: "Demander à l'IA",
+  },
   homeChooseTopicsKicker: {
     en: "Your topics",
     fr: "Vos topics",

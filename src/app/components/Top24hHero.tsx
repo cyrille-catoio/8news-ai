@@ -3,7 +3,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { color, card, spinnerStyle } from "@/lib/theme";
 import { t, type Lang, dateLocale } from "@/lib/i18n";
-import type { AppNavPage } from "@/app/components/AppHeader";
 import { ScoreMeter } from "@/app/components/ScoreMeter";
 import { Top24hAudio } from "@/app/components/Top24hAudio";
 import { trackEvent } from "@/lib/track";
@@ -65,25 +64,21 @@ interface Snapshot {
 
 export function Top24hHero({
   lang,
-  onNavigate,
   data: externalData,
-  showSeeAllLink = true,
   defaultOpen = false,
   title,
   appendSummaryDateToTitle = false,
   isRead,
   onToggleRead,
+  onOpenChat,
   showHistoryControls = false,
   showHomeRefresh = false,
   onSnapshotChange,
   kickerLabel,
   hideTitlePrefix = false,
+  readReady = true,
 }: {
   lang: Lang;
-  /** Required when `showSeeAllLink` is `true` (default). The footer
-   *  « Read the full briefing → » button calls `onNavigate("topArticles")`
-   *  to switch the SPA to the dedicated /top-articles page. */
-  onNavigate?: (page: AppNavPage) => void;
   /** Controlled « read » state of the hero. When `onToggleRead` is
    *  also provided (parent-controlled, v2.6.15+), the bottom-left of
    *  the card renders a compact « Lue / Read » checkbox. Currently
@@ -93,6 +88,17 @@ export function Top24hHero({
    *  the checkbox stays hidden. */
   isRead?: boolean;
   onToggleRead?: () => void;
+  /** When provided, renders an « Ask the AI » button at the bottom-left
+   *  of the card that opens the Daily Podcast chat grounded in today's
+   *  briefing. Home use case only. */
+  onOpenChat?: () => void;
+  /** Gate for the initial render: while `false`, the hero keeps showing
+   *  its loading skeleton instead of the body, so the parent can wait
+   *  until the per-user « read » state is known before deciding whether
+   *  the briefing renders expanded or collapsed. Prevents the
+   *  expand→collapse flash for already-read podcasts. Defaults to `true`
+   *  so non-home consumers are unaffected. */
+  readReady?: boolean;
   /** When provided (even as `null`), the component skips its self-fetch
    *  and uses the parent's snapshot directly. Lets the /top-articles
    *  page pass its own already-fetched snapshot so we don't duplicate
@@ -100,10 +106,6 @@ export function Top24hHero({
    *  article list). When omitted, the component fetches on its own
    *  (the home use case). */
   data?: Snapshot | null;
-  /** Default `true` (home use case). Set to `false` on the
-   *  /top-articles page where the « Read the full briefing → » link
-   *  would loop back to the same surface. */
-  showSeeAllLink?: boolean;
   /** Default `false` (collapsed). On the home we want the visitor to
    *  scan headlines and only expand what interests them; on the
    *  dedicated /top-articles page, the visitor explicitly came for the
@@ -312,7 +314,12 @@ export function Top24hHero({
   // remaining unobtrusive when the cron has nothing to show yet. Only
   // shown when self-fetching — when the parent drives `data`, it
   // owns its own loading skeleton.
-  if (isSelfFetched && loadingInternal) {
+  //
+  // `!readReady` keeps the skeleton up until the parent knows the
+  // per-user « read » state, so an already-read podcast never flashes
+  // fully expanded before collapsing (the snapshot fetch and the read
+  // fetch race, and the snapshot often wins).
+  if (isSelfFetched && (loadingInternal || !readReady)) {
     return (
       <section style={{ marginBottom: 36 }}>
         <div style={kickerStyle(color.gold)}>{kickerLabel ?? t("top24hHeroKicker", lang)}</div>
@@ -835,13 +842,13 @@ export function Top24hHero({
         </ul>
         </div>
 
-        {/* Bottom action row: « Lue » checkbox on the left (when the
-            parent opted in by passing `isRead` + `onToggleRead`) and
-            the « Read the full briefing → » link on the right. Rendered
-            as a single flex row so the two affordances sit side-by-side
-            on a wide card; the row gracefully collapses when only one
-            is present, keeping spacing balanced. */}
-        {!isRead && (onToggleRead || (showSeeAllLink && onNavigate)) && (
+        {/* Bottom action row: « Ask the AI » button on the left (when the
+            parent passes `onOpenChat`) and the « Lue / Read » checkbox on
+            the right (when the parent passes `onToggleRead`). The former
+            « See all articles → » link was removed in v2.19. Rendered as a
+            single flex row that gracefully collapses when only one
+            affordance is present, keeping spacing balanced. */}
+        {!isRead && (onOpenChat || onToggleRead) && (
           <div
             style={{
               marginTop: 14,
@@ -852,7 +859,34 @@ export function Top24hHero({
               flexWrap: "wrap",
             }}
           >
-            {onToggleRead ? (
+            {onOpenChat ? (
+              <button
+                type="button"
+                onClick={onOpenChat}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  border: `1px solid ${color.gold}`,
+                  background: "rgba(201,162,39,0.10)",
+                  color: color.gold,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  padding: "6px 14px",
+                  borderRadius: 999,
+                  letterSpacing: "0.01em",
+                }}
+              >
+                {t("homeAskAiButton", lang)}
+              </button>
+            ) : (
+              // Keeps the checkbox right-aligned when no chat button is
+              // present (space-between semantics intact).
+              <span />
+            )}
+            {onToggleRead && (
               <label
                 style={{
                   display: "inline-flex",
@@ -883,36 +917,6 @@ export function Top24hHero({
                 />
                 {t("top24hHeroReadLabel", lang)}
               </label>
-            ) : (
-              // Placeholder spacer so the see-all link stays right-aligned
-              // when the checkbox is intentionally hidden (e.g. on
-              // /top-articles). Zero-width div keeps `space-between`
-              // semantics intact without altering the visual layout.
-              <span />
-            )}
-            {showSeeAllLink && onNavigate && !isRead && (
-              <button
-                type="button"
-                onClick={() => {
-                  trackEvent("top24h.see_full_briefing", {
-                    lang,
-                    meta: { summaryDate: snap.summaryDate },
-                  });
-                  onNavigate("topArticles");
-                }}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: color.gold,
-                  cursor: "pointer",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  padding: "4px 0",
-                  letterSpacing: "0.01em",
-                }}
-              >
-                {t("top24hHeroSeeAll", lang)}
-              </button>
             )}
           </div>
         )}

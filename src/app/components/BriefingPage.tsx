@@ -11,7 +11,7 @@ import type { TopicLabel } from "@/lib/types";
 import type { AppNavPage } from "@/app/components/AppHeader";
 import { trackEvent } from "@/lib/track";
 import { SectionSpinner } from "@/app/components/briefing/SectionSpinner";
-import { kicker, ctaLink } from "@/app/components/briefing/styles";
+import { kicker } from "@/app/components/briefing/styles";
 import { TrendingStrip, type TrendingTopic } from "@/app/components/briefing/TrendingStrip";
 import { FooterCTAs } from "@/app/components/briefing/FooterCTAs";
 import { HeroStory } from "@/app/components/briefing/HeroStory";
@@ -539,28 +539,7 @@ export function BriefingPage({
               card). The « Lu » state is owned internally by the hero
               (DB-backed for authenticated users via `user_activity`,
               cookie list for anonymous visitors). */}
-          <HomeTop24hHero lang={lang} onNavigate={onNavigate} />
-
-          {/* Chat discovery hint — opens the Daily Podcast chat grounded
-              in today's briefing. */}
-          {onOpenChat && (
-            <div style={{ marginTop: -20, marginBottom: 28 }}>
-              <button
-                type="button"
-                onClick={onOpenChat}
-                style={{
-                  ...ctaLink,
-                  marginTop: 0,
-                  textDecoration: "none",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                }}
-              >
-                {t("homeAskAiHint", lang)}
-              </button>
-            </div>
-          )}
+          <HomeTop24hHero lang={lang} onOpenChat={onOpenChat} />
 
           {/* ─── 2 · TOP VIDEO · maintenant ───────────────────────────
               Kept at the top AND distinct from the Top story below

@@ -74,15 +74,21 @@ export function ArchivesTimeline({ data, topics, lang, emptyMessage }: ArchivesT
             <aside className="archive-day-rail">
               <h2 className="archive-day-date">{dateLabel}</h2>
               <div className="archive-day-meta">
-                <span className="archive-day-pill">
-                  {articleCount} {lang === "fr" ? "articles" : "articles"}
-                </span>
-                <span className="archive-day-pill">
-                  {videoRecapCount} {lang === "fr" ? "recaps" : "recaps"}
-                </span>
-                <span className="archive-day-pill">
-                  {transcribedVideoCount} {lang === "fr" ? "vidéos" : "videos"}
-                </span>
+                {articleCount > 0 && (
+                  <span className="archive-day-pill">
+                    {articleCount} {lang === "fr" ? "articles" : "articles"}
+                  </span>
+                )}
+                {videoRecapCount > 0 && (
+                  <span className="archive-day-pill">
+                    {videoRecapCount} {lang === "fr" ? "recaps" : "recaps"}
+                  </span>
+                )}
+                {transcribedVideoCount > 0 && (
+                  <span className="archive-day-pill">
+                    {transcribedVideoCount} {lang === "fr" ? "vidéos" : "videos"}
+                  </span>
+                )}
               </div>
             </aside>
 
@@ -134,12 +140,14 @@ export function ArchivesTimeline({ data, topics, lang, emptyMessage }: ArchivesT
                         <span className="archive-topic-badge">{label}</span>
                       </Link>
                       <span className="archive-coverage-score">
-                        {coverage}/3 {lang === "fr" ? "formats" : "formats"}
+                        {coverage} {coverage === 1
+                          ? (lang === "fr" ? "format" : "format")
+                          : (lang === "fr" ? "formats" : "formats")}
                       </span>
                     </div>
 
                     <div className="archive-slot-grid">
-                      {row.dailySummary ? (
+                      {row.dailySummary && (
                         <Link
                           href={summaryPath({
                             lang,
@@ -157,18 +165,9 @@ export function ArchivesTimeline({ data, topics, lang, emptyMessage }: ArchivesT
                             {lang === "fr" ? "Résumé du jour" : "Daily summary"}
                           </span>
                         </Link>
-                      ) : (
-                        <span className="archive-slot archive-slot-empty">
-                          <span className="archive-slot-kind">
-                            {lang === "fr" ? "Articles" : "Articles"}
-                          </span>
-                          <span className="archive-slot-title">
-                            {lang === "fr" ? "Pas de résumé" : "No summary"}
-                          </span>
-                        </span>
                       )}
 
-                      {row.videoRoundup ? (
+                      {row.videoRoundup && (
                         <Link
                           href={`/${row.videoRoundup.topic_id}/r/${row.videoRoundup.roundup_date}/${row.videoRoundup.slug_keywords}`}
                           className="archive-slot"
@@ -181,18 +180,9 @@ export function ArchivesTimeline({ data, topics, lang, emptyMessage }: ArchivesT
                             {lang === "fr" ? "Briefing vidéo" : "Video briefing"}
                           </span>
                         </Link>
-                      ) : (
-                        <span className="archive-slot archive-slot-empty">
-                          <span className="archive-slot-kind">
-                            {lang === "fr" ? "Recap vidéo" : "Video recap"}
-                          </span>
-                          <span className="archive-slot-title">
-                            {lang === "fr" ? "Pas de recap" : "No recap"}
-                          </span>
-                        </span>
                       )}
 
-                      {row.transcribedVideoCount > 0 ? (
+                      {row.transcribedVideoCount > 0 && (
                         <Link
                           href={`/${row.topic_id}/videos/${day.date}?lang=${lang}`}
                           className="archive-slot"
@@ -211,15 +201,6 @@ export function ArchivesTimeline({ data, topics, lang, emptyMessage }: ArchivesT
                               : `${row.transcribedVideoCount} transcribed videos`}
                           </span>
                         </Link>
-                      ) : (
-                        <span className="archive-slot archive-slot-empty">
-                          <span className="archive-slot-kind">
-                            {lang === "fr" ? "Vidéos" : "Videos"}
-                          </span>
-                          <span className="archive-slot-title">
-                            {lang === "fr" ? "Aucune transcription" : "No transcripts"}
-                          </span>
-                        </span>
                       )}
                     </div>
                   </article>

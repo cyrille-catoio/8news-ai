@@ -5,7 +5,7 @@ import { color, card } from "@/lib/theme";
 import type { Lang } from "@/lib/i18n";
 import type { TopicLabel } from "@/lib/types";
 import { summaryPath } from "@/lib/summary-routes";
-import { kicker } from "@/app/components/briefing/styles";
+import { kicker, ctaLink } from "@/app/components/briefing/styles";
 import { buildSummaryTeaser, type DailySummaryBullet } from "@/app/components/briefing/utils";
 
 /** Routing tuple identifying one daily summary. Mirror of the row
@@ -69,7 +69,7 @@ export function DailySummaryTeaser({
   return (
     <section style={{ marginBottom: 36 }}>
       <div style={{ ...kicker(color.gold), marginBottom: 12 }}>
-        {lang === "fr" ? "Résumé quotidien topic" : "Daily topic summary"}
+        {lang === "fr" ? "Votre topic · résumé du jour" : "Your topic · daily summary"}
       </div>
       <a href={href} style={{ textDecoration: "none", color: "inherit", display: "block" }}>
         <div
@@ -104,23 +104,22 @@ export function DailySummaryTeaser({
           >
             {teaserText}
           </p>
-          <span
+          {/* CTA kept INSIDE the box, bottom-right — rendered as a span
+              (not an anchor) since the whole card is already a link, so we
+              avoid nesting <a> inside <a>. Mirrors the Daily Podcast. */}
+          <div
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "8px 14px",
-              borderRadius: 6,
-              border: `1px solid ${color.gold}`,
-              background: "rgba(201,162,39,0.10)",
-              color: color.gold,
-              fontSize: 13,
-              fontWeight: 700,
-              letterSpacing: "0.01em",
+              display: "flex",
+              justifyContent: "flex-end",
+              marginTop: 4,
+              paddingTop: 12,
+              borderTop: `1px solid ${color.border}`,
             }}
           >
-            {lang === "fr" ? "Lire la suite →" : "Read more →"}
-          </span>
+            <span style={ctaLink}>
+              {lang === "fr" ? "Lire la suite →" : "Read more →"}
+            </span>
+          </div>
         </div>
       </a>
     </section>

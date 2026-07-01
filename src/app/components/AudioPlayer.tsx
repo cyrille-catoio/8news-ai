@@ -237,11 +237,17 @@ export function AudioPlayer({
     fontWeight: 600,
     letterSpacing: "0.12em",
     textTransform: "uppercase",
-    marginBottom: 4,
+    whiteSpace: "nowrap",
   };
 
+  // v2.18+ — single-line transport: the « LECTEUR AUDIO » label sits on
+  // the left with every control (play/pause, stop, ±15s, timecode) packed
+  // right next to it on the same row, so the player ribbon is one line
+  // shorter on every surface. The thin progress bar stays below,
+  // full-width.
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 10, flexWrap: "wrap" }}>
       <div style={kickerStyle}>{t("audioPlayerKicker", lang)}</div>
       <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
         {state === "playing" ? (
@@ -273,6 +279,7 @@ export function AudioPlayer({
         {spinner && (
           <span style={spinnerStyle(18, { borderWidth: 2.5, marginLeft: 6, flexShrink: 0 })} />
         )}
+      </div>
       </div>
 
       <div

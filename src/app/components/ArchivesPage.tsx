@@ -182,34 +182,28 @@ export function ArchivesPage({ lang, topics, initialData }: ArchivesPageProps) {
     background: "#090909",
   };
 
+  const metricItems = useMemo(() => {
+    const items: Array<{ value: number; label: string }> = [
+      { value: stats.days, label: lang === "fr" ? "jours" : "days" },
+      { value: stats.topicRows, label: lang === "fr" ? "topics" : "topics" },
+      { value: stats.articleSummaries + stats.topSummaries, label: lang === "fr" ? "résumés articles" : "article briefs" },
+      { value: stats.videoRecaps + stats.transcribedVideos, label: lang === "fr" ? "entrées vidéo" : "video entries" },
+    ];
+    return items.filter((it) => it.value > 0);
+  }, [stats, lang]);
+
   return (
     <div>
-      <section className="archives-overview" aria-label={lang === "fr" ? "Vue d'ensemble" : "Overview"}>
-        <div className="archives-overview-main">
-          <div className="archives-eyebrow">
-            {lang === "fr" ? "Chronologie éditoriale" : "Editorial timeline"}
-          </div>
-          <h2 className="archives-overview-title">
-            {lang === "fr"
-              ? "Une semaine de signaux, classée par jour et par topic."
-              : "A week of signals, organized by day and topic."}
-          </h2>
-          <p className="archives-overview-copy">
-            {lang === "fr"
-              ? "Les journées récentes sont servies en premier, avec les signaux articles et vidéo côte à côte pour repérer vite ce qui mérite d'être relu."
-              : "Recent days come first, with article and video signals side by side so it is easy to spot what deserves another look."}
-          </p>
+      {metricItems.length > 0 && (
+        <div className="archives-metrics-strip" aria-live="polite">
+          {metricItems.map((it) => (
+            <span key={it.label} className="archives-metric-inline">
+              <span className="archives-metric-inline-value">{it.value.toLocaleString()}</span>
+              <span className="archives-metric-inline-label">{it.label}</span>
+            </span>
+          ))}
         </div>
-
-        <div className="archives-overview-side" aria-live="polite">
-          <div className="archives-metrics">
-            <Metric value={stats.days} label={lang === "fr" ? "jours avec contenu" : "content days"} />
-            <Metric value={stats.topicRows} label={lang === "fr" ? "topics couverts" : "topic rows"} />
-            <Metric value={stats.articleSummaries + stats.topSummaries} label={lang === "fr" ? "résumés articles" : "article briefs"} />
-            <Metric value={stats.videoRecaps + stats.transcribedVideos} label={lang === "fr" ? "entrées vidéo" : "video entries"} />
-          </div>
-        </div>
-      </section>
+      )}
 
       <div className="archives-filter-bar">
         <label className="archives-field-label">
@@ -288,15 +282,6 @@ export function ArchivesPage({ lang, topics, initialData }: ArchivesPageProps) {
             : `No archive for ${selectedTopicLabel} in this range.`
         }
       />
-    </div>
-  );
-}
-
-function Metric({ value, label }: { value: number; label: string }) {
-  return (
-    <div className="archives-metric">
-      <div className="archives-metric-value">{value.toLocaleString()}</div>
-      <div className="archives-metric-label">{label}</div>
     </div>
   );
 }

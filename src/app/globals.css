@@ -673,16 +673,6 @@ body.podcast-chat-resizing .podcast-chat-resize::after {
 }
 
 /* Archives hub */
-.archives-overview {
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(220px, 0.65fr);
-  gap: 18px;
-  align-items: stretch;
-  margin-bottom: 22px;
-}
-
-.archives-overview-main,
-.archives-overview-side,
 .archives-explorer-card {
   border: 1px solid var(--8n-border);
   background:
@@ -691,68 +681,35 @@ body.podcast-chat-resizing .podcast-chat-resize::after {
   border-radius: 8px;
 }
 
-.archives-overview-main {
-  padding: 18px 20px;
+/* Compact inline metrics strip (v2.18+) — replaces the tall two-column
+   overview block. Small chips, only shown for non-zero counts. */
+.archives-metrics-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  align-items: baseline;
+  margin-bottom: 16px;
 }
 
-.archives-overview-side {
-  padding: 14px;
+.archives-metric-inline {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
 }
 
-.archives-eyebrow {
-  color: var(--8n-gold);
-  font-family: ui-monospace, Menlo, monospace;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.archives-overview-title {
-  margin: 8px 0 8px;
+.archives-metric-inline-value {
   color: #f5f5f5;
-  font-family: ui-serif, Georgia, serif;
-  font-size: 24px;
-  font-weight: 400;
-  line-height: 1.18;
-  letter-spacing: 0;
-}
-
-.archives-overview-copy {
-  margin: 0;
-  color: #b0b0b0;
-  font-size: 14px;
-  line-height: 1.55;
-}
-
-.archives-metrics {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.archives-metric {
-  min-height: 72px;
-  padding: 10px;
-  border: 1px solid rgba(201, 162, 39, 0.22);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.archives-metric-value {
-  color: #f5f5f5;
-  font-size: 21px;
+  font-size: 16px;
   font-weight: 700;
   line-height: 1;
 }
 
-.archives-metric-label {
-  margin-top: 6px;
+.archives-metric-inline-label {
   color: var(--8n-text-muted);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.08em;
-  line-height: 1.25;
+  line-height: 1.2;
   text-transform: uppercase;
 }
 
@@ -974,14 +931,14 @@ body.podcast-chat-resizing .podcast-chat-resize::after {
 }
 
 .archive-slot-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .archive-slot {
-  min-height: 78px;
-  padding: 10px;
+  flex: 0 1 auto;
+  padding: 8px 12px;
   border: 1px solid var(--8n-border);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.03);
@@ -992,10 +949,6 @@ body.podcast-chat-resizing .podcast-chat-resize::after {
 .archive-slot:hover {
   border-color: rgba(201, 162, 39, 0.52);
   background: rgba(201, 162, 39, 0.08);
-}
-
-.archive-slot-empty {
-  color: #666;
 }
 
 .archive-slot-kind {
@@ -1010,7 +963,7 @@ body.podcast-chat-resizing .podcast-chat-resize::after {
 
 .archive-slot-title {
   display: block;
-  margin-top: 8px;
+  margin-top: 5px;
   color: inherit;
   font-size: 13px;
   font-weight: 650;
@@ -1034,10 +987,6 @@ body.podcast-chat-resizing .podcast-chat-resize::after {
 }
 
 @media (max-width: 760px) {
-  .archives-overview {
-    grid-template-columns: 1fr;
-  }
-
   .archives-filter-bar {
     grid-template-columns: 1fr;
     top: 0;
@@ -1067,7 +1016,11 @@ body.podcast-chat-resizing .podcast-chat-resize::after {
   }
 
   .archive-slot-grid {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+
+  .archive-slot {
+    width: 100%;
   }
 }
 

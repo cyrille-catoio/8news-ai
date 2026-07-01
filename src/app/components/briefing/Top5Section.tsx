@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { color, card } from "@/lib/theme";
-import type { Lang } from "@/lib/i18n";
+import { t, type Lang } from "@/lib/i18n";
 import type { TopFeedArticle } from "@/hooks/useTopFeed";
 import type { TopicLabel } from "@/lib/types";
 import { trackEvent } from "@/lib/track";
@@ -25,15 +25,18 @@ export function Top5Section({
   articles,
   lang,
   topicLabels,
+  newSinceVisit = 0,
   onSeeAll,
 }: {
   articles: TopFeedArticle[];
   lang: Lang;
   topicLabels: TopicLabel[];
+  /** Count of articles new since the last visit — shown as a gold pill. */
+  newSinceVisit?: number;
   onSeeAll: () => void;
 }) {
   const topicLabelById = useMemo(
-    () => new Map(topicLabels.map((t) => [t.id, t.label])),
+    () => new Map(topicLabels.map((tl) => [tl.id, tl.label])),
     [topicLabels],
   );
 
@@ -43,6 +46,22 @@ export function Top5Section({
         <div className="recent-video-heading" style={{ ...kicker(color.gold) }}>
           {lang === "fr" ? "Briefing du jour · top 5" : "Today's briefing · top 5"}
         </div>
+        {newSinceVisit > 0 && (
+          <span
+            style={{
+              fontFamily: "ui-monospace, Menlo, monospace",
+              fontSize: 11,
+              fontWeight: 700,
+              color: "#000",
+              background: color.gold,
+              borderRadius: 999,
+              padding: "2px 9px",
+              letterSpacing: "0.02em",
+            }}
+          >
+            {t("homeNewSinceVisit", lang).replace("{n}", String(newSinceVisit))}
+          </span>
+        )}
       </div>
 
       <div
@@ -91,12 +110,22 @@ export function Top5Section({
             );
           })}
         </ul>
-      </div>
 
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
-        <button type="button" onClick={onSeeAll} style={ctaLink}>
-          {lang === "fr" ? "Voir le top 50 →" : "See the full top 50 →"}
-        </button>
+        {/* Footer CTA kept INSIDE the panel, bottom-right, with a thin
+            divider — mirrors the Daily Podcast « See all articles → ». */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            marginTop: 12,
+            paddingTop: 12,
+            borderTop: `1px solid ${color.border}`,
+          }}
+        >
+          <button type="button" onClick={onSeeAll} style={ctaLink}>
+            {lang === "fr" ? "Voir le top 50 →" : "See the full top 50 →"}
+          </button>
+        </div>
       </div>
     </section>
   );

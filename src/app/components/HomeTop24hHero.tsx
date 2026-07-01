@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { t, type Lang } from "@/lib/i18n";
-import type { AppNavPage } from "@/app/components/AppHeader";
 import { Top24hHero } from "@/app/components/Top24hHero";
 import { useAuth } from "@/app/providers";
 import { getCookie, setCookie } from "@/lib/cookies";
@@ -27,9 +26,9 @@ import { getCookie, setCookie } from "@/lib/cookies";
  *     change).
  *   - **Collapsed accordion** (`defaultOpen={false}` — the visitor
  *     scans headlines and expands what catches their eye).
- *   - **« Read full briefing → » footer link** kept (`showSeeAllLink`
- *     defaults to true on the base) so a click navigates to
- *     `/top-articles` for the deep dive.
+ *   - **« Ask the AI » footer button** (`onOpenChat`) opening the Daily
+ *     Podcast chat grounded in today's briefing. The former « See all
+ *     articles → » footer link was removed in v2.19.
  *   - **Title « Podcast du jour »** via `t("top24hHeroHomeTitle")`,
  *     suffixed with ` — {summaryDate}` from the loaded snapshot.
  *
@@ -81,10 +80,11 @@ function writeAnonCookieSet(set: Set<string>): void {
 
 export function HomeTop24hHero({
   lang,
-  onNavigate,
+  onOpenChat,
 }: {
   lang: Lang;
-  onNavigate: (page: AppNavPage) => void;
+  /** Opens the Daily Podcast chat (grounded in today's briefing). */
+  onOpenChat?: () => void;
 }) {
   const { session, loading: authLoading } = useAuth();
   const userId = session?.user?.id ?? null;
@@ -94,6 +94,10 @@ export function HomeTop24hHero({
   // authenticated users this mirrors the DB rows for the user;
   // anonymous visitors get a cookie-backed cache.
   const [readDates, setReadDates] = useState<Set<string>>(new Set());
+  // Whether the initial « read » state has been resolved (cookie for
+  // anon, DB fetch for authenticated). Gates the hero body so an
+  // already-read podcast doesn't flash expanded before collapsing.
+  const [readLoaded, setReadLoaded] = useState(false);
   const [currentSnapshot, setCurrentSnapshot] = useState<SnapshotInfo | null>(
     null,
   );
@@ -108,6 +112,7 @@ export function HomeTop24hHero({
 
     if (!isAuthenticated) {
       setReadDates(readAnonCookieSet());
+      setReadLoaded(true);
       return;
     }
 
@@ -129,6 +134,11 @@ export function HomeTop24hHero({
       })
       .catch(() => {
         /* network/error → leave the set empty; user can still toggle */
+      })
+      .finally(() => {
+        // Reveal the body once we know the read state (even on error, so
+        // the hero never stays stuck on the spinner).
+        if (!cancelled) setReadLoaded(true);
       });
 
     return () => {
@@ -192,13 +202,14 @@ export function HomeTop24hHero({
   return (
     <Top24hHero
       lang={lang}
-      onNavigate={onNavigate}
+      onOpenChat={onOpenChat}
       title={t("top24hHeroHomeTitle", lang)}
       kickerLabel={t("top24hHeroHomeTitle", lang)}
       appendSummaryDateToTitle
       hideTitlePrefix
       isRead={isRead}
       onToggleRead={onToggleRead}
+      readReady={readLoaded}
       showHistoryControls
       showHomeRefresh
       onSnapshotChange={handleSnapshotChange}

@@ -41,9 +41,10 @@ import { normalizeSummaryHeadings } from "./summary-headings";
 import { stripSubtitleCreditArtifacts } from "./text-artifacts";
 import { slugifyVideoTitle, uniquifyVideoSlug } from "./slug";
 import { buildVideoBulletRows } from "./video-bullets";
+import { OPENAI_MODELS } from "./openai-models";
 
 /** OpenAI model used for all video transcription summaries. */
-const DEFAULT_AI_MODEL = "gpt-4.1-mini";
+const DEFAULT_AI_MODEL = OPENAI_MODELS.transcribe;
 
 /** Hard cap on the produced Markdown summary length, in characters. */
 const SUMMARY_MAX_CHARS = 5000;
@@ -333,7 +334,7 @@ export interface TranscribeOptions {
   /** OpenAI per-call timeout. Default 25_000 (synchronous API route).
    *  Pass a larger value (e.g. 180_000) for the background cron. */
   openaiTimeoutMs?: number;
-  /** OpenAI chat model override. Default `gpt-5.5`. */
+  /** OpenAI chat model override. Default `OPENAI_MODELS.transcribe`. */
   model?: string;
   /** v2.10.3+ — when `true`, the resulting bullets are mirrored into
    *  `summary_bullets` (`source_type='video'`). Default `false` so

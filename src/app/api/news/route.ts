@@ -4,6 +4,7 @@ import { getServerMessages, generateFallbackPrompt, analyzeWithAI, type Relevant
 import type { Lang } from "@/lib/i18n";
 import type { ArticleSummary, SummaryBullet, SummaryResponse } from "@/lib/types";
 import { SNIPPET_MAX } from "@/lib/constants";
+import { OPENAI_MODELS } from "@/lib/openai-models";
 
 const PREVIEW_LIMIT = 10;
 
@@ -20,7 +21,7 @@ const PREVIEW_LIMIT = 10;
  *  - Daily SEO summaries cron — `gpt-4.1-mini` (`generate-daily-summary.ts`).
  *  - Video transcript summaries — see `transcribe-video.ts`.
  */
-const AI_MODEL = "gpt-4.1-nano";
+const AI_MODEL = OPENAI_MODELS.news;
 
 export const maxDuration = 60;
 

@@ -22,9 +22,10 @@ import {
   insertVideoRoundupBullets,
 } from "./supabase";
 import { toUtcDateString } from "./dates-utc";
+import { OPENAI_MODELS } from "./openai-models";
 
 /** OpenAI model for video roundup generation. */
-const AI_MODEL = "gpt-5.3-chat-latest";
+const AI_MODEL = OPENAI_MODELS.videoRoundup;
 const OPENAI_TIMEOUT_MS = 500_000;
 
 /** Min number of transcribed videos before a roundup makes sense. */

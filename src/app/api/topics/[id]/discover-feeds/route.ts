@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { getTopicWithFeeds, createFeed } from "@/lib/supabase";
 import { requireSession } from "@/lib/auth-api";
+import { OPENAI_MODELS } from "@/lib/openai-models";
 
 async function validateFeed(
   url: string,
@@ -89,7 +90,7 @@ export async function POST(
   let suggestions: { name: string; url: string }[];
   try {
     const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
+      model: OPENAI_MODELS.discoverFeeds,
       temperature: 0.7,
       messages: [
         { role: "system", content: systemPrompt },

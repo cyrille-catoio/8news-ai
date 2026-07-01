@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { requireSession } from "@/lib/auth-api";
+import { OPENAI_MODELS } from "@/lib/openai-models";
 
 export async function POST(req: Request) {
   const auth = await requireSession();
@@ -36,7 +37,7 @@ Return ONLY valid JSON (no markdown, no code fences):
 
   try {
     const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
+      model: OPENAI_MODELS.topicLabels,
       temperature: 0.4,
       messages: [
         { role: "system", content: systemPrompt },

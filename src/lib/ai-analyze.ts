@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import type { Lang } from "@/lib/i18n";
 import type { ArticleSummary, SummaryBullet, AIAnalysis } from "@/lib/types";
+import { OPENAI_MODELS } from "@/lib/openai-models";
 
 export function getServerMessages(lang: Lang) {
   if (lang === "fr") {
@@ -48,7 +49,7 @@ export async function analyzeWithAI(
   systemPrompt: string,
   lang: Lang,
   apiKey: string,
-  model: string = "gpt-4.1-mini",
+  model: string = OPENAI_MODELS.analyze,
 ): Promise<{ summary: string; bullets: SummaryBullet[]; relevant: Map<number, RelevantEntry> }> {
   const msg = getServerMessages(lang);
   // Bound each call so a hung request fails fast and the caller (e.g. the

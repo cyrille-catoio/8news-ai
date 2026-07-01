@@ -3,6 +3,7 @@ import type { Lang } from "@/lib/i18n";
 import type { ArticleSummary, SummaryBullet, AIAnalysis } from "@/lib/types";
 import { formatArticleList, generateFallbackPrompt } from "@/lib/ai-analyze";
 import { SNIPPET_MAX } from "@/lib/constants";
+import { OPENAI_MODELS } from "@/lib/openai-models";
 import {
   getScoredArticles,
   getTopicPrompt,
@@ -14,7 +15,7 @@ import {
 const MIN_SCORE = 3;
 const MAX_ARTICLES_FEED = 50;
 const MAX_ARTICLES_DISPLAY = 10;
-const AI_MODEL = "gpt-4.1-mini";
+const AI_MODEL = OPENAI_MODELS.dailySummary;
 
 const CONTROL_CHARS = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g;
 

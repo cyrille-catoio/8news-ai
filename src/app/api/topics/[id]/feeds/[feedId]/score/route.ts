@@ -4,6 +4,7 @@ import type { ScoreResult } from "@/lib/types";
 import { getFeedById, getServerClient } from "@/lib/supabase";
 import { requireOwnerSession } from "@/lib/auth-api";
 import { enqueueHomeSurface } from "@/lib/supabase/home-surface";
+import { OPENAI_MODELS } from "@/lib/openai-models";
 
 /**
  * Keep this route under Netlify's observed ~13s wall-time cap.
@@ -140,7 +141,7 @@ For articles scoring below 5, omit summary_en and summary_fr.`;
       try {
         const completion = await openai.chat.completions.create(
           {
-            model: "gpt-4.1-mini",
+            model: OPENAI_MODELS.feedScore,
             messages: [
               { role: "system", content: scoringPrompt },
               {

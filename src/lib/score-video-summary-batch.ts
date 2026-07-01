@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { OPENAI_MODELS } from "@/lib/openai-models";
 
 export type VideoSummaryScoreInput = {
   id: number;
@@ -56,7 +57,7 @@ export async function scoreVideoSummaryBatch(
 ): Promise<{ id: number; score: number }[]> {
   if (rows.length === 0) return [];
 
-  const model = opts.model ?? "gpt-4.1-mini";
+  const model = opts.model ?? OPENAI_MODELS.videoSummaryScore;
   const maxChars = opts.maxCharsPerSummary ?? 3500;
   const openai = new OpenAI({
     apiKey,

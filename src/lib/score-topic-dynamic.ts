@@ -2,11 +2,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import type { ScoreResult } from "@/lib/types";
 import { enqueueHomeSurface } from "@/lib/supabase/home-surface";
+import { OPENAI_MODELS } from "@/lib/openai-models";
 
 const DEFAULT_BATCH_SIZE = 10;
 const MAX_ARTICLES_PER_RUN = 50;
 const DEFAULT_OPENAI_TIMEOUT_MS = 8_000;
-const SCORE_OPENAI_MODEL = process.env.SCORE_OPENAI_MODEL ?? "gpt-4.1-nano";
+const SCORE_OPENAI_MODEL = OPENAI_MODELS.articleScore;
 export const SCORE_WINDOW_HOURS = 168;
 
 function positiveIntFromEnv(name: string, fallback: number): number {

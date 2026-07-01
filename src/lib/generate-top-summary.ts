@@ -43,9 +43,10 @@ import type { Lang } from "./i18n";
 import type { ArticleSummary } from "./types";
 import { SNIPPET_MAX } from "./constants";
 import { previousUtcDay } from "./dates-utc";
+import { OPENAI_MODELS } from "./openai-models";
 
 /** OpenAI model used for the editorial Top articles summary. */
-export const TOP_SUMMARY_MODEL = "gpt-5.5";
+export const TOP_SUMMARY_MODEL = OPENAI_MODELS.topSummary;
 
 /** Top-50, last 24 h (rolling window). */
 const TOP_DAYS = 1;

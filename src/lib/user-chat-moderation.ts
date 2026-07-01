@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { OPENAI_MODELS } from "@/lib/openai-models";
 
 /**
  * Community chat moderation gate (v2.14+).
@@ -32,8 +33,7 @@ export interface ModerationVerdict {
   reason: ModerationReason;
 }
 
-const MODERATION_MODEL =
-  process.env.USER_CHAT_MODERATION_MODEL?.trim() || "gpt-4.1-nano";
+const MODERATION_MODEL = OPENAI_MODELS.moderation;
 const MODERATION_TIMEOUT_MS = 8_000;
 
 const TECH_TERMS_RE =

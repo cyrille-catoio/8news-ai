@@ -10,6 +10,7 @@ import {
   deletePodcastChatMessages,
 } from "@/lib/supabase";
 import { buildPodcastSystemPrompt } from "@/lib/podcast-chat-context";
+import { OPENAI_MODELS } from "@/lib/openai-models";
 import { NO_STORE_HEADERS, parseLang } from "@/lib/api-helpers";
 import type { Lang } from "@/lib/i18n";
 import type { TopSummaryRow } from "@/lib/supabase/top-summaries";
@@ -40,7 +41,6 @@ import type { TopSummaryRow } from "@/lib/supabase/top-summaries";
 
 export const dynamic = "force-dynamic";
 
-const DEFAULT_MODEL = "gpt-5.5";
 const MAX_QUESTION_LEN = 4000;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -174,7 +174,7 @@ export async function POST(req: NextRequest) {
     { role: "user", content: question },
   ];
 
-  const model = process.env.PODCAST_CHAT_MODEL?.trim() || DEFAULT_MODEL;
+  const model = OPENAI_MODELS.podcastChat;
   const openai = new OpenAI({ apiKey });
 
   const userId = auth.user.id;

@@ -161,6 +161,7 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 │       ├── score-video-summary-batch.ts # Batched 1-10 quality scoring of video recaps (cron-video-summary-score)
 │       ├── score-format.ts             # Score display helpers (e.g. one-decimal 9-10 band — v2.12+)
 │       ├── ai-analyze.ts               # Shared OpenAI analysis helpers (analyzeWithAI, prompts/messages)
+│       ├── openai-models.ts            # `OPENAI_MODELS` — single registry of the per-task OpenAI model ids (env overrides for score/moderation/podcast-chat)
 │       ├── generate-daily-summary.ts   # Daily SEO summary generation (`gpt-4.1-mini`, AI + DB insert + bullets mirror)
 │       ├── generate-top-summary.ts     # Daily Top 24h snapshot (`gpt-5.5`) — **v2.13.5+** `selectTopArticleBullets()` caps persisted bullets at 8 (2 pinned videos + 6 articles)
 │       ├── generate-video-roundup.ts   # **v2.4+**: Per-topic-per-day video roundup (`gpt-5.3-chat-latest`, 8 bullets, 48 h source window)

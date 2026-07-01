@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { requireSession } from "@/lib/auth-api";
+import { OPENAI_MODELS } from "@/lib/openai-models";
 
 export async function POST(req: Request) {
   const auth = await requireSession();
@@ -41,7 +42,7 @@ Each tier should be 1-3 sentences in English, specific to the given domain. Be c
 
   try {
     const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
+      model: OPENAI_MODELS.topicScoring,
       temperature: 0.7,
       messages: [
         { role: "system", content: systemPrompt },

@@ -35,6 +35,8 @@ export function SettingsPage({
   draftTopicIds,
   topicsSaveStatus,
   onToggleTopicPreference,
+  preferredTopicId,
+  onSelectPreferredTopic,
   onCreateTopic,
   onRequestAuth,
 }: {
@@ -52,12 +54,25 @@ export function SettingsPage({
   draftTopicIds: string[] | null;
   topicsSaveStatus: ReturnType<typeof useUserTopics>["saveStatus"];
   onToggleTopicPreference: (id: string) => void;
+  /** Single topic whose daily summary is surfaced on the home. null = auto. */
+  preferredTopicId: string | null;
+  onSelectPreferredTopic: (id: string | null) => void;
   onCreateTopic: () => void;
   onRequestAuth?: () => void;
 }) {
   const { session } = useAuth();
   const user = session?.user ?? null;
   const isSignedIn = Boolean(user);
+
+  // Topics the user follows drive the "preferred topic" choices. When the
+  // watchlist is "show all" (null/empty), every displayed topic is offered.
+  const followedTopics = useMemo(() => {
+    if (draftTopicIds && draftTopicIds.length > 0) {
+      const set = new Set(draftTopicIds);
+      return topics.filter((tp) => set.has(tp.id));
+    }
+    return topics;
+  }, [topics, draftTopicIds]);
   const [voiceEnOpen, setVoiceEnOpen] = useState(false);
   const [voiceFrOpen, setVoiceFrOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
@@ -148,6 +163,29 @@ export function SettingsPage({
                   preferredTopicIds={draftTopicIds}
                   onTogglePreference={onToggleTopicPreference}
                 />
+
+                {/* ── Preferred topic (drives the home daily summary) ── */}
+                <div style={{ marginTop: 26, paddingTop: 20, borderTop: `1px solid ${color.border}` }}>
+                  <h4 style={{ ...sectionTitle, marginTop: 0 }}>{t("preferredTopicTitle", lang)}</h4>
+                  <p style={{ color: color.textMuted, fontSize: 13, lineHeight: 1.6, margin: "0 0 14px", maxWidth: 680 }}>
+                    {t("preferredTopicHelp", lang)}
+                  </p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    <PreferredTopicPill
+                      label={t("preferredTopicAuto", lang)}
+                      active={!preferredTopicId}
+                      onClick={() => onSelectPreferredTopic(null)}
+                    />
+                    {followedTopics.map((tp) => (
+                      <PreferredTopicPill
+                        key={tp.id}
+                        label={tp.label}
+                        active={preferredTopicId === tp.id}
+                        onClick={() => onSelectPreferredTopic(tp.id)}
+                      />
+                    ))}
+                  </div>
+                </div>
               </>
             )}
           </div>
@@ -284,6 +322,38 @@ export function SettingsPage({
               info, max articles, home thresholds, voice, crypto ticker). */}
 
     </div>
+  );
+}
+
+function PreferredTopicPill({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      style={{
+        border: `1px solid ${active ? color.gold : color.border}`,
+        background: active ? "rgba(201,162,39,0.14)" : "#000",
+        color: active ? color.gold : color.textMuted,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        padding: "7px 14px",
+        fontSize: 13,
+        fontWeight: active ? 800 : 600,
+        borderRadius: 999,
+        letterSpacing: "0.01em",
+      }}
+    >
+      {label}
+    </button>
   );
 }
 

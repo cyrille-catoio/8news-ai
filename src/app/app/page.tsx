@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import type { CSSProperties } from "react";
 import type {
   SummaryResponse,
@@ -55,7 +55,7 @@ import { CryptoChartPage, type CryptoChartTarget } from "@/app/components/Crypto
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.17";
+const APP_VERSION = "2.18";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 // Daily Podcast chat panel width bounds (desktop). The panel is
@@ -178,6 +178,36 @@ export default function Home() {
   const [topics, setTopics] = useState<TopicItem[]>([]);
   const [topicsLoading, setTopicsLoading] = useState(true);
   const topicLabels: TopicLabel[] = topics.map((tp) => ({ id: tp.id, label: lang === "fr" ? tp.labelFr : tp.labelEn }));
+
+  // Single "preferred topic" — its daily summary is surfaced on the home.
+  // Stored in `user_metadata.preferred_topic` (like `preferred_lang`).
+  // null = automatic (most recent summary across topics).
+  const [preferredTopicId, setPreferredTopicId] = useState<string | null>(null);
+  useEffect(() => {
+    const meta = (authUser?.user_metadata ?? {}) as { preferred_topic?: unknown };
+    setPreferredTopicId(typeof meta.preferred_topic === "string" ? meta.preferred_topic : null);
+  // Re-sync only when the account changes, not on every metadata write
+  // (our own updateUser would otherwise re-trigger this).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authUser?.id]);
+  // Guard against a stale preference pointing at a topic that no longer
+  // exists / is no longer displayed: fall back to automatic.
+  const validPreferredTopicId = useMemo(() => {
+    if (!preferredTopicId) return null;
+    if (topics.length === 0) return preferredTopicId;
+    return topics.some((tp) => tp.id === preferredTopicId) ? preferredTopicId : null;
+  }, [preferredTopicId, topics]);
+  const handleSelectPreferredTopic = useCallback((id: string | null) => {
+    setPreferredTopicId(id);
+    const supa = supabaseRef.current;
+    if (authUser && supa) {
+      void supa.auth
+        .updateUser({ data: { ...authUser.user_metadata, preferred_topic: id } })
+        .then(({ error }) => {
+          if (error) console.error("[preferred_topic] updateUser error:", error.message);
+        });
+    }
+  }, [authUser]);
   const [topic, setTopic] = useState<string | null>(null);
   const [externalArticleTopicId, setExternalArticleTopicId] = useState<string | null>(null);
   const [maxArticles, setMaxArticles] = useState(() => {
@@ -668,6 +698,7 @@ export default function Home() {
             onOpenTopicArticles={openArticlesForTopic}
             topicLabels={topicLabels}
             preferredTopicIds={preferredTopicIds}
+            preferredTopicId={validPreferredTopicId}
             ttsSpeed={ttsSpeed}
             ttsVoice={lang === "fr" ? ttsVoiceFr : ttsVoice}
             onOpenChat={() => handleChatOpenChange(true)}
@@ -806,6 +837,8 @@ export default function Home() {
             draftTopicIds={draftTopicIds}
             topicsSaveStatus={saveStatus}
             onToggleTopicPreference={(id) => toggleTopicPreference(id, topics)}
+            preferredTopicId={validPreferredTopicId}
+            onSelectPreferredTopic={handleSelectPreferredTopic}
             onCreateTopic={() => {
               setTopicsStartInCreate(true);
               setCurrentPage("topics");

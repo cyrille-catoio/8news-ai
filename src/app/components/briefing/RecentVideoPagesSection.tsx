@@ -34,11 +34,12 @@ export interface RecentVideoPagesResponse {
 }
 
 /**
- * Bottom-of-page list of every transcribed video that has an SSR page.
- * Classic offset/limit pagination — 10 items per page, page index
- * 1-indexed. The list is ordered by AI quality `summary_score DESC`
- * (unscored last), then `published_date DESC, created_at DESC`, so each
- * page runs from the highest score to the lowest. Each row shows the topic pill,
+ * Bottom-of-page list of transcribed videos **published in the last 24
+ * hours** that have an SSR page. Offset/limit pagination — 10 items per
+ * page, page index 1-indexed (rarely more than one page given the 24h
+ * window). The list is ordered by AI quality `summary_score DESC`
+ * (unscored last), then `published_date DESC, created_at DESC`, so it
+ * runs from the highest score to the lowest. Each row shows the topic pill,
  * the emoji-stripped title, the publication date suffixed after a dash
  * (e.g. « — 5 mai 2026 ») and the AI quality score pinned right.
  *
@@ -147,7 +148,7 @@ export function RecentVideoPagesSection({
     <section style={{ marginBottom: 36 }}>
       <div className="recent-video-section-head">
         <div className="recent-video-heading" style={{ ...kicker(color.gold) }}>
-          {lang === "fr" ? "Top des vidéos transcrites" : "Top transcribed videos"}
+          {lang === "fr" ? "Top vidéos des dernières 24 h" : "Top videos · last 24h"}
         </div>
       </div>
 
@@ -167,8 +168,8 @@ export function RecentVideoPagesSection({
         ) : items.length === 0 ? (
           <div style={{ color: color.textMuted, fontSize: 13, textAlign: "center", padding: "16px 0" }}>
             {lang === "fr"
-              ? "Aucune vidéo transcrite pour le moment."
-              : "No transcribed videos yet."}
+              ? "Aucune vidéo transcrite dans les dernières 24 heures."
+              : "No transcribed videos in the last 24 hours."}
           </div>
         ) : (
           <ul className="recent-video-list" style={{ opacity: loading ? 0.6 : 1 }}>

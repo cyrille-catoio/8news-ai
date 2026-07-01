@@ -73,33 +73,6 @@ a.hero-story-title-link {
   }
 }
 
-/* « Read now » zone (v2.13+): Top 5 (main) + Trending (rail). A
-   container query (not a media query) drives the 2-column layout so it
-   collapses to one column both on phones AND whenever the Daily Podcast
-   chat panel narrows the content area — the section's inline size
-   already accounts for the `--chat-width` push on the root. */
-.briefing-readnow {
-  container-type: inline-size;
-}
-
-.briefing-readnow-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 4px 24px;
-  align-items: start;
-}
-
-/* Neutralize the inner sections' bottom margin so grid cells stay tidy. */
-.briefing-readnow-grid > div > section {
-  margin-bottom: 0;
-}
-
-@container (min-width: 760px) {
-  .briefing-readnow-grid {
-    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-  }
-}
-
 /* Slide-in for the Daily Podcast chat side panel (v2.13+). Tied to the
    inline `animation: podcastChatSlideIn …` on the panel <aside>. */
 @keyframes podcastChatSlideIn {
@@ -1386,6 +1359,21 @@ body.podcast-chat-resizing .podcast-chat-resize::after {
   pointer-events: none;
   overflow: hidden;
 }
+
+/* TOP STORY hero — side-by-side media row mirroring the TOP VIDEO card:
+   image (16:9) sits in a ~46% left column so it renders at the same size
+   as the video thumbnail, with the article snippet in the right column. */
+.hero-story-media-row {
+  display: grid;
+  grid-template-columns: minmax(0, 46%) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+  margin-bottom: 16px;
+}
+.hero-story-media-thumb,
+.hero-story-media-text {
+  min-width: 0;
+}
 .video-card-hero-media-summary-text {
   margin: 0;
   font-size: 16px;
@@ -1446,6 +1434,11 @@ body.podcast-chat-resizing .podcast-chat-resize::after {
   }
   .video-card-hero-media-row--playing .video-card-hero-media-summary {
     display: none;
+  }
+  /* Stack the TOP STORY hero media too — image on top, snippet below. */
+  .hero-story-media-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
   }
 }
 

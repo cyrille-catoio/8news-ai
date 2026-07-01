@@ -73,25 +73,6 @@ export function HeroStory({
           background: color.surface,
         }}
       >
-        {article.imageUrl && (
-          <img
-            src={article.imageUrl}
-            alt=""
-            loading="lazy"
-            onError={(e) => {
-              e.currentTarget.style.display = "none";
-            }}
-            style={{
-              display: "block",
-              width: "100%",
-              height: 180,
-              objectFit: "cover",
-              borderRadius: 8,
-              border: `1px solid ${color.border}`,
-              marginBottom: 18,
-            }}
-          />
-        )}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
           <h2
             style={{
@@ -119,10 +100,46 @@ export function HeroStory({
             <ScoreMeter score={article.score} width={72} />
           </span>
         </div>
-        {article.snippet && (
-          <p className="app-paragraph-lg" style={{ color: color.articleSnippet, marginTop: 12, marginBottom: 0 }}>
-            {article.snippet}
-          </p>
+        {/* Side-by-side media row mirroring the TOP VIDEO card so the
+            image renders at the same size as the video thumbnail. Falls
+            back to a full-width snippet when the article has no image. */}
+        {article.imageUrl ? (
+          <div className="hero-story-media-row" style={{ marginTop: 14 }}>
+            <div className="hero-story-media-thumb">
+              <img
+                src={article.imageUrl}
+                alt=""
+                loading="lazy"
+                onError={(e) => {
+                  const wrap = e.currentTarget.parentElement;
+                  if (wrap) wrap.style.display = "none";
+                }}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  aspectRatio: "16 / 9",
+                  objectFit: "cover",
+                  borderRadius: 8,
+                  border: `1px solid ${color.border}`,
+                  background: "#1a1a1a",
+                }}
+              />
+            </div>
+            {article.snippet && (
+              <p
+                className="app-paragraph-lg hero-story-media-text"
+                style={{ color: color.articleSnippet, margin: 0 }}
+              >
+                {article.snippet}
+              </p>
+            )}
+          </div>
+        ) : (
+          article.snippet && (
+            <p className="app-paragraph-lg" style={{ color: color.articleSnippet, marginTop: 12, marginBottom: 0 }}>
+              {article.snippet}
+            </p>
+          )
         )}
         {/* Keep a single external click target per card so extensions and
             browser click replays can't open duplicate tabs. */}

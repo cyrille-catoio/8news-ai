@@ -15,6 +15,14 @@ import { parseLang } from "@/lib/api-helpers";
  * backing article, keeps only publications from the last 24h, then
  * bumps `display_count` on the selected fresh row.
  *
+ * Image-first selection
+ * ---------------------
+ * Among the fresh candidates, articles that carry a display image
+ * (`image_url`) are served first so the hero card shows a picture sized
+ * like the TOP VIDEO thumbnail (16:9). Imageless articles are only used
+ * as a fallback when no image-bearing candidate is available. Rotation
+ * order is preserved within each group.
+ *
  * Fixed threshold
  * ---------------
  * The article score threshold is a fixed product value of **9/10** —
@@ -45,7 +53,7 @@ const QUEUE_SCAN_BATCH_SIZE = 100;
 const QUEUE_SCAN_MAX_ROWS = 1000;
 const FIXED_MIN_SCORE = 9;
 const SELECT_COLS =
-  "id, title, link, source, topic, pub_date, fetched_at, relevance_score, snippet, content, snippet_ai_en, snippet_ai_fr, title_ai_en, title_ai_fr";
+  "id, title, link, source, topic, pub_date, fetched_at, relevance_score, snippet, content, snippet_ai_en, snippet_ai_fr, title_ai_en, title_ai_fr, image_url";
 
 interface TopStoryRow {
   id: number;
@@ -62,6 +70,7 @@ interface TopStoryRow {
   snippet_ai_fr: string | null;
   title_ai_en: string | null;
   title_ai_fr: string | null;
+  image_url: string | null;
 }
 
 interface HeroArticle {
@@ -72,6 +81,7 @@ interface HeroArticle {
   topic: string;
   pubDate: string;
   score: number;
+  imageUrl: string | null;
 }
 
 interface HeroPayload {
@@ -153,6 +163,7 @@ function toHeroArticle(row: TopStoryRow, lang: Lang): HeroArticle {
     topic: row.topic,
     pubDate: row.pub_date,
     score: row.relevance_score,
+    imageUrl: row.image_url?.trim() || null,
   };
 }
 
@@ -176,10 +187,16 @@ async function getFreshArticleCandidates(
 ): Promise<FreshArticleCandidate[]> {
   const cutoffIso = new Date(now - FRESH_WINDOW_MS).toISOString();
   const nowIso = new Date(now).toISOString();
-  const fresh: FreshArticleCandidate[] = [];
+  // Prefer articles that ship a display image so the hero card is never a
+  // wall of text. We partition fresh candidates into image-bearing and
+  // imageless buckets while preserving the rotation/history order inside
+  // each bucket, then serve image-bearing ones first and fall back to
+  // imageless only when there aren't enough with an image.
+  const withImage: FreshArticleCandidate[] = [];
+  const withoutImage: FreshArticleCandidate[] = [];
   let scanned = 0;
 
-  while (scanned < QUEUE_SCAN_MAX_ROWS && fresh.length < offset + 2) {
+  while (scanned < QUEUE_SCAN_MAX_ROWS && withImage.length < offset + 2) {
     const from = scanned;
     const to = Math.min(scanned + QUEUE_SCAN_BATCH_SIZE, QUEUE_SCAN_MAX_ROWS) - 1;
     let q = db
@@ -234,15 +251,22 @@ async function getFreshArticleCandidates(
     for (const queueRow of queueRows) {
       const article = articleById.get(queueRow.ref_id);
       if (!article) continue;
-      fresh.push({ queue: queueRow, article: toHeroArticle(article, lang) });
-      if (fresh.length >= offset + 2) break;
+      const candidate: FreshArticleCandidate = {
+        queue: queueRow,
+        article: toHeroArticle(article, lang),
+      };
+      if (candidate.article.imageUrl) {
+        withImage.push(candidate);
+      } else {
+        withoutImage.push(candidate);
+      }
     }
 
     if (queueRows.length < QUEUE_SCAN_BATCH_SIZE) break;
     scanned += queueRows.length;
   }
 
-  return fresh.slice(offset, offset + 2);
+  return [...withImage, ...withoutImage].slice(offset, offset + 2);
 }
 
 async function markArticleDisplayed(db: SupabaseClient, queue: QueueRow, now: number): Promise<void> {

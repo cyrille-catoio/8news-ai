@@ -41,6 +41,31 @@ export function isFresh(pubDate: string, withinHours = 3): boolean {
   return ms >= 0 && ms < withinHours * 3_600_000;
 }
 
+/**
+ * Picks which daily-summary route the home should surface. Routes arrive
+ * from `/api/summaries/routes` already sorted by `summary_date` DESC, so
+ * "the first match" is always the most recent one.
+ *
+ * - Filters to the current UI language first.
+ * - When `preferredTopicId` is set and that topic has a recent summary,
+ *   returns it (the user's chosen topic).
+ * - Otherwise falls back to the most recent summary across all topics, so
+ *   the section never goes blank (guests, no preference, or preferred
+ *   topic without a fresh summary).
+ */
+export function selectPreferredSummaryRoute<T extends { topic_id: string; lang: string }>(
+  routes: T[],
+  lang: Lang,
+  preferredTopicId: string | null | undefined,
+): T | null {
+  const langRoutes = routes.filter((r) => r.lang === lang);
+  if (preferredTopicId) {
+    const preferred = langRoutes.find((r) => r.topic_id === preferredTopicId);
+    if (preferred) return preferred;
+  }
+  return langRoutes[0] ?? null;
+}
+
 /** Bullet shape returned by `GET /api/summaries/[topic]/[date]`. Mirror
  *  of the row stored in `daily_summaries.bullets`. */
 export interface DailySummaryBullet {

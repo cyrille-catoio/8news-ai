@@ -105,7 +105,10 @@ export function CryptoTickerSettingsSection({ lang }: { lang: Lang }) {
 
   const coinRowStyle = (disabled: boolean): CSSProperties => ({
     display: "grid",
-    gridTemplateColumns: "24px 42px 64px minmax(0, 1fr)",
+    // Fixed column widths so every row aligns on the left. The symbol
+    // column is wide enough for the longest symbols (e.g. « FIGR_HELOC »)
+    // that previously overflowed onto the name column.
+    gridTemplateColumns: "24px 42px 112px minmax(0, 1fr)",
     alignItems: "center",
     gap: 10,
     padding: "10px 0",
@@ -188,7 +191,7 @@ export function CryptoTickerSettingsSection({ lang }: { lang: Lang }) {
                     <span style={{ color: color.textMuted, fontVariantNumeric: "tabular-nums" }}>
                       #{coin.marketCapRank}
                     </span>
-                    <span style={{ color: color.gold, fontWeight: 800 }}>
+                    <span style={{ color: color.gold, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {coin.symbol.toUpperCase()}
                     </span>
                     <span style={{ color: color.textSecondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

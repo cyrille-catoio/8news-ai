@@ -716,6 +716,18 @@ const strings = {
     en: "Choose the topics that power your briefing, Top articles and newsletter.",
     fr: "Choisissez les sujets qui alimentent votre veille, votre top articles et votre newsletter.",
   },
+  preferredTopicTitle: {
+    en: "Preferred topic",
+    fr: "Topic préféré",
+  },
+  preferredTopicHelp: {
+    en: "Pick one topic to feature on your home page: its daily topic summary is shown there. Automatic keeps the most recent summary across all topics.",
+    fr: "Choisissez un topic à mettre en avant sur votre page d'accueil : c'est son résumé quotidien qui y est affiché. Automatique garde le résumé le plus récent tous topics confondus.",
+  },
+  preferredTopicAuto: {
+    en: "Automatic (most recent)",
+    fr: "Automatique (plus récent)",
+  },
   myTopicsSignInTitle: {
     en: "Sign in to choose your topics",
     fr: "Connectez-vous pour choisir vos topics",

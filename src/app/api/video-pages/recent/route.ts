@@ -7,16 +7,21 @@ import { NO_STORE_HEADERS, parseLang, parsePositiveInt } from "@/lib/api-helpers
 /**
  * GET /api/video-pages/recent?page=1&pageSize=10&lang=fr
  *
- * Classic offset/limit pagination over transcribed-video SSR pages
- * (`/{topic}/v/{published_date}/{slug}`), ordered by AI quality
+ * Transcribed-video SSR pages (`/{topic}/v/{published_date}/{slug}`)
+ * **published in the last 24 hours**, ordered by AI quality
  * `summary_score` desc (NULLS LAST), then `published_date` desc, then
- * `created_at` desc — so every page runs from the highest score to the
- * lowest and page 1 holds the best recaps.
+ * `created_at` desc — so the list runs from the highest score to the
+ * lowest and page 1 holds the best recent recaps.
+ *
+ * The 24h window is computed against `youtube_videos.published`
+ * (TIMESTAMPTZ, precise) rather than `video_transcriptions.published_date`
+ * (DATE only): we first collect the `video_id`s published since the
+ * cutoff, then filter/paginate the transcriptions to that set.
  *
  *  - `page` is **1-indexed** (defaults to 1, clamped to >= 1)
  *  - `pageSize` defaults to 10, clamped to [1, 50]
  *
- * Powers the "Toutes les vidéos transcrites" block at the bottom of
+ * Powers the "Top des vidéos transcrites · 24h" block at the bottom of
  * the SPA Briefing homepage.
  */
 
@@ -29,6 +34,10 @@ export const revalidate = 0;
 
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 50;
+/** Rolling publication window for the home list: last 24 hours. */
+const RECENT_WINDOW_MS = 24 * 60 * 60 * 1000;
+/** Safety cap on how many recent `video_id`s we feed into the `in()` filter. */
+const MAX_RECENT_IDS = 1000;
 
 interface VideoPageItem {
   videoId: string;
@@ -63,10 +72,34 @@ interface VideoPageRow {
   summary_score: number | null;
 }
 
-/** Read one page of rows (offset/limit). */
+/**
+ * Collect the `video_id`s of YouTube videos published within the last
+ * 24 hours. Uses the precise `published` TIMESTAMPTZ (not the DATE-only
+ * `published_date`) so the window is a true rolling 24 h.
+ */
+async function fetchRecentVideoIds(
+  db: SupabaseClient,
+  cutoffIso: string,
+): Promise<{ ids: string[] | null; error: unknown }> {
+  const res = await db
+    .from("youtube_videos")
+    .select("video_id")
+    .gte("published", cutoffIso)
+    .order("published", { ascending: false })
+    .limit(MAX_RECENT_IDS);
+
+  if (res.error) return { ids: null, error: res.error };
+  const ids = ((res.data ?? []) as Array<{ video_id: string | null }>)
+    .map((r) => r.video_id)
+    .filter((id): id is string => typeof id === "string" && id.length > 0);
+  return { ids, error: null };
+}
+
+/** Read one page of rows (offset/limit) restricted to the recent video ids. */
 async function fetchPageRows(
   db: SupabaseClient,
   lang: string,
+  recentIds: string[],
   fromIdx: number,
   toIdx: number,
 ): Promise<{ data: VideoPageRow[] | null; error: unknown }> {
@@ -82,6 +115,7 @@ async function fetchPageRows(
     .eq("lang", lang)
     .not("topic_id", "is", null)
     .not("slug_keywords", "is", null)
+    .in("video_id", recentIds)
     .order("summary_score", { ascending: false, nullsFirst: false })
     .order("published_date", { ascending: false })
     .order("created_at", { ascending: false })
@@ -123,6 +157,17 @@ export async function GET(req: NextRequest) {
 
   const db = await dbP;
 
+  // Restrict to videos published in the last 24h (precise TIMESTAMPTZ).
+  const cutoffIso = new Date(Date.now() - RECENT_WINDOW_MS).toISOString();
+  const { ids: recentIds, error: recentErr } = await fetchRecentVideoIds(db, cutoffIso);
+
+  if (recentErr || !recentIds || recentIds.length === 0) {
+    const empty: PaginatedResponse = {
+      items: [], page: 1, pageSize, totalCount: 0, totalPages: 0,
+    };
+    return NextResponse.json(empty, { headers: NO_STORE_HEADERS });
+  }
+
   // Count first so we can clamp `page` against `totalPages` before
   // running the page query — avoids requesting a range past the end.
   const { count: rawCount, error: countErr } = await db
@@ -130,7 +175,8 @@ export async function GET(req: NextRequest) {
     .select("video_id", { count: "exact", head: true })
     .eq("lang", lang)
     .not("topic_id", "is", null)
-    .not("slug_keywords", "is", null);
+    .not("slug_keywords", "is", null)
+    .in("video_id", recentIds);
 
   if (countErr) {
     const empty: PaginatedResponse = {
@@ -152,7 +198,7 @@ export async function GET(req: NextRequest) {
 
   const fromIdx = (page - 1) * pageSize;
   const toIdx = fromIdx + pageSize - 1;
-  const pageRes = await fetchPageRows(db, lang, fromIdx, toIdx);
+  const pageRes = await fetchPageRows(db, lang, recentIds, fromIdx, toIdx);
 
   if (pageRes.error) {
     const empty: PaginatedResponse = {

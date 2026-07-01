@@ -21,6 +21,7 @@ import { YourTopicsSection, type MiniArticle } from "@/app/components/briefing/Y
 import { selectTopicStrips } from "@/app/components/briefing/select-topic-strips";
 import { NewsletterSignupPrompt } from "@/app/components/briefing/NewsletterSignupPrompt";
 import { DailySummaryTeaser, type SummaryRoute } from "@/app/components/briefing/DailySummaryTeaser";
+import { selectPreferredSummaryRoute } from "@/app/components/briefing/utils";
 import { RecentVideoPagesSection } from "@/app/components/briefing/RecentVideoPagesSection";
 
 // v2.8.2+ — the home Top 24h podcast « Lu / Read » state moved from a
@@ -42,6 +43,7 @@ export function BriefingPage({
   onOpenTopicArticles,
   topicLabels,
   preferredTopicIds,
+  preferredTopicId,
   ttsSpeed,
   ttsVoice,
   onOpenChat,
@@ -56,6 +58,9 @@ export function BriefingPage({
   topicLabels: TopicLabel[];
   /** User's preferred topic IDs. null when not configured / anonymous. */
   preferredTopicIds: string[] | null;
+  /** Single topic whose daily summary is surfaced on the home. null =
+   *  automatic (most recent summary across topics). */
+  preferredTopicId: string | null;
   /** TTS settings forwarded to the VideoCard's audio player. */
   ttsSpeed: number;
   ttsVoice: string;
@@ -258,9 +263,12 @@ export function BriefingPage({
       .finally(() => setSummaryLoading(false));
   }, []);
 
+  // Surface the user's preferred topic's daily summary when set; otherwise
+  // fall back to the most recent summary across topics (guests / no pref /
+  // preferred topic without a fresh summary).
   const latestSummary = useMemo(() => {
-    return summaryRoutes.find((r) => r.lang === lang) ?? null;
-  }, [summaryRoutes, lang]);
+    return selectPreferredSummaryRoute(summaryRoutes, lang, preferredTopicId);
+  }, [summaryRoutes, lang, preferredTopicId]);
 
   // ─── Trending topics (powered by /api/topics/trending) ──────────────
   const [trending, setTrending] = useState<TrendingTopic[]>([]);
@@ -611,76 +619,28 @@ export function BriefingPage({
             />
           )}
 
-          {/* ─── 4 · À lire maintenant : Top 5 (col. principale) +
-              Tendances 24h (rail). Two-column grid driven by a container
-              query so it collapses to one column on phones AND whenever
-              the chat panel narrows the content area (the section's
-              inline size already reflects the `--chat-width` push). ─── */}
+          {/* ─── 4 · À lire maintenant : Top 5 puis Tendances 24h, empilés
+              dans le flux de la page (plus de rail latéral). Les deux
+              blocs partagent la présentation compacte « recent-video ». ─ */}
           {(top5.length > 0 || trending.length > 0) && (
-            <section className="briefing-readnow" style={{ marginBottom: 36 }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "baseline",
-                  gap: 10,
-                  flexWrap: "wrap",
-                  marginBottom: 14,
-                }}
-              >
-                <span
-                  style={{
-                    ...kicker(color.gold),
-                    fontSize: 12,
-                    letterSpacing: "0.14em",
-                    marginBottom: 0,
-                  }}
-                >
-                  {lang === "fr" ? "À lire maintenant" : "Read now"}
-                </span>
-                {newSinceVisit > 0 && (
-                  <span
-                    style={{
-                      fontFamily: "ui-monospace, Menlo, monospace",
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: "#000",
-                      background: color.gold,
-                      borderRadius: 999,
-                      padding: "2px 9px",
-                      letterSpacing: "0.02em",
-                    }}
-                  >
-                    {t("homeNewSinceVisit", lang).replace("{n}", String(newSinceVisit))}
-                  </span>
-                )}
-              </div>
-              <div className="briefing-readnow-grid">
-                {top5.length > 0 && (
-                  <div className="briefing-readnow-main">
-                    <Top5Section
-                      articles={top5}
-                      lang={lang}
-                      locale={locale}
-                      topicLabels={topicLabels}
-                      favoriteUrls={favoriteUrls}
-                      onToggleFavorite={onToggleFavorite}
-                      isAuthenticated={isAuthenticated}
-                      onRequestAuth={onRequestAuth}
-                      onSeeAll={() => onNavigate("topArticles")}
-                    />
-                  </div>
-                )}
+            <section style={{ marginBottom: 36 }}>
+              {top5.length > 0 && (
+                <Top5Section
+                  articles={top5}
+                  lang={lang}
+                  topicLabels={topicLabels}
+                  newSinceVisit={newSinceVisit}
+                  onSeeAll={() => onNavigate("topArticles")}
+                />
+              )}
 
-                {trending.length > 0 && (
-                  <div className="briefing-readnow-rail">
-                    <TrendingStrip
-                      topics={trending}
-                      lang={lang}
-                      onTopicClick={onOpenTopicArticles}
-                    />
-                  </div>
-                )}
-              </div>
+              {trending.length > 0 && (
+                <TrendingStrip
+                  topics={trending}
+                  lang={lang}
+                  onTopicClick={onOpenTopicArticles}
+                />
+              )}
             </section>
           )}
 
@@ -690,11 +650,6 @@ export function BriefingPage({
               articlesByTopic={yourTopicArticles}
               topicLabels={topicLabels}
               lang={lang}
-              favoriteUrls={favoriteUrls}
-              onToggleFavorite={onToggleFavorite}
-              isAuthenticated={isAuthenticated}
-              onRequestAuth={onRequestAuth}
-              onSeeAllForTopic={onOpenTopicArticles}
             />
           ) : (
             showChooseTopics && (

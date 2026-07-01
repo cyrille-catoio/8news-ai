@@ -1,10 +1,8 @@
 "use client";
 
 import type { Lang } from "@/lib/i18n";
-import { getCookie } from "@/lib/cookies";
 import { AudioPlayer } from "@/app/components/AudioPlayer";
-import { TTS_VOICES_EN, TTS_VOICES_FR } from "@/app/components/VoiceAccordion";
-import { TTS_TEXT_MAX_CHARS } from "@/lib/tts";
+import { TTS_TEXT_MAX_CHARS, readTtsSpeed, readTtsVoice } from "@/lib/tts";
 
 /**
  * TTS player for the per-video SSR page (`/{topic}/v/{date}/{slug}`).
@@ -20,21 +18,6 @@ import { TTS_TEXT_MAX_CHARS } from "@/lib/tts";
  *    serverless function timeout — well above Flash v2.5's own
  *    40 000-char request ceiling.
  */
-
-function readSpeed(): number {
-  if (typeof document === "undefined") return 1.05;
-  const raw = getCookie("ttsSpeed");
-  if (raw && /^[\d.]+$/.test(raw)) return Math.min(1.2, Math.max(0.7, Number(raw)));
-  return 1.05;
-}
-
-function readVoice(lang: Lang): string {
-  if (typeof document === "undefined") return lang === "fr" ? "george" : "sarah";
-  const raw = lang === "fr" ? getCookie("ttsVoiceFr") : getCookie("ttsVoice");
-  const defaultV = lang === "fr" ? "george" : "sarah";
-  const voices = lang === "fr" ? TTS_VOICES_FR : TTS_VOICES_EN;
-  return raw && voices.some((v) => v.id === raw) ? raw : defaultV;
-}
 
 /**
  * Build the TTS text from a video summary. Strips Markdown markers
@@ -76,8 +59,8 @@ export function VideoPageAudio({
   videoTitle: string;
   lang: Lang;
 }) {
-  const speed = readSpeed();
-  const voice = readVoice(lang);
+  const speed = readTtsSpeed();
+  const voice = readTtsVoice(lang);
   const text = summaryMdToVideoTtsText(summaryMd, videoTitle, lang);
 
   if (!text) return null;

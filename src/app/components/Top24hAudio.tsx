@@ -1,10 +1,8 @@
 "use client";
 
 import { dateLocale, type Lang } from "@/lib/i18n";
-import { getCookie } from "@/lib/cookies";
 import { AudioPlayer } from "@/app/components/AudioPlayer";
-import { TTS_VOICES_EN, TTS_VOICES_FR } from "@/app/components/VoiceAccordion";
-import { TTS_TEXT_MAX_CHARS, ttsOutro } from "@/lib/tts";
+import { TTS_TEXT_MAX_CHARS, ttsOutro, readTtsSpeed, readTtsVoice } from "@/lib/tts";
 
 /**
  * TTS audio player for the cross-topic Top 24h editorial brief
@@ -31,21 +29,6 @@ import { TTS_TEXT_MAX_CHARS, ttsOutro } from "@/lib/tts";
  * chars per request — busy briefings no longer cut mid-sentence.
  */
 
-function readSpeed(): number {
-  if (typeof document === "undefined") return 1.05;
-  const raw = getCookie("ttsSpeed");
-  if (raw && /^[\d.]+$/.test(raw)) return Math.min(1.2, Math.max(0.7, Number(raw)));
-  return 1.05;
-}
-
-function readVoice(lang: Lang): string {
-  if (typeof document === "undefined") return lang === "fr" ? "george" : "sarah";
-  const raw = lang === "fr" ? getCookie("ttsVoiceFr") : getCookie("ttsVoice");
-  const defaultV = lang === "fr" ? "george" : "sarah";
-  const voices = lang === "fr" ? TTS_VOICES_FR : TTS_VOICES_EN;
-  return raw && voices.some((v) => v.id === raw) ? raw : defaultV;
-}
-
 export function Top24hAudio({
   bullets,
   lang,
@@ -68,8 +51,8 @@ export function Top24hAudio({
   /** YYYY-MM-DD — the snapshot's `summary_date`. Used in the spoken intro. */
   date: string;
 }) {
-  const speed = readSpeed();
-  const voice = readVoice(lang);
+  const speed = readTtsSpeed();
+  const voice = readTtsVoice(lang);
 
   if (bullets.length === 0) return null;
 

@@ -2,23 +2,9 @@
 
 import { color } from "@/lib/theme";
 
-export const TTS_VOICES_EN = [
-  { id: "sarah",   label: "Jade",    desc: "American · Soft",          gender: "F" },
-  { id: "alice",   label: "Alice",   desc: "British · Confident",      gender: "F" },
-  { id: "rachel",  label: "Rachel",  desc: "American · Calm",          gender: "F" },
-  { id: "daniel",  label: "Nicolas", desc: "British · News presenter", gender: "M" },
-  { id: "drew",    label: "Drew",    desc: "American · News",          gender: "M" },
-  { id: "josh",    label: "Josh",    desc: "American · Deep",          gender: "M" },
-] as const;
-
-export const TTS_VOICES_FR = [
-  { id: "george",    label: "Tristan",   desc: "Chaleureux · Posé",     gender: "M" },
-  { id: "charlotte", label: "Charlotte", desc: "Chaleureuse · Douce",   gender: "F" },
-  { id: "lily",      label: "Lily",      desc: "Posée · Naturelle",     gender: "F" },
-  { id: "nicole",    label: "Nicole",    desc: "Intime · Calme",        gender: "F" },
-  { id: "thomas",    label: "Thomas",    desc: "Calme · Narrateur",     gender: "M" },
-  { id: "callum",    label: "Callum",    desc: "Intense · Dynamique",   gender: "M" },
-] as const;
+// Voice data moved to `@/lib/tts` (SSR-safe, shared with `readTtsVoice`).
+// Re-exported here so existing importers keep working unchanged.
+export { TTS_VOICES_EN, TTS_VOICES_FR } from "@/lib/tts";
 
 export function VoiceAccordion({
   label,

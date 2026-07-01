@@ -98,8 +98,7 @@ Both pipelines feed into a hybrid rendering model: a black-and-gold **client-sid
 │   ├── version.json                    # {"version":"2.13.5"} — kept in sync by `scripts/release.mjs`
 │   └── landing/                        # Landing assets (yt-summary-preview.png, etc.)
 ├── scripts/
-│   ├── release.mjs                     # Single-source-of-truth version sync — bumps version.json, APP_VERSION, footer + checks changelog coverage
-│   └── oneoffs/                        # One-shot maintenance scripts (e.g. backfill-video-slugs.mjs)
+│   └── release.mjs                     # Single-source-of-truth version sync — bumps version.json, APP_VERSION, footer + checks changelog coverage
 ├── src/
 │   ├── data/
 │   │   └── changelog-entries.json      # **v2.13.4+** Release notes data (580 KB moved out of TS; typed re-export in src/lib/changelog-entries.ts)
@@ -309,7 +308,6 @@ api/
 ├── categories/                   # GET/POST/PATCH/DELETE — category CRUD (owner)
 ├── feeds-admin/route.ts          # GET — feeds + per-source stats (owner)
 ├── fetch-feeds/route.ts          # GET — manual RSS fetch (CRON_SECRET)
-├── test-score/route.ts           # GET — manual scoring run (CRON_SECRET)
 ├── stats/route.ts                # GET — dashboard statistics
 ├── cron-stats/route.ts           # GET — cron monitoring KPIs + timeline
 ├── tts/route.ts                  # POST — ElevenLabs Text-to-Speech
@@ -450,7 +448,7 @@ Canonical implementations live in `src/lib/`:
 - `generate-video-roundup.ts` (`generateVideoRoundup`) — **v2.4+**
 - `transcribe-video.ts` (`transcribeVideo`) — **v2.5+**, shared between the synchronous API route and the pre-warm cron
 
-`netlify/functions/shared/*.ts` re-export those modules for the cron bundle. `GET /api/fetch-feeds`, `GET /api/test-score`, `POST /api/summaries/generate`, `POST /api/roundups/generate` and `POST /api/youtube-channels/transcribe` call the same libraries (auth via cookie session and/or `CRON_SECRET`).
+`netlify/functions/shared/*.ts` re-export those modules for the cron bundle. `GET /api/fetch-feeds`, `POST /api/summaries/generate`, `POST /api/roundups/generate` and `POST /api/youtube-channels/transcribe` call the same libraries (auth via cookie session and/or `CRON_SECRET`).
 
 #### `cron-fetching-background.ts` — RSS fetching
 
@@ -1389,7 +1387,7 @@ User opens /archives, /[topic], /[topic]/[date]/[slug],
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key (server-side only — never expose) |
 | `TRANSCRIPT_API_KEY` | Yes | TranscriptAPI key for YouTube video transcription |
 | `YOUTUBE_API_KEY` | No | YouTube Data API v3 key — only used to backfill `youtube_videos.duration_sec` so the Shorts filter is reliable. When unset, `enrichDurations()` is a silent no-op (videos display as-is and Shorts filtering falls back to RSS metadata only). |
-| `CRON_SECRET` | Yes | Bearer token used by cron-job.org for `/api/fetch-feeds`, `/api/test-score`, `/api/summaries/generate`, `/api/roundups/generate`, and the Netlify cron function URLs (pass as `?secret=`). |
+| `CRON_SECRET` | Yes | Bearer token used by cron-job.org for `/api/fetch-feeds`, `/api/summaries/generate`, `/api/roundups/generate`, and the Netlify cron function URLs (pass as `?secret=`). |
 | `VIDEO_SUMMARY_SCORE_MODEL` | No | OpenAI model for video recap scoring (`cron-video-summary-score-background`). Default `gpt-4.1-mini` (**v2.6.10+** — was `gpt-4.1-nano`; upgraded because nano clustered around 7-8 with no spread on the composite importance × quality prompt). |
 | `VIDEO_SUMMARY_SCORE_BATCH_SIZE` | No | Recaps per OpenAI JSON call. Default `8` (capped by `VIDEO_SUMMARY_SCORE_BATCH_CAP`). |
 | `VIDEO_SUMMARY_SCORE_BATCH_CAP` | No | Hard max recaps per request. Default `12` (safety for context size). |

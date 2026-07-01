@@ -33,6 +33,37 @@ export function getServerClient(): Promise<SupabaseClient> | null {
 }
 
 /**
+ * Boilerplate wrapper for the ~80 helpers in `src/lib/supabase/*.ts` that
+ * all repeat the same shape: grab the shared client, bail to a safe
+ * default when Supabase isn't configured, run the query(ies) inside a
+ * try/catch, and log + fall back on an unexpected throw.
+ *
+ *   - `label`    prefixes the catch log (`[label]`).
+ *   - `fallback` is returned both when the client is null AND on a throw.
+ *   - `level`    picks the console channel: reads log at `warn`, writes at
+ *                `error` (Netlify surfaces `error` at error level for
+ *                alerting) — matching the prior hand-written convention.
+ *
+ * Only the OUTER try/catch is wrapped. Per-query `error` checks that
+ * return a partial/typed result stay inside `fn` unchanged.
+ */
+export async function withClient<T>(
+  label: string,
+  fallback: T,
+  fn: (supabase: SupabaseClient) => Promise<T>,
+  level: "warn" | "error" = "warn",
+): Promise<T> {
+  const clientP = getServerClient();
+  if (!clientP) return fallback;
+  try {
+    return await fn(await clientP);
+  } catch (err) {
+    console[level](`[${label}]`, err);
+    return fallback;
+  }
+}
+
+/**
  * Days kept in the sitemap. Older URLs are still served and crawlable
  * via internal links, just no longer advertised explicitly to keep
  * the sitemap under Google's 50K-URL/file ceiling. Shared by the

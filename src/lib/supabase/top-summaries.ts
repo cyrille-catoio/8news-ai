@@ -1,4 +1,4 @@
-import { getServerClient, SITEMAP_RECENT_DAYS } from "./client";
+import { withClient, SITEMAP_RECENT_DAYS } from "./client";
 import { todayUtc, toUtcDateString } from "@/lib/dates-utc";
 import { normalizeVideoScore } from "@/lib/score-format";
 
@@ -51,11 +51,7 @@ export async function upsertTopSummary(params: {
   articles: TopSummaryArticle[];
   summaryMd: string;
 }): Promise<boolean> {
-  const clientP = getServerClient();
-  if (!clientP) return false;
-
-  try {
-    const supabase = await clientP;
+  return withClient("upsertTopSummary", false, async (supabase) => {
     // True upsert on the (summary_date, lang) primary key (mig. 025).
     // The previous delete-then-insert had a destructive failure mode:
     // an unchecked delete followed by a failed insert wiped the
@@ -78,20 +74,13 @@ export async function upsertTopSummary(params: {
       return false;
     }
     return true;
-  } catch (err) {
-    console.error("[upsertTopSummary] unexpected error:", err);
-    return false;
-  }
+  }, "error");
 }
 
 export async function getLatestTopSummary(
   lang: "en" | "fr",
 ): Promise<TopSummaryRow | null> {
-  const clientP = getServerClient();
-  if (!clientP) return null;
-
-  try {
-    const supabase = await clientP;
+  return withClient("getLatestTopSummary", null, async (supabase) => {
     const { data, error } = await supabase
       .from("top_summaries")
       .select("summary_date, lang, generated_at, model, articles, summary_md")
@@ -102,10 +91,7 @@ export async function getLatestTopSummary(
 
     if (error || !data) return null;
     return data as TopSummaryRow;
-  } catch (err) {
-    console.warn("[getLatestTopSummary]", err);
-    return null;
-  }
+  });
 }
 
 /**
@@ -129,11 +115,7 @@ export async function getTopSummaryByOffset(
   lang: "en" | "fr",
   offset: number,
 ): Promise<{ snapshot: TopSummaryRow | null; hasOlder: boolean }> {
-  const clientP = getServerClient();
-  if (!clientP) return { snapshot: null, hasOlder: false };
-
-  try {
-    const supabase = await clientP;
+  return withClient("getTopSummaryByOffset", { snapshot: null, hasOlder: false }, async (supabase) => {
     const safeOffset = Math.max(0, Math.floor(offset));
     const { data, error } = await supabase
       .from("top_summaries")
@@ -150,10 +132,7 @@ export async function getTopSummaryByOffset(
       snapshot: data[0] as TopSummaryRow,
       hasOlder: data.length > 1,
     };
-  } catch (err) {
-    console.warn("[getTopSummaryByOffset]", err);
-    return { snapshot: null, hasOlder: false };
-  }
+  });
 }
 
 /**
@@ -170,11 +149,7 @@ export async function getTopSummaryByDate(
   lang: "en" | "fr",
   summaryDate: string,
 ): Promise<TopSummaryRow | null> {
-  const clientP = getServerClient();
-  if (!clientP) return null;
-
-  try {
-    const supabase = await clientP;
+  return withClient("getTopSummaryByDate", null, async (supabase) => {
     const { data, error } = await supabase
       .from("top_summaries")
       .select("summary_date, lang, generated_at, model, articles, summary_md")
@@ -185,10 +160,7 @@ export async function getTopSummaryByDate(
 
     if (error || !data) return null;
     return data as TopSummaryRow;
-  } catch (err) {
-    console.warn("[getTopSummaryByDate]", err);
-    return null;
-  }
+  });
 }
 
 /**
@@ -204,11 +176,7 @@ export async function getTopSummaryByDate(
 export async function getAllTopSummaryRoutes(): Promise<
   Array<{ summary_date: string; lang: "en" | "fr" }>
 > {
-  const clientP = getServerClient();
-  if (!clientP) return [];
-
-  try {
-    const supabase = await clientP;
+  return withClient("getAllTopSummaryRoutes", [], async (supabase) => {
     const sinceISO = toUtcDateString(Date.now() - SITEMAP_RECENT_DAYS * 86_400_000);
     const { data, error } = await supabase
       .from("top_summaries")
@@ -218,10 +186,7 @@ export async function getAllTopSummaryRoutes(): Promise<
 
     if (error || !data) return [];
     return data as Array<{ summary_date: string; lang: "en" | "fr" }>;
-  } catch (err) {
-    console.warn("[getAllTopSummaryRoutes]", err);
-    return [];
-  }
+  });
 }
 
 export interface TopSummaryBulletRow {
@@ -247,11 +212,7 @@ export async function getTopSummaryBulletsByDate(
   lang: "en" | "fr",
   summaryDate: string,
 ): Promise<TopSummaryBulletRow[]> {
-  const clientP = getServerClient();
-  if (!clientP) return [];
-
-  try {
-    const supabase = await clientP;
+  return withClient("getTopSummaryBulletsByDate", [], async (supabase) => {
     const res = await supabase
       .from("summary_bullets")
       .select(
@@ -299,8 +260,5 @@ export async function getTopSummaryBulletsByDate(
       });
     }
     return out;
-  } catch (err) {
-    console.warn("[getTopSummaryBulletsByDate]", err);
-    return [];
-  }
+  });
 }

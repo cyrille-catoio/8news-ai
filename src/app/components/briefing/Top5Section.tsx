@@ -104,11 +104,6 @@ export function Top5Section({
                         <ScoreMeter score={art.score} />
                       </span>
                     </div>
-                    {art.snippet && (
-                      <p className="app-paragraph-lg" style={{ color: color.articleSnippet, marginTop: 6, marginBottom: 0 }}>
-                        {art.snippet}
-                      </p>
-                    )}
                   </div>
                   {art.imageUrl && (
                     <img

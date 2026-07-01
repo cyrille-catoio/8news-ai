@@ -28,7 +28,6 @@ export const PAGE_PATHS: Record<AppNavPage, string> = {
   videos: "/app/videos",
   channels: "/app/channels",
   home: "/app/articles",
-  myTopics: "/app/my-topics",
   stats: "/app/stats",
   crons: "/app/crons",
   topics: "/app/topics",

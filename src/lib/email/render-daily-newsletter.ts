@@ -81,19 +81,19 @@ function groupBullets(bullets: TopSummaryBulletRow[]): Group[] {
     if (last && last.title === tt) last.bullets.push(b);
     else out.push({ title: tt, bullets: [b] });
   }
-  // Video groups (« top videos of yesterday », v2.13+) are hoisted
-  // before every article group — same ordering as the home accordion —
-  // then importance DESC.
+  // Sort by importance DESC only (v2.16.2+): video groups are no longer
+  // hoisted before articles — they interleave by score, same ordering as
+  // the home accordion. Stable sort keeps equal-score groups in emission
+  // order.
   const decorated = out.map((g, i) => ({
     g,
     i,
-    v: g.bullets[0]?.video_transcription_id != null ? 1 : 0,
     s:
       typeof g.bullets[0]?.importance_score === "number"
         ? (g.bullets[0]?.importance_score as number)
         : 0,
   }));
-  decorated.sort((a, b) => (b.v - a.v) || (b.s - a.s) || (a.i - b.i));
+  decorated.sort((a, b) => (b.s - a.s) || (a.i - b.i));
   return decorated.map((d) => d.g);
 }
 

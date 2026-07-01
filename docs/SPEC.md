@@ -1,7 +1,7 @@
 # 8news.ai — Technical Specification
 
-**Version**: v2.16
-**Last updated**: 23 June 2026
+**Version**: v2.17
+**Last updated**: 1 July 2026
 
 > **Note**: sections of this spec are historical — they describe the system as of the version tagged inline (`**vX.Y+**` markers). The mechanical parts (header version, file tree, migration list, cron list, API route list) are kept current and **enforced by `npm run spec:check`** (also run by `npm test`, hence by the Netlify build — drift blocks the deploy). The spec is updated automatically as part of the release ritual (see `AGENTS.md` § 3 and § 11 for the content contract). For feature-level details, the changelog (`src/data/changelog-entries.json`) is the most up-to-date reference.
 

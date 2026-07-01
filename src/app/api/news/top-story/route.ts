@@ -15,22 +15,22 @@ import { parseLang } from "@/lib/api-helpers";
  * backing article, keeps only publications from the last 24h, then
  * bumps `display_count` on the selected fresh row.
  *
- * Per-user thresholds
- * -------------------
- * The visitor's `homeMinScoreArticle` cookie (default **9**, clamp 1..10)
- * filters which queue rows can be picked. Authenticated users have the
- * value mirrored into `auth.users.user_metadata.home_min_score_article`,
- * but the API never reads metadata directly — the cookie is the source
- * of truth on each request.
+ * Fixed threshold
+ * ---------------
+ * The article score threshold is a fixed product value of **9/10** —
+ * mirroring the TOP VIDEO card's fixed 8/10 contract. The legacy
+ * `homeMinScoreArticle` cookie / `user_metadata.home_min_score_article`
+ * preference is no longer read so a stale user setting can never blank
+ * or degrade the home hero.
  *
  * Caching layers (preserved)
  * --------------------------
  * - Module-level cache `Map<key, { bucket, payload }>` keyed by
- *   `${lang}:${threshold}` so anonymous visitors (default threshold)
- *   share a hot entry while custom thresholds get their own slot.
- * - CDN: `Cache-Control: public, max-age=0, s-maxage=<remaining>,
- *   must-revalidate` aligned to the bucket flip, with `Vary: Cookie`
- *   so different threshold cookies get distinct edge cache entries.
+ *   `${lang}:${threshold}` (threshold is constant now, kept in the key
+ *   for shape stability).
+ * - CDN: the response is served `no-store` (Netlify's edge keyed on path
+ *   only, ignoring `?offset=`), so per-request freshness is guaranteed
+ *   and the in-Function module cache handles live-mode bucket dedup.
  *
  * Returns `{ article: null }` when the queue is empty for the active
  * filter; the client falls back to whatever it has on screen and the
@@ -43,7 +43,7 @@ const ROTATION_BUCKET_MS = 10 * 60 * 1000;
 const FRESH_WINDOW_MS = 24 * 60 * 60 * 1000;
 const QUEUE_SCAN_BATCH_SIZE = 100;
 const QUEUE_SCAN_MAX_ROWS = 1000;
-const DEFAULT_MIN_SCORE = 9;
+const FIXED_MIN_SCORE = 9;
 const SELECT_COLS =
   "id, title, link, source, topic, pub_date, fetched_at, relevance_score, snippet, content, snippet_ai_en, snippet_ai_fr, title_ai_en, title_ai_fr";
 
@@ -92,13 +92,6 @@ interface CacheEntry {
 // it grow naturally; the keyspace is bounded by the (lang × 10 score
 // values) product ≈ 20 entries max.
 const heroCache = new Map<string, CacheEntry>();
-
-function parseThreshold(raw: string | null | undefined, fallback: number): number {
-  if (!raw) return fallback;
-  const n = Number.parseInt(raw, 10);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.min(10, Math.max(1, n));
-}
 
 function pickSnippet(r: TopStoryRow, lang: Lang): string {
   const aiSnippet = lang === "fr" ? r.snippet_ai_fr : r.snippet_ai_en;
@@ -268,10 +261,7 @@ async function markArticleDisplayed(db: SupabaseClient, queue: QueueRow, now: nu
 
 export async function GET(request: NextRequest) {
   const lang = parseLang(request.nextUrl.searchParams.get("lang"));
-  const threshold = parseThreshold(
-    request.cookies.get("homeMinScoreArticle")?.value,
-    DEFAULT_MIN_SCORE,
-  );
+  const threshold = FIXED_MIN_SCORE;
   // `offset=0` (or absent) → live mode: pick the next fresh row + bump display_count.
   // `offset>0` → history mode: read-only SELECT, ordered by last_displayed_at DESC.
   // History never mutates the queue, so the user can scroll back through

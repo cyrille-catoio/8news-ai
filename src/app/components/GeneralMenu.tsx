@@ -63,7 +63,6 @@ export function GeneralMenu({
   onNavigateSummaries,
   onNavigateVideos,
   onNavigateChannels,
-  onNavigateMyTopics,
   onRequestAuth,
 }: {
   lang: Lang;
@@ -76,7 +75,6 @@ export function GeneralMenu({
   onNavigateSummaries: () => void;
   onNavigateVideos: () => void;
   onNavigateChannels: () => void;
-  onNavigateMyTopics: () => void;
   onRequestAuth?: () => void;
 }) {
   return (
@@ -157,16 +155,6 @@ export function GeneralMenu({
       >
         {t("myFavoritesBtn", lang)}
       </button>
-      <button
-        type="button"
-        onClick={() => {
-          trackEvent("nav.menu", { target_id: "myTopics", lang });
-          onNavigateMyTopics();
-        }}
-        style={currentPage === "myTopics" ? activeStyle : base}
-      >
-        {t("myTopicsMenuBtn", lang)}
-      </button>
     </div>
   );
 }
@@ -179,7 +167,7 @@ export function SeoGeneralMenu({
 }: {
   lang: Lang;
   /** `videoBriefings` kept as an alias of `summaries` so the (now-redirected) /briefings legacy callers don't fail typecheck — both surface the unified Archives pill since v2.7.0. */
-  activePage?: "briefing" | "home" | "favorites" | "myTopics" | "topArticles" | "summaries" | "videos" | "videoBriefings";
+  activePage?: "briefing" | "home" | "favorites" | "topArticles" | "summaries" | "videos" | "videoBriefings";
 }) {
   return (
     <div style={barWrap}>
@@ -203,9 +191,6 @@ export function SeoGeneralMenu({
       </Link>
       <Link href="/app/favorites" style={activePage === "favorites" ? activeStyle : base}>
         {t("myFavoritesBtn", lang)}
-      </Link>
-      <Link href="/app/my-topics" style={activePage === "myTopics" ? activeStyle : base}>
-        {t("myTopicsMenuBtn", lang)}
       </Link>
     </div>
   );

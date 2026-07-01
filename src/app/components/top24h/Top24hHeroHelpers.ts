@@ -62,18 +62,18 @@ export function groupBullets(bullets: Bullet[]): Group[] {
     if (last && last.title === t) last.bullets.push(b);
     else out.push({ title: t, bullets: [b] });
   }
-  // Stable sort: video groups first (the « top videos of yesterday »
-  // bullets are pinned at the head of the Daily Podcast, v2.13+), then
-  // importance DESC. Legacy groups without a score (NULL on snapshots
-  // predating mig 026) treat as 0 so they sink below scored groups
-  // instead of arbitrarily intermixing.
+  // Stable sort by importance DESC only (v2.16.2+): video groups are no
+  // longer pinned at the head — they interleave with article groups
+  // purely by score, per product direction. Legacy groups without a
+  // score (NULL on snapshots predating mig 026) treat as 0 so they sink
+  // below scored groups instead of arbitrarily intermixing. Stable sort
+  // keeps equal-score groups in LLM emission order.
   const decorated = out.map((g, i) => ({
     g,
     i,
-    v: g.bullets[0]?.isVideo ? 1 : 0,
     s: g.bullets[0]?.importanceScore ?? 0,
   }));
-  decorated.sort((a, b) => (b.v - a.v) || (b.s - a.s) || (a.i - b.i));
+  decorated.sort((a, b) => (b.s - a.s) || (a.i - b.i));
   return decorated.map((d) => d.g);
 }
 

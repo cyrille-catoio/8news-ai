@@ -16,15 +16,31 @@ const labelStyle: CSSProperties = {
   marginBottom: 2,
 };
 
-const valueStyle: CSSProperties = {
-  color: color.text,
-  fontSize: 14,
-  marginBottom: 12,
+// Compact read-mode field: label and value share one line, and the
+// fields pack horizontally (flex-wrap) so the whole account block is a
+// single row on desktop and wraps gracefully on mobile.
+const inlineLabelStyle: CSSProperties = {
+  color: color.textMuted,
+  fontSize: 11,
+  fontWeight: 600,
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+  whiteSpace: "nowrap",
 };
 
-const inputStyle: CSSProperties = {
-  width: "100%",
-  maxWidth: 300,
+const inlineValueStyle: CSSProperties = {
+  color: color.text,
+  fontSize: 14,
+};
+
+const editFieldStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 3,
+};
+
+const editInputStyle: CSSProperties = {
+  width: 150,
   padding: "6px 8px",
   borderRadius: 5,
   border: `1px solid ${color.border}`,
@@ -109,72 +125,79 @@ export function MyAccountSection({ lang }: { lang: Lang }) {
     <div style={sectionStyle}>
       <h4 style={sectionTitle}>{t("myAccountSection", lang)}</h4>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 24px", maxWidth: 500 }}>
-        {/* Last name */}
-        <div>
-          <div style={labelStyle}>{t("usersLastName", lang)}</div>
-          {editing ? (
+      {editing ? (
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: "10px 18px", marginBottom: 10 }}>
+          {/* Last name */}
+          <label style={editFieldStyle}>
+            <span style={labelStyle}>{t("usersLastName", lang)}</span>
             <input
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
-              style={{ ...inputStyle, marginBottom: 12 }}
+              style={editInputStyle}
               disabled={saving}
             />
-          ) : (
-            <div style={valueStyle}>{lastName || "—"}</div>
-          )}
-        </div>
+          </label>
 
-        {/* First name */}
-        <div>
-          <div style={labelStyle}>{t("usersFirstName", lang)}</div>
-          {editing ? (
+          {/* First name */}
+          <label style={editFieldStyle}>
+            <span style={labelStyle}>{t("usersFirstName", lang)}</span>
             <input
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
-              style={{ ...inputStyle, marginBottom: 12 }}
+              style={editInputStyle}
               disabled={saving}
             />
-          ) : (
-            <div style={valueStyle}>{firstName || "—"}</div>
-          )}
-        </div>
+          </label>
 
-        {/* Nickname (used in the community chat) */}
-        <div style={{ gridColumn: "1 / -1" }}>
-          <div style={labelStyle}>{t("nickname", lang)}</div>
-          {editing ? (
-            <>
-              <input
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
-                placeholder={t("nicknamePlaceholder", lang)}
-                style={{ ...inputStyle, marginBottom: 4 }}
-                disabled={saving}
-              />
-              <div style={{ color: color.textMuted, fontSize: 11, lineHeight: 1.4, marginBottom: 12 }}>
-                {t("nicknameHint", lang)}
-              </div>
-            </>
-          ) : (
-            <div style={valueStyle}>{nickname || "—"}</div>
-          )}
-        </div>
+          {/* Nickname (used in the community chat) */}
+          <label style={editFieldStyle}>
+            <span style={labelStyle}>{t("nickname", lang)}</span>
+            <input
+              value={nickname}
+              onChange={(e) => setNickname(e.target.value)}
+              placeholder={t("nicknamePlaceholder", lang)}
+              style={editInputStyle}
+              disabled={saving}
+            />
+            <span style={{ color: color.textMuted, fontSize: 11, lineHeight: 1.4, maxWidth: 220 }}>
+              {t("nicknameHint", lang)}
+            </span>
+          </label>
 
-        {/* Email (read-only) */}
-        <div>
-          <div style={labelStyle}>{t("usersEmail", lang)}</div>
-          <div style={{ ...valueStyle, color: color.textMuted }}>{email}</div>
-        </div>
-
-        {/* User type (read-only) */}
-        <div>
-          <div style={labelStyle}>{t("usersType", lang)}</div>
-          <div style={{ ...valueStyle }}>
+          {/* Email + type (read-only) */}
+          <div style={editFieldStyle}>
+            <span style={labelStyle}>{t("usersEmail", lang)}</span>
+            <span style={{ ...inlineValueStyle, color: color.textMuted }}>{email}</span>
+          </div>
+          <div style={editFieldStyle}>
+            <span style={labelStyle}>{t("usersType", lang)}</span>
             <span style={badgeStyle(userType === "owner")}>{userType}</span>
           </div>
         </div>
-      </div>
+      ) : (
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: "6px 22px", marginBottom: 12 }}>
+          <span style={{ display: "inline-flex", alignItems: "baseline", gap: 6 }}>
+            <span style={inlineLabelStyle}>{t("usersLastName", lang)}</span>
+            <span style={inlineValueStyle}>{lastName || "—"}</span>
+          </span>
+          <span style={{ display: "inline-flex", alignItems: "baseline", gap: 6 }}>
+            <span style={inlineLabelStyle}>{t("usersFirstName", lang)}</span>
+            <span style={inlineValueStyle}>{firstName || "—"}</span>
+          </span>
+          <span style={{ display: "inline-flex", alignItems: "baseline", gap: 6 }}>
+            <span style={inlineLabelStyle}>{t("nickname", lang)}</span>
+            <span style={inlineValueStyle}>{nickname || "—"}</span>
+          </span>
+          <span style={{ display: "inline-flex", alignItems: "baseline", gap: 6 }}>
+            <span style={inlineLabelStyle}>{t("usersEmail", lang)}</span>
+            <span style={{ ...inlineValueStyle, color: color.textMuted }}>{email}</span>
+          </span>
+          <span style={{ display: "inline-flex", alignItems: "baseline", gap: 6 }}>
+            <span style={inlineLabelStyle}>{t("usersType", lang)}</span>
+            <span style={badgeStyle(userType === "owner")}>{userType}</span>
+          </span>
+        </div>
+      )}
 
       {/* Actions */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>

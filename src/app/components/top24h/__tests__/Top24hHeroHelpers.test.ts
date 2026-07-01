@@ -47,12 +47,14 @@ describe("groupBullets", () => {
     expect(groups.map((g) => g.title)).toEqual(["High", "Mid", "Low"]);
   });
 
-  it("hoists video groups before article groups regardless of score", () => {
+  it("interleaves video groups with article groups purely by score (no hoist)", () => {
     const groups = groupBullets([
-      b({ text: "art", title: "Article", importanceScore: 10 }),
-      b({ text: "vid", title: "Video", isVideo: true, importanceScore: 1 }),
+      b({ text: "vid-low", title: "VideoLow", isVideo: true, importanceScore: 1 }),
+      b({ text: "art-high", title: "ArticleHigh", importanceScore: 10 }),
+      b({ text: "vid-high", title: "VideoHigh", isVideo: true, importanceScore: 9 }),
+      b({ text: "art-mid", title: "ArticleMid", importanceScore: 5 }),
     ]);
-    expect(groups.map((g) => g.title)).toEqual(["Video", "Article"]);
+    expect(groups.map((g) => g.title)).toEqual(["ArticleHigh", "VideoHigh", "ArticleMid", "VideoLow"]);
   });
 
   it("treats missing scores as 0 (sink below scored groups), stable order", () => {

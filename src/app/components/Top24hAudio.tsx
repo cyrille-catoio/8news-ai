@@ -79,17 +79,12 @@ export function Top24hAudio({
       });
   }
 
-  // Sort groups: « top videos of yesterday » first (v2.13+, mirrors
-  // the visible accordion hoisting in `groupBullets`), then importance
-  // DESC. Stable: tied scores keep LLM emission order so narrative
-  // continuity inside the brief is preserved.
+  // Sort groups by importance DESC only (v2.16.2+): videos are no longer
+  // read first — they interleave with article groups by score, mirroring
+  // the visible accordion. Stable: tied scores keep LLM emission order so
+  // narrative continuity inside the brief is preserved.
   const decorated = groups.map((g, i) => ({ g, i }));
-  decorated.sort(
-    (a, b) =>
-      (Number(b.g.isVideo) - Number(a.g.isVideo)) ||
-      (b.g.score - a.g.score) ||
-      (a.i - b.i),
-  );
+  decorated.sort((a, b) => (b.g.score - a.g.score) || (a.i - b.i));
   const orderedGroups = decorated.map((d) => d.g);
 
   const dateLabel = new Date(`${date}T00:00:00`).toLocaleDateString(

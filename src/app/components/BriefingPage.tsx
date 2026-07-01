@@ -729,7 +729,7 @@ export function BriefingPage({
                   </p>
                   <button
                     type="button"
-                    onClick={() => onNavigate("myTopics")}
+                    onClick={() => onNavigate("settings")}
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
@@ -782,7 +782,7 @@ export function BriefingPage({
           <FooterCTAs
             lang={lang}
             isAuthenticated={isAuthenticated}
-            onPersonalize={() => onNavigate("myTopics")}
+            onPersonalize={() => onNavigate("settings")}
             onSummaries={() => onNavigate("summaries")}
             onVideos={() => onNavigate("videos")}
           />

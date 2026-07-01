@@ -35,7 +35,6 @@ export type AppNavPage =
   | "channels"
   | "users"
   | "userActivity"
-  | "myTopics"
   | "topArticles"
   | "summaries"
   | "cryptoChart"

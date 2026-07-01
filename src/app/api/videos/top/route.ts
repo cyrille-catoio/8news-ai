@@ -21,10 +21,10 @@ import { previousUtcDay } from "@/lib/dates-utc";
  *
  * Threshold
  * ---------
- * TOP VIDEO uses a fixed threshold of 8/10. The Settings UI can still
- * store `homeMinScoreVideo` for now, but this endpoint deliberately
- * ignores it so an overly strict user cookie (9 or 10) cannot blank the
- * home card.
+ * TOP VIDEO uses a fixed threshold of 8/10. The legacy `homeMinScoreVideo`
+ * preference is no longer exposed in Settings, and this endpoint has never
+ * read it — the fixed product threshold guarantees an overly strict user
+ * cookie (9 or 10) can never blank the home card.
  *
  * Caching layers (preserved)
  * --------------------------

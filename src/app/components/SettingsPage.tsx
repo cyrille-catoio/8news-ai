@@ -2,8 +2,11 @@
 
 import { type CSSProperties, useCallback, useEffect, useMemo, useState } from "react";
 import { t, type Lang } from "@/lib/i18n";
-import { color, sectionCard as sectionStyle, formSectionTitle as sectionTitle, outlinedButtonStyle } from "@/lib/theme";
+import type { TopicLabel } from "@/lib/types";
+import { color, sectionCard as sectionStyle, formSectionTitle as sectionTitle, primaryButtonStyle, spinnerStyle } from "@/lib/theme";
 import { VoiceAccordion, TTS_VOICES_EN, TTS_VOICES_FR } from "@/app/components/VoiceAccordion";
+import { TopicToggle } from "@/app/components/app-shell/TopicToggle";
+import type { useUserTopics } from "@/hooks/useUserTopics";
 import { useAuth } from "@/app/providers";
 import { MyAccountSection } from "@/app/components/MyAccountSection";
 import { CryptoTickerSettingsSection } from "@/app/components/CryptoTickerSettingsPage";
@@ -27,9 +30,12 @@ export function SettingsPage({
   onTtsVoiceChange,
   ttsVoiceFr,
   onTtsVoiceFrChange,
-  homeMinScoreArticle,
-  onHomeMinScoreArticleChange,
-  onNavigateTopArticles,
+  topics,
+  topicsLoading,
+  draftTopicIds,
+  topicsSaveStatus,
+  onToggleTopicPreference,
+  onCreateTopic,
   onRequestAuth,
 }: {
   lang: Lang;
@@ -41,12 +47,12 @@ export function SettingsPage({
   onTtsVoiceChange: (v: string) => void;
   ttsVoiceFr: string;
   onTtsVoiceFrChange: (v: string) => void;
-  homeMinScoreArticle: number;
-  onHomeMinScoreArticleChange: (v: number) => void;
-  homeMinScoreVideo: number;
-  onHomeMinScoreVideoChange: (v: number) => void;
-  /** Opens the « Top 24h » articles page (moved here from the general menu). */
-  onNavigateTopArticles?: () => void;
+  topics: TopicLabel[];
+  topicsLoading: boolean;
+  draftTopicIds: string[] | null;
+  topicsSaveStatus: ReturnType<typeof useUserTopics>["saveStatus"];
+  onToggleTopicPreference: (id: string) => void;
+  onCreateTopic: () => void;
   onRequestAuth?: () => void;
 }) {
   const { session } = useAuth();
@@ -62,34 +68,89 @@ export function SettingsPage({
         {t("settingsTitle", lang)}
       </h2>
 
-          {/* ── Top 24h access (moved out of the general menu) ─────── */}
-          {onNavigateTopArticles && (
-            <div style={sectionStyle}>
-              <h4 style={sectionTitle}>{t("analyzeTopArticlesBtn", lang)}</h4>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                <p style={{ color: color.textMuted, fontSize: 13, lineHeight: 1.5, margin: 0, flex: "1 1 240px" }}>
-                  {lang === "fr"
-                    ? "Le classement des meilleurs articles des dernières 24 heures."
-                    : "The ranking of the best articles from the last 24 hours."}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    trackEvent("nav.settings", { target_id: "topArticles", lang });
-                    onNavigateTopArticles();
-                  }}
-                  style={{ ...outlinedButtonStyle, flexShrink: 0 }}
-                >
-                  {t("analyzeTopArticlesBtn", lang)} →
-                </button>
-              </div>
-            </div>
-          )}
+          {/* ── My account (signed-in users) ─────────────── */}
+          {isSignedIn && <MyAccountSection lang={lang} />}
 
           <SubscriptionPanel lang={lang} onRequestAuth={onRequestAuth} />
 
-          {/* ── My account (signed-in users) ─────────────── */}
-          {isSignedIn && <MyAccountSection lang={lang} />}
+          {/* ── My topics (moved here from the general menu) ── */}
+          <div style={sectionStyle}>
+            <h4 style={sectionTitle}>{t("myTopicsMenuBtn", lang)}</h4>
+            {!isSignedIn ? (
+              <>
+                <p style={{ color: color.textMuted, fontSize: 13, lineHeight: 1.6, margin: "0 0 14px", maxWidth: 640 }}>
+                  {t("myTopicsSignInBody", lang)}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onRequestAuth?.()}
+                  style={{ ...primaryButtonStyle, padding: "9px 16px", fontSize: 13, fontWeight: 700 }}
+                >
+                  {t("authSignIn", lang)}
+                </button>
+              </>
+            ) : topicsLoading ? (
+              <div style={{ display: "flex", justifyContent: "center", padding: "24px 0" }}>
+                <span style={spinnerStyle(24)} />
+              </div>
+            ) : (
+              <>
+                <p style={{ color: color.textMuted, fontSize: 13, lineHeight: 1.6, margin: "0 0 16px", maxWidth: 680 }}>
+                  {t("myTopicsPageSubtitle", lang)}
+                </p>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
+                  <button
+                    type="button"
+                    onClick={onCreateTopic}
+                    style={{
+                      border: `1px solid ${color.gold}`,
+                      background: "#000",
+                      color: color.gold,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      padding: "10px 18px",
+                      fontSize: 14,
+                      fontWeight: 800,
+                      borderRadius: 999,
+                    }}
+                  >
+                    {t("myTopicsAddNew", lang)}
+                  </button>
+                  {topicsSaveStatus !== "idle" && (
+                    <span
+                      style={{
+                        color:
+                          topicsSaveStatus === "error"
+                            ? color.errorText
+                            : topicsSaveStatus === "saved"
+                            ? "#4ade80"
+                            : color.textMuted,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        letterSpacing: "0.02em",
+                      }}
+                    >
+                      {topicsSaveStatus === "saving"
+                        ? t("myTopicsSaving", lang)
+                        : topicsSaveStatus === "saved"
+                        ? t("myTopicsSaved", lang)
+                        : t("myAccountSaveError", lang)}
+                    </span>
+                  )}
+                </div>
+                <TopicToggle
+                  topics={topics}
+                  topic={null}
+                  lang={lang}
+                  disabled={false}
+                  onChange={() => {}}
+                  personalizationMode
+                  preferredTopicIds={draftTopicIds}
+                  onTogglePreference={onToggleTopicPreference}
+                />
+              </>
+            )}
+          </div>
 
           {/* ── Preferences section ──────────────────────── */}
           <div style={sectionStyle}>
@@ -155,47 +216,6 @@ export function SettingsPage({
               )}
             </div>
 
-          </div>
-
-          {/* ── Home thresholds section ──────────────────── */}
-          <div style={sectionStyle}>
-            <h4 style={sectionTitle}>
-              {lang === "fr" ? "Page d'accueil" : "Home page"}
-            </h4>
-
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-              <label style={{ color: color.textLabel, fontSize: 14, fontWeight: 500, whiteSpace: "nowrap" }}>
-                {lang === "fr" ? "Score min. articles" : "Min. article score"}
-              </label>
-              <input
-                type="range"
-                min={1}
-                max={10}
-                step={1}
-                value={homeMinScoreArticle}
-                onChange={(e) => onHomeMinScoreArticleChange(Number(e.target.value))}
-                style={{ flex: 1, accentColor: color.gold, cursor: "pointer" }}
-              />
-              <span style={{ color: color.gold, fontSize: 15, fontWeight: 600, minWidth: 36, textAlign: "center" }}>
-                {homeMinScoreArticle}/10
-              </span>
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <label style={{ color: color.textLabel, fontSize: 14, fontWeight: 500, whiteSpace: "nowrap" }}>
-                {lang === "fr" ? "Score top vidéo" : "Top video score"}
-              </label>
-              <div style={{ flex: 1 }} />
-              <span style={{ color: color.gold, fontSize: 15, fontWeight: 600, minWidth: 36, textAlign: "center" }}>
-                8/10
-              </span>
-            </div>
-
-            <p style={{ color: color.textMuted, fontSize: 12, lineHeight: 1.5, marginTop: 10, marginBottom: 0 }}>
-              {lang === "fr"
-                ? "Le Top story garde son filtre configurable. La top vidéo utilise un seuil fixe 8/10 et retombe sur hier si aucune vidéo qualifiée n'existe aujourd'hui."
-                : "Top story keeps its configurable filter. Top video uses a fixed 8/10 threshold and falls back to yesterday when today has no qualifying video."}
-            </p>
           </div>
 
           {/* ── Voice section ─────────────────────────────── */}

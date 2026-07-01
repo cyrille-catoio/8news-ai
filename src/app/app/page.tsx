@@ -47,7 +47,6 @@ import { useSpaNavigation } from "@/lib/spa-navigation";
 import { fetchNewsApi, PERIODS } from "@/lib/news-fetch";
 import { unlockAudioContext, playNotificationBeep } from "@/lib/notification-sound";
 import { TopicToggle } from "@/app/components/app-shell/TopicToggle";
-import { MyTopicsPage } from "@/app/components/app-shell/MyTopicsPage";
 import { ScrollToTop } from "@/app/components/app-shell/ScrollToTop";
 import { ArticleCard } from "@/app/components/app-shell/ArticleCard";
 import { DailyPodcastChatPanel } from "@/app/components/podcast-chat/DailyPodcastChatPanel";
@@ -56,7 +55,7 @@ import { CryptoChartPage, type CryptoChartTarget } from "@/app/components/Crypto
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.16.1";
+const APP_VERSION = "2.17";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 // Daily Podcast chat panel width bounds (desktop). The panel is
@@ -163,53 +162,6 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser?.id, authLoading]);
 
-  // Same dual-store reconciliation for the home min-score thresholds.
-  // On session arrival: prefer values stored in user_metadata; if
-  // missing, seed user_metadata from the current cookie / state. We
-  // intentionally don't depend on the local state vars to avoid
-  // re-running and overwriting fresh user input.
-  useEffect(() => {
-    if (authLoading) return;
-    if (!authUser) return;
-    const meta = (authUser.user_metadata ?? {}) as {
-      home_min_score_article?: unknown;
-      home_min_score_video?: unknown;
-    };
-
-    const metaArticleRaw = meta.home_min_score_article;
-    const metaArticle =
-      typeof metaArticleRaw === "number" && metaArticleRaw >= 1 && metaArticleRaw <= 10
-        ? Math.round(metaArticleRaw)
-        : null;
-    const metaVideoRaw = meta.home_min_score_video;
-    const metaVideo =
-      typeof metaVideoRaw === "number" && metaVideoRaw >= 1 && metaVideoRaw <= 10
-        ? Math.round(metaVideoRaw)
-        : null;
-
-    if (metaArticle != null) {
-      setHomeMinScoreArticle(metaArticle);
-      setCookie("homeMinScoreArticle", String(metaArticle));
-    }
-    if (metaVideo != null) {
-      setHomeMinScoreVideo(metaVideo);
-      setCookie("homeMinScoreVideo", String(metaVideo));
-    }
-
-    if (metaArticle != null && metaVideo != null) return;
-
-    const supa = supabaseRef.current;
-    if (!supa) return;
-    void supa.auth.updateUser({
-      data: {
-        ...authUser.user_metadata,
-        home_min_score_article: metaArticle ?? homeMinScoreArticle,
-        home_min_score_video: metaVideo ?? homeMinScoreVideo,
-      },
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authUser?.id, authLoading]);
-
   const handleLangChange = useCallback((newLang: Lang) => {
     setCookie("lang", newLang);
     setLang(newLang);
@@ -240,51 +192,9 @@ export default function Home() {
     setCookie("maxArticles", String(value));
   }, []);
 
-  // Per-user thresholds for the home page TOP STORY / TOP VIDEO blocks.
-  // Stored in a cookie (works for anon + auth) and mirrored into
-  // `user_metadata.home_min_score_*` for signed-in users so the choice
-  // follows them across browsers — same dual-store pattern as
-  // `preferred_lang` above. Default 9 (article) / 8 (video). Clamp 1..10.
-  const [homeMinScoreArticle, setHomeMinScoreArticle] = useState(() => {
-    if (typeof document === "undefined") return 9;
-    const raw = getCookie("homeMinScoreArticle");
-    if (raw && /^\d+$/.test(raw)) return Math.min(10, Math.max(1, Number(raw)));
-    return 9;
-  });
-  const updateHomeMinScoreArticle = useCallback(
-    (value: number) => {
-      const clamped = Math.min(10, Math.max(1, Math.round(value)));
-      setHomeMinScoreArticle(clamped);
-      setCookie("homeMinScoreArticle", String(clamped));
-      const supa = supabaseRef.current;
-      if (authUser && supa) {
-        void supa.auth.updateUser({
-          data: { ...authUser.user_metadata, home_min_score_article: clamped },
-        });
-      }
-    },
-    [authUser],
-  );
-  const [homeMinScoreVideo, setHomeMinScoreVideo] = useState(() => {
-    if (typeof document === "undefined") return 8;
-    const raw = getCookie("homeMinScoreVideo");
-    if (raw && /^\d+$/.test(raw)) return Math.min(10, Math.max(1, Number(raw)));
-    return 8;
-  });
-  const updateHomeMinScoreVideo = useCallback(
-    (value: number) => {
-      const clamped = Math.min(10, Math.max(1, Math.round(value)));
-      setHomeMinScoreVideo(clamped);
-      setCookie("homeMinScoreVideo", String(clamped));
-      const supa = supabaseRef.current;
-      if (authUser && supa) {
-        void supa.auth.updateUser({
-          data: { ...authUser.user_metadata, home_min_score_video: clamped },
-        });
-      }
-    },
-    [authUser],
-  );
+  // Home TOP STORY / TOP VIDEO score thresholds are fixed product values
+  // (article 9/10, video 8/10) enforced server-side by /api/news/top-story
+  // and /api/videos/top. No per-user preference is stored anymore.
   const [ttsSpeed, setTtsSpeed] = useState(() => {
     if (typeof document === "undefined") return 1.05;
     const raw = getCookie("ttsSpeed");
@@ -744,9 +654,6 @@ export default function Home() {
           onNavigateSummaries={() => setCurrentPage("summaries")}
           onNavigateVideos={() => setCurrentPage("videos")}
           onNavigateChannels={() => setCurrentPage("channels")}
-          onNavigateMyTopics={() => {
-            setCurrentPage("myTopics");
-          }}
           onRequestAuth={() => setAuthModalOpen(true)}
         />
 
@@ -894,11 +801,15 @@ export default function Home() {
             onTtsVoiceChange={updateTtsVoice}
             ttsVoiceFr={ttsVoiceFr}
             onTtsVoiceFrChange={updateTtsVoiceFr}
-            homeMinScoreArticle={homeMinScoreArticle}
-            onHomeMinScoreArticleChange={updateHomeMinScoreArticle}
-            homeMinScoreVideo={homeMinScoreVideo}
-            onHomeMinScoreVideoChange={updateHomeMinScoreVideo}
-            onNavigateTopArticles={() => setCurrentPage("topArticles")}
+            topics={topicLabels}
+            topicsLoading={topicsLoading}
+            draftTopicIds={draftTopicIds}
+            topicsSaveStatus={saveStatus}
+            onToggleTopicPreference={(id) => toggleTopicPreference(id, topics)}
+            onCreateTopic={() => {
+              setTopicsStartInCreate(true);
+              setCurrentPage("topics");
+            }}
             onRequestAuth={() => setAuthModalOpen(true)}
           />
         ) : currentPage === "favorites" ? (
@@ -958,26 +869,6 @@ export default function Home() {
               </div>
             )}
           </div>
-        ) : currentPage === "myTopics" ? (
-          topicsLoading ? (
-            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "80px 0" }}>
-              <span style={spinnerStyle(28)} />
-            </div>
-          ) : (
-            <MyTopicsPage
-              lang={lang}
-              isAuthenticated={isAuthenticated}
-              topics={topicLabels}
-              draftTopicIds={draftTopicIds}
-              saveStatus={saveStatus}
-              onTogglePreference={(id) => toggleTopicPreference(id, topics)}
-              onCreateTopic={() => {
-                setTopicsStartInCreate(true);
-                setCurrentPage("topics");
-              }}
-              onRequestAuth={() => setAuthModalOpen(true)}
-            />
-          )
         ) : currentPage === "summaries" ? (
           <ArchivesBrowsePage lang={lang} />
         ) : topicsLoading ? (

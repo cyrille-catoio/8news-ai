@@ -7,7 +7,6 @@ import type { NextConfig } from "next";
 const SPA_ROUTES = [
   "/app",
   "/app/articles",
-  "/app/my-topics",
   "/app/videos",
   "/app/channels",
   "/app/stats",
@@ -39,6 +38,13 @@ const nextConfig: NextConfig = {
     return {
       beforeFiles: SPA_ROUTES.map((source) => ({ source, destination: "/app" })),
     };
+  },
+  // « Mes topics » was folded into the Settings page. Keep old bookmarks /
+  // external links working by permanently redirecting the retired route.
+  async redirects() {
+    return [
+      { source: "/app/my-topics", destination: "/app/settings", permanent: true },
+    ];
   },
 };
 

@@ -178,10 +178,12 @@ propriétaire dit « run localhost » ; vérifier d'abord qu'il ne tourne pas d�
 - Mobile d'abord vérifié : le propriétaire teste beaucoup sur smartphone ;
   penser responsive (retours fréquents sur tailles de police et wrapping).
 - Le podcast quotidien (Top 24h) est plafonné à **8 bullets** : 2 vidéos
-  épinglées + 6 bullets articles par importance (`selectTopArticleBullets()`
-  dans `generate-top-summary.ts`). Home, archives `/{date}`, newsletter et
-  lecteur audio lisent les mêmes `summary_bullets` — un changement s'applique
-  partout.
+  + 6 bullets articles (`selectTopArticleBullets()` dans
+  `generate-top-summary.ts`). **v2.16.2+ : plus de « 2 vidéos d'abord »** —
+  tous les groupes (vidéos incluses) sont classés par **score décroissant**
+  au rendu, les vidéos sont mêlées aux articles. Home, archives `/{date}`,
+  newsletter et lecteur audio lisent les mêmes `summary_bullets` et
+  appliquent ce même tri — un changement s'applique partout.
 
 ## 10. Plans et tâches longues
 
@@ -227,4 +229,5 @@ propriétaire dit « run localhost » ; vérifier d'abord qu'il ne tourne pas d�
 - Introduire de l'anglais seul ou du français seul dans une surface produit
   (toujours les deux langues).
 - Mettre des émojis dans l'UI ou le contenu éditorial.
-- Casser le plafond des 8 bullets du podcast ou l'ordre « 2 vidéos d'abord ».
+- Casser le plafond des 8 bullets du podcast ou le tri par score décroissant
+  du podcast (les vidéos sont mêlées aux articles, pas épinglées en tête).

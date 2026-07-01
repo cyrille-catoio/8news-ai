@@ -1301,6 +1301,14 @@ const strings = {
     en: "No crypto matches this search.",
     fr: "Aucune crypto ne correspond à cette recherche.",
   },
+  cryptoTickerPagePrev: {
+    en: "Previous page",
+    fr: "Page précédente",
+  },
+  cryptoTickerPageNext: {
+    en: "Next page",
+    fr: "Page suivante",
+  },
   cryptoMenuBtn: {
     en: "Crypto",
     fr: "Crypto",

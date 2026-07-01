@@ -1488,8 +1488,9 @@ body.podcast-chat-resizing .podcast-chat-resize::after {
      `.crypto-ticker` flex container wraps but is clipped to one row via
      `max-height`; the chevron toggle (`.crypto-ticker-toggle`) at the
      far right reveals the rest.
-   - The coins spread edge-to-edge (`space-between`) so the first hugs
-     the left and the last hugs the right.
+   - Coins pack LEFT (`flex-start`): a partially-filled row (e.g. when
+     expanded) stays left-aligned instead of pushing the last pill to the
+     right edge with a hole in between.
    - `.crypto-ticker-change` carries the 24h % cell and stays visible
      on mobile too. */
 .crypto-ticker-wrap {
@@ -1504,7 +1505,7 @@ body.podcast-chat-resizing .podcast-chat-resize::after {
   flex: 1;
   min-width: 0;
   flex-wrap: wrap;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
   gap: 8px 10px;
   overflow: hidden;

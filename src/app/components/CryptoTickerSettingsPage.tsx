@@ -31,7 +31,10 @@ export function CryptoTickerSettingsSection({ lang }: { lang: Lang }) {
   const [selectedSymbols, setSelectedSymbols] = useState<string[]>(() => readCryptoTickerSymbols());
   const [query, setQuery] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
   const crypto = useCryptoPrices({ poll: true, selectedSymbols });
+
+  const COINS_PER_PAGE = 10;
 
   useEffect(() => {
     if (authLoading || !session?.user) return;
@@ -78,6 +81,17 @@ export function CryptoTickerSettingsSection({ lang }: { lang: Lang }) {
       .sort((a, b) => a.marketCapRank - b.marketCapRank)
       .filter((coin) => coinMatchesQuery(coin, query));
   }, [crypto.availableCoins, query]);
+
+  // Reset to the first page whenever the search narrows/changes the list.
+  useEffect(() => {
+    setPage(0);
+  }, [query]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredCoins.length / COINS_PER_PAGE));
+  const safePage = Math.min(page, totalPages - 1);
+  const pageCoins = filteredCoins.slice(safePage * COINS_PER_PAGE, safePage * COINS_PER_PAGE + COINS_PER_PAGE);
+  const rangeStart = filteredCoins.length === 0 ? 0 : safePage * COINS_PER_PAGE + 1;
+  const rangeEnd = Math.min(filteredCoins.length, (safePage + 1) * COINS_PER_PAGE);
 
   function toggleCoin(symbol: string) {
     if (selectedSet.has(symbol)) {
@@ -157,32 +171,64 @@ export function CryptoTickerSettingsSection({ lang }: { lang: Lang }) {
             {t("cryptoTickerSearchEmpty", lang)}
           </div>
         ) : (
-          <div style={{ maxHeight: 560, overflowY: "auto", paddingRight: 4 }}>
-            {filteredCoins.map((coin) => {
-              const checked = selectedSet.has(coin.symbol);
-              const disabled = !checked && atLimit;
-              return (
-                <label key={coin.coinId} style={coinRowStyle(disabled)}>
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    disabled={disabled}
-                    onChange={() => toggleCoin(coin.symbol)}
-                    style={{ accentColor: color.gold, cursor: disabled ? "not-allowed" : "pointer" }}
-                  />
-                  <span style={{ color: color.textMuted, fontVariantNumeric: "tabular-nums" }}>
-                    #{coin.marketCapRank}
-                  </span>
-                  <span style={{ color: color.gold, fontWeight: 800 }}>
-                    {coin.symbol.toUpperCase()}
-                  </span>
-                  <span style={{ color: color.textSecondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {coin.name}
-                  </span>
-                </label>
-              );
-            })}
-          </div>
+          <>
+            <div>
+              {pageCoins.map((coin) => {
+                const checked = selectedSet.has(coin.symbol);
+                const disabled = !checked && atLimit;
+                return (
+                  <label key={coin.coinId} style={coinRowStyle(disabled)}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={disabled}
+                      onChange={() => toggleCoin(coin.symbol)}
+                      style={{ accentColor: color.gold, cursor: disabled ? "not-allowed" : "pointer" }}
+                    />
+                    <span style={{ color: color.textMuted, fontVariantNumeric: "tabular-nums" }}>
+                      #{coin.marketCapRank}
+                    </span>
+                    <span style={{ color: color.gold, fontWeight: 800 }}>
+                      {coin.symbol.toUpperCase()}
+                    </span>
+                    <span style={{ color: color.textSecondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {coin.name}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+
+            {/* Pagination controls */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 14 }}>
+              <span style={{ color: color.textMuted, fontSize: 12, fontVariantNumeric: "tabular-nums" }}>
+                {rangeStart}–{rangeEnd} / {filteredCoins.length}
+              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={safePage <= 0}
+                  aria-label={t("cryptoTickerPagePrev", lang)}
+                  style={{ ...outlinedButtonStyle, padding: "6px 12px", opacity: safePage <= 0 ? 0.4 : 1, cursor: safePage <= 0 ? "not-allowed" : "pointer" }}
+                >
+                  ‹
+                </button>
+                <span style={{ color: color.textSecondary, fontSize: 12, fontWeight: 600, minWidth: 64, textAlign: "center", fontVariantNumeric: "tabular-nums" }}>
+                  {safePage + 1} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                  disabled={safePage >= totalPages - 1}
+                  aria-label={t("cryptoTickerPageNext", lang)}
+                  style={{ ...outlinedButtonStyle, padding: "6px 12px", opacity: safePage >= totalPages - 1 ? 0.4 : 1, cursor: safePage >= totalPages - 1 ? "not-allowed" : "pointer" }}
+                >
+                  ›
+                </button>
+              </div>
+            </div>
+          </>
       )}
 
       {atLimit && (

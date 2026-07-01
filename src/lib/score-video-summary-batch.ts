@@ -50,6 +50,43 @@ export type ScoreVideoSummaryBatchOptions = {
  * `temperature: 0` is set for run-to-run reproducibility — scoring is a
  * numeric task, no creative variation wanted.
  */
+/**
+ * Parse the LLM `{scores:[{index,score}]}` response into `{id,score}`
+ * rows. Pure and deterministic — extracted from `scoreVideoSummaryBatch`
+ * so the clamp + one-decimal-in-the-9-10-band rounding can be unit-tested
+ * without an OpenAI call. Entries with the wrong types, a non-finite
+ * score, or an index outside `rows` are dropped; a malformed payload
+ * yields an empty array (never throws).
+ */
+export function parseVideoScoreResponse(
+  raw: string | null | undefined,
+  rows: Array<{ id: number }>,
+): { id: number; score: number }[] {
+  if (!raw) return [];
+
+  let parsed: { scores?: Array<{ index?: number; score?: number }> };
+  try {
+    parsed = JSON.parse(raw) as { scores?: Array<{ index?: number; score?: number }> };
+  } catch {
+    return [];
+  }
+
+  const out: { id: number; score: number }[] = [];
+  for (const s of parsed.scores ?? []) {
+    if (typeof s.index !== "number" || typeof s.score !== "number") continue;
+    const row = rows[s.index];
+    if (!row) continue;
+    let sc = Number(s.score);
+    if (!Number.isFinite(sc)) continue;
+    if (sc < 1) sc = 1;
+    if (sc > 10) sc = 10;
+    // One-decimal precision only in the 9-10 band; integers below 9.
+    sc = sc >= 9 ? Math.round(sc * 10) / 10 : Math.round(sc);
+    out.push({ id: row.id, score: sc });
+  }
+  return out;
+}
+
 export async function scoreVideoSummaryBatch(
   rows: VideoSummaryScoreInput[],
   apiKey: string,
@@ -139,27 +176,5 @@ export async function scoreVideoSummaryBatch(
   });
 
   const raw = completion.choices[0]?.message?.content;
-  if (!raw) return [];
-
-  let parsed: { scores?: Array<{ index?: number; score?: number }> };
-  try {
-    parsed = JSON.parse(raw) as { scores?: Array<{ index?: number; score?: number }> };
-  } catch {
-    return [];
-  }
-
-  const out: { id: number; score: number }[] = [];
-  for (const s of parsed.scores ?? []) {
-    if (typeof s.index !== "number" || typeof s.score !== "number") continue;
-    const row = rows[s.index];
-    if (!row) continue;
-    let sc = Number(s.score);
-    if (!Number.isFinite(sc)) continue;
-    if (sc < 1) sc = 1;
-    if (sc > 10) sc = 10;
-    // One-decimal precision only in the 9-10 band; integers below 9.
-    sc = sc >= 9 ? Math.round(sc * 10) / 10 : Math.round(sc);
-    out.push({ id: row.id, score: sc });
-  }
-  return out;
+  return parseVideoScoreResponse(raw, rows);
 }

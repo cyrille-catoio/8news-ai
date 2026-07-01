@@ -114,29 +114,20 @@ Respond ONLY with a JSON object containing a "scores" array. No markdown, no exp
 For articles scoring below 5, omit title_en, title_fr, summary_en, summary_fr.`;
 }
 
-async function scoreArticleBatch(
-  batch: DbRow[],
-  prompt: string,
-  openai: OpenAI,
-  collectDebug: boolean,
-): Promise<{ results: ScoreResult[]; debug?: AiBatchDebug }> {
-  const articleList = batch
-    .map((a, i) => `[${i}] ${a.title} | ${(a.snippet || a.content || "").slice(0, 300)}`)
-    .join("\n");
-
-  const completion = await openai.chat.completions.create(
-    {
-      model: SCORE_OPENAI_MODEL,
-      messages: [
-        { role: "system", content: prompt },
-        { role: "user", content: articleList },
-      ],
-      response_format: { type: "json_object" },
-    },
-    { timeout: OPENAI_TIMEOUT_MS },
-  );
-
-  const raw = completion.choices[0]?.message?.content;
+/**
+ * Parse the LLM scoring response into validated `ScoreResult`s. Pure and
+ * deterministic — extracted from `scoreArticleBatch` so the defensive
+ * shape handling can be unit-tested without an OpenAI call. Accepts the
+ * three shapes the model has been observed to emit (a bare array, a
+ * single `{index,score}` object, or an object wrapping the array under
+ * some key), then drops entries with the wrong types or an out-of-range
+ * index. Never throws: a malformed payload yields an empty result.
+ */
+export function parseScoreBatchResponse(
+  raw: string | null | undefined,
+  batchLength: number,
+  collectDebug = false,
+): { results: ScoreResult[]; debug?: AiBatchDebug } {
   if (!raw) {
     return {
       results: [],
@@ -163,7 +154,7 @@ async function scoreArticleBatch(
     );
 
     const results = looselyFiltered.filter(
-      (r) => r.index >= 0 && r.index < batch.length,
+      (r) => r.index >= 0 && r.index < batchLength,
     );
 
     const debug: AiBatchDebug | undefined = collectDebug
@@ -179,6 +170,32 @@ async function scoreArticleBatch(
   } catch {
     return { results: [], debug: collectDebug ? { rawSample: "parse_error" } : undefined };
   }
+}
+
+async function scoreArticleBatch(
+  batch: DbRow[],
+  prompt: string,
+  openai: OpenAI,
+  collectDebug: boolean,
+): Promise<{ results: ScoreResult[]; debug?: AiBatchDebug }> {
+  const articleList = batch
+    .map((a, i) => `[${i}] ${a.title} | ${(a.snippet || a.content || "").slice(0, 300)}`)
+    .join("\n");
+
+  const completion = await openai.chat.completions.create(
+    {
+      model: SCORE_OPENAI_MODEL,
+      messages: [
+        { role: "system", content: prompt },
+        { role: "user", content: articleList },
+      ],
+      response_format: { type: "json_object" },
+    },
+    { timeout: OPENAI_TIMEOUT_MS },
+  );
+
+  const raw = completion.choices[0]?.message?.content;
+  return parseScoreBatchResponse(raw, batch.length, collectDebug);
 }
 
 async function runScoreTopic(

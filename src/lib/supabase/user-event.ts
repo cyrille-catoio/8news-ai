@@ -1,4 +1,4 @@
-import { getServerClient } from "./client";
+import { getServerClient, withClient } from "./client";
 import { toUtcDateString } from "@/lib/dates-utc";
 
 /**
@@ -42,20 +42,14 @@ export interface UserEventInsert {
  *  user-facing POST endpoint — telemetry must never break UX. */
 export async function insertUserEvents(rows: UserEventInsert[]): Promise<number> {
   if (rows.length === 0) return 0;
-  const clientP = getServerClient();
-  if (!clientP) return 0;
-  try {
-    const supabase = await clientP;
+  return withClient("insertUserEvents", 0, async (supabase) => {
     const { error } = await supabase.from("user_event").insert(rows);
     if (error) {
       console.error("[insertUserEvents] insert failed:", error.message);
       return 0;
     }
     return rows.length;
-  } catch (err) {
-    console.error("[insertUserEvents] unexpected error:", err);
-    return 0;
-  }
+  }, "error");
 }
 
 // ───── Stats aggregation ───────────────────────────────────────────

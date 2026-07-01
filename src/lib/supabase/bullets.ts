@@ -1,4 +1,4 @@
-import { getServerClient } from "./client";
+import { withClient } from "./client";
 
 /**
  * Cross-table `summary_bullets` writers — the two bullet writers that
@@ -40,10 +40,7 @@ export async function insertVideoRoundupBullets(
   }>,
 ): Promise<boolean> {
   if (bullets.length === 0) return true;
-  const clientP = getServerClient();
-  if (!clientP) return false;
-  try {
-    const supabase = await clientP;
+  return withClient("insertVideoRoundupBullets", false, async (supabase) => {
     await supabase
       .from("summary_bullets")
       .delete()
@@ -54,10 +51,7 @@ export async function insertVideoRoundupBullets(
       return false;
     }
     return true;
-  } catch (err) {
-    console.error("[insertVideoRoundupBullets] unexpected error:", err);
-    return false;
-  }
+  }, "error");
 }
 
 export async function insertTopSummaryBullets(
@@ -95,10 +89,7 @@ export async function insertTopSummaryBullets(
   }>,
 ): Promise<boolean> {
   if (rows.length === 0) return true;
-  const clientP = getServerClient();
-  if (!clientP) return false;
-  try {
-    const supabase = await clientP;
+  return withClient("insertTopSummaryBullets", false, async (supabase) => {
     await supabase
       .from("summary_bullets")
       .delete()
@@ -110,8 +101,5 @@ export async function insertTopSummaryBullets(
 
     console.error("[insertTopSummaryBullets] insert failed:", insertRes.error.message);
     return false;
-  } catch (err) {
-    console.error("[insertTopSummaryBullets]", err);
-    return false;
-  }
+  }, "error");
 }

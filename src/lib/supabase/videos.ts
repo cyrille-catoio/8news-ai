@@ -1,4 +1,4 @@
-import { getServerClient, SITEMAP_RECENT_DAYS } from "./client";
+import { withClient, SITEMAP_RECENT_DAYS } from "./client";
 import { normalizeVideoScore } from "@/lib/score-format";
 import { toUtcDateString } from "@/lib/dates-utc";
 
@@ -26,10 +26,7 @@ export async function getVideoTranscription(
   videoId: string,
   lang: string,
 ): Promise<{ id: number; summary_md: string; transcript: string; word_count: number | null } | null> {
-  const clientP = getServerClient();
-  if (!clientP) return null;
-  try {
-    const supabase = await clientP;
+  return withClient("getVideoTranscription", null, async (supabase) => {
     const { data, error } = await supabase
       .from("video_transcriptions")
       .select("id, summary_md, transcript, word_count")
@@ -38,10 +35,7 @@ export async function getVideoTranscription(
       .single();
     if (error || !data) return null;
     return data as { id: number; summary_md: string; transcript: string; word_count: number | null };
-  } catch (err) {
-    console.warn("[getVideoTranscription]", err);
-    return null;
-  }
+  });
 }
 
 export async function insertVideoTranscription(row: {
@@ -72,10 +66,7 @@ export async function insertVideoTranscription(row: {
    */
   title_localized?: string | null;
 }): Promise<number | null> {
-  const clientP = getServerClient();
-  if (!clientP) return null;
-  try {
-    const supabase = await clientP;
+  return withClient("insertVideoTranscription", null, async (supabase) => {
     const { data, error } = await supabase
       .from("video_transcriptions")
       .insert(row)
@@ -86,10 +77,7 @@ export async function insertVideoTranscription(row: {
       return null;
     }
     return (data as { id: number }).id;
-  } catch (err) {
-    console.error("[insertVideoTranscription]", err);
-    return null;
-  }
+  }, "error");
 }
 
 export async function insertVideoBullets(
@@ -106,10 +94,7 @@ export async function insertVideoBullets(
   }>,
 ): Promise<boolean> {
   if (bullets.length === 0) return true;
-  const clientP = getServerClient();
-  if (!clientP) return false;
-  try {
-    const supabase = await clientP;
+  return withClient("insertVideoBullets", false, async (supabase) => {
     // Scope the delete to source_type='video'. Since v2.13 the Daily
     // Podcast top50 bullets ALSO carry a `video_transcription_id`
     // (« top videos of yesterday » pins) — an unscoped delete here
@@ -125,10 +110,7 @@ export async function insertVideoBullets(
       return false;
     }
     return true;
-  } catch (err) {
-    console.error("[insertVideoBullets]", err);
-    return false;
-  }
+  }, "error");
 }
 
 export interface TopVideoForDateRow {
@@ -159,10 +141,7 @@ export async function getTopVideosForDate(
   lang: string,
   limit = 2,
 ): Promise<TopVideoForDateRow[]> {
-  const clientP = getServerClient();
-  if (!clientP) return [];
-  try {
-    const supabase = await clientP;
+  return withClient("getTopVideosForDate", [], async (supabase) => {
     const { data, error } = await supabase
       .from("video_transcriptions")
       .select(
@@ -217,10 +196,7 @@ export async function getTopVideosForDate(
           channel_title: meta?.channel_title ?? null,
         };
       });
-  } catch (err) {
-    console.warn("[getTopVideosForDate]", err);
-    return [];
-  }
+  });
 }
 
 /* ── Video roundups (per-topic-per-day SSR pages) ───────────────── */
@@ -254,10 +230,7 @@ export async function upsertVideoRoundup(row: {
   intro_md: string;
   video_ids: string[];
 }): Promise<VideoRoundupRow | null> {
-  const clientP = getServerClient();
-  if (!clientP) return null;
-  try {
-    const supabase = await clientP;
+  return withClient("upsertVideoRoundup", null, async (supabase) => {
     const { data, error } = await supabase
       .from("video_roundups")
       .upsert(row, { onConflict: "topic_id,roundup_date,lang" })
@@ -268,10 +241,7 @@ export async function upsertVideoRoundup(row: {
       return null;
     }
     return data as VideoRoundupRow;
-  } catch (err) {
-    console.error("[upsertVideoRoundup]", err);
-    return null;
-  }
+  }, "error");
 }
 
 /**
@@ -284,10 +254,7 @@ export async function getVideoRoundupBySlug(
   date: string,
   slug: string,
 ): Promise<VideoRoundupRow | null> {
-  const clientP = getServerClient();
-  if (!clientP) return null;
-  try {
-    const supabase = await clientP;
+  return withClient("getVideoRoundupBySlug", null, async (supabase) => {
     const { data, error } = await supabase
       .from("video_roundups")
       .select("*")
@@ -298,10 +265,7 @@ export async function getVideoRoundupBySlug(
       .maybeSingle();
     if (error || !data) return null;
     return data as VideoRoundupRow;
-  } catch (err) {
-    console.warn("[getVideoRoundupBySlug]", err);
-    return null;
-  }
+  });
 }
 
 /**
@@ -313,11 +277,8 @@ export async function getVideoRoundupAltLang(
   date: string,
   currentLang: string,
 ): Promise<{ slug_keywords: string; lang: string } | null> {
-  const clientP = getServerClient();
-  if (!clientP) return null;
   const otherLang = currentLang === "fr" ? "en" : "fr";
-  try {
-    const supabase = await clientP;
+  return withClient("getVideoRoundupAltLang", null, async (supabase) => {
     const { data, error } = await supabase
       .from("video_roundups")
       .select("slug_keywords, lang")
@@ -328,10 +289,7 @@ export async function getVideoRoundupAltLang(
       .maybeSingle();
     if (error || !data) return null;
     return data as { slug_keywords: string; lang: string };
-  } catch (err) {
-    console.warn("[getVideoRoundupAltLang]", err);
-    return null;
-  }
+  });
 }
 
 /**
@@ -359,10 +317,7 @@ export async function getVideoTranscriptionsForRoundup(
   slug_keywords: string;
   channel_id: string;
 }>> {
-  const clientP = getServerClient();
-  if (!clientP) return [];
-  try {
-    const supabase = await clientP;
+  return withClient("getVideoTranscriptionsForRoundup", [], async (supabase) => {
     const { data, error } = await supabase
       .from("video_transcriptions")
       .select("id, video_id, title, summary_md, slug_keywords, channel_id")
@@ -381,10 +336,7 @@ export async function getVideoTranscriptionsForRoundup(
       slug_keywords: string;
       channel_id: string;
     }>;
-  } catch (err) {
-    console.warn("[getVideoTranscriptionsForRoundup]", err);
-    return [];
-  }
+  });
 }
 
 /**
@@ -411,10 +363,7 @@ export async function getVideoTranscriptionsByIds(
   published_date: string | null;
 }>> {
   if (videoIds.length === 0) return [];
-  const clientP = getServerClient();
-  if (!clientP) return [];
-  try {
-    const supabase = await clientP;
+  return withClient("getVideoTranscriptionsByIds", [], async (supabase) => {
     const { data, error } = await supabase
       .from("video_transcriptions")
       .select("id, video_id, title, summary_md, slug_keywords, channel_id, published_date")
@@ -430,10 +379,7 @@ export async function getVideoTranscriptionsByIds(
       channel_id: string;
       published_date: string | null;
     }>;
-  } catch (err) {
-    console.warn("[getVideoTranscriptionsByIds]", err);
-    return [];
-  }
+  });
 }
 
 /**
@@ -447,10 +393,7 @@ export async function getRecentVideoRoundups(
   limit: number,
   excludeDate?: string,
 ): Promise<Array<{ roundup_date: string; slug_keywords: string; seo_title: string }>> {
-  const clientP = getServerClient();
-  if (!clientP) return [];
-  try {
-    const supabase = await clientP;
+  return withClient("getRecentVideoRoundups", [], async (supabase) => {
     let q = supabase
       .from("video_roundups")
       .select("roundup_date, slug_keywords, seo_title")
@@ -462,10 +405,7 @@ export async function getRecentVideoRoundups(
     const { data, error } = await q;
     if (error || !data) return [];
     return data as Array<{ roundup_date: string; slug_keywords: string; seo_title: string }>;
-  } catch (err) {
-    console.warn("[getRecentVideoRoundups]", err);
-    return [];
-  }
+  });
 }
 
 /**
@@ -475,10 +415,7 @@ export async function getRecentVideoRoundups(
 export async function getAllVideoRoundupRoutes(): Promise<
   Array<{ topic_id: string; roundup_date: string; slug_keywords: string; lang: string }>
 > {
-  const clientP = getServerClient();
-  if (!clientP) return [];
-  try {
-    const supabase = await clientP;
+  return withClient("getAllVideoRoundupRoutes", [], async (supabase) => {
     const sinceISO = toUtcDateString(Date.now() - SITEMAP_RECENT_DAYS * 86_400_000);
     const { data, error } = await supabase
       .from("video_roundups")
@@ -487,10 +424,7 @@ export async function getAllVideoRoundupRoutes(): Promise<
       .order("roundup_date", { ascending: false });
     if (error || !data) return [];
     return data as Array<{ topic_id: string; roundup_date: string; slug_keywords: string; lang: string }>;
-  } catch (err) {
-    console.warn("[getAllVideoRoundupRoutes]", err);
-    return [];
-  }
+  });
 }
 
 /**
@@ -502,10 +436,7 @@ export async function getAllVideoRoundupRoutes(): Promise<
 export async function getAllVideoPageRoutes(): Promise<
   Array<{ topic_id: string; published_date: string; slug_keywords: string; lang: string }>
 > {
-  const clientP = getServerClient();
-  if (!clientP) return [];
-  try {
-    const supabase = await clientP;
+  return withClient("getAllVideoPageRoutes", [], async (supabase) => {
     const sinceISO = toUtcDateString(Date.now() - SITEMAP_RECENT_DAYS * 86_400_000);
     const { data, error } = await supabase
       .from("video_transcriptions")
@@ -516,10 +447,7 @@ export async function getAllVideoPageRoutes(): Promise<
       .order("published_date", { ascending: false });
     if (error || !data) return [];
     return data as Array<{ topic_id: string; published_date: string; slug_keywords: string; lang: string }>;
-  } catch (err) {
-    console.warn("[getAllVideoPageRoutes]", err);
-    return [];
-  }
+  });
 }
 
 /**
@@ -568,10 +496,7 @@ export async function getVideoPageBySlug(
     link: string;
   } | null;
 } | null> {
-  const clientP = getServerClient();
-  if (!clientP) return null;
-  try {
-    const supabase = await clientP;
+  return withClient("getVideoPageBySlug", null, async (supabase) => {
     const res = await supabase
       .from("video_transcriptions")
       .select(
@@ -612,10 +537,7 @@ export async function getVideoPageBySlug(
         duration_sec: number | null; link: string;
       } | null) ?? null,
     };
-  } catch (err) {
-    console.warn("[getVideoPageBySlug]", err);
-    return null;
-  }
+  });
 }
 
 /**
@@ -641,10 +563,7 @@ export async function getRecentVideoPagesForTopic(
   published_date: string;
   slug_keywords: string;
 }>> {
-  const clientP = getServerClient();
-  if (!clientP) return [];
-  try {
-    const supabase = await clientP;
+  return withClient("getRecentVideoPagesForTopic", [], async (supabase) => {
     let q = supabase
       .from("video_transcriptions")
       .select("video_id, title, title_localized, published_date, slug_keywords")
@@ -672,10 +591,7 @@ export async function getRecentVideoPagesForTopic(
       published_date: r.published_date ?? "",
       slug_keywords: r.slug_keywords ?? "",
     }));
-  } catch (err) {
-    console.warn("[getRecentVideoPagesForTopic]", err);
-    return [];
-  }
+  });
 }
 
 /**
@@ -703,10 +619,7 @@ export async function getVideoPagesForTopicDate(
     summary_score: number | null;
   }>
 > {
-  const clientP = getServerClient();
-  if (!clientP) return [];
-  try {
-    const supabase = await clientP;
+  return withClient("getVideoPagesForTopicDate", [], async (supabase) => {
     const res = await supabase
       .from("video_transcriptions")
       .select(
@@ -737,10 +650,7 @@ export async function getVideoPagesForTopicDate(
       slug_keywords: r.slug_keywords ?? "",
       summary_score: normalizeVideoScore(r.summary_score),
     }));
-  } catch (err) {
-    console.warn("[getVideoPagesForTopicDate]", err);
-    return [];
-  }
+  });
 }
 
 /**
@@ -755,11 +665,8 @@ export async function getVideoPageAltLang(
   videoId: string,
   currentLang: string,
 ): Promise<{ topic_id: string; published_date: string; slug_keywords: string; lang: string } | null> {
-  const clientP = getServerClient();
-  if (!clientP) return null;
   const otherLang = currentLang === "fr" ? "en" : "fr";
-  try {
-    const supabase = await clientP;
+  return withClient("getVideoPageAltLang", null, async (supabase) => {
     const { data, error } = await supabase
       .from("video_transcriptions")
       .select("topic_id, published_date, slug_keywords, lang")
@@ -771,20 +678,14 @@ export async function getVideoPageAltLang(
       .maybeSingle();
     if (error || !data) return null;
     return data as { topic_id: string; published_date: string; slug_keywords: string; lang: string };
-  } catch (err) {
-    console.warn("[getVideoPageAltLang]", err);
-    return null;
-  }
+  });
 }
 
 export async function getVideoTranscriptionText(
   videoId: string,
   lang: string,
 ): Promise<string | null> {
-  const clientP = getServerClient();
-  if (!clientP) return null;
-  try {
-    const supabase = await clientP;
+  return withClient("getVideoTranscriptionText", null, async (supabase) => {
     const { data, error } = await supabase
       .from("video_transcriptions")
       .select("summary_md")
@@ -793,10 +694,7 @@ export async function getVideoTranscriptionText(
       .single();
     if (error || !data) return null;
     return (data as { summary_md: string }).summary_md;
-  } catch (err) {
-    console.warn("[getVideoTranscriptionText]", err);
-    return null;
-  }
+  });
 }
 
 export async function getVideoIdsWithTranscription(
@@ -804,10 +702,7 @@ export async function getVideoIdsWithTranscription(
   lang: string,
 ): Promise<Set<string>> {
   if (videoIds.length === 0) return new Set();
-  const clientP = getServerClient();
-  if (!clientP) return new Set();
-  try {
-    const supabase = await clientP;
+  return withClient("getVideoIdsWithTranscription", new Set<string>(), async (supabase) => {
     const { data, error } = await supabase
       .from("video_transcriptions")
       .select("video_id")
@@ -815,10 +710,7 @@ export async function getVideoIdsWithTranscription(
       .eq("lang", lang);
     if (error || !data) return new Set();
     return new Set((data as { video_id: string }[]).map((r) => r.video_id));
-  } catch (err) {
-    console.warn("[getVideoIdsWithTranscription]", err);
-    return new Set();
-  }
+  });
 }
 
 /** Resolve each `video_id` to its in-app SSR page path
@@ -831,10 +723,7 @@ export async function getVideoPagePathsByVideoIds(
 ): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   if (videoIds.length === 0) return out;
-  const clientP = getServerClient();
-  if (!clientP) return out;
-  try {
-    const supabase = await clientP;
+  return withClient("getVideoPagePathsByVideoIds", out, async (supabase) => {
     const { data, error } = await supabase
       .from("video_transcriptions")
       .select("video_id, topic_id, published_date, slug_keywords, lang")
@@ -867,8 +756,5 @@ export async function getVideoPagePathsByVideoIds(
       );
     }
     return out;
-  } catch (err) {
-    console.warn("[getVideoPagePathsByVideoIds]", err);
-    return out;
-  }
+  });
 }

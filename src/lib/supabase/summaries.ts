@@ -1,4 +1,4 @@
-import { getServerClient, SITEMAP_RECENT_DAYS } from "./client";
+import { withClient, SITEMAP_RECENT_DAYS } from "./client";
 import { toUtcDateString } from "@/lib/dates-utc";
 
 /**
@@ -37,10 +37,7 @@ export async function getDailySummary(
   date: string,
   lang: string,
 ): Promise<DailySummaryRow | null> {
-  const clientP = getServerClient();
-  if (!clientP) return null;
-  try {
-    const supabase = await clientP;
+  return withClient("getDailySummary", null, async (supabase) => {
     const { data, error } = await supabase
       .from("daily_summaries")
       .select("*")
@@ -50,10 +47,7 @@ export async function getDailySummary(
       .single();
     if (error || !data) return null;
     return data as DailySummaryRow;
-  } catch (err) {
-    console.warn("[getDailySummary]", err);
-    return null;
-  }
+  });
 }
 
 export async function getDailySummaryBySlug(
@@ -62,10 +56,7 @@ export async function getDailySummaryBySlug(
   slug: string,
   lang?: string,
 ): Promise<DailySummaryRow | null> {
-  const clientP = getServerClient();
-  if (!clientP) return null;
-  try {
-    const supabase = await clientP;
+  return withClient("getDailySummaryBySlug", null, async (supabase) => {
     let query = supabase
       .from("daily_summaries")
       .select("*")
@@ -79,10 +70,7 @@ export async function getDailySummaryBySlug(
       .maybeSingle();
     if (error || !data) return null;
     return data as DailySummaryRow;
-  } catch (err) {
-    console.warn("[getDailySummaryBySlug]", err);
-    return null;
-  }
+  });
 }
 
 export async function getDailySummariesBySlug(
@@ -90,10 +78,7 @@ export async function getDailySummariesBySlug(
   date: string,
   slug: string,
 ): Promise<DailySummaryRow[]> {
-  const clientP = getServerClient();
-  if (!clientP) return [];
-  try {
-    const supabase = await clientP;
+  return withClient("getDailySummariesBySlug", [], async (supabase) => {
     const { data, error } = await supabase
       .from("daily_summaries")
       .select("*")
@@ -103,10 +88,7 @@ export async function getDailySummariesBySlug(
       .order("lang", { ascending: true });
     if (error || !data) return [];
     return data as DailySummaryRow[];
-  } catch (err) {
-    console.warn("[getDailySummariesBySlug]", err);
-    return [];
-  }
+  });
 }
 
 export async function listDailySummaries(
@@ -115,10 +97,7 @@ export async function listDailySummaries(
   page: number,
   limit: number,
 ): Promise<{ rows: DailySummaryRow[]; total: number }> {
-  const clientP = getServerClient();
-  if (!clientP) return { rows: [], total: 0 };
-  try {
-    const supabase = await clientP;
+  return withClient("listDailySummaries", { rows: [], total: 0 }, async (supabase) => {
     const offset = (page - 1) * limit;
     const [{ data, error }, { count }] = await Promise.all([
       supabase
@@ -136,10 +115,7 @@ export async function listDailySummaries(
     ]);
     if (error || !data) return { rows: [], total: count ?? 0 };
     return { rows: data as DailySummaryRow[], total: count ?? 0 };
-  } catch (err) {
-    console.warn("[listDailySummaries]", err);
-    return { rows: [], total: 0 };
-  }
+  });
 }
 
 export async function insertDailySummary(row: {
@@ -156,10 +132,7 @@ export async function insertDailySummary(row: {
   period_from: string;
   period_to: string;
 }): Promise<number | null> {
-  const clientP = getServerClient();
-  if (!clientP) return null;
-  try {
-    const supabase = await clientP;
+  return withClient("insertDailySummary", null, async (supabase) => {
     const { data, error } = await supabase
       .from("daily_summaries")
       .upsert(row, { onConflict: "topic_id,summary_date,lang" })
@@ -170,10 +143,7 @@ export async function insertDailySummary(row: {
       return null;
     }
     return (data as { id: number }).id;
-  } catch (err) {
-    console.error("[insertDailySummary]", err);
-    return null;
-  }
+  }, "error");
 }
 
 export async function insertSummaryBullets(
@@ -195,10 +165,7 @@ export async function insertSummaryBullets(
   }>,
 ): Promise<boolean> {
   if (bullets.length === 0) return true;
-  const clientP = getServerClient();
-  if (!clientP) return false;
-  try {
-    const supabase = await clientP;
+  return withClient("insertSummaryBullets", false, async (supabase) => {
     await supabase
       .from("summary_bullets")
       .delete()
@@ -209,19 +176,13 @@ export async function insertSummaryBullets(
       return false;
     }
     return true;
-  } catch (err) {
-    console.error("[insertSummaryBullets]", err);
-    return false;
-  }
+  }, "error");
 }
 
 export async function getAllSummaryRoutes(): Promise<
   Array<{ topic_id: string; summary_date: string; slug_keywords: string; lang: string }>
 > {
-  const clientP = getServerClient();
-  if (!clientP) return [];
-  try {
-    const supabase = await clientP;
+  return withClient("getAllSummaryRoutes", [], async (supabase) => {
     const sinceISO = toUtcDateString(Date.now() - SITEMAP_RECENT_DAYS * 86_400_000);
     const { data, error } = await supabase
       .from("daily_summaries")
@@ -230,8 +191,5 @@ export async function getAllSummaryRoutes(): Promise<
       .order("summary_date", { ascending: false });
     if (error || !data) return [];
     return data as Array<{ topic_id: string; summary_date: string; slug_keywords: string; lang: string }>;
-  } catch (err) {
-    console.warn("[getAllSummaryRoutes]", err);
-    return [];
-  }
+  });
 }

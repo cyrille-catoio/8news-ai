@@ -1,4 +1,4 @@
-import { getServerClient } from "./client";
+import { withClient } from "./client";
 
 /**
  * Service-role helpers around the `user_activity` table (mig. 029+).
@@ -33,10 +33,7 @@ export async function getUserActivity(
   userId: string,
   activityType: string,
 ): Promise<UserActivityRow[]> {
-  const clientP = getServerClient();
-  if (!clientP) return [];
-  try {
-    const supabase = await clientP;
+  return withClient("getUserActivity", [], async (supabase) => {
     const { data, error } = await supabase
       .from("user_activity")
       .select("target_id, value, last_action, last_clicked_at, created_at")
@@ -45,10 +42,7 @@ export async function getUserActivity(
       .order("last_clicked_at", { ascending: false });
     if (error || !data) return [];
     return data as UserActivityRow[];
-  } catch (err) {
-    console.warn("[getUserActivity]", err);
-    return [];
-  }
+  });
 }
 
 /** Upserts the (user, activity_type, target_id) row. The unique
@@ -67,10 +61,7 @@ export async function upsertUserActivity(params: {
   value: 0 | 1;
   action: string;
 }): Promise<boolean> {
-  const clientP = getServerClient();
-  if (!clientP) return false;
-  try {
-    const supabase = await clientP;
+  return withClient("upsertUserActivity", false, async (supabase) => {
     const { error } = await supabase.from("user_activity").upsert(
       {
         user_id: params.userId,
@@ -87,8 +78,5 @@ export async function upsertUserActivity(params: {
       return false;
     }
     return true;
-  } catch (err) {
-    console.error("[upsertUserActivity]", err);
-    return false;
-  }
+  }, "error");
 }

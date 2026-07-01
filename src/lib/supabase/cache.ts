@@ -1,4 +1,4 @@
-import { getServerClient } from "./client";
+import { withClient } from "./client";
 
 /**
  * Server-side cache layer for the legacy AI news summary endpoint
@@ -37,11 +37,7 @@ export async function getCachedResult(
   hours: number,
   maxArticles: number,
 ): Promise<CachedResponse | null> {
-  const clientP = getServerClient();
-  if (!clientP) return null;
-
-  try {
-    const supabase = await clientP;
+  return withClient("getCachedResult", null, async (supabase) => {
     const ttl = getCacheTtlMinutes(hours);
     const cutoff = new Date(Date.now() - ttl * 60_000).toISOString();
 
@@ -59,10 +55,7 @@ export async function getCachedResult(
 
     if (error || !data) return null;
     return (data as Record<string, unknown>).response as CachedResponse;
-  } catch (err) {
-    console.warn("[getCachedResult]", err);
-    return null;
-  }
+  });
 }
 
 export async function setCachedResult(
@@ -72,11 +65,7 @@ export async function setCachedResult(
   maxArticles: number,
   response: CachedResponse,
 ): Promise<void> {
-  const clientP = getServerClient();
-  if (!clientP) return;
-
-  try {
-    const supabase = await clientP;
+  return withClient("setCachedResult", undefined, async (supabase) => {
     await supabase.from("news_cache").insert({
       topic,
       lang,
@@ -84,22 +73,12 @@ export async function setCachedResult(
       max_articles: maxArticles,
       response: response as unknown,
     });
-  } catch (err) {
-    // Cache write failure is non-critical
-    console.warn("[setCachedResult]", err);
-  }
+  });
 }
 
 export async function cleanExpiredCache(): Promise<void> {
-  const clientP = getServerClient();
-  if (!clientP) return;
-
-  try {
-    const supabase = await clientP;
+  return withClient("cleanExpiredCache", undefined, async (supabase) => {
     const cutoff = new Date(Date.now() - 2 * 3_600_000).toISOString();
     await supabase.from("news_cache").delete().lt("created_at", cutoff);
-  } catch (err) {
-    // Cleanup failure is non-critical
-    console.warn("[cleanExpiredCache]", err);
-  }
+  });
 }

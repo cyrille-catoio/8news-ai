@@ -1,4 +1,4 @@
-import { getServerClient } from "./client";
+import { getServerClient, withClient } from "./client";
 import type { TopArticleRow } from "./stats";
 
 /**
@@ -34,11 +34,7 @@ export async function getScoredArticles(
   limit: number,
   until?: string,
 ): Promise<DbArticle[]> {
-  const clientP = getServerClient();
-  if (!clientP) return [];
-
-  try {
-    const supabase = await clientP;
+  return withClient("getScoredArticles", [], async (supabase) => {
     let query = supabase
       .from("articles")
       .select("id, topic, source, title, link, pub_date, fetched_at, content, snippet, snippet_ai_en, snippet_ai_fr, relevance_score")
@@ -53,10 +49,7 @@ export async function getScoredArticles(
 
     if (error || !data) return [];
     return data as DbArticle[];
-  } catch (err) {
-    console.warn("[getScoredArticles]", err);
-    return [];
-  }
+  });
 }
 
 /** Light row shape returned by `getScoredArticlesForTopics` — just what
@@ -117,11 +110,7 @@ export async function getAllArticlesFromDb(
   since: string,
   limit: number,
 ): Promise<DbArticle[]> {
-  const clientP = getServerClient();
-  if (!clientP) return [];
-
-  try {
-    const supabase = await clientP;
+  return withClient("getAllArticlesFromDb", [], async (supabase) => {
     const { data, error } = await supabase
       .from("articles")
       .select("id, topic, source, title, link, pub_date, content, snippet, snippet_ai_en, snippet_ai_fr, relevance_score")
@@ -133,10 +122,7 @@ export async function getAllArticlesFromDb(
 
     if (error || !data) return [];
     return data as DbArticle[];
-  } catch (err) {
-    console.warn("[getAllArticlesFromDb]", err);
-    return [];
-  }
+  });
 }
 
 export async function countArticlesForPeriod(
@@ -144,11 +130,7 @@ export async function countArticlesForPeriod(
   since: string,
   until?: string,
 ): Promise<{ total: number; scored: number }> {
-  const clientP = getServerClient();
-  if (!clientP) return { total: 0, scored: 0 };
-
-  try {
-    const supabase = await clientP;
+  return withClient("countArticlesForPeriod", { total: 0, scored: 0 }, async (supabase) => {
     let totalQ = supabase
       .from("articles")
       .select("id", { count: "exact", head: true })
@@ -169,10 +151,7 @@ export async function countArticlesForPeriod(
       total: totalRes.count ?? 0,
       scored: scoredRes.count ?? 0,
     };
-  } catch (err) {
-    console.warn("[countArticlesForPeriod]", err);
-    return { total: 0, scored: 0 };
-  }
+  });
 }
 
 /**
@@ -182,11 +161,7 @@ export async function countArticlesForPeriod(
 export async function getUserTopicPreferences(
   userId: string,
 ): Promise<string[] | null> {
-  const clientP = getServerClient();
-  if (!clientP) return null;
-
-  try {
-    const supabase = await clientP;
+  return withClient("getUserTopicPreferences", null as string[] | null, async (supabase) => {
     const { data, error } = await supabase
       .from("user_topic_preferences")
       .select("topic_ids")
@@ -204,10 +179,7 @@ export async function getUserTopicPreferences(
     if (!data) return null; // no row → onboarding not done yet → show all
     // Return the actual array: [] means "set but no filter" (onboarding done).
     return (data as { topic_ids: string[] }).topic_ids;
-  } catch (err) {
-    console.warn("[getUserTopicPreferences]", err);
-    return null;
-  }
+  });
 }
 
 /**
@@ -218,11 +190,7 @@ export async function setUserTopicPreferences(
   userId: string,
   topicIds: string[],
 ): Promise<boolean> {
-  const clientP = getServerClient();
-  if (!clientP) return false;
-
-  try {
-    const supabase = await clientP;
+  return withClient("setUserTopicPreferences", false, async (supabase) => {
     const { error } = await supabase
       .from("user_topic_preferences")
       .upsert(
@@ -235,10 +203,7 @@ export async function setUserTopicPreferences(
       return false;
     }
     return true;
-  } catch (err) {
-    console.error("[setUserTopicPreferences]", err);
-    return false;
-  }
+  }, "error");
 }
 
 export interface UserFavoriteRow {
@@ -253,10 +218,7 @@ export interface UserFavoriteRow {
 }
 
 export async function getUserFavorites(userId: string): Promise<UserFavoriteRow[]> {
-  const clientP = getServerClient();
-  if (!clientP) return [];
-  try {
-    const supabase = await clientP;
+  return withClient("getUserFavorites", [] as UserFavoriteRow[], async (supabase) => {
     const { data, error } = await supabase
       .from("user_favorites")
       .select("*")
@@ -264,37 +226,25 @@ export async function getUserFavorites(userId: string): Promise<UserFavoriteRow[
       .order("created_at", { ascending: false });
     if (error || !data) return [];
     return data as UserFavoriteRow[];
-  } catch (err) {
-    console.warn("[getUserFavorites]", err);
-    return [];
-  }
+  });
 }
 
 export async function getUserFavoriteUrls(userId: string): Promise<string[]> {
-  const clientP = getServerClient();
-  if (!clientP) return [];
-  try {
-    const supabase = await clientP;
+  return withClient("getUserFavoriteUrls", [] as string[], async (supabase) => {
     const { data, error } = await supabase
       .from("user_favorites")
       .select("article_url")
       .eq("user_id", userId);
     if (error || !data) return [];
     return (data as { article_url: string }[]).map((r) => r.article_url);
-  } catch (err) {
-    console.warn("[getUserFavoriteUrls]", err);
-    return [];
-  }
+  });
 }
 
 export async function addUserFavorite(
   userId: string,
   article: { url: string; title: string; source: string; pubDate?: string; sourceType?: string },
 ): Promise<boolean> {
-  const clientP = getServerClient();
-  if (!clientP) return false;
-  try {
-    const supabase = await clientP;
+  return withClient("addUserFavorite", false, async (supabase) => {
     const { error } = await supabase.from("user_favorites").upsert(
       {
         user_id: userId,
@@ -311,17 +261,11 @@ export async function addUserFavorite(
       return false;
     }
     return true;
-  } catch (err) {
-    console.error("[addUserFavorite]", err);
-    return false;
-  }
+  }, "error");
 }
 
 export async function removeUserFavorite(userId: string, articleUrl: string): Promise<boolean> {
-  const clientP = getServerClient();
-  if (!clientP) return false;
-  try {
-    const supabase = await clientP;
+  return withClient("removeUserFavorite", false, async (supabase) => {
     const { error } = await supabase
       .from("user_favorites")
       .delete()
@@ -332,10 +276,7 @@ export async function removeUserFavorite(userId: string, articleUrl: string): Pr
       return false;
     }
     return true;
-  } catch (err) {
-    console.error("[removeUserFavorite]", err);
-    return false;
-  }
+  }, "error");
 }
 
 /**
@@ -381,11 +322,7 @@ export async function getTopArticlesForTopics(
   days: number,
   limit = 50,
 ): Promise<TopArticleRow[]> {
-  const clientP = getServerClient();
-  if (!clientP) return [];
-
-  try {
-    const supabase = await clientP;
+  return withClient("getTopArticlesForTopics", [] as TopArticleRow[], async (supabase) => {
     const fullColumns =
       "title, link, source, topic, pub_date, relevance_score, score_reason, snippet, content, snippet_ai_en, snippet_ai_fr, image_url";
     const baseColumns =
@@ -419,8 +356,5 @@ export async function getTopArticlesForTopics(
         image_url: row.image_url ?? null,
       }),
     ) as TopArticleRow[];
-  } catch (err) {
-    console.warn("[getTopArticlesForTopics]", err);
-    return [];
-  }
+  });
 }

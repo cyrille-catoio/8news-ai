@@ -1,4 +1,4 @@
-import { getServerClient } from "./client";
+import { withClient } from "./client";
 import type { Lang } from "@/lib/i18n";
 
 /**
@@ -34,10 +34,7 @@ export async function getPodcastChatMessages(
   userId: string,
   summaryDate: string,
 ): Promise<PodcastChatMessageRow[]> {
-  const clientP = getServerClient();
-  if (!clientP) return [];
-  try {
-    const supabase = await clientP;
+  return withClient("getPodcastChatMessages", [], async (supabase) => {
     const { data, error } = await supabase
       .from("podcast_chat_messages")
       .select("role, content, created_at")
@@ -47,10 +44,7 @@ export async function getPodcastChatMessages(
       .order("id", { ascending: true });
     if (error || !data) return [];
     return data as PodcastChatMessageRow[];
-  } catch (err) {
-    console.warn("[getPodcastChatMessages]", err);
-    return [];
-  }
+  });
 }
 
 /** Appends one or more messages (typically the user question followed by
@@ -64,10 +58,7 @@ export async function insertPodcastChatMessages(
   rows: Array<{ role: PodcastChatRole; content: string }>,
 ): Promise<boolean> {
   if (rows.length === 0) return true;
-  const clientP = getServerClient();
-  if (!clientP) return false;
-  try {
-    const supabase = await clientP;
+  return withClient("insertPodcastChatMessages", false, async (supabase) => {
     const payload = rows.map((r) => ({
       user_id: userId,
       summary_date: summaryDate,
@@ -83,10 +74,7 @@ export async function insertPodcastChatMessages(
       return false;
     }
     return true;
-  } catch (err) {
-    console.error("[insertPodcastChatMessages]", err);
-    return false;
-  }
+  }, "error");
 }
 
 /** Clears the whole (user, podcast day) thread — drives the panel's
@@ -95,10 +83,7 @@ export async function deletePodcastChatMessages(
   userId: string,
   summaryDate: string,
 ): Promise<boolean> {
-  const clientP = getServerClient();
-  if (!clientP) return false;
-  try {
-    const supabase = await clientP;
+  return withClient("deletePodcastChatMessages", false, async (supabase) => {
     const { error } = await supabase
       .from("podcast_chat_messages")
       .delete()
@@ -109,8 +94,5 @@ export async function deletePodcastChatMessages(
       return false;
     }
     return true;
-  } catch (err) {
-    console.error("[deletePodcastChatMessages]", err);
-    return false;
-  }
+  }, "error");
 }

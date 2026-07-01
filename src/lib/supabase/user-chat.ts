@@ -1,4 +1,4 @@
-import { getServerClient } from "./client";
+import { withClient } from "./client";
 import type { Lang } from "@/lib/i18n";
 import type { UserChatMessage } from "@/lib/user-chat";
 
@@ -21,10 +21,7 @@ const SELECT_COLS = "id, user_id, display_name, content, lang, created_at";
 export async function getRecentUserChatMessages(
   limit = 50,
 ): Promise<UserChatMessage[]> {
-  const clientP = getServerClient();
-  if (!clientP) return [];
-  try {
-    const supabase = await clientP;
+  return withClient("getRecentUserChatMessages", [], async (supabase) => {
     const { data, error } = await supabase
       .from("user_chat_messages")
       .select(SELECT_COLS)
@@ -36,10 +33,7 @@ export async function getRecentUserChatMessages(
       return [];
     }
     return (data as UserChatMessage[]).slice().reverse();
-  } catch (err) {
-    console.warn("[getRecentUserChatMessages]", err);
-    return [];
-  }
+  });
 }
 
 /** Inserts a single community-chat message and returns the persisted row
@@ -52,10 +46,7 @@ export async function insertUserChatMessage(args: {
   content: string;
   lang: Lang;
 }): Promise<UserChatMessage | null> {
-  const clientP = getServerClient();
-  if (!clientP) return null;
-  try {
-    const supabase = await clientP;
+  return withClient("insertUserChatMessage", null, async (supabase) => {
     const { data, error } = await supabase
       .from("user_chat_messages")
       .insert({
@@ -74,20 +65,14 @@ export async function insertUserChatMessage(args: {
       return null;
     }
     return data as UserChatMessage;
-  } catch (err) {
-    console.error("[insertUserChatMessage]", err);
-    return null;
-  }
+  }, "error");
 }
 
 /** Owner-only moderation action: deletes a single community-chat message
  *  by id. The API route enforces `requireOwnerSession()` before calling
  *  this helper; the service role performs the actual delete. */
 export async function deleteUserChatMessage(messageId: number): Promise<boolean> {
-  const clientP = getServerClient();
-  if (!clientP) return false;
-  try {
-    const supabase = await clientP;
+  return withClient("deleteUserChatMessage", false, async (supabase) => {
     const { error } = await supabase
       .from("user_chat_messages")
       .delete()
@@ -97,8 +82,5 @@ export async function deleteUserChatMessage(messageId: number): Promise<boolean>
       return false;
     }
     return true;
-  } catch (err) {
-    console.error("[deleteUserChatMessage]", err);
-    return false;
-  }
+  }, "error");
 }

@@ -1,4 +1,4 @@
-import { getServerClient } from "./client";
+import { withClient } from "./client";
 
 /**
  * Read helper for the unified `/archives` hub (v2.7.0+).
@@ -94,12 +94,7 @@ export async function getArchives(opts: GetArchivesOptions): Promise<ArchivesPay
   const { from, to, lang, topicId, type = "all" } = opts;
   const empty: ArchivesPayload = { days: [], from, to, lang };
 
-  const clientP = getServerClient();
-  if (!clientP) return empty;
-
-  try {
-    const supabase = await clientP;
-
+  return withClient("getArchives", empty, async (supabase) => {
     const includeArticles = type === "all" || type === "articles";
     const includeVideos = type === "all" || type === "videos";
 
@@ -247,8 +242,5 @@ export async function getArchives(opts: GetArchivesOptions): Promise<ArchivesPay
       }));
 
     return { days, from, to, lang };
-  } catch (err) {
-    console.error("[getArchives] unexpected:", err);
-    return empty;
-  }
+  }, "error");
 }

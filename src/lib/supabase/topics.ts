@@ -1,4 +1,4 @@
-import { getServerClient } from "./client";
+import { getServerClient, withClient } from "./client";
 
 /**
  * Topics + feeds + categories CRUD. Used by:
@@ -54,29 +54,20 @@ export interface FeedRow {
 }
 
 export async function getCategories(): Promise<CategoryRow[]> {
-  const clientP = getServerClient();
-  if (!clientP) return [];
-  try {
-    const supabase = await clientP;
+  return withClient("getCategories", [] as CategoryRow[], async (supabase) => {
     const { data, error } = await supabase
       .from("categories")
       .select("id, slug, label_en, label_fr, sort_order")
       .order("sort_order", { ascending: true });
     if (error || !data) return [];
     return data as CategoryRow[];
-  } catch (err) {
-    console.warn("[getCategories]", err);
-    return [];
-  }
+  });
 }
 
 export async function createCategory(
   data: { slug: string; label_en: string; label_fr: string; sort_order: number },
 ): Promise<CategoryRow | null> {
-  const clientP = getServerClient();
-  if (!clientP) return null;
-  try {
-    const supabase = await clientP;
+  return withClient("createCategory", null, async (supabase) => {
     const { data: row, error } = await supabase
       .from("categories")
       .insert(data)
@@ -87,20 +78,14 @@ export async function createCategory(
       return null;
     }
     return row as CategoryRow;
-  } catch (err) {
-    console.error("[createCategory]", err);
-    return null;
-  }
+  }, "error");
 }
 
 export async function updateCategory(
   id: number,
   data: Partial<Omit<CategoryRow, "id">>,
 ): Promise<CategoryRow | null> {
-  const clientP = getServerClient();
-  if (!clientP) return null;
-  try {
-    const supabase = await clientP;
+  return withClient("updateCategory", null, async (supabase) => {
     const { data: row, error } = await supabase
       .from("categories")
       .update(data)
@@ -112,86 +97,68 @@ export async function updateCategory(
       return null;
     }
     return row as CategoryRow;
-  } catch (err) {
-    console.error("[updateCategory]", err);
-    return null;
-  }
+  }, "error");
 }
 
 export async function deleteCategory(id: number): Promise<boolean> {
-  const clientP = getServerClient();
-  if (!clientP) return false;
-  try {
-    const supabase = await clientP;
+  return withClient("deleteCategory", false, async (supabase) => {
     const { error } = await supabase.from("categories").delete().eq("id", id);
     if (error) {
       console.error("[deleteCategory] delete failed:", error.message);
       return false;
     }
     return true;
-  } catch (err) {
-    console.error("[deleteCategory]", err);
-    return false;
-  }
+  }, "error");
 }
 
 export async function getActiveTopics(includeInactive = false): Promise<
   (TopicRow & { feed_count: number; category_label_en?: string; category_label_fr?: string })[]
 > {
-  const clientP = getServerClient();
-  if (!clientP) return [];
+  return withClient(
+    "getActiveTopics",
+    [] as (TopicRow & { feed_count: number; category_label_en?: string; category_label_fr?: string })[],
+    async (supabase) => {
+      let query = supabase
+        .from("topics")
+        .select("*, categories(label_en, label_fr)")
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true });
 
-  try {
-    const supabase = await clientP;
-
-    let query = supabase
-      .from("topics")
-      .select("*, categories(label_en, label_fr)")
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true });
-
-    if (!includeInactive) {
-      query = query.eq("is_active", true).eq("is_displayed", true);
-    }
-
-    const { data: topics, error } = await query;
-
-    if (error || !topics) return [];
-
-    const { data: counts } = await supabase
-      .from("feeds")
-      .select("topic_id")
-      .eq("is_active", true);
-
-    const countMap = new Map<string, number>();
-    if (counts) {
-      for (const row of counts) {
-        countMap.set(row.topic_id, (countMap.get(row.topic_id) ?? 0) + 1);
+      if (!includeInactive) {
+        query = query.eq("is_active", true).eq("is_displayed", true);
       }
-    }
 
-    type TopicWithCat = TopicRow & { categories: { label_en: string; label_fr: string } | null };
-    return (topics as TopicWithCat[]).map(({ categories: cat, ...row }) => ({
-      ...row,
-      feed_count: countMap.get(row.id) ?? 0,
-      category_label_en: cat?.label_en,
-      category_label_fr: cat?.label_fr,
-    }));
-  } catch (err) {
-    console.warn("[getActiveTopics]", err);
-    return [];
-  }
+      const { data: topics, error } = await query;
+
+      if (error || !topics) return [];
+
+      const { data: counts } = await supabase
+        .from("feeds")
+        .select("topic_id")
+        .eq("is_active", true);
+
+      const countMap = new Map<string, number>();
+      if (counts) {
+        for (const row of counts) {
+          countMap.set(row.topic_id, (countMap.get(row.topic_id) ?? 0) + 1);
+        }
+      }
+
+      type TopicWithCat = TopicRow & { categories: { label_en: string; label_fr: string } | null };
+      return (topics as TopicWithCat[]).map(({ categories: cat, ...row }) => ({
+        ...row,
+        feed_count: countMap.get(row.id) ?? 0,
+        category_label_en: cat?.label_en,
+        category_label_fr: cat?.label_fr,
+      }));
+    },
+  );
 }
 
 export async function getTopicWithFeeds(
   id: string,
 ): Promise<(TopicRow & { feeds: FeedRow[] }) | null> {
-  const clientP = getServerClient();
-  if (!clientP) return null;
-
-  try {
-    const supabase = await clientP;
-
+  return withClient("getTopicWithFeeds", null, async (supabase) => {
     const { data: topic, error } = await supabase
       .from("topics")
       .select("*")
@@ -207,20 +174,13 @@ export async function getTopicWithFeeds(
       .order("created_at", { ascending: true });
 
     return { ...(topic as TopicRow), feeds: (feeds ?? []) as FeedRow[] };
-  } catch (err) {
-    console.warn("[getTopicWithFeeds]", err);
-    return null;
-  }
+  });
 }
 
 export async function createTopic(
   data: Omit<TopicRow, "is_active" | "is_displayed" | "last_fetched_at" | "last_scored_at" | "created_at">,
 ): Promise<TopicRow | null> {
-  const clientP = getServerClient();
-  if (!clientP) return null;
-
-  try {
-    const supabase = await clientP;
+  return withClient("createTopic", null, async (supabase) => {
     const { data: row, error } = await supabase
       .from("topics")
       .insert(data)
@@ -232,21 +192,14 @@ export async function createTopic(
       return null;
     }
     return row as TopicRow;
-  } catch (err) {
-    console.error("[createTopic]", err);
-    return null;
-  }
+  }, "error");
 }
 
 export async function updateTopic(
   id: string,
   data: Partial<Omit<TopicRow, "id" | "created_at">>,
 ): Promise<TopicRow | null> {
-  const clientP = getServerClient();
-  if (!clientP) return null;
-
-  try {
-    const supabase = await clientP;
+  return withClient("updateTopic", null, async (supabase) => {
     const { data: row, error } = await supabase
       .from("topics")
       .update(data)
@@ -259,10 +212,7 @@ export async function updateTopic(
       return null;
     }
     return row as TopicRow;
-  } catch (err) {
-    console.error("[updateTopic]", err);
-    return null;
-  }
+  }, "error");
 }
 
 /**
@@ -410,11 +360,7 @@ export async function createFeed(
   name: string,
   url: string,
 ): Promise<FeedRow | null> {
-  const clientP = getServerClient();
-  if (!clientP) return null;
-
-  try {
-    const supabase = await clientP;
+  return withClient("createFeed", null, async (supabase) => {
     const { data: row, error } = await supabase
       .from("feeds")
       .insert({ topic_id: topicId, name, url })
@@ -426,21 +372,14 @@ export async function createFeed(
       return null;
     }
     return row as FeedRow;
-  } catch (err) {
-    console.error("[createFeed]", err);
-    return null;
-  }
+  }, "error");
 }
 
 export async function updateFeed(
   feedId: number,
   data: Partial<Pick<FeedRow, "name" | "url" | "is_active">>,
 ): Promise<FeedRow | null> {
-  const clientP = getServerClient();
-  if (!clientP) return null;
-
-  try {
-    const supabase = await clientP;
+  return withClient("updateFeed", null, async (supabase) => {
     const { data: row, error } = await supabase
       .from("feeds")
       .update(data)
@@ -453,36 +392,22 @@ export async function updateFeed(
       return null;
     }
     return row as FeedRow;
-  } catch (err) {
-    console.error("[updateFeed]", err);
-    return null;
-  }
+  }, "error");
 }
 
 export async function deleteFeed(feedId: number): Promise<boolean> {
-  const clientP = getServerClient();
-  if (!clientP) return false;
-
-  try {
-    const supabase = await clientP;
+  return withClient("deleteFeed", false, async (supabase) => {
     const { error } = await supabase.from("feeds").delete().eq("id", feedId);
     if (error) {
       console.error("[deleteFeed] delete failed:", error.message);
       return false;
     }
     return true;
-  } catch (err) {
-    console.error("[deleteFeed]", err);
-    return false;
-  }
+  }, "error");
 }
 
 export async function getFeedById(feedId: number): Promise<FeedRow | null> {
-  const clientP = getServerClient();
-  if (!clientP) return null;
-
-  try {
-    const supabase = await clientP;
+  return withClient("getFeedById", null, async (supabase) => {
     const { data, error } = await supabase
       .from("feeds")
       .select("*")
@@ -491,21 +416,14 @@ export async function getFeedById(feedId: number): Promise<FeedRow | null> {
 
     if (error || !data) return null;
     return data as FeedRow;
-  } catch (err) {
-    console.warn("[getFeedById]", err);
-    return null;
-  }
+  });
 }
 
 export async function deleteArticlesByTopicAndSource(
   topicId: string,
   source: string,
 ): Promise<{ ok: boolean; deleted: number }> {
-  const clientP = getServerClient();
-  if (!clientP) return { ok: false, deleted: 0 };
-
-  try {
-    const supabase = await clientP;
+  return withClient("deleteArticlesByTopicAndSource", { ok: false, deleted: 0 }, async (supabase) => {
     const { data, error } = await supabase
       .from("articles")
       .delete()
@@ -518,18 +436,11 @@ export async function deleteArticlesByTopicAndSource(
       return { ok: false, deleted: 0 };
     }
     return { ok: true, deleted: data?.length ?? 0 };
-  } catch (err) {
-    console.error("[deleteArticlesByTopicAndSource]", err);
-    return { ok: false, deleted: 0 };
-  }
+  }, "error");
 }
 
 export async function getAllFeedsRows(): Promise<FeedRow[]> {
-  const clientP = getServerClient();
-  if (!clientP) return [];
-
-  try {
-    const supabase = await clientP;
+  return withClient("getAllFeedsRows", [] as FeedRow[], async (supabase) => {
     const { data, error } = await supabase
       .from("feeds")
       .select("*")
@@ -538,20 +449,13 @@ export async function getAllFeedsRows(): Promise<FeedRow[]> {
 
     if (error || !data) return [];
     return data as FeedRow[];
-  } catch (err) {
-    console.warn("[getAllFeedsRows]", err);
-    return [];
-  }
+  });
 }
 
 export async function getTopicPrompt(
   id: string,
 ): Promise<{ prompt_en: string; prompt_fr: string } | null> {
-  const clientP = getServerClient();
-  if (!clientP) return null;
-
-  try {
-    const supabase = await clientP;
+  return withClient("getTopicPrompt", null, async (supabase) => {
     const { data, error } = await supabase
       .from("topics")
       .select("prompt_en, prompt_fr")
@@ -561,19 +465,13 @@ export async function getTopicPrompt(
 
     if (error || !data) return null;
     return data as { prompt_en: string; prompt_fr: string };
-  } catch (err) {
-    console.warn("[getTopicPrompt]", err);
-    return null;
-  }
+  });
 }
 
 export async function getTopicById(
   id: string,
 ): Promise<{ id: string; label_en: string; label_fr: string; is_active: boolean } | null> {
-  const clientP = getServerClient();
-  if (!clientP) return null;
-  try {
-    const supabase = await clientP;
+  return withClient("getTopicById", null, async (supabase) => {
     const { data, error } = await supabase
       .from("topics")
       .select("id, label_en, label_fr, is_active")
@@ -581,25 +479,16 @@ export async function getTopicById(
       .single();
     if (error || !data) return null;
     return data as { id: string; label_en: string; label_fr: string; is_active: boolean };
-  } catch (err) {
-    console.warn("[getTopicById]", err);
-    return null;
-  }
+  });
 }
 
 export async function getActiveTopicIds(): Promise<string[]> {
-  const clientP = getServerClient();
-  if (!clientP) return [];
-  try {
-    const supabase = await clientP;
+  return withClient("getActiveTopicIds", [] as string[], async (supabase) => {
     const { data, error } = await supabase
       .from("topics")
       .select("id")
       .eq("is_active", true);
     if (error || !data) return [];
     return data.map((r) => r.id);
-  } catch (err) {
-    console.warn("[getActiveTopicIds]", err);
-    return [];
-  }
+  });
 }

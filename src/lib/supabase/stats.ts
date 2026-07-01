@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getServerClient } from "./client";
+import { withClient } from "./client";
 
 /**
  * Stats dashboard helpers — KPIs, ranking lists, and per-feed/per-topic
@@ -121,11 +121,7 @@ async function getGlobalKpisLegacy(supabase: SupabaseClient): Promise<GlobalKpis
 }
 
 export async function getGlobalKpis(): Promise<GlobalKpis> {
-  const clientP = getServerClient();
-  if (!clientP) return emptyGlobalKpis();
-
-  try {
-    const supabase = await clientP;
+  return withClient("getGlobalKpis", emptyGlobalKpis(), async (supabase) => {
     const { data, error } = await supabase.rpc("get_global_article_kpis");
     if (!error && data && typeof data === "object") {
       const row = data as GlobalArticleKpisRow;
@@ -142,10 +138,7 @@ export async function getGlobalKpis(): Promise<GlobalKpis> {
       console.error("[getGlobalKpis] RPC failed, using legacy counts:", error.message);
     }
     return await getGlobalKpisLegacy(supabase);
-  } catch (err) {
-    console.error("[getGlobalKpis] unexpected error:", err);
-    return emptyGlobalKpis();
-  }
+  }, "error");
 }
 
 /**
@@ -173,11 +166,7 @@ export interface StatsArticlesQuery {
 export async function getAllArticlesForStats(
   query: StatsArticlesQuery = {},
 ): Promise<StatsArticleRow[]> {
-  const clientP = getServerClient();
-  if (!clientP) return [];
-
-  try {
-    const supabase = await clientP;
+  return withClient("getAllArticlesForStats", [] as StatsArticleRow[], async (supabase) => {
     const PAGE_SIZE = 1000;
     const allRows: StatsArticleRow[] = [];
     let offset = 0;
@@ -209,10 +198,7 @@ export async function getAllArticlesForStats(
     }
 
     return allRows;
-  } catch (err) {
-    console.warn("[getAllArticlesForStats]", err);
-    return [];
-  }
+  });
 }
 
 export async function getTopArticlesForStats(
@@ -221,11 +207,7 @@ export async function getTopArticlesForStats(
   limit = 10,
   excludeTopics?: string[],
 ): Promise<TopArticleRow[]> {
-  const clientP = getServerClient();
-  if (!clientP) return [];
-
-  try {
-    const supabase = await clientP;
+  return withClient("getTopArticlesForStats", [] as TopArticleRow[], async (supabase) => {
     const fullColumns =
       "title, link, source, topic, pub_date, relevance_score, score_reason, snippet, content, snippet_ai_en, snippet_ai_fr, image_url";
     const baseColumns =
@@ -262,36 +244,22 @@ export async function getTopArticlesForStats(
         image_url: row.image_url ?? null,
       }),
     ) as TopArticleRow[];
-  } catch (err) {
-    console.warn("[getTopArticlesForStats]", err);
-    return [];
-  }
+  });
 }
 
 export async function getActiveFeedsForStats(): Promise<StatsFeedRow[]> {
-  const clientP = getServerClient();
-  if (!clientP) return [];
-
-  try {
-    const supabase = await clientP;
+  return withClient("getActiveFeedsForStats", [] as StatsFeedRow[], async (supabase) => {
     const { data, error } = await supabase
       .from("feeds")
       .select("topic_id, name, url")
       .eq("is_active", true);
     if (error || !data) return [];
     return data as StatsFeedRow[];
-  } catch (err) {
-    console.warn("[getActiveFeedsForStats]", err);
-    return [];
-  }
+  });
 }
 
 export async function getHiddenTopicIds(): Promise<string[]> {
-  const clientP = getServerClient();
-  if (!clientP) return [];
-
-  try {
-    const supabase = await clientP;
+  return withClient("getHiddenTopicIds", [] as string[], async (supabase) => {
     const { data, error } = await supabase
       .from("topics")
       .select("id")
@@ -299,8 +267,5 @@ export async function getHiddenTopicIds(): Promise<string[]> {
 
     if (error || !data) return [];
     return data.map((r) => r.id);
-  } catch (err) {
-    console.warn("[getHiddenTopicIds]", err);
-    return [];
-  }
+  });
 }

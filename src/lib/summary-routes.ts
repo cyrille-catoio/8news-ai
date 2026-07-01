@@ -30,13 +30,3 @@ export function summaryPath(parts: SummaryRouteParts): string {
 export function summaryAbsoluteUrl(parts: SummaryRouteParts): string {
   return `https://8news.ai${summaryPath(parts)}`;
 }
-
-export function legacySummaryPath(parts: Omit<SummaryRouteParts, "lang">): string {
-  const topic = parts.topic_id ?? parts.topicId;
-  const date = parts.summary_date ?? parts.date;
-  const slug = parts.slug_keywords ?? parts.slug;
-  if (!topic || !date || !slug) {
-    throw new Error("Missing legacy summary route parts");
-  }
-  return `/${topic}/${date}/${slug}`;
-}

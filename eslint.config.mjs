@@ -31,7 +31,6 @@ const eslintConfig = defineConfig([
     // Local/generated workspaces and Netlify build artifacts:
     ".claude/**",
     ".netlify/**",
-    "landing-source/assets/**",
   ]),
 ]);
 

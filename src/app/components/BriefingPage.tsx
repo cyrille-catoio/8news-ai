@@ -562,12 +562,6 @@ export function BriefingPage({
             </div>
           )}
 
-          {/* ─── Newsletter CTA (single placement, pinned right under the
-              daily podcast) — the component self-hides for owners and
-              already-subscribed users, so a single render covers
-              anonymous visitors + members. */}
-          <NewsletterSignupPrompt lang={lang} onRequestAuth={onRequestAuth} />
-
           {/* ─── 2 · TOP VIDEO · maintenant ───────────────────────────
               Kept at the top AND distinct from the Top story below
               (deliberate separation). */}
@@ -647,6 +641,12 @@ export function BriefingPage({
               )}
             </section>
           )}
+
+          {/* ─── Newsletter CTA — placed after the Top 5 so we ask for the
+              email only once the reader has seen the day's value (podcast,
+              top video, top story, top 5), not before. Self-hides for
+              owners and already-subscribed users. */}
+          <NewsletterSignupPrompt lang={lang} onRequestAuth={onRequestAuth} />
 
           {/* ─── 6 · Vos topics (personnalisé, remonté) ──────────────── */}
           {Object.keys(yourTopicArticles).length > 0 ? (

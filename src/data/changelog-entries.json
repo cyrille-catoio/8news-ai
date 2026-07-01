@@ -1,5 +1,13 @@
 [
   {
+    "version": "2.18.2",
+    "title_en": "v2.18.2: homogenized score display across home boxes",
+    "title_fr": "v2.18.2 : affichage du score homogénéisé entre les box de l'accueil",
+    "body_en": "**Consistent scoring on the home.** In the Daily Podcast box, the expand chevron moves to the LEFT of each row (replacing the • bullet), so the score becomes the right-most element — matching the Top 5, Your topics and video-list rows. The podcast score also drops the `ScoreMeter` mini-bar in favor of the same plain tier-colored « 9/10 » text (mono, green from 8/10, gold, orange, red) used by the other boxes, via `scoreTierColor` + `formatScore`. Every home box now presents the score identically, flush right.\n\n**Release.** Bump 2.18.1 → 2.18.2. No DB migration.",
+    "body_fr": "**Score cohérent sur l'accueil.** Dans la box Daily Podcast, le chevron d'expansion passe à GAUCHE de chaque ligne (à la place de la puce •), de sorte que le score devient l'élément le plus à droite — comme les lignes du Top 5, de Vos topics et de la liste vidéo. Le score du podcast abandonne aussi la mini-barre du `ScoreMeter` au profit du même texte « 9/10 » coloré par palier (mono, vert dès 8/10, or, orange, rouge) que les autres box, via `scoreTierColor` + `formatScore`. Toutes les box de l'accueil affichent désormais le score de façon identique, collé à droite.\n\n**Release.** Bump 2.18.1 → 2.18.2. Pas de migration DB.",
+    "created_at": "2026-07-01T18:34:00Z"
+  },
+  {
     "version": "2.18.1",
     "title_en": "v2.18.1: Daily Podcast footer rework, in-box CTAs, full-width anonymous briefing, compact archives + audio player",
     "title_fr": "v2.18.1 : refonte du footer du Daily Podcast, CTA dans les box, briefing pleine largeur pour invités, archives + lecteur audio compacts",

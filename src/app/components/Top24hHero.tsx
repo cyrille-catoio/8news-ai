@@ -3,7 +3,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { color, card, spinnerStyle } from "@/lib/theme";
 import { t, type Lang, dateLocale } from "@/lib/i18n";
-import { ScoreMeter } from "@/app/components/ScoreMeter";
+import { formatScore } from "@/lib/score-format";
+import { scoreTierColor } from "@/app/components/briefing/utils";
 import { Top24hAudio } from "@/app/components/Top24hAudio";
 import { trackEvent } from "@/lib/track";
 import { Chevron, DoubleChevron, RefIcon, YouTubeIcon } from "@/app/components/top24h/Top24hHeroIcons";
@@ -700,30 +701,39 @@ export function Top24hHero({
                       transition: "color 160ms ease",
                     }}
                   >
-                    <span style={{ color: color.gold, flexShrink: 0, fontSize: 18, lineHeight: 1 }}>•</span>
+                    {/* Chevron moved to the LEFT (replaces the • dot) so the
+                        score becomes the right-most element, matching the
+                        Top 5 / Your topics / video list rows (v2.19). */}
+                    <span style={{ color: open ? color.gold : color.textMuted, flexShrink: 0, display: "inline-flex" }}>
+                      <Chevron open={open} />
+                    </span>
                     <span style={{ flex: 1, minWidth: 0 }}>{g.title}</span>
                     {/* Editorial importance score 1-10 (mig. 026+).
                         Read off the first bullet of the group — every
                         bullet of a same-title run carries the same
                         value (propagated by `analyzeWithAI` flatten).
                         Hidden when the legacy column is missing or the
-                        LLM omitted the score. Replaces the previous
-                        paragraph-count badge in the same slot. */}
+                        LLM omitted the score. Plain tier-colored « 9/10 »
+                        text, homogeneous with the other home boxes. */}
                     {(() => {
                       const score = g.bullets[0]?.importanceScore;
                       if (typeof score !== "number") return null;
                       return (
                         <span
-                          style={{ flexShrink: 0, display: "inline-flex" }}
+                          style={{
+                            flexShrink: 0,
+                            fontFamily: "ui-monospace, Menlo, monospace",
+                            fontSize: 13,
+                            fontWeight: 700,
+                            letterSpacing: "0.02em",
+                            color: scoreTierColor(score),
+                          }}
                           aria-label={`Importance ${score}/10`}
                         >
-                          <ScoreMeter score={score} width={60} align="end" />
+                          {formatScore(score)}/10
                         </span>
                       );
                     })()}
-                    <span style={{ color: open ? color.gold : color.textMuted }}>
-                      <Chevron open={open} />
-                    </span>
                   </button>
                 ) : (
                   // Untitled fallback row — display the bullet text

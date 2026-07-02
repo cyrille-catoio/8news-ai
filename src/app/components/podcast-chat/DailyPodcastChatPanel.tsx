@@ -164,6 +164,13 @@ export function DailyPodcastChatPanel({
     if (open) scrollToBottom();
   }, [messages, open, scrollToBottom]);
 
+  // When the panel opens, move keyboard focus into the composer so the
+  // user can type immediately (e.g. after « Ask the AI » on the home).
+  useEffect(() => {
+    if (!open) return;
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, [open]);
+
   // Esc closes the panel.
   useEffect(() => {
     if (!open) return;

@@ -20,6 +20,7 @@ export function AudioPlayer({
   voice,
   context,
   contextId,
+  kicker,
 }: {
   text: string;
   lang: Lang;
@@ -27,6 +28,8 @@ export function AudioPlayer({
   voice: string;
   context?: string;
   contextId?: string;
+  /** Override the default « Audio player » kicker label. */
+  kicker?: string;
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -248,7 +251,7 @@ export function AudioPlayer({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 10, flexWrap: "wrap" }}>
-      <div style={kickerStyle}>{t("audioPlayerKicker", lang)}</div>
+      <div style={kickerStyle}>{kicker ?? t("audioPlayerKicker", lang)}</div>
       <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
         {state === "playing" ? (
           <button onClick={handlePause} style={{ ...btnBase, color: color.gold }}>

@@ -1,6 +1,6 @@
 "use client";
 
-import { dateLocale, type Lang } from "@/lib/i18n";
+import { dateLocale, t, type Lang } from "@/lib/i18n";
 import { AudioPlayer } from "@/app/components/AudioPlayer";
 import { TTS_TEXT_MAX_CHARS, ttsOutro, readTtsSpeed, readTtsVoice } from "@/lib/tts";
 
@@ -113,7 +113,15 @@ export function Top24hAudio({
 
   return (
     <div style={{ marginBottom: 16 }}>
-      <AudioPlayer text={ttsText} lang={lang} speed={speed} voice={voice} context="top24h_podcast" contextId={date} />
+      <AudioPlayer
+        text={ttsText}
+        lang={lang}
+        speed={speed}
+        voice={voice}
+        context="top24h_podcast"
+        contextId={date}
+        kicker={t("top24hAudioKicker", lang)}
+      />
     </div>
   );
 }

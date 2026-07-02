@@ -1,5 +1,13 @@
 [
   {
+    "version": "2.19",
+    "title_en": "v2.19: Daily Podcast polish — compact audio label, generation time, chat autofocus",
+    "title_fr": "v2.19 : polish Daily Podcast — label audio compact, heure de génération, autofocus chat",
+    "body_en": "**Daily Podcast header & audio ribbon.** On desktop the « Generated on … » stamp becomes a compact « Generated at {time} » line (time only, no date — the date is already the H2 title, no seconds). On mobile the stamp is hidden entirely to save header height. The audio ribbon kicker is shortened from « Audio player » to « Audio » on the home Daily Podcast only (`top24hAudioKicker` + optional `kicker` prop on `AudioPlayer`); every other surface keeps the full label.\n\n**Chat UX.** Opening the Daily Podcast chat panel (including via the « Ask the AI » button in the podcast footer) now auto-focuses the composer textarea so the keyboard cursor lands in the field immediately.\n\n**Release.** Bump 2.18.2 → 2.19.0. No DB migration.",
+    "body_fr": "**En-tête & ruban audio du Daily Podcast.** Sur desktop, la mention « Généré le … » devient une ligne compacte « Généré à {heure} » (heure seule, sans date — déjà dans le titre H2, sans secondes). Sur mobile, la ligne est masquée pour gagner de la hauteur. Le kicker du ruban audio passe de « Lecteur audio » à « Audio » sur le Daily Podcast de l'accueil uniquement (`top24hAudioKicker` + prop optionnelle `kicker` sur `AudioPlayer`) ; les autres surfaces gardent le libellé complet.\n\n**UX chat.** À l'ouverture du panneau Daily Podcast Chat (y compris via le bouton « Demander à l'IA » dans le footer du podcast), le focus clavier est placé dans le champ de saisie pour pouvoir taper tout de suite.\n\n**Release.** Bump 2.18.2 → 2.19.0. Pas de migration DB.",
+    "created_at": "2026-07-02T10:38:00Z"
+  },
+  {
     "version": "2.18.2",
     "title_en": "v2.18.2: homogenized score display across home boxes",
     "title_fr": "v2.18.2 : affichage du score homogénéisé entre les box de l'accueil",

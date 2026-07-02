@@ -305,15 +305,10 @@ body.podcast-chat-resizing .podcast-chat-resize::after {
     height: 14px;
   }
 
-  /* Phones: the H2 alone often eats the full row; force the timestamp
-     onto its own line below the title so neither overlaps the toggle. */
+  /* Phones: hide the « Generated at … » stamp entirely — the H2 date is
+     enough context and the extra line cost header height (v2.18.2+). */
   .top24h-hero-generated {
-    flex-basis: 100%;
-    font-size: 11px;
-    text-align: left;
-    align-self: flex-start;
-    margin-top: 2px;
-    order: 2;
+    display: none;
   }
 
   /* Bumps the body paragraph size from desktop's 16px (set inline in

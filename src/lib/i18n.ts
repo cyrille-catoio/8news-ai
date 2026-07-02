@@ -1094,9 +1094,9 @@ const strings = {
     en: "Top 24h",
     fr: "Top 24h",
   },
-  topSummaryGeneratedOn: {
-    en: "Generated on {date}",
-    fr: "Généré le {date}",
+  topSummaryGeneratedAt: {
+    en: "Generated at {time}",
+    fr: "Généré à {time}",
   },
   /** Empty-state copy for `/top-articles` when the live « top 50 /
    *  24 h » feed returns zero rows. Rare in steady state — most often
@@ -1113,6 +1113,11 @@ const strings = {
   audioPlayerKicker: {
     en: "Audio player",
     fr: "Lecteur audio",
+  },
+  /** Short kicker for the home Daily Podcast ribbon only. */
+  top24hAudioKicker: {
+    en: "Audio",
+    fr: "Audio",
   },
   /**
    * Default title rendered by the base `<Top24hHero>` component AND

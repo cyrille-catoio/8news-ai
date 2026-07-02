@@ -550,21 +550,22 @@ export function Top24hHero({
           >
             {headingTitle}
           </h2>
-            {/* « Généré le … » timestamp inlined into the heading row
-                (v2.12.1+) — used to sit on its own line below the H2,
-                which cost ~18 px of vertical space on every render.
-                Now sits to the left of the expand/collapse toggle so
-                the card opens with a tighter header. On phones the
-                CSS forces it back to its own line so neither the H2
-                nor the toggle get crammed. */}
+            {/* « Généré à … » timestamp inlined into the heading row
+                (v2.12.1+) — sits to the left of the expand/collapse
+                toggle so the card opens with a tighter header. v2.18.2+
+                time-only (no date, no seconds) since the date is already
+                the H2 title; hidden entirely on phones via CSS. */}
             {!isRead && (
               <div
                 className="top24h-hero-generated"
                 style={{ color: color.textDim, fontSize: 12, letterSpacing: "0.02em" }}
               >
-                {t("topSummaryGeneratedOn", lang).replace(
-                  "{date}",
-                  new Date(snap.generatedAt).toLocaleString(locale),
+                {t("topSummaryGeneratedAt", lang).replace(
+                  "{time}",
+                  new Date(snap.generatedAt).toLocaleTimeString(locale, {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }),
                 )}
               </div>
             )}

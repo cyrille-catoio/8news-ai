@@ -62,6 +62,31 @@ export function DoubleChevron({ open }: { open: boolean }) {
   );
 }
 
+/** Four-corner « expand » glyph for the fullscreen-reader button in
+ *  the hero heading row (v2.19+). Same stroke register as the
+ *  chevrons so the two header buttons read as one family. */
+export function FullscreenIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.25"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ flexShrink: 0 }}
+      aria-hidden
+    >
+      <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+      <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+      <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+      <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+    </svg>
+  );
+}
+
 /** External-link glyph rendered next to each ref in a bullet's source
  *  list. Low opacity by design — the visual weight should stay on the
  *  source name itself, not on the icon. */

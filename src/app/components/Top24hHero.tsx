@@ -7,7 +7,8 @@ import { formatScore } from "@/lib/score-format";
 import { scoreTierColor } from "@/app/components/briefing/utils";
 import { Top24hAudio } from "@/app/components/Top24hAudio";
 import { trackEvent } from "@/lib/track";
-import { Chevron, DoubleChevron, RefIcon, YouTubeIcon } from "@/app/components/top24h/Top24hHeroIcons";
+import { Chevron, DoubleChevron, FullscreenIcon, RefIcon, YouTubeIcon } from "@/app/components/top24h/Top24hHeroIcons";
+import { PodcastReader } from "@/app/components/top24h/PodcastReader";
 import {
   groupBullets,
   countGroups,
@@ -78,6 +79,7 @@ export function Top24hHero({
   kickerLabel,
   hideTitlePrefix = false,
   readReady = true,
+  showReaderButton = false,
 }: {
   lang: Lang;
   /** Controlled « read » state of the hero. When `onToggleRead` is
@@ -146,6 +148,13 @@ export function Top24hHero({
    *  per-user « Lu » DB-backed state, so the checkbox + collapse mirror
    *  the date currently on screen rather than always today's. */
   onSnapshotChange?: (snapshot: Snapshot) => void;
+  /** Home-only (v2.19+): renders a fullscreen-reader button in the
+   *  heading row (next to the expand/collapse toggle) that opens the
+   *  immersive `PodcastReader` — one news per screen, large type,
+   *  TikTok-style vertical swipe on phones. Follows the snapshot on
+   *  screen, so history navigation opens the reader on that older
+   *  podcast too. */
+  showReaderButton?: boolean;
 }) {
   const isSelfFetched = externalData === undefined;
   // Stale-while-revalidate: hydrate from the persisted cache synchronously
@@ -192,6 +201,13 @@ export function Top24hHero({
   // overwritten because neither dep below changes on click.
   const groupCount = snap ? countGroups(snap.bullets) : 0;
   const [openIdx, setOpenIdx] = useState<Set<number>>(new Set());
+  /** Fullscreen immersive reader (v2.19+, `showReaderButton` consumers
+   *  only). Closed on every snapshot change so history navigation
+   *  never leaves a stale day's reader on screen. */
+  const [readerOpen, setReaderOpen] = useState(false);
+  useEffect(() => {
+    setReaderOpen(false);
+  }, [snap?.summaryDate]);
   useEffect(() => {
     setOpenIdx(
       defaultOpen
@@ -569,6 +585,79 @@ export function Top24hHero({
                 )}
               </div>
             )}
+            {/* Fullscreen reader button (v2.19+, home only via
+                `showReaderButton`). Sits immediately left of the master
+                toggle with the same chrome so the header buttons read
+                as one interaction family. Opens the immersive
+                one-news-per-screen `PodcastReader` on the snapshot
+                currently displayed. */}
+            {/* « Ask the AI » — moved from the card footer into the
+                heading row (next to « Plein écran ») so the two podcast
+                actions sit together at the top. Same gold pill. */}
+            {onOpenChat && !isRead && (
+              <button
+                type="button"
+                className="top24h-hero-reader-btn"
+                onClick={onOpenChat}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  border: `1px solid ${color.gold}`,
+                  background: "rgba(201,162,39,0.10)",
+                  color: color.gold,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  padding: "6px 14px",
+                  borderRadius: 999,
+                  letterSpacing: "0.01em",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {t("homeAskAiButton", lang)}
+              </button>
+            )}
+            {showReaderButton && !isRead && (
+              <button
+                type="button"
+                className="top24h-hero-reader-btn"
+                onClick={() => {
+                  trackEvent("top24h.reader_open", {
+                    lang,
+                    meta: { summaryDate: snap.summaryDate, groupCount: groups.length },
+                  });
+                  setReaderOpen(true);
+                }}
+                aria-label={t("top24hReaderOpen", lang)}
+                title={t("top24hReaderOpen", lang)}
+                // Same gold pill register as the « Ask the AI » button
+                // beside it — the two podcast affordances read as one
+                // family.
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  border: `1px solid ${color.gold}`,
+                  background: "rgba(201,162,39,0.10)",
+                  color: color.gold,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  padding: "6px 14px",
+                  borderRadius: 999,
+                  letterSpacing: "0.01em",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <FullscreenIcon />
+                <span>{t("top24hReaderButtonLabel", lang)}</span>
+              </button>
+            )}
             {/* Master toggle. `allOpen` reflects « every group is
                 expanded »; clicking flips the whole set in one
                 update. Title attribute doubles as a tooltip for the
@@ -853,50 +942,21 @@ export function Top24hHero({
         </ul>
         </div>
 
-        {/* Bottom action row: « Ask the AI » button on the left (when the
-            parent passes `onOpenChat`) and the « Lue / Read » checkbox on
-            the right (when the parent passes `onToggleRead`). The former
-            « See all articles → » link was removed in v2.19. Rendered as a
-            single flex row that gracefully collapses when only one
-            affordance is present, keeping spacing balanced. */}
-        {!isRead && (onOpenChat || onToggleRead) && (
+        {/* Bottom action row: the « Lue / Read » checkbox, right-aligned
+            (when the parent passes `onToggleRead`). The « Ask the AI »
+            button moved up into the heading row next to « Plein écran »;
+            the former « See all articles → » link was removed in v2.19. */}
+        {!isRead && onToggleRead && (
           <div
             style={{
               marginTop: 14,
               display: "flex",
               alignItems: "center",
-              justifyContent: "space-between",
+              justifyContent: "flex-end",
               gap: 12,
               flexWrap: "wrap",
             }}
           >
-            {onOpenChat ? (
-              <button
-                type="button"
-                onClick={onOpenChat}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  border: `1px solid ${color.gold}`,
-                  background: "rgba(201,162,39,0.10)",
-                  color: color.gold,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  padding: "6px 14px",
-                  borderRadius: 999,
-                  letterSpacing: "0.01em",
-                }}
-              >
-                {t("homeAskAiButton", lang)}
-              </button>
-            ) : (
-              // Keeps the checkbox right-aligned when no chat button is
-              // present (space-between semantics intact).
-              <span />
-            )}
             {onToggleRead && (
               <label
                 style={{
@@ -932,6 +992,23 @@ export function Top24hHero({
           </div>
         )}
       </div>
+
+      {/* Immersive fullscreen reader (v2.19+). Mounted on demand so its
+          audio player never competes with the card's own while closed. */}
+      {readerOpen && (
+        <PodcastReader
+          bullets={snap.bullets}
+          lang={lang}
+          summaryDate={snap.summaryDate}
+          onClose={() => {
+            trackEvent("top24h.reader_close", {
+              lang,
+              meta: { summaryDate: snap.summaryDate },
+            });
+            setReaderOpen(false);
+          }}
+        />
+      )}
     </section>
   );
 }

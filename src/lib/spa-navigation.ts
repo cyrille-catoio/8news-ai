@@ -26,6 +26,7 @@ import { trackEvent } from "@/lib/track";
 export const PAGE_PATHS: Record<AppNavPage, string> = {
   briefing: "/app",
   videos: "/app/videos",
+  shorts: "/app/shorts",
   channels: "/app/channels",
   home: "/app/articles",
   stats: "/app/stats",

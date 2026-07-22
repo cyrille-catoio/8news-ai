@@ -50,6 +50,46 @@ const activeStyle: CSSProperties = {
   color: "#000",
 };
 
+/** Public general-menu slots shared by SPA + SSR chrome. Keeping one
+ *  ordered list is what stops the two surfaces from drifting (e.g. the
+ *  missing « Chaînes YT » pill on SEO article pages). */
+type GeneralMenuItemId =
+  | "briefing"
+  | "home"
+  | "videos"
+  | "shorts"
+  | "channels"
+  | "cryptoChart"
+  | "summaries"
+  | "favorites";
+
+type GeneralMenuItem = {
+  id: GeneralMenuItemId;
+  labelKey:
+    | "briefingBtn"
+    | "generalMenuArticlesBtn"
+    | "videosBtn"
+    | "shortsBtn"
+    | "channelsBtn"
+    | "cryptoMenuBtn"
+    | "dailySummaryBtn"
+    | "myFavoritesBtn";
+  /** Default href used by the SSR menu (and by SPA for non-special items). */
+  href: string;
+};
+
+const GENERAL_MENU_ITEMS: readonly GeneralMenuItem[] = [
+  { id: "briefing", labelKey: "briefingBtn", href: "/app" },
+  { id: "home", labelKey: "generalMenuArticlesBtn", href: "/app/articles" },
+  { id: "videos", labelKey: "videosBtn", href: "/app/videos" },
+  { id: "shorts", labelKey: "shortsBtn", href: "/app/shorts" },
+  { id: "channels", labelKey: "channelsBtn", href: "/app/channels" },
+  { id: "cryptoChart", labelKey: "cryptoMenuBtn", href: "/app/crypto-chart?coin=bitcoin&symbol=btc" },
+  // Archives: SSR points at the public hub; SPA navigates in-app via callback.
+  { id: "summaries", labelKey: "dailySummaryBtn", href: "/archives" },
+  { id: "favorites", labelKey: "myFavoritesBtn", href: "/app/favorites" },
+];
+
 /* ── SPA version (used in page.tsx) ────────────────────────────────── */
 
 export function GeneralMenu({
@@ -62,6 +102,7 @@ export function GeneralMenu({
   onNavigateCrypto,
   onNavigateSummaries,
   onNavigateVideos,
+  onNavigateShorts,
   onNavigateChannels,
   onRequestAuth,
 }: {
@@ -74,87 +115,39 @@ export function GeneralMenu({
   onNavigateCrypto: () => void;
   onNavigateSummaries: () => void;
   onNavigateVideos: () => void;
+  onNavigateShorts: () => void;
   onNavigateChannels: () => void;
   onRequestAuth?: () => void;
 }) {
+  const navigateById: Record<GeneralMenuItemId, () => void> = {
+    briefing: onNavigateBriefing,
+    home: onNavigateHome,
+    videos: onNavigateVideos,
+    shorts: onNavigateShorts,
+    channels: onNavigateChannels,
+    cryptoChart: onNavigateCrypto,
+    summaries: onNavigateSummaries,
+    favorites: () => {
+      if (isAuthenticated) onNavigateFavorites();
+      else onRequestAuth?.();
+    },
+  };
+
   return (
     <div style={barWrap}>
-      <button
-        type="button"
-        onClick={() => {
-          trackEvent("nav.menu", { target_id: "briefing", lang });
-          onNavigateBriefing();
-        }}
-        style={currentPage === "briefing" ? activeStyle : base}
-      >
-        {t("briefingBtn", lang)}
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          trackEvent("nav.menu", { target_id: "home", lang });
-          onNavigateHome();
-        }}
-        style={currentPage === "home" ? activeStyle : base}
-      >
-        {t("generalMenuArticlesBtn", lang)}
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          trackEvent("nav.menu", { target_id: "videos", lang });
-          onNavigateVideos();
-        }}
-        style={currentPage === "videos" ? activeStyle : base}
-      >
-        {t("videosBtn", lang)}
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          trackEvent("nav.menu", { target_id: "channels", lang });
-          onNavigateChannels();
-        }}
-        style={currentPage === "channels" ? activeStyle : base}
-      >
-        {t("channelsBtn", lang)}
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          trackEvent("nav.menu", { target_id: "cryptoChart", lang });
-          onNavigateCrypto();
-        }}
-        style={currentPage === "cryptoChart" ? activeStyle : base}
-      >
-        {t("cryptoMenuBtn", lang)}
-      </button>
-      {/* « Archives » pill (v2.7.0+) — points at the unified /archives
-          hub (SPA route /app/archives). Replaces the previous separate
-          « Récaps vidéo » pill that pointed at /briefings — that route
-          308-redirects here with `?type=videos` so the bookmark still
-          works without burning a nav slot. */}
-      <button
-        type="button"
-        onClick={() => {
-          trackEvent("nav.menu", { target_id: "summaries", lang });
-          onNavigateSummaries();
-        }}
-        style={currentPage === "summaries" ? activeStyle : base}
-      >
-        {t("dailySummaryBtn", lang)}
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          trackEvent("nav.menu", { target_id: "favorites", lang });
-          if (isAuthenticated) onNavigateFavorites();
-          else onRequestAuth?.();
-        }}
-        style={currentPage === "favorites" ? activeStyle : base}
-      >
-        {t("myFavoritesBtn", lang)}
-      </button>
+      {GENERAL_MENU_ITEMS.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          onClick={() => {
+            trackEvent("nav.menu", { target_id: item.id, lang });
+            navigateById[item.id]();
+          }}
+          style={currentPage === item.id ? activeStyle : base}
+        >
+          {t(item.labelKey, lang)}
+        </button>
+      ))}
     </div>
   );
 }
@@ -166,32 +159,24 @@ export function SeoGeneralMenu({
   activePage,
 }: {
   lang: Lang;
-  /** `videoBriefings` kept as an alias of `summaries` so the (now-redirected) /briefings legacy callers don't fail typecheck — both surface the unified Archives pill since v2.7.0. */
-  activePage?: "briefing" | "home" | "favorites" | "topArticles" | "summaries" | "videos" | "videoBriefings";
+  /** `videoBriefings` kept as an alias of `summaries` so the (now-redirected) /briefings legacy callers don't fail typecheck — both surface the unified Archives pill since v2.7.0.
+   *  `topArticles` is accepted for call-site compatibility but has no dedicated pill. */
+  activePage?: GeneralMenuItemId | "topArticles" | "videoBriefings";
 }) {
+  const resolvedActive: GeneralMenuItemId | undefined =
+    activePage === "videoBriefings" ? "summaries" : activePage === "topArticles" ? undefined : activePage;
+
   return (
     <div style={barWrap}>
-      <Link href="/app" style={activePage === "briefing" ? activeStyle : base}>
-        {t("briefingBtn", lang)}
-      </Link>
-      <Link href="/app/articles" style={activePage === "home" ? activeStyle : base}>
-        {t("generalMenuArticlesBtn", lang)}
-      </Link>
-      <Link href="/app/videos" style={activePage === "videos" ? activeStyle : base}>
-        {t("videosBtn", lang)}
-      </Link>
-      <Link href="/app/crypto-chart?coin=bitcoin&symbol=btc" style={base}>
-        {t("cryptoMenuBtn", lang)}
-      </Link>
-      {/* « Archives » SSR link (v2.7.0+) — points at the unified
-          /archives hub. The previous /summaries route 308-redirects
-          here, and /briefings → /archives?type=videos. */}
-      <Link href="/archives" style={activePage === "summaries" ? activeStyle : base}>
-        {t("dailySummaryBtn", lang)}
-      </Link>
-      <Link href="/app/favorites" style={activePage === "favorites" ? activeStyle : base}>
-        {t("myFavoritesBtn", lang)}
-      </Link>
+      {GENERAL_MENU_ITEMS.map((item) => (
+        <Link
+          key={item.id}
+          href={item.href}
+          style={resolvedActive === item.id ? activeStyle : base}
+        >
+          {t(item.labelKey, lang)}
+        </Link>
+      ))}
     </div>
   );
 }

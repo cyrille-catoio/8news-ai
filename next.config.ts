@@ -8,6 +8,7 @@ const SPA_ROUTES = [
   "/app",
   "/app/articles",
   "/app/videos",
+  "/app/shorts",
   "/app/channels",
   "/app/stats",
   "/app/crons",

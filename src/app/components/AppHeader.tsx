@@ -31,6 +31,8 @@ export type AppNavPage =
   | "favorites"
   | "dailySummaries"
   | "videos"
+  /** v2.20+ — fullscreen TikTok-style Shorts feed (`ShortsPage.tsx`). */
+  | "shorts"
   | "youtubeChannels"
   | "channels"
   | "users"

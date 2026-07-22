@@ -4,7 +4,12 @@ import {
   stripMarkdownInline,
   selectTopArticleBullets,
   parseTopSummaryLangsParam,
+  generateTopSummaryPrompt,
+  buildBulletTranslationPayload,
+  applyBulletTranslations,
+  renderBulletsMarkdown,
 } from "../generate-top-summary";
+import type { SummaryBullet } from "../types";
 
 describe("parseTopSummaryLangsParam", () => {
   it("defaults to both langs when the param is absent or empty", () => {
@@ -183,5 +188,99 @@ describe("selectTopArticleBullets", () => {
 
   it("returns [] on zero or negative budget", () => {
     expect(selectTopArticleBullets([mk("a", "A", 9)], 0)).toEqual([]);
+  });
+});
+
+describe("generateTopSummaryPrompt", () => {
+  it("no longer asks for the unused `relevant` array (pure token waste)", () => {
+    expect(generateTopSummaryPrompt("en")).not.toContain('"relevant"');
+    expect(generateTopSummaryPrompt("fr")).not.toContain('"relevant"');
+  });
+
+  it("still asks for the grouped globalSummary schema with importance", () => {
+    for (const lang of ["en", "fr"] as const) {
+      const p = generateTopSummaryPrompt(lang);
+      expect(p).toContain('"globalSummary"');
+      expect(p).toContain('"importance"');
+    }
+  });
+});
+
+const REF = { title: "Ref", link: "https://x.test/a", source: "Src" };
+const sb = (
+  text: string,
+  title: string | null,
+  importance: number | null = null,
+): SummaryBullet => ({ text, title, importance, refs: [REF] });
+
+describe("buildBulletTranslationPayload", () => {
+  it("collects unique titles in first-appearance order and one text per bullet", () => {
+    const bullets = [
+      sb("a1", "Nvidia"),
+      sb("a2", "Nvidia"),
+      sb("b", "OpenAI"),
+      sb("c", null),
+    ];
+    expect(buildBulletTranslationPayload(bullets)).toEqual({
+      titles: ["Nvidia", "OpenAI"],
+      texts: ["a1", "a2", "b", "c"],
+    });
+  });
+});
+
+describe("applyBulletTranslations", () => {
+  const bullets = [sb("a1", "Nvidia", 9), sb("a2", "Nvidia", 9), sb("b", "OpenAI", 7)];
+
+  it("swaps titles and texts while preserving refs and importance", () => {
+    const out = applyBulletTranslations(bullets, {
+      titles: ["Nvidia FR", "OpenAI FR"],
+      texts: ["a1 fr", "a2 fr", "b fr"],
+    });
+    expect(out).not.toBeNull();
+    expect(out!.map((b) => b.text)).toEqual(["a1 fr", "a2 fr", "b fr"]);
+    // Same-title runs stay identical so the UI folding is preserved.
+    expect(out!.map((b) => b.title)).toEqual(["Nvidia FR", "Nvidia FR", "OpenAI FR"]);
+    expect(out!.map((b) => b.importance)).toEqual([9, 9, 7]);
+    expect(out!.every((b) => b.refs[0].link === REF.link)).toBe(true);
+  });
+
+  it("keeps untitled bullets untitled", () => {
+    const out = applyBulletTranslations([sb("x", null)], { titles: [], texts: ["x fr"] });
+    expect(out).not.toBeNull();
+    expect(out![0].title).toBeNull();
+  });
+
+  it("rejects length mismatches (caller falls back to native generation)", () => {
+    expect(
+      applyBulletTranslations(bullets, { titles: ["only one"], texts: ["a", "b", "c"] }),
+    ).toBeNull();
+    expect(
+      applyBulletTranslations(bullets, { titles: ["T1", "T2"], texts: ["a", "b"] }),
+    ).toBeNull();
+  });
+
+  it("rejects missing arrays and empty strings", () => {
+    expect(applyBulletTranslations(bullets, {})).toBeNull();
+    expect(
+      applyBulletTranslations(bullets, { titles: ["T1", "T2"], texts: ["a", "", "c"] }),
+    ).toBeNull();
+    expect(
+      applyBulletTranslations(bullets, { titles: ["T1", "  "], texts: ["a", "b", "c"] }),
+    ).toBeNull();
+  });
+});
+
+describe("renderBulletsMarkdown", () => {
+  it("prints each group title once in bold, then its bullets", () => {
+    const md = renderBulletsMarkdown([
+      sb("a1", "Nvidia"),
+      sb("a2", "Nvidia"),
+      sb("b", "OpenAI"),
+    ]);
+    expect(md).toBe("**Nvidia**\n• a1\n• a2\n\n**OpenAI**\n• b");
+  });
+
+  it("renders untitled bullets without a heading", () => {
+    expect(renderBulletsMarkdown([sb("solo", null)])).toBe("• solo");
   });
 });

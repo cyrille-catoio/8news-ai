@@ -30,6 +30,10 @@ export const OPENAI_MODELS = {
   videoRoundup: "gpt-5.3-chat-latest",
   /** Daily Top-50 snapshot ("podcast du jour") — `generate-top-summary`. */
   topSummary: "gpt-5.5",
+  /** FR edition of the Daily Podcast = translation of the EN pivot
+   *  briefing (structure/scores/refs preserved) — `generate-top-summary`.
+   *  Much cheaper than a second gpt-5.5 editorial pass. */
+  topSummaryTranslate: "gpt-4.1-mini",
   /** Daily Podcast chat — `/api/podcast-chat`. */
   podcastChat: process.env.PODCAST_CHAT_MODEL?.trim() || "gpt-5.5",
   /** Live on-demand article analysis — `/api/news`. */

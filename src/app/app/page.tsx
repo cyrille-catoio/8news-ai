@@ -40,6 +40,7 @@ import { FavoritesPage } from "@/app/components/FavoritesPage";
 import { DailySummariesPage } from "@/app/components/DailySummariesPage";
 import { ArchivesBrowsePage } from "@/app/components/ArchivesBrowsePage";
 import { VideosPage } from "@/app/components/VideosPage";
+import { ShortsPage } from "@/app/components/ShortsPage";
 import { YouTubeChannelsPage } from "@/app/components/YouTubeChannelsPage";
 import { BriefingPage } from "@/app/components/BriefingPage";
 import { ChannelsPage } from "@/app/components/ChannelsPage";
@@ -55,7 +56,7 @@ import { CryptoChartPage, type CryptoChartTarget } from "@/app/components/Crypto
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.19.1";
+const APP_VERSION = "2.20";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 // Daily Podcast chat panel width bounds (desktop). The panel is
@@ -696,6 +697,7 @@ export default function Home() {
           }}
           onNavigateSummaries={() => setCurrentPage("summaries")}
           onNavigateVideos={() => setCurrentPage("videos")}
+          onNavigateShorts={() => setCurrentPage("shorts")}
           onNavigateChannels={() => setCurrentPage("channels")}
           onRequestAuth={() => setAuthModalOpen(true)}
         />
@@ -783,6 +785,16 @@ export default function Home() {
             onToggleFavorite={toggleFavorite}
             isAuthenticated={isAuthenticated}
             onRequestAuth={() => setAuthModalOpen(true)}
+          />
+        ) : currentPage === "shorts" ? (
+          <ShortsPage
+            lang={lang}
+            favoriteUrls={favoriteUrls}
+            onToggleFavorite={toggleFavorite}
+            isAuthenticated={isAuthenticated}
+            onRequestAuth={() => setAuthModalOpen(true)}
+            onClose={() => setCurrentPage("briefing")}
+            suspendShortcuts={authModalOpen}
           />
         ) : currentPage === "channels" ? (
           <ChannelsPage lang={lang} />

@@ -16,7 +16,9 @@
  *  2. Build the `ArticleSummary[]` payload + the editorial prompt
  *     (FR or EN).
  *  3. Call `analyzeWithAI` with `gpt-5.5` — returns bullets each
- *     carrying { title, text, refs }.
+ *     carrying { title, text, refs }. v2.19+: when the caller passes
+ *     the EN edition's bullets (`pivotBullets`), the FR edition is a
+ *     cheap TRANSLATION of them instead (identical groups/scores).
  *  4. Persist a frozen snapshot of the input articles + the rendered
  *     `summary_md` into `top_summaries` (one row per (date, lang)).
  *  5. Mirror per-bullet detail into `summary_bullets`
@@ -29,6 +31,7 @@
  * intra-day re-ticks safe.
  */
 
+import OpenAI from "openai";
 import { analyzeWithAI } from "./ai-analyze";
 import {
   getHiddenTopicIds,
@@ -40,7 +43,7 @@ import {
   type TopVideoForDateRow,
 } from "./supabase";
 import type { Lang } from "./i18n";
-import type { ArticleSummary } from "./types";
+import type { ArticleSummary, SummaryBullet } from "./types";
 import { SNIPPET_MAX } from "./constants";
 import { previousUtcDay } from "./dates-utc";
 import { OPENAI_MODELS } from "./openai-models";
@@ -126,7 +129,7 @@ export function generateTopSummaryPrompt(lang: Lang): string {
       "    - 1-2: anecdotique (rumeur, content marketing, top-list, contenu promotionnel)",
       "    Le score reflète l'importance d'aujourd'hui pour un lecteur tech professionnel. Sois exigeant : ne donne 9-10 que si l'événement est vraiment marquant à l'échelle de l'industrie.",
       "",
-      "Réponds en JSON : {\"relevant\":[{\"index\":0,\"snippet\":\"résumé court\"}],\"globalSummary\":[{\"title\":\"titre court accrocheur\",\"importance\":8,\"bullets\":[{\"text\":\"premier angle détaillé\",\"refs\":[0,1]},{\"text\":\"second angle détaillé\",\"refs\":[2]}]}]}",
+      "Réponds en JSON : {\"globalSummary\":[{\"title\":\"titre court accrocheur\",\"importance\":8,\"bullets\":[{\"text\":\"premier angle détaillé\",\"refs\":[0,1]},{\"text\":\"second angle détaillé\",\"refs\":[2]}]}]}. Ne renvoie AUCUN autre champ de premier niveau.",
     ].join("\n");
   }
   return [
@@ -156,7 +159,7 @@ export function generateTopSummaryPrompt(lang: Lang): string {
     "    - 1-2: anecdotal (rumor, content marketing, listicle, promotional content)",
     "    The score reflects how important THIS news is TODAY for a professional tech reader. Be demanding: only award 9-10 when the event is genuinely industry-defining.",
     "",
-    "Respond with JSON: {\"relevant\":[{\"index\":0,\"snippet\":\"short summary\"}],\"globalSummary\":[{\"title\":\"short punchy headline\",\"importance\":8,\"bullets\":[{\"text\":\"first angle, detailed\",\"refs\":[0,1]},{\"text\":\"second angle, detailed\",\"refs\":[2]}]}]}",
+    "Respond with JSON: {\"globalSummary\":[{\"title\":\"short punchy headline\",\"importance\":8,\"bullets\":[{\"text\":\"first angle, detailed\",\"refs\":[0,1]},{\"text\":\"second angle, detailed\",\"refs\":[2]}]}]}. Do NOT return any other top-level field.",
   ].join("\n");
 }
 
@@ -383,6 +386,168 @@ export function selectTopArticleBullets<
   return out;
 }
 
+/**
+ * FR edition via translation of the EN pivot (v2.19+)
+ * ---------------------------------------------------
+ * The daily cron used to run TWO independent gpt-5.5 editorial passes
+ * (one per lang) over the same 50 articles. Each pass re-derived its
+ * own thematic groups AND its own 1-10 importance scores, so the two
+ * editions routinely disagreed (a story scored 8/10 in EN and 7/10 in
+ * FR, groups split differently, hence a different 8-bullet selection).
+ *
+ * Now the EN pass is the single editorial source of truth; the FR
+ * edition is a translation of its titles + bullet texts with the
+ * structure, refs and importance scores preserved verbatim — identical
+ * scores by construction, and the FR call no longer ships the 50
+ * articles nor the editorial prompt (a cheaper model suffices for
+ * translation). Same register as the transcribe-video cross-language
+ * optimization. If the pivot is unavailable (EN failed, or the
+ * watchdog self-heals FR alone via `?langs=fr`), the FR edition falls
+ * back to the previous native generation.
+ */
+
+/** Payload sent to the translation call. `titles` holds the UNIQUE
+ *  group titles in first-appearance order — translating each title
+ *  exactly once guarantees the same-title runs stay identical after
+ *  translation, so the UI's `groupBullets` folding is preserved.
+ *  `texts` holds one entry per bullet, in order. */
+export interface BulletTranslationPayload {
+  titles: string[];
+  texts: string[];
+}
+
+export function buildBulletTranslationPayload(
+  bullets: SummaryBullet[],
+): BulletTranslationPayload {
+  const titles: string[] = [];
+  const seen = new Set<string>();
+  for (const b of bullets) {
+    const t = (b.title ?? "").trim();
+    if (t && !seen.has(t)) {
+      seen.add(t);
+      titles.push(t);
+    }
+  }
+  return { titles, texts: bullets.map((b) => b.text) };
+}
+
+/**
+ * Rebuild the bullet list from the translated payload. Refs and
+ * importance are copied from the source bullets untouched; each
+ * bullet's title is swapped for the translation of its group title.
+ * Returns `null` when the translated arrays don't line up with the
+ * source (wrong lengths, empty strings) so the caller can fall back
+ * to native generation instead of persisting a broken edition.
+ */
+export function applyBulletTranslations(
+  bullets: SummaryBullet[],
+  translated: { titles?: unknown; texts?: unknown },
+): SummaryBullet[] | null {
+  const payload = buildBulletTranslationPayload(bullets);
+  const titles = Array.isArray(translated.titles) ? translated.titles : null;
+  const texts = Array.isArray(translated.texts) ? translated.texts : null;
+  if (!titles || !texts) return null;
+  if (titles.length !== payload.titles.length) return null;
+  if (texts.length !== payload.texts.length) return null;
+
+  const titleMap = new Map<string, string>();
+  for (let i = 0; i < payload.titles.length; i++) {
+    const t = String(titles[i] ?? "").trim();
+    if (!t) return null;
+    titleMap.set(payload.titles[i], t);
+  }
+
+  const out: SummaryBullet[] = [];
+  for (let i = 0; i < bullets.length; i++) {
+    const src = bullets[i];
+    const text = String(texts[i] ?? "").trim();
+    if (!text) return null;
+    const srcTitle = (src.title ?? "").trim();
+    out.push({
+      ...src,
+      text,
+      title: srcTitle ? (titleMap.get(srcTitle) ?? null) : null,
+    });
+  }
+  return out;
+}
+
+/** Grouped-markdown renderer — the exact layout `analyzeWithAI`
+ *  produces for `summary_md` (group title in bold once, then `•` lines
+ *  for every bullet that shares it). The translation path needs it to
+ *  rebuild the FR `summary_md` without a second editorial pass. */
+export function renderBulletsMarkdown(bullets: SummaryBullet[]): string {
+  const lines: string[] = [];
+  let prevTitle: string | null = null;
+  let firstGroup = true;
+  for (const b of bullets) {
+    const t: string | null = b.title ?? null;
+    if (t !== prevTitle) {
+      if (!firstGroup) lines.push("");
+      if (t) lines.push(`**${t}**`);
+      prevTitle = t;
+      firstGroup = false;
+    }
+    lines.push(`• ${b.text}`);
+  }
+  return lines.join("\n");
+}
+
+const TRANSLATE_SYSTEM_PROMPT = [
+  "You are a professional EN→FR translator for a tech news publication.",
+  "You receive a JSON object with two arrays: \"titles\" (short journalistic headlines) and \"texts\" (detailed briefing paragraphs).",
+  "Translate every entry into French with the tone of a professional French tech analyst.",
+  "Strict rules:",
+  "1. Return a JSON object with the SAME two arrays, SAME lengths, SAME order: {\"titles\":[...],\"texts\":[...]}.",
+  "2. Keep company names, product names, model names and people names unchanged.",
+  "3. Keep all numbers, amounts and percentages exactly as given (you may localize units, e.g. \"$40B\" → « 40 Md$ »).",
+  "4. Titles stay short (3-8 words), no quotes, no trailing punctuation.",
+  "5. No emojis. Do not add, merge, drop or reorder entries.",
+].join("\n");
+
+/**
+ * Translate the EN pivot bullets into French (titles + texts only) on
+ * the cheap `topSummaryTranslate` model. Returns `null` on any
+ * parse/shape failure so the caller falls back to native generation.
+ */
+async function translateTopSummaryBullets(
+  bullets: SummaryBullet[],
+  apiKey: string,
+): Promise<SummaryBullet[] | null> {
+  const payload = buildBulletTranslationPayload(bullets);
+  const openai = new OpenAI({ apiKey, timeout: 240_000, maxRetries: 2 });
+
+  // Two-attempt parse, same rationale as `analyzeWithAI`: a malformed
+  // JSON response is cheap to retry and much cheaper than the fallback
+  // (a full native gpt-5.5 editorial pass).
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const completion = await openai.chat.completions.create({
+        model: OPENAI_MODELS.topSummaryTranslate,
+        messages: [
+          { role: "system", content: TRANSLATE_SYSTEM_PROMPT },
+          { role: "user", content: JSON.stringify(payload) },
+        ],
+        response_format: { type: "json_object" },
+      });
+      const raw = completion.choices[0]?.message?.content ?? "";
+      if (!raw) continue;
+      const parsed = JSON.parse(raw) as { titles?: unknown; texts?: unknown };
+      const applied = applyBulletTranslations(bullets, parsed);
+      if (applied) return applied;
+      console.error(
+        `[translateTopSummaryBullets] shape mismatch (attempt=${attempt + 1}, titles=${payload.titles.length}, texts=${payload.texts.length})`,
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "unknown";
+      console.error(
+        `[translateTopSummaryBullets] failed (attempt=${attempt + 1}): ${msg}`,
+      );
+    }
+  }
+  return null;
+}
+
 export type GenerateTopSummaryStatus =
   | "ok"
   | "no_articles"
@@ -397,6 +562,13 @@ export interface GenerateTopSummaryResult {
   articleCount: number;
   bulletCount: number;
   errorMessage?: string;
+  /** Full (uncapped) article bullets produced by the editorial pass.
+   *  The cron hands the EN ones back as `pivotBullets` for the FR run
+   *  so the FR edition is a translation with identical scores. */
+  bullets?: SummaryBullet[];
+  /** True when this edition was produced by translating the pivot
+   *  instead of a native editorial pass (logging/observability). */
+  translatedFromPivot?: boolean;
 }
 
 /**
@@ -406,11 +578,21 @@ export interface GenerateTopSummaryResult {
  *
  * Optional `articlesOverride` lets the legacy POST route keep its
  * existing client-supplied articles flow without re-querying the DB.
+ *
+ * Optional `pivotBullets` (FR only): the EN edition's uncapped bullets.
+ * When present, the FR edition is produced by TRANSLATING them
+ * (structure, refs and importance preserved — see the pivot doc block
+ * above) instead of a second native editorial pass. Translation
+ * failure falls back to the native pass so a bad translation can never
+ * cost the FR edition.
  */
 export async function generateTopSummary(
   summaryDate: string,
   lang: Lang,
-  options: { articlesOverride?: TopSummaryArticle[] } = {},
+  options: {
+    articlesOverride?: TopSummaryArticle[];
+    pivotBullets?: SummaryBullet[];
+  } = {},
 ): Promise<GenerateTopSummaryResult> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey || apiKey.trim() === "" || apiKey === "sk-your-key-here") {
@@ -467,25 +649,49 @@ export async function generateTopSummary(
     snippet: (a.snippet || "").slice(0, PROMPT_SNIPPET_MAX),
   }));
 
-  const systemPrompt = generateTopSummaryPrompt(lang);
-
   let summaryMd = "";
-  let bullets: Awaited<ReturnType<typeof analyzeWithAI>>["bullets"] = [];
-  try {
-    const result = await analyzeWithAI(items, systemPrompt, lang, apiKey, TOP_SUMMARY_MODEL);
-    summaryMd = result.summary;
-    bullets = result.bullets;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "unknown";
-    console.error(`[generateTopSummary] analyzeWithAI failed (lang=${lang}, date=${summaryDate}): ${msg}`);
-    return {
-      status: "ai_error",
-      summaryDate,
-      lang,
-      articleCount: articles.length,
-      bulletCount: 0,
-      errorMessage: msg,
-    };
+  let bullets: SummaryBullet[] = [];
+  let translatedFromPivot = false;
+
+  // FR-from-pivot path: translate the EN edition's bullets instead of
+  // re-running the editorial pass. Identical groups/scores/refs by
+  // construction, and no 50-article payload on the second call.
+  if (lang === "fr" && options.pivotBullets && options.pivotBullets.length > 0) {
+    const translated = await translateTopSummaryBullets(options.pivotBullets, apiKey);
+    if (translated) {
+      bullets = translated;
+      summaryMd = renderBulletsMarkdown(translated);
+      translatedFromPivot = true;
+      console.log(
+        `[generateTopSummary] fr edition translated from EN pivot (date=${summaryDate}, bullets=${translated.length})`,
+      );
+    } else {
+      console.error(
+        `[generateTopSummary] pivot translation failed (date=${summaryDate}) — falling back to native fr generation`,
+      );
+    }
+  }
+
+  if (!translatedFromPivot) {
+    const systemPrompt = generateTopSummaryPrompt(lang);
+    try {
+      const result = await analyzeWithAI(items, systemPrompt, lang, apiKey, TOP_SUMMARY_MODEL, {
+        expectRelevant: false,
+      });
+      summaryMd = result.summary;
+      bullets = result.bullets;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "unknown";
+      console.error(`[generateTopSummary] analyzeWithAI failed (lang=${lang}, date=${summaryDate}): ${msg}`);
+      return {
+        status: "ai_error",
+        summaryDate,
+        lang,
+        articleCount: articles.length,
+        bulletCount: 0,
+        errorMessage: msg,
+      };
+    }
   }
 
   // Persist the frozen snapshot first — even if the bullet mirror
@@ -621,5 +827,7 @@ export async function generateTopSummary(
     lang,
     articleCount: articles.length,
     bulletCount: selectedBullets.length + videoBulletRows.length,
+    bullets,
+    translatedFromPivot,
   };
 }

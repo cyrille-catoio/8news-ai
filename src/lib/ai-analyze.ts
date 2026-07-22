@@ -50,6 +50,14 @@ export async function analyzeWithAI(
   lang: Lang,
   apiKey: string,
   model: string = OPENAI_MODELS.analyze,
+  opts: {
+    /** Whether the system prompt asks for the `relevant` array. The
+     *  Top-summary prompt dropped it (unused by that pipeline — pure
+     *  output-token waste on 50 rewritten snippets), so its FR note
+     *  must not re-introduce it. Default `true` keeps every other
+     *  caller (per-topic /api/news analysis…) byte-identical. */
+    expectRelevant?: boolean;
+  } = {},
 ): Promise<{ summary: string; bullets: SummaryBullet[]; relevant: Map<number, RelevantEntry> }> {
   const msg = getServerMessages(lang);
   // Bound each call so a hung request fails fast and the caller (e.g. the
@@ -60,9 +68,13 @@ export async function analyzeWithAI(
   // the reasoning-heavy gpt-5.5 editorial briefing.
   const openai = new OpenAI({ apiKey, timeout: 240_000, maxRetries: 2 });
 
+  const frNote =
+    opts.expectRelevant === false
+      ? `\n\nIMPORTANT — Réponds entièrement en français : les champs "title" et "text" de "globalSummary" doivent être rédigés en français.`
+      : `\n\nIMPORTANT — Réponds entièrement en français : pour chaque entrée du tableau "relevant", les champs "title" (titre traduit ou réécrit) et "snippet" (2–3 phrases factuelles) doivent être en français.`;
   const userList =
     lang === "fr"
-      ? `Article list:\n${formatArticleList(items)}\n\nIMPORTANT — Réponds entièrement en français : pour chaque entrée du tableau "relevant", les champs "title" (titre traduit ou réécrit) et "snippet" (2–3 phrases factuelles) doivent être en français.`
+      ? `Article list:\n${formatArticleList(items)}${frNote}`
       : `Article list:\n${formatArticleList(items)}`;
 
   // Two-attempt parse: even with `response_format: json_object`, OpenAI

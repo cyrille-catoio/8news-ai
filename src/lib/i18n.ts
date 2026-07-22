@@ -1171,6 +1171,31 @@ const strings = {
     en: "Collapse all",
     fr: "Tout replier",
   },
+  // Fullscreen Daily Podcast reader (PodcastReader.tsx) — one news per
+  // viewport-height slide, TikTok-style vertical snap scroll on mobile,
+  // keyboard + buttons on desktop.
+  top24hReaderOpen: {
+    en: "Fullscreen reading",
+    fr: "Lecture plein écran",
+  },
+  /** Visible label of the header button that opens the reader — short
+   *  on purpose so it fits next to the H2 on phones without wrapping. */
+  top24hReaderButtonLabel: {
+    en: "Fullscreen",
+    fr: "Plein écran",
+  },
+  top24hReaderClose: {
+    en: "Close",
+    fr: "Fermer",
+  },
+  top24hReaderPrev: {
+    en: "Previous",
+    fr: "Précédent",
+  },
+  top24hReaderNext: {
+    en: "Next",
+    fr: "Suivant",
+  },
   myTopicsEdit: {
     en: "Edit",
     fr: "Modifier",
@@ -1513,6 +1538,72 @@ const strings = {
   videosBtn: {
     en: "Videos",
     fr: "Vidéos",
+  },
+  /** General menu pill for `/app/shorts` — the vertical Shorts feed (v2.20+).
+   *  Same word in both languages (proper noun of the YouTube format). */
+  shortsBtn: {
+    en: "Shorts",
+    fr: "Shorts",
+  },
+  shortsToday: {
+    en: "Today",
+    fr: "Aujourd'hui",
+  },
+  shortsYesterday: {
+    en: "Yesterday",
+    fr: "Hier",
+  },
+  shortsEmpty: {
+    en: "No Shorts published over the last 5 days.",
+    fr: "Aucun Short publié ces 5 derniers jours.",
+  },
+  shortsLoadError: {
+    en: "Could not load the Shorts feed.",
+    fr: "Impossible de charger le fil des Shorts.",
+  },
+  shortsRetry: {
+    en: "Retry",
+    fr: "Réessayer",
+  },
+  shortsClose: {
+    en: "Close Shorts",
+    fr: "Fermer les Shorts",
+  },
+  shortsPrev: {
+    en: "Previous Short",
+    fr: "Short précédent",
+  },
+  shortsNext: {
+    en: "Next Short",
+    fr: "Short suivant",
+  },
+  shortsMute: {
+    en: "Mute",
+    fr: "Couper le son",
+  },
+  shortsUnmute: {
+    en: "Unmute",
+    fr: "Activer le son",
+  },
+  shortsPlayAria: {
+    en: "Play",
+    fr: "Lecture",
+  },
+  shortsPauseAria: {
+    en: "Pause",
+    fr: "Pause",
+  },
+  shortsOpenYouTube: {
+    en: "Open on YouTube",
+    fr: "Ouvrir sur YouTube",
+  },
+  shortsSwipeHint: {
+    en: "Swipe up for the next Short",
+    fr: "Balayez vers le haut pour le Short suivant",
+  },
+  shortsFeedAria: {
+    en: "Shorts feed",
+    fr: "Fil des Shorts",
   },
   videoKindLong: {
     en: "Long",

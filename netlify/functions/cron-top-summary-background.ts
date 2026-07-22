@@ -10,6 +10,7 @@ import { startCronRun } from "./shared/cron-log";
 import { sendCronAlert } from "./shared/cron-alert";
 import { checkCronSecret } from "./shared/cron-auth";
 import type { Lang } from "../../src/lib/i18n";
+import type { SummaryBullet } from "../../src/lib/types";
 
 /**
  * Daily background function — pre-computes the editorial Top articles
@@ -43,6 +44,13 @@ import type { Lang } from "../../src/lib/i18n";
  * given lang(s). Used by `cron-watchdog`'s self-heal re-trigger when a
  * single lang is missing for today, so the healthy lang's edition is
  * neither replaced nor re-billed. No param = both langs (daily tick).
+ *
+ * EN pivot → FR translation (v2.19+): when both langs run, only EN
+ * gets the full gpt-5.5 editorial pass; the FR edition translates the
+ * EN bullets on a cheap model with groups/refs/importance preserved —
+ * identical scores across langs by construction. FR-only runs (the
+ * watchdog self-heal) and pivot failures fall back to the previous
+ * native FR generation.
  */
 
 export default async (req: Request) => {
@@ -52,9 +60,13 @@ export default async (req: Request) => {
 
   const { log, elog, errorLines, elapsedMs } = startCronRun("cron-top-summary");
   const summaryDate = process.env.TOP_SUMMARY_DATE?.trim() || todayUtc();
-  const langs: readonly Lang[] = parseTopSummaryLangsParam(
-    new URL(req.url).searchParams.get("langs"),
-  );
+  // EN first when both langs run: the EN edition is the editorial
+  // pivot whose bullets the FR run translates (identical groups and
+  // importance scores across langs, ~one gpt-5.5 pass saved). "en"
+  // sorts before "fr" alphabetically.
+  const langs: readonly Lang[] = [
+    ...parseTopSummaryLangsParam(new URL(req.url).searchParams.get("langs")),
+  ].sort();
 
   let generated = 0;
   let noArticles = 0;
@@ -93,6 +105,11 @@ export default async (req: Request) => {
     // throws on an LLM/JSON hiccup (it degrades to a fallback that still
     // persists a row), so an ABSENT row only happens on a thrown/transient
     // error — exactly what this retry covers.
+    // EN pivot bullets captured for the FR translation path. Stays
+    // null when EN wasn't in this run (`?langs=fr` self-heal) or when
+    // the EN pass failed — FR then generates natively as before.
+    let pivotBullets: SummaryBullet[] | null = null;
+
     for (const lang of langs) {
       const langStart = Date.now();
       log(`[lang-start] lang=${lang} date=${summaryDate}`);
@@ -101,7 +118,9 @@ export default async (req: Request) => {
 
       for (let attempt = 1; attempt <= 2; attempt++) {
         try {
-          result = await generateTopSummary(summaryDate, lang);
+          result = await generateTopSummary(summaryDate, lang, {
+            pivotBullets: lang === "fr" && pivotBullets ? pivotBullets : undefined,
+          });
           lastErr = "";
         } catch (err) {
           result = null;
@@ -130,8 +149,13 @@ export default async (req: Request) => {
       switch (result.status) {
         case "ok":
           generated += 1;
+          if (lang === "en" && result.bullets && result.bullets.length > 0) {
+            pivotBullets = result.bullets;
+          }
           log(
-            `[ok] lang=${lang} date=${summaryDate} articles=${result.articleCount} bullets=${result.bulletCount} elapsed_ms=${elapsed}`,
+            `[ok] lang=${lang} date=${summaryDate} articles=${result.articleCount} bullets=${result.bulletCount}` +
+              (result.translatedFromPivot ? " translated_from_pivot=true" : "") +
+              ` elapsed_ms=${elapsed}`,
           );
           break;
         case "no_articles":

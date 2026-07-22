@@ -212,6 +212,7 @@ export function HomeTop24hHero({
       readReady={readLoaded}
       showHistoryControls
       showHomeRefresh
+      showReaderButton
       onSnapshotChange={handleSnapshotChange}
     />
   );

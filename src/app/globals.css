@@ -280,6 +280,16 @@ body.podcast-chat-resizing .podcast-chat-resize::after {
   margin-top: 2px;
 }
 
+/* « Plein écran / Fullscreen » labeled button that opens the immersive
+   reader (v2.19+). Same header-row placement as the master toggle but
+   its own class so the mobile icon-shrink rules below don't crush the
+   visible label — the text is the whole point of the affordance. */
+.top24h-hero-reader-btn {
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
 /* v2.12.1+: « Généré le … » timestamp now sits inside the heading
    row, immediately to the left of the expand/collapse toggle. It's
    `align-self: center` so its baseline lands on the toggle button's
@@ -305,6 +315,18 @@ body.podcast-chat-resizing .podcast-chat-resize::after {
     height: 14px;
   }
 
+  /* Keep the gold reader pill compact on phones without losing its
+     visible « Plein écran » label. */
+  .top24h-hero-reader-btn {
+    padding: 5px 11px !important;
+    font-size: 12px !important;
+  }
+
+  .top24h-hero-reader-btn svg {
+    width: 13px;
+    height: 13px;
+  }
+
   /* Phones: hide the « Generated at … » stamp entirely — the H2 date is
      enough context and the extra line cost header height (v2.18.2+). */
   .top24h-hero-generated {
@@ -326,6 +348,756 @@ body.podcast-chat-resizing .podcast-chat-resize::after {
   .top24h-bullets-wrap {
     padding-left: 8px !important;
     padding-right: 0 !important;
+  }
+}
+
+/* ---------------------------------------------------------------------
+   Fullscreen Daily Podcast reader (`PodcastReader.tsx`, v2.19+).
+   One news per viewport-height slide inside a vertical scroll-snap
+   container — TikTok-style swipe on touch devices, buttons + keyboard
+   on desktop (both drive the same container). z-index sits above the
+   app header (100) and the scroll-to-top FAB (998) but below the auth
+   modal (2000) so signing in can still interrupt if ever needed. */
+.top24h-reader {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background:
+    radial-gradient(1100px 700px at 50% -10%, rgba(201, 162, 39, 0.07), transparent 60%),
+    #000;
+}
+
+.top24h-reader-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.06);
+  z-index: 3;
+}
+
+.top24h-reader-progress-fill {
+  height: 100%;
+  background: #c9a227;
+  transition: width 260ms ease;
+}
+
+.top24h-reader-close {
+  position: absolute;
+  top: calc(14px + env(safe-area-inset-top, 0px));
+  right: 16px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid #2a2a2a;
+  background: rgba(17, 17, 17, 0.85);
+  color: #999;
+  cursor: pointer;
+  transition: color 140ms ease, border-color 140ms ease;
+}
+
+@media (hover: hover) {
+  .top24h-reader-close:hover {
+    color: #c9a227;
+    border-color: #c9a227;
+  }
+}
+
+.top24h-reader-scroll {
+  height: 100%;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+  /* Immersive reading — the progress bar carries the position. */
+  scrollbar-width: none;
+}
+
+.top24h-reader-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .top24h-reader-scroll {
+    scroll-behavior: auto;
+  }
+  .top24h-reader-progress-fill {
+    transition: none;
+  }
+}
+
+.top24h-reader-slide {
+  height: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  /* Top padding clears the fixed « Podcast du jour — date » header. */
+  padding: 76px 22px 96px;
+}
+
+/* Centered reading column. Long groups (many wrapped lines on phones)
+   scroll INSIDE their slide — the snap container only moves once the
+   inner column reaches its end, which is the expected feed behavior. */
+.top24h-reader-inner {
+  width: 100%;
+  max-width: 720px;
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.top24h-reader-inner::-webkit-scrollbar {
+  display: none;
+}
+
+.top24h-reader-kicker {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 18px;
+}
+
+.top24h-reader-title {
+  font-family: ui-serif, Georgia, serif;
+  font-size: clamp(26px, 5vw, 44px);
+  line-height: 1.18;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  margin: 0 0 26px;
+}
+
+.top24h-reader-bullet {
+  margin-bottom: 22px;
+}
+
+.top24h-reader-bullet:last-child {
+  margin-bottom: 0;
+}
+
+.top24h-reader-bullet-text {
+  font-size: clamp(18px, 2.2vw, 22px);
+  line-height: 1.7;
+  margin: 0;
+}
+
+.top24h-reader-refs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+/* Same chip register as the accordion's source pills in
+   `Top24hHero.tsx` — thin gold border + soft gold tint. */
+.top24h-reader-ref {
+  color: #c9a227;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(201, 162, 39, 0.45);
+  background: rgba(201, 162, 39, 0.1);
+  letter-spacing: 0.01em;
+  line-height: 1.3;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+@media (hover: hover) {
+  .top24h-reader-ref:hover {
+    background: rgba(201, 162, 39, 0.22);
+    border-color: rgba(201, 162, 39, 0.85);
+  }
+}
+
+/* Fixed header — « Podcast du jour » + date, visible on every slide
+   (the reader opens straight on the first news, no cover page). Sits
+   top-left, clear of the close button on the right. */
+.top24h-reader-header {
+  position: absolute;
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  left: 20px;
+  right: 66px;
+  z-index: 3;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  pointer-events: none;
+}
+
+.top24h-reader-header-kicker {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.top24h-reader-header-date {
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Fixed bottom navigation — Previous / « i / N » / Next. A gradient
+   backdrop keeps the buttons readable when a long slide scrolls
+   underneath; safe-area padding clears the iOS home indicator. */
+.top24h-reader-nav {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 26px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.92) 55%, transparent);
+  pointer-events: none;
+}
+
+.top24h-reader-nav > * {
+  pointer-events: auto;
+}
+
+.top24h-reader-counter {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  min-width: 56px;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .top24h-reader-slide {
+    /* The header can wrap to two lines (kicker + date) on narrow
+       phones — leave more clearance than desktop. */
+    padding: 84px 18px 104px;
+  }
+
+  .top24h-reader-bullet-text {
+    font-size: 19px;
+  }
+}
+
+/* ---------------------------------------------------------------------
+   Shorts feed (`ShortsPage.tsx`, v2.20+) — TikTok / YouTube-Shorts-style
+   vertical player behind the « Shorts » general-menu pill. Same snap +
+   overlay register as the Daily Podcast reader above (z-index 1200):
+   phones get a full-viewport feed, desktop gets a centered 9:16
+   gold-rimmed « phone » frame on a blurred-thumbnail backdrop. */
+.shorts-root {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background:
+    radial-gradient(1100px 700px at 50% -10%, rgba(201, 162, 39, 0.07), transparent 60%),
+    #000;
+  overflow: hidden;
+}
+
+/* The root carries tabIndex={-1} so focus lands inside the dialog on
+   open — programmatic focus, no visible ring wanted. */
+.shorts-root:focus {
+  outline: none;
+}
+
+/* Desktop-only mood layer: the active Short's thumbnail, blurred into a
+   soft color wash behind the phone frame. */
+.shorts-backdrop {
+  display: none;
+  position: absolute;
+  inset: -40px;
+  width: calc(100% + 80px);
+  height: calc(100% + 80px);
+  object-fit: cover;
+  filter: blur(90px) brightness(0.32) saturate(1.2);
+  transition: opacity 400ms ease;
+  pointer-events: none;
+}
+
+.shorts-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.06);
+  z-index: 6;
+}
+
+.shorts-progress-fill {
+  height: 100%;
+  background: #c9a227;
+  transition: width 260ms ease;
+}
+
+.shorts-close {
+  position: absolute;
+  top: calc(14px + env(safe-area-inset-top, 0px));
+  right: 16px;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid #2a2a2a;
+  background: rgba(17, 17, 17, 0.85);
+  color: #999;
+  cursor: pointer;
+  transition: color 140ms ease, border-color 140ms ease;
+}
+
+@media (hover: hover) {
+  .shorts-close:hover {
+    color: #c9a227;
+    border-color: #c9a227;
+  }
+}
+
+/* Stage: full viewport on phones; centers the phone frame + side nav on
+   desktop. */
+.shorts-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+}
+
+.shorts-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+
+.shorts-topbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: calc(14px + env(safe-area-inset-top, 0px)) 60px 26px 16px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.72) 30%, transparent);
+  pointer-events: none;
+}
+
+.shorts-kicker {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.shorts-day-chip {
+  color: #c9a227;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(201, 162, 39, 0.45);
+  background: rgba(201, 162, 39, 0.1);
+  letter-spacing: 0.01em;
+}
+
+.shorts-counter {
+  margin-left: auto;
+  color: #999;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+/* Loading / empty / error states — centered in the frame. */
+.shorts-status {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 0 28px;
+  text-align: center;
+}
+
+.shorts-retry {
+  border: 1px solid #c9a227;
+  background: transparent;
+  color: #c9a227;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 20px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+@media (hover: hover) {
+  .shorts-retry:hover {
+    background: rgba(201, 162, 39, 0.14);
+  }
+}
+
+.shorts-scroll {
+  height: 100%;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.shorts-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shorts-scroll {
+    scroll-behavior: auto;
+  }
+  .shorts-progress-fill,
+  .shorts-backdrop {
+    transition: none;
+  }
+}
+
+.shorts-slide {
+  position: relative;
+  height: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  overflow: hidden;
+  background: #000;
+}
+
+/* Layer order inside a slide: thumbnail (1) < iframe (2) < tap layer (3)
+   < info / rail / hint (4) < glyph (5). */
+.shorts-slide-thumb {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: brightness(0.55);
+  z-index: 1;
+}
+
+.shorts-slide-thumb-empty {
+  background:
+    radial-gradient(600px 400px at 50% 30%, rgba(201, 162, 39, 0.12), transparent 70%),
+    #050505;
+}
+
+.shorts-player {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  z-index: 2;
+  background: transparent;
+}
+
+.shorts-tap {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.shorts-glyph {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 5;
+  width: 64px;
+  height: 64px;
+  margin: -32px 0 0 -32px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.65);
+  border: 2px solid #c9a227;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  animation: shortsGlyphPop 650ms ease forwards;
+}
+
+@keyframes shortsGlyphPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  25% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shorts-glyph {
+    animation: none;
+  }
+}
+
+.shorts-rail {
+  position: absolute;
+  right: 10px;
+  bottom: 110px;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.shorts-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(201, 162, 39, 0.35);
+  background: rgba(17, 17, 17, 0.68);
+  color: #e5e5e5;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.shorts-chip-btn {
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+  text-decoration: none;
+  transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+
+@media (hover: hover) {
+  .shorts-chip-btn:hover {
+    color: #c9a227;
+    border-color: #c9a227;
+    background: rgba(201, 162, 39, 0.12);
+  }
+}
+
+.shorts-info {
+  position: absolute;
+  left: 0;
+  right: 64px;
+  bottom: 0;
+  z-index: 4;
+  padding: 40px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 40%, transparent);
+  pointer-events: none;
+}
+
+.shorts-title {
+  margin: 0 0 8px;
+  color: #f5f5f5;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.shorts-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.shorts-channel {
+  color: #c9a227;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(201, 162, 39, 0.45);
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.shorts-meta-item {
+  color: #bbb;
+  font-size: 12px;
+}
+
+.shorts-hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 4;
+  display: none;
+  align-items: center;
+  gap: 8px;
+  color: #ddd;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Swipe hint is a touch-device affordance — desktop has buttons + keys. */
+@media (hover: none) {
+  .shorts-hint {
+    display: flex;
+    animation: top24hReaderHintFloat 2.2s ease-in-out infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shorts-hint {
+    animation: none;
+  }
+}
+
+.shorts-sidenav {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.shorts-navbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1px solid #c9a227;
+  background: rgba(201, 162, 39, 0.1);
+  color: #c9a227;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.shorts-navbtn:disabled {
+  border-color: #2a2a2a;
+  background: transparent;
+  color: #666;
+  cursor: default;
+}
+
+@media (hover: hover) {
+  .shorts-navbtn:not(:disabled):hover {
+    background: rgba(201, 162, 39, 0.22);
+  }
+}
+
+/* Desktop ≥ 761px: phone frame on stage. */
+@media (min-width: 761px) {
+  .shorts-backdrop {
+    display: block;
+  }
+
+  .shorts-frame {
+    width: auto;
+    /* Third term keeps the 9:16 ratio honest in narrow-but-tall
+       windows: without it, max-width would clamp the width while the
+       vh-based height stayed fixed, squashing the frame. */
+    height: min(88vh, 92svh, calc((100vw - 220px) * 16 / 9));
+    aspect-ratio: 9 / 16;
+    max-width: calc(100vw - 220px);
+    border-radius: 18px;
+    border: 1px solid rgba(201, 162, 39, 0.5);
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.8),
+      0 24px 80px rgba(0, 0, 0, 0.75),
+      0 0 90px rgba(201, 162, 39, 0.12);
+  }
+
+  .shorts-topbar {
+    padding-top: 14px;
+  }
+
+  .shorts-rail {
+    bottom: 96px;
+  }
+
+  .shorts-info {
+    padding-bottom: 18px;
+  }
+}
+
+/* Phones: side nav floats right, pinned ABOVE the favorite/mute/YouTube
+   rail (bottom 110px + ~156px of chips + gap) instead of center-right —
+   vertical centering collided with the rail on short viewports
+   (landscape phones, small portraits). */
+@media (max-width: 760px) {
+  .shorts-stage {
+    gap: 0;
+  }
+
+  .shorts-sidenav {
+    position: absolute;
+    right: 11px;
+    bottom: calc(284px + env(safe-area-inset-bottom, 0px));
+    z-index: 5;
+  }
+
+  .shorts-navbtn {
+    width: 42px;
+    height: 42px;
+    background: rgba(17, 17, 17, 0.6);
+    border-color: rgba(201, 162, 39, 0.55);
+  }
+}
+
+/* Landscape phones are too short for the button column — the swipe and
+   the tap layer keep working, the buttons just step aside. */
+@media (max-width: 760px) and (max-height: 520px) {
+  .shorts-sidenav {
+    display: none;
   }
 }
 

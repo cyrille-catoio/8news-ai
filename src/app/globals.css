@@ -824,10 +824,16 @@ body.podcast-chat-resizing .podcast-chat-resize::after {
     #050505;
 }
 
+/* MUST paint above the z2 hot-player layer: iOS Safari does not
+   reliably honor pointer-events: none on composited cross-origin
+   iframes, so if the iframe sat on top it would swallow touches —
+   killing the swipe and exposing YouTube's own play button. With the
+   tap surface topmost, every touch lands on it (scroll chain intact,
+   tap = play/pause) and the player below never sees a pointer. */
 .shorts-tap {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: 3;
   border: none;
   background: transparent;
   padding: 0;

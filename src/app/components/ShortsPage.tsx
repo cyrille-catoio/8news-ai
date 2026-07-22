@@ -141,6 +141,11 @@ export function ShortsPage({
   /** User INTENT (autoplay-on-slide vs explicitly paused). `playing` is
    *  what the player reports; this is what we keep nudging it toward. */
   const wantPlayingRef = useRef(true);
+  /** Timestamp of the last explicit unmute tap. WebKit pauses a video
+   *  that gets unmuted without a fresh gesture; when the pause follows
+   *  a real tap we resume unmuted, otherwise we fall back to muted
+   *  playback (playback always wins over sound). */
+  const lastUnmuteTapAtRef = useRef(0);
   /** Where a Prev/Next burst is heading. `currentIndex` only advances
    *  once the IntersectionObserver sees the slide, which lags the smooth
    *  scroll — chaining clicks from this ref keeps rapid inputs additive
@@ -253,9 +258,17 @@ export function ShortsPage({
             JSON.stringify({ event: "listening", id: "shorts", channel: "widget" }),
             "*",
           );
-          applySoundPref(iframe);
           if (wantPlayingRef.current && !playingRef.current) {
+            if (delay >= 900 && !mutedRef.current) {
+              // Still stalled with sound on — trade audio for motion
+              // (the sound chip flips so one tap brings audio back).
+              mutedRef.current = true;
+              setMuted(true);
+            }
+            applySoundPref(iframe);
             postToPlayer(iframe, "playVideo");
+          } else {
+            applySoundPref(iframe);
           }
         }, delay),
       );
@@ -289,6 +302,12 @@ export function ShortsPage({
             postToPlayer(iframe, "loadVideoById", [videoId]);
           }
           if (wantPlayingRef.current && !playingRef.current) {
+            if (delay >= 1000 && !mutedRef.current) {
+              // Still stalled with sound on — trade audio for motion
+              // (the sound chip flips so one tap brings audio back).
+              mutedRef.current = true;
+              setMuted(true);
+            }
             applySoundPref(iframe);
             postToPlayer(iframe, "playVideo");
           }
@@ -385,6 +404,23 @@ export function ShortsPage({
           setPendingLoad(false);
         }
       } else if (playerState === 2 || playerState === 5) {
+        if (playerState === 2 && wantPlayingRef.current) {
+          // Paused AGAINST our intent — the WebKit sound trap: unmuting
+          // an autoplaying video without a fresh gesture pauses it.
+          // Playback wins over sound: resume unmuted when the pause
+          // directly follows a real unmute tap (gesture is fresh),
+          // otherwise fall back to MUTED playback and flip the sound
+          // chip so a single tap restores audio. State still drops to
+          // not-playing below — a successful resume reports state 1
+          // right back, a refused one leaves a truthful UI.
+          const gestureFresh = Date.now() - lastUnmuteTapAtRef.current < 1500;
+          if (!gestureFresh && !mutedRef.current) {
+            mutedRef.current = true;
+            setMuted(true);
+            postToPlayer(iframe, "mute");
+          }
+          postToPlayer(iframe, "playVideo");
+        }
         setPlaying(false);
         setPendingLoad(false);
       }
@@ -429,7 +465,15 @@ export function ShortsPage({
     const nextMuted = !mutedRef.current;
     mutedRef.current = nextMuted;
     setMuted(nextMuted);
+    if (!nextMuted) {
+      lastUnmuteTapAtRef.current = Date.now();
+    }
     applySoundPref(playerRef.current);
+    // Unmuting while stalled: the tap IS the fresh gesture — resume
+    // playback in the same handler so audio and motion return together.
+    if (!nextMuted && wantPlayingRef.current && !playingRef.current) {
+      postToPlayer(playerRef.current, "playVideo");
+    }
     trackEvent("shorts.mute", { action: nextMuted ? "on" : "off", lang });
   }, [applySoundPref, lang]);
 
@@ -786,8 +830,11 @@ export function ShortsPage({
                   />
                 )}
 
-                {/* Honest play affordance: playback refused or user-paused. */}
-                {!playing && !pendingLoad && (
+                {/* Honest play affordance — only over the thumbnail: when
+                    the paused VIDEO frame is visible, YouTube's own
+                    center icon already reads as « paused » and doubling
+                    it up confused users into thinking two players. */}
+                {!playing && !pendingLoad && !playerVisible && (
                   <span className="shorts-bigplay" aria-hidden>
                     <svg
                       width="26"

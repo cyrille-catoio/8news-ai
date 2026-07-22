@@ -146,6 +146,15 @@ export function ShortsPage({
    *  a real tap we resume unmuted, otherwise we fall back to muted
    *  playback (playback always wins over sound). */
   const lastUnmuteTapAtRef = useRef(0);
+  /** True once UNMUTED playback has been OBSERVED working (state 1 with
+   *  sound on). From then on the platform has proven it allows it, and
+   *  the muted fallbacks must never fire again — reacting to the
+   *  transient pause blips of every video switch was re-muting the
+   *  feed on each swipe. */
+  const unmutedPlaybackOkRef = useRef(false);
+  /** Pending persistence check for a pause that contradicts the play
+   *  intent — transient blips self-resolve before it fires. */
+  const pauseRecoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Where a Prev/Next burst is heading. `currentIndex` only advances
    *  once the IntersectionObserver sees the slide, which lags the smooth
    *  scroll — chaining clicks from this ref keeps rapid inputs additive
@@ -227,6 +236,7 @@ export function ShortsPage({
     return () => {
       for (const timer of bootTimersRef.current) clearTimeout(timer);
       for (const timer of kickTimersRef.current) clearTimeout(timer);
+      if (pauseRecoveryTimerRef.current) clearTimeout(pauseRecoveryTimerRef.current);
     };
   }, []);
 
@@ -259,9 +269,10 @@ export function ShortsPage({
             "*",
           );
           if (wantPlayingRef.current && !playingRef.current) {
-            if (delay >= 900 && !mutedRef.current) {
-              // Still stalled with sound on — trade audio for motion
-              // (the sound chip flips so one tap brings audio back).
+            if (delay >= 900 && !mutedRef.current && !unmutedPlaybackOkRef.current) {
+              // Still stalled with sound on and unmuted playback never
+              // proven — trade audio for motion (the sound chip flips
+              // so one tap brings audio back).
               mutedRef.current = true;
               setMuted(true);
             }
@@ -288,6 +299,11 @@ export function ShortsPage({
       if (!iframe || lastLoadedIdRef.current === videoId) return;
       lastLoadedIdRef.current = videoId;
       wantPlayingRef.current = true;
+      // A pending stall-recovery belongs to the previous video.
+      if (pauseRecoveryTimerRef.current) {
+        clearTimeout(pauseRecoveryTimerRef.current);
+        pauseRecoveryTimerRef.current = null;
+      }
       setPendingLoad(true);
       setPlayerVisible(false);
       postToPlayer(iframe, "loadVideoById", [videoId]);
@@ -302,9 +318,10 @@ export function ShortsPage({
             postToPlayer(iframe, "loadVideoById", [videoId]);
           }
           if (wantPlayingRef.current && !playingRef.current) {
-            if (delay >= 1000 && !mutedRef.current) {
-              // Still stalled with sound on — trade audio for motion
-              // (the sound chip flips so one tap brings audio back).
+            if (delay >= 1000 && !mutedRef.current && !unmutedPlaybackOkRef.current) {
+              // Still stalled with sound on and unmuted playback never
+              // proven — trade audio for motion (the sound chip flips
+              // so one tap brings audio back).
               mutedRef.current = true;
               setMuted(true);
             }
@@ -339,7 +356,7 @@ export function ShortsPage({
       if (!iframe || e.source !== iframe.contentWindow) return;
       let data: {
         event?: string;
-        info?: { playerState?: number; videoData?: { video_id?: string } };
+        info?: { playerState?: number; muted?: boolean; videoData?: { video_id?: string } };
       };
       try {
         data = JSON.parse(typeof e.data === "string" ? e.data : "");
@@ -394,6 +411,18 @@ export function ShortsPage({
           postToPlayer(iframe, "loadVideoById", [lastLoadedIdRef.current]);
           return;
         }
+        // Playback is live: any pending stall-recovery is obsolete.
+        if (pauseRecoveryTimerRef.current) {
+          clearTimeout(pauseRecoveryTimerRef.current);
+          pauseRecoveryTimerRef.current = null;
+        }
+        if (
+          playerState === 1 &&
+          (data.info?.muted === false || (data.info?.muted === undefined && !mutedRef.current))
+        ) {
+          // Unmuted playback proven — lock the muted fallbacks out.
+          unmutedPlaybackOkRef.current = true;
+        }
         if (!wantPlayingRef.current) {
           // The user paused before the player was ready and the embed
           // started anyway — intent wins, re-assert the pause.
@@ -404,22 +433,27 @@ export function ShortsPage({
           setPendingLoad(false);
         }
       } else if (playerState === 2 || playerState === 5) {
-        if (playerState === 2 && wantPlayingRef.current) {
-          // Paused AGAINST our intent — the WebKit sound trap: unmuting
-          // an autoplaying video without a fresh gesture pauses it.
-          // Playback wins over sound: resume unmuted when the pause
-          // directly follows a real unmute tap (gesture is fresh),
-          // otherwise fall back to MUTED playback and flip the sound
-          // chip so a single tap restores audio. State still drops to
-          // not-playing below — a successful resume reports state 1
-          // right back, a refused one leaves a truthful UI.
-          const gestureFresh = Date.now() - lastUnmuteTapAtRef.current < 1500;
-          if (!gestureFresh && !mutedRef.current) {
-            mutedRef.current = true;
-            setMuted(true);
-            postToPlayer(iframe, "mute");
-          }
-          postToPlayer(iframe, "playVideo");
+        if (playerState === 2 && wantPlayingRef.current && !pauseRecoveryTimerRef.current) {
+          // Paused AGAINST our intent. Either a transient blip of a
+          // video switch (self-resolves) or the WebKit sound trap
+          // (unmuting an autoplaying video without a fresh gesture
+          // pauses it). React only if the stall PERSISTS: resume
+          // unmuted when the pause follows a real unmute tap or when
+          // unmuted playback has already been proven to work, else
+          // trade audio for motion and flip the sound chip so a single
+          // tap restores it.
+          pauseRecoveryTimerRef.current = setTimeout(() => {
+            pauseRecoveryTimerRef.current = null;
+            const player = playerRef.current;
+            if (!player || !wantPlayingRef.current || playingRef.current) return;
+            const gestureFresh = Date.now() - lastUnmuteTapAtRef.current < 1500;
+            if (!gestureFresh && !mutedRef.current && !unmutedPlaybackOkRef.current) {
+              mutedRef.current = true;
+              setMuted(true);
+              postToPlayer(player, "mute");
+            }
+            postToPlayer(player, "playVideo");
+          }, 700);
         }
         setPlaying(false);
         setPendingLoad(false);

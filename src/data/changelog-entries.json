@@ -1,5 +1,13 @@
 [
   {
+    "version": "2.20.3",
+    "title_en": "Shorts: sound stays on across swipes",
+    "title_fr": "Shorts : le son reste activé d'un swipe à l'autre",
+    "body_en": "The v2.20.2 playback-first fallback was over-eager: every `loadVideoById` emits transient player states (a brief pause blip while the video switches), which the stall recovery misread as the WebKit sound trap — force-muting the feed on EVERY swipe, so sound had to be re-enabled per video. Two guards in `ShortsPage.tsx` fix it: (1) **sound ratification** — once unmuted playback has been OBSERVED working (playerState 1 with sound on, `unmutedPlaybackOkRef`), the platform has proven it allows it and all muted fallbacks are permanently disarmed for the session; (2) **persistence check** — a pause contradicting the play intent now schedules a 700 ms re-check (`pauseRecoveryTimerRef`, cleared on state 1/3 and on every new load) instead of reacting instantly, so the transient blips of video switches never trigger it. The genuine boot trap (unmute-without-gesture pause on iOS) still auto-recovers as before. Each load keeps re-asserting the sound preference, so once audio is on it follows every Short.",
+    "body_fr": "Le repli « lecture d'abord » de la v2.20.2 était trop nerveux : chaque `loadVideoById` émet des états transitoires (un bref blip de pause pendant le changement de vidéo), que la récupération de blocage prenait pour le piège sonore WebKit — mute forcé à CHAQUE swipe, donc son à réactiver vidéo par vidéo. Deux garde-fous dans `ShortsPage.tsx` corrigent ça : (1) **ratification du son** — dès qu'une lecture avec son a été OBSERVÉE en marche (playerState 1 non muet, `unmutedPlaybackOkRef`), la plateforme a prouvé qu'elle l'autorise et tous les replis muets sont définitivement désarmés pour la session ; (2) **contrôle de persistance** — une pause qui contredit l'intention de lecture programme désormais une revérification à 700 ms (`pauseRecoveryTimerRef`, annulée sur état 1/3 et à chaque nouveau chargement) au lieu de réagir à chaud, donc les blips transitoires des changements de vidéo ne la déclenchent plus. Le vrai piège du boot (pause sur démutage sans geste, iOS) se récupère toujours automatiquement comme avant. Chaque chargement ré-affirme la préférence sonore : une fois l'audio activé, il suit chaque Short.",
+    "created_at": "2026-07-22T21:55:00Z"
+  },
+  {
     "version": "2.20.2",
     "title_en": "Shorts: mobile swipe restored, no more double play tap",
     "title_fr": "Shorts : swipe mobile restauré, plus de double tap lecture",

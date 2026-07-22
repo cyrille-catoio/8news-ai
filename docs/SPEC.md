@@ -1,7 +1,7 @@
 # 8news.ai — Technical Specification
 
 **Version**: v2.19
-**Last updated**: 2 July 2026
+**Last updated**: 22 July 2026
 
 > **Note**: sections of this spec are historical — they describe the system as of the version tagged inline (`**vX.Y+**` markers). The mechanical parts (header version, file tree, migration list, cron list, API route list) are kept current and **enforced by `npm run spec:check`** (also run by `npm test`, hence by the Netlify build — drift blocks the deploy). The spec is updated automatically as part of the release ritual (see `AGENTS.md` § 3 and § 11 for the content contract). For feature-level details, the changelog (`src/data/changelog-entries.json`) is the most up-to-date reference.
 
@@ -580,7 +580,7 @@ Main data endpoint. Reads pre-scored articles from Supabase, analyses with AI, r
 
 Analysis prompt is fetched dynamically from the `topics` table (`prompt_en` or `prompt_fr`), with `{{max}}` replaced by the article count.
 
-The `count` parameter directly controls how many articles the AI analyses — there is no hidden multiplier. Articles are pre-filtered by minimum score, sorted by `relevance_score DESC` then `pub_date DESC`, and the top N are sent to the AI.
+The `count` parameter directly controls how many articles the AI analyses — there is no hidden multiplier. Articles are filtered to the period by **`pub_date`** (same window as `/api/news/all`, Top 50 and trending — not `fetched_at`), pre-filtered by minimum score, sorted by `relevance_score DESC` then `pub_date DESC`, and the top N are sent to the AI.
 
 **Minimum score by time window:**
 

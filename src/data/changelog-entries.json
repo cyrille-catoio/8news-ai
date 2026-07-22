@@ -1,5 +1,13 @@
 [
   {
+    "version": "2.19.1",
+    "title_en": "v2.19.1: topic period selection uses pub_date; toast bottom-right",
+    "title_fr": "v2.19.1 : sélection topic/période sur pub_date ; toast en bas à droite",
+    "body_en": "**Fix empty « Articles sélectionnés » on Topics.** Choosing a topic + period (e.g. IA · 24 h) could show « No articles found » with 0 selected while the « All articles » tab listed hundreds. Root cause: `getScoredArticles`, `getScoredArticlesForTopics` and `countArticlesForPeriod` filtered the window on `fetched_at`, while `/api/news/all` used `pub_date`. RSS `ignoreDuplicates` upserts do not refresh `fetched_at`, so published-in-window articles were invisible to the AI summary path. All three helpers now filter (and secondary-sort) on `pub_date`, aligned with All articles, Top 50 and trending. Same fix feeds the home « Vos topics » strips and daily SEO summary generation.\n\n**Toast position.** The SPA `periodToast` (select-a-topic / select-a-period prompts) moves from top-center to bottom-right so it no longer covers the topic/period controls.\n\n**Release.** Bump 2.19.0 → 2.19.1. No DB migration.",
+    "body_fr": "**Correction du « Aucun article » vide dans Topics.** Choisir un topic + une période (ex. IA · 24 h) pouvait afficher « Aucun article trouvé » avec 0 sélectionné, alors que l'onglet « Tous les articles » listait des centaines d'entrées. Cause : `getScoredArticles`, `getScoredArticlesForTopics` et `countArticlesForPeriod` filtraient la fenêtre sur `fetched_at`, alors que `/api/news/all` utilisait `pub_date`. Les upserts RSS `ignoreDuplicates` ne rafraîchissent pas `fetched_at`, donc les articles publiés dans la fenêtre restaient invisibles pour le résumé IA. Les trois helpers filtrent (et trient en secondaire) désormais sur `pub_date`, alignés avec Tous les articles, Top 50 et trending. Même correctif pour les strips « Vos topics » de la home et la génération des résumés SEO quotidiens.\n\n**Position du toast.** Le `periodToast` de la SPA (messages « choisir un topic / une période ») passe du haut centré au bas à droite, pour ne plus masquer les contrôles topic/période.\n\n**Release.** Bump 2.19.0 → 2.19.1. Pas de migration DB.",
+    "created_at": "2026-07-22T07:50:00Z"
+  },
+  {
     "version": "2.19",
     "title_en": "v2.19: Daily Podcast polish — compact audio label, generation time, chat autofocus",
     "title_fr": "v2.19 : polish Daily Podcast — label audio compact, heure de génération, autofocus chat",

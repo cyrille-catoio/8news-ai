@@ -35,16 +35,20 @@ export async function getScoredArticles(
   until?: string,
 ): Promise<DbArticle[]> {
   return withClient("getScoredArticles", [], async (supabase) => {
+    // Period filter uses `pub_date` (publication time), aligned with
+    // `/api/news/all`, Top 50, trending, and daily summaries — not
+    // `fetched_at`, which under-counts when RSS re-sees an existing
+    // link (`ignoreDuplicates` upserts do not refresh fetched_at).
     let query = supabase
       .from("articles")
       .select("id, topic, source, title, link, pub_date, fetched_at, content, snippet, snippet_ai_en, snippet_ai_fr, relevance_score")
       .eq("topic", topic)
-      .gte("fetched_at", since)
+      .gte("pub_date", since)
       .gte("relevance_score", minScore);
-    if (until) query = query.lte("fetched_at", until);
+    if (until) query = query.lte("pub_date", until);
     const { data, error } = await query
       .order("relevance_score", { ascending: false })
-      .order("fetched_at", { ascending: false })
+      .order("pub_date", { ascending: false })
       .limit(limit);
 
     if (error || !data) return [];
@@ -88,10 +92,10 @@ export async function getScoredArticlesForTopics(
       .from("articles")
       .select("topic, title, title_ai_en, title_ai_fr, link, source, pub_date, relevance_score")
       .in("topic", topicIds)
-      .gte("fetched_at", since)
+      .gte("pub_date", since)
       .gte("relevance_score", minScore)
       .order("relevance_score", { ascending: false })
-      .order("fetched_at", { ascending: false })
+      .order("pub_date", { ascending: false })
       .limit(limit);
 
     if (error || !data) {
@@ -131,20 +135,21 @@ export async function countArticlesForPeriod(
   until?: string,
 ): Promise<{ total: number; scored: number }> {
   return withClient("countArticlesForPeriod", { total: 0, scored: 0 }, async (supabase) => {
+    // Same `pub_date` window as `getScoredArticles` / `/api/news/all`.
     let totalQ = supabase
       .from("articles")
       .select("id", { count: "exact", head: true })
       .eq("topic", topic)
-      .gte("fetched_at", since);
-    if (until) totalQ = totalQ.lte("fetched_at", until);
+      .gte("pub_date", since);
+    if (until) totalQ = totalQ.lte("pub_date", until);
 
     let scoredQ = supabase
       .from("articles")
       .select("id", { count: "exact", head: true })
       .eq("topic", topic)
-      .gte("fetched_at", since)
+      .gte("pub_date", since)
       .not("relevance_score", "is", null);
-    if (until) scoredQ = scoredQ.lte("fetched_at", until);
+    if (until) scoredQ = scoredQ.lte("pub_date", until);
 
     const [totalRes, scoredRes] = await Promise.all([totalQ, scoredQ]);
     return {

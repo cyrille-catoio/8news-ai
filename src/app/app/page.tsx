@@ -55,7 +55,7 @@ import { CryptoChartPage, type CryptoChartTarget } from "@/app/components/Crypto
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.19";
+const APP_VERSION = "2.19.1";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 // Daily Podcast chat panel width bounds (desktop). The panel is
@@ -1179,11 +1179,13 @@ export default function Home() {
 
       {periodToast && (
         <div
+          role="status"
+          aria-live="polite"
           style={{
             position: "fixed",
-            left: "50%",
-            top: 20,
-            transform: "translateX(-50%)",
+            right: 16,
+            bottom: 24,
+            maxWidth: "min(92vw, 420px)",
             background: color.surface,
             color: color.textSecondary,
             border: `1px solid ${color.border}`,

@@ -1598,8 +1598,8 @@ const strings = {
     fr: "Ouvrir sur YouTube",
   },
   shortsSwipeHint: {
-    en: "Swipe up for the next Short",
-    fr: "Balayez vers le haut pour le Short suivant",
+    en: "Swipe up",
+    fr: "Balayez vers le haut",
   },
   shortsFeedAria: {
     en: "Shorts feed",

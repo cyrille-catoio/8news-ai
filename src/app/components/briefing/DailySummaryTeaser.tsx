@@ -93,11 +93,12 @@ export function DailySummaryTeaser({
               color: color.articleSnippet,
               marginTop: 10,
               marginBottom: 16,
-              // Clamp to ~5 lines so the teaser never blows up the
-              // card height — anything past line 5 hides under the
-              // « Lire la suite » CTA, which is exactly the user goal.
+              // Clamp to ~10 lines (doubled from 5 in v2.20.6+, along
+              // with the 840-char budget in buildSummaryTeaser) so the
+              // teaser stays bounded — anything past the clamp hides
+              // under the « Lire la suite » CTA, which is the user goal.
               display: "-webkit-box",
-              WebkitLineClamp: 5,
+              WebkitLineClamp: 10,
               WebkitBoxOrient: "vertical",
               overflow: "hidden",
             }}

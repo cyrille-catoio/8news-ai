@@ -44,6 +44,7 @@ import { ShortsPage } from "@/app/components/ShortsPage";
 import { YouTubeChannelsPage } from "@/app/components/YouTubeChannelsPage";
 import { BriefingPage } from "@/app/components/BriefingPage";
 import { TopStoriesPage } from "@/app/components/TopStoriesPage";
+import { TrendingStripSection } from "@/app/components/briefing/TrendingStrip";
 import { ChannelsPage } from "@/app/components/ChannelsPage";
 import { useSpaNavigation } from "@/lib/spa-navigation";
 import { fetchNewsApi, PERIODS } from "@/lib/news-fetch";
@@ -57,7 +58,7 @@ import { CryptoChartPage, type CryptoChartTarget } from "@/app/components/Crypto
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.20.5";
+const APP_VERSION = "2.20.6";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 // Daily Podcast chat panel width bounds (desktop). The panel is
@@ -710,7 +711,6 @@ export default function Home() {
             isAuthenticated={isAuthenticated}
             onRequestAuth={() => setAuthModalOpen(true)}
             onNavigate={(page) => setCurrentPage(page)}
-            onOpenTopicArticles={openArticlesForTopic}
             topicLabels={topicLabels}
             preferredTopicIds={preferredTopicIds}
             preferredTopicId={validPreferredTopicId}
@@ -972,6 +972,16 @@ export default function Home() {
           >
             {t("myBriefingSubtitle", lang)}
           </p>
+          {/* ── Tendances 24h — moved here from the home briefing
+              (v2.20.6+). Sits right above the topic list; clicking a
+              pill opens that topic's articles exactly like it did on
+              the home (same `openArticlesForTopic` path). Self-fetches
+              and hides itself when the trending query is empty. */}
+          <TrendingStripSection
+            lang={lang}
+            preferredTopicIds={preferredTopicIds}
+            onTopicClick={openArticlesForTopic}
+          />
           <TopicToggle
             topics={displayedTopicLabels}
             topic={topic}

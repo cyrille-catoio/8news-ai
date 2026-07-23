@@ -4,10 +4,10 @@ import { getUserActivity, upsertUserActivity } from "@/lib/supabase";
 import { NO_STORE_HEADERS } from "@/lib/api-helpers";
 
 /**
- * Generic per-user UI activity log. Current consumer is the home
- * « new since your last visit » cutoff (`home_visit` in BriefingPage);
- * the former podcast « Lu / Read » checkbox (v2.8.2 → v2.20) also
- * stored its state here.
+ * Generic per-user UI activity log. Past consumers: the home « new
+ * since your last visit » cutoff (`home_visit`, removed with the Top 5
+ * section in v2.20.6) and the podcast « Lu / Read » checkbox
+ * (v2.8.2 → v2.20). Kept generic for future client-side toggles.
  *
  * GET  /api/user/activity?type=home_visit
  *   → { entries: [{ target_id, value, last_action, last_clicked_at, created_at }, …] }

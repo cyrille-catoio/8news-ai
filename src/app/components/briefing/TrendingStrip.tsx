@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { color, card } from "@/lib/theme";
 import type { Lang } from "@/lib/i18n";
 import { kicker } from "@/app/components/briefing/styles";
@@ -83,4 +84,43 @@ export function TrendingStrip({
       </div>
     </section>
   );
+}
+
+/**
+ * Self-fetching wrapper around `TrendingStrip` — owns the
+ * `GET /api/topics/trending` call (24 h window, limit 10, scoped to the
+ * user's preferred topics when set) and hides itself while empty.
+ *
+ * v2.20.6+ the strip lives on the Topics page (`/app/articles`, above
+ * the topic list) instead of the home briefing; since that surface is
+ * conditionally rendered by the SPA shell, this wrapper remounts (and
+ * refetches) on every visit — same freshness the home used to get.
+ */
+export function TrendingStripSection({
+  lang,
+  preferredTopicIds,
+  onTopicClick,
+}: {
+  lang: Lang;
+  /** User's preferred topic IDs — narrows the trending query. null when
+   *  not configured / anonymous (site-wide trending). */
+  preferredTopicIds: string[] | null;
+  onTopicClick: (id: string) => void;
+}) {
+  const [trending, setTrending] = useState<TrendingTopic[]>([]);
+  useEffect(() => {
+    const params = new URLSearchParams({ since: "24h", lang, limit: "10" });
+    if (preferredTopicIds && preferredTopicIds.length > 0) {
+      params.set("topics", preferredTopicIds.join(","));
+    }
+    fetch(`/api/topics/trending?${params}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: TrendingTopic[]) => {
+        setTrending(Array.isArray(rows) ? rows : []);
+      })
+      .catch(() => setTrending([]));
+  }, [lang, preferredTopicIds]);
+
+  if (trending.length === 0) return null;
+  return <TrendingStrip topics={trending} lang={lang} onTopicClick={onTopicClick} />;
 }

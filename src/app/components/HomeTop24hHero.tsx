@@ -31,8 +31,7 @@ import { Top24hHero } from "@/app/components/Top24hHero";
  *
  * The per-snapshot « Lu / Read » checkbox (v2.8.2 → v2.20) was removed:
  * the podcast now always renders expanded. The `user_activity` API and
- * table remain in place for the other consumer (`home_visit` cutoff in
- * `BriefingPage`).
+ * table remain in place for future client-side toggles.
  */
 export function HomeTop24hHero({
   lang,

@@ -73,11 +73,19 @@ export interface DailySummaryBullet {
   text: string;
 }
 
-/** Builds a ~5-line teaser by concatenating the first 2-3 bullet texts
- *  (each one is ~80-150 chars on average) and capping at 420 chars so
- *  the card stays bounded. Falls back to a single bullet if the array
- *  is shorter; returns the raw `seo_description` when the bullets
- *  payload is missing entirely (legacy rows). */
+/** Builds a ~10-line teaser by concatenating the first bullet texts
+ *  (each one is ~80-150 chars on average) and capping at 840 chars so
+ *  the card stays bounded (doubled from the original 3-bullet / 420-char
+ *  budget — owner asked for a 2× longer teaser, v2.20.6+). Falls back
+ *  to a single bullet if the array is shorter; returns the raw
+ *  `seo_description` when the bullets payload is missing entirely
+ *  (legacy rows). */
+const TEASER_MAX_BULLETS = 6;
+const TEASER_MAX_CHARS = 840;
+/** Word-boundary cut is only honored when it doesn't discard too much
+ *  of the budget; otherwise we hard-cut mid-word. */
+const TEASER_MIN_CUT = 640;
+
 export function buildSummaryTeaser(
   bullets: DailySummaryBullet[],
   seoDescription: string,
@@ -86,9 +94,9 @@ export function buildSummaryTeaser(
     .map((b) => (typeof b?.text === "string" ? b.text.trim() : ""))
     .filter(Boolean);
   if (cleanBullets.length === 0) return seoDescription.trim();
-  const joined = cleanBullets.slice(0, 3).join(" ");
-  if (joined.length <= 420) return joined;
-  const cut = joined.slice(0, 420);
+  const joined = cleanBullets.slice(0, TEASER_MAX_BULLETS).join(" ");
+  if (joined.length <= TEASER_MAX_CHARS) return joined;
+  const cut = joined.slice(0, TEASER_MAX_CHARS);
   const lastSpace = cut.lastIndexOf(" ");
-  return (lastSpace > 320 ? cut.slice(0, lastSpace) : cut).trimEnd() + "…";
+  return (lastSpace > TEASER_MIN_CUT ? cut.slice(0, lastSpace) : cut).trimEnd() + "…";
 }

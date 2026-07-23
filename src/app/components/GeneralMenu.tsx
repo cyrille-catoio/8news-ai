@@ -82,8 +82,8 @@ type GeneralMenuItem = {
 
 const GENERAL_MENU_ITEMS: readonly GeneralMenuItem[] = [
   { id: "briefing", labelKey: "briefingBtn", href: "/app" },
-  { id: "topStories", labelKey: "topStoriesBtn", href: "/app/top-stories" },
   { id: "shorts", labelKey: "shortsBtn", href: "/app/shorts" },
+  { id: "topStories", labelKey: "topStoriesBtn", href: "/app/top-stories" },
   { id: "home", labelKey: "generalMenuArticlesBtn", href: "/app/articles" },
   { id: "videos", labelKey: "videosBtn", href: "/app/videos" },
   { id: "channels", labelKey: "channelsBtn", href: "/app/channels" },

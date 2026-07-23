@@ -4,15 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import type { Lang } from "@/lib/i18n";
 import { dateLocale, t } from "@/lib/i18n";
 import { color } from "@/lib/theme";
-import { useTopFeed } from "@/hooks/useTopFeed";
 import { HomeTop24hHero } from "@/app/components/HomeTop24hHero";
 import type { TopicLabel } from "@/lib/types";
 import type { AppNavPage } from "@/app/components/AppHeader";
 import { SectionSpinner } from "@/app/components/briefing/SectionSpinner";
 import { kicker } from "@/app/components/briefing/styles";
-import { TrendingStrip, type TrendingTopic } from "@/app/components/briefing/TrendingStrip";
 import { FooterCTAs } from "@/app/components/briefing/FooterCTAs";
-import { Top5Section } from "@/app/components/briefing/Top5Section";
 import { YourTopicsSection, type MiniArticle } from "@/app/components/briefing/YourTopicsSection";
 import { selectTopicStrips } from "@/app/components/briefing/select-topic-strips";
 import { NewsletterSignupPrompt } from "@/app/components/briefing/NewsletterSignupPrompt";
@@ -25,7 +22,6 @@ export function BriefingPage({
   isAuthenticated,
   onRequestAuth,
   onNavigate,
-  onOpenTopicArticles,
   topicLabels,
   preferredTopicIds,
   preferredTopicId,
@@ -35,7 +31,6 @@ export function BriefingPage({
   isAuthenticated: boolean;
   onRequestAuth: () => void;
   onNavigate: (page: AppNavPage) => void;
-  onOpenTopicArticles: (topicId: string) => void;
   topicLabels: TopicLabel[];
   /** User's preferred topic IDs. null when not configured / anonymous. */
   preferredTopicIds: string[] | null;
@@ -47,63 +42,6 @@ export function BriefingPage({
   onOpenChat?: () => void;
 }) {
   const locale = dateLocale(lang);
-
-  // ─── « New since your last visit » ──────────────────────────────────
-  // previousVisitAt = the most recent prior visit timestamp (ms).
-  // Sourced from localStorage (per-device) and, for signed-in users,
-  // from `user_activity` (cross-device) — we keep the most RECENT of the
-  // two as the cutoff so we never over-count. On mount we read the prior
-  // value, then bump it to now for the next visit. `null` on a first-ever
-  // visit (no badge shown).
-  const [previousVisitAt, setPreviousVisitAt] = useState<number | null>(null);
-  useEffect(() => {
-    let localPrev: number | null = null;
-    try {
-      const raw = window.localStorage.getItem("homeLastVisitAt");
-      const n = raw ? Number(raw) : NaN;
-      if (Number.isFinite(n)) localPrev = n;
-      window.localStorage.setItem("homeLastVisitAt", String(Date.now()));
-    } catch {
-      /* storage disabled — DB path (if signed in) still works */
-    }
-    setPreviousVisitAt(localPrev);
-
-    if (!isAuthenticated) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/user/activity?type=home_visit", { cache: "no-store" });
-        if (res.ok && !cancelled) {
-          const json: { entries?: Array<{ last_clicked_at?: string }> } = await res.json();
-          const iso = json.entries?.[0]?.last_clicked_at;
-          const t = iso ? new Date(iso).getTime() : NaN;
-          if (Number.isFinite(t)) {
-            setPreviousVisitAt((cur) => (cur == null ? t : Math.max(cur, t)));
-          }
-        }
-        // Bump the cross-device marker for next time (after reading it).
-        await fetch("/api/user/activity", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ activity_type: "home_visit", target_id: "home", action: "visit", value: 1 }),
-        });
-      } catch {
-        /* best-effort — local cutoff already applies */
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [isAuthenticated]);
-
-  // ─── Top feed (powers the Top 5 + the « N nouveaux » badge) ─────────
-  // The TOP STORY / TOP VIDEO cards moved to the dedicated
-  // `/app/top-stories` page (`TopStoriesPage.tsx`) along with their
-  // fetch logic — the home only keeps this list-shaped feed.
-  const { articles: topFeed } = useTopFeed({
-    poll: false,
-    lang,
-    preferredTopics: null,
-    enabled: true,
-  });
 
   // ─── Latest daily summary (today or yesterday fallback) ─────────────
   const [summaryRoutes, setSummaryRoutes] = useState<SummaryRoute[]>([]);
@@ -123,21 +61,6 @@ export function BriefingPage({
   const latestSummary = useMemo(() => {
     return selectPreferredSummaryRoute(summaryRoutes, lang, preferredTopicId);
   }, [summaryRoutes, lang, preferredTopicId]);
-
-  // ─── Trending topics (powered by /api/topics/trending) ──────────────
-  const [trending, setTrending] = useState<TrendingTopic[]>([]);
-  useEffect(() => {
-    const params = new URLSearchParams({ since: "24h", lang, limit: "10" });
-    if (preferredTopicIds && preferredTopicIds.length > 0) {
-      params.set("topics", preferredTopicIds.join(","));
-    }
-    fetch(`/api/topics/trending?${params}`, { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((rows: TrendingTopic[]) => {
-        setTrending(Array.isArray(rows) ? rows : []);
-      })
-      .catch(() => setTrending([]));
-  }, [lang, preferredTopicIds]);
 
   // ─── Recent SSR per-video pages ─────────────────────────────────────
   // The list itself owns its pagination state — see
@@ -186,20 +109,6 @@ export function BriefingPage({
     return () => { cancelled = true; };
   }, [isAuthenticated, preferredTopicIds, lang, topicLabels]);
 
-  // Top 5 — since the TOP STORY hero moved to `/app/top-stories`, there
-  // is no hero on the home to dedup against anymore.
-  const top5 = topFeed.slice(0, 5);
-
-  // Count of top-feed stories published since the user's last visit —
-  // drives the « N nouveaux » badge on the « À lire maintenant » header.
-  const newSinceVisit =
-    previousVisitAt == null
-      ? 0
-      : topFeed.filter((a) => {
-          const t = new Date(a.pubDate).getTime();
-          return Number.isFinite(t) && t > previousVisitAt;
-        }).length;
-
   const showChooseTopics =
     isAuthenticated &&
     (!preferredTopicIds || preferredTopicIds.length === 0) &&
@@ -221,35 +130,35 @@ export function BriefingPage({
               cookie list for anonymous visitors). */}
           <HomeTop24hHero lang={lang} onOpenChat={onOpenChat} />
 
-          {/* ─── 2 · À lire maintenant : Top 5 puis Tendances 24h, empilés
-              dans le flux de la page (plus de rail latéral). Les deux
-              blocs partagent la présentation compacte « recent-video ». ─ */}
-          {(top5.length > 0 || trending.length > 0) && (
-            <section style={{ marginBottom: 36 }}>
-              {top5.length > 0 && (
-                <Top5Section
-                  articles={top5}
-                  lang={lang}
-                  topicLabels={topicLabels}
-                  newSinceVisit={newSinceVisit}
-                  onSeeAll={() => onNavigate("topArticles")}
-                />
-              )}
-
-              {trending.length > 0 && (
-                <TrendingStrip
-                  topics={trending}
-                  lang={lang}
-                  onTopicClick={onOpenTopicArticles}
-                />
-              )}
-            </section>
+          {/* ─── 2 · Résumé quotidien topic (teaser) — moved up right
+              below the Daily Podcast (v2.20.6+, was the second-to-last
+              section) with a 2× longer excerpt (~10 lines). ──────────── */}
+          {summaryLoading ? (
+            <SectionSpinner
+              label={
+                lang === "fr"
+                  ? "Résumé quotidien topic · chargement"
+                  : "Daily topic summary · loading"
+              }
+            />
+          ) : (
+            latestSummary && (
+              <DailySummaryTeaser
+                route={latestSummary}
+                lang={lang}
+                locale={locale}
+                topicLabels={topicLabels}
+              />
+            )
           )}
 
-          {/* ─── Newsletter CTA — placed after the Top 5 so we ask for the
-              email only once the reader has seen the day's value (podcast,
-              top 5, trending), not before. Self-hides for owners and
-              already-subscribed users. */}
+          {/* ─── Newsletter CTA — placed after the podcast + daily summary
+              teaser so we ask for the email only once the reader has seen
+              the day's value, not before. Self-hides for owners and
+              already-subscribed users. (The « Today's Briefing · Top 5 »
+              section that used to sit here was removed in v2.20.6+ along
+              with its « N new since your visit » badge machinery — the
+              full ranking lives on `/app/top-articles`.) */}
           <NewsletterSignupPrompt lang={lang} onRequestAuth={onRequestAuth} />
 
           {/* ─── 6 · Vos topics (personnalisé, remonté) ──────────────── */}
@@ -320,26 +229,6 @@ export function BriefingPage({
             topicLabels={topicLabels}
             lang={lang}
           />
-
-          {/* ─── 8 · Résumé quotidien topic (teaser) ─────────────────── */}
-          {summaryLoading ? (
-            <SectionSpinner
-              label={
-                lang === "fr"
-                  ? "Résumé quotidien topic · chargement"
-                  : "Daily topic summary · loading"
-              }
-            />
-          ) : (
-            latestSummary && (
-              <DailySummaryTeaser
-                route={latestSummary}
-                lang={lang}
-                locale={locale}
-                topicLabels={topicLabels}
-              />
-            )
-          )}
 
           {/* ─── 9 · Footer CTAs ─────────────────────────────────────── */}
           <FooterCTAs

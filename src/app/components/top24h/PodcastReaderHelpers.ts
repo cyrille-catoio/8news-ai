@@ -3,6 +3,8 @@ import {
   type Bullet,
   type Group,
 } from "@/app/components/top24h/Top24hHeroHelpers";
+import { TTS_TEXT_MAX_CHARS } from "@/lib/tts";
+import type { Lang } from "@/lib/i18n";
 
 /**
  * Pure helpers for the fullscreen Daily Podcast reader
@@ -45,4 +47,28 @@ export function clampPageIndex(next: number, total: number): number {
  *  slide kicker. `index` is 1-based. */
 export function readerCounterLabel(index: number, total: number): string {
   return `${index} / ${total}`;
+}
+
+/**
+ * Spoken text for ONE reader slide (v2.20.7+ per-slide Play button):
+ * the group title announced once (with the same « Video: » prefix as
+ * the full-podcast narration in `Top24hAudio`), then the bullet bodies
+ * separated by « ... » ellipsis pauses so the voice breathes between
+ * paragraphs. No intro/outro — the slide is a single news, not the
+ * whole briefing. Clamped to `TTS_TEXT_MAX_CHARS` belt-and-braces
+ * (a slide is always far below the cap in practice).
+ */
+export function buildSlideTtsText(group: Group, lang: Lang): string {
+  const videoPrefix = group.bullets[0]?.isVideo
+    ? lang === "fr" ? "Vidéo : " : "Video: "
+    : "";
+  const header = group.title.trim() ? `${videoPrefix}${group.title.trim()}.` : "";
+  const body = group.bullets
+    .map((b) => b.text.trim())
+    .filter(Boolean)
+    .join(" ... ");
+  const text = header ? `${header} ${body}` : body;
+  return text.length > TTS_TEXT_MAX_CHARS
+    ? text.slice(0, TTS_TEXT_MAX_CHARS) + "…"
+    : text;
 }

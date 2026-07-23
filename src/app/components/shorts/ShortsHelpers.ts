@@ -102,23 +102,36 @@ export function formatShortDuration(sec: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-/* ── Resume-where-you-left-off (localStorage, scoped to the day) ────── */
+/* ── Seen-Shorts tracking (localStorage, scoped to the day) ─────────── */
 
-/** localStorage key holding the last-watched Short for the current day. */
-export const SHORTS_RESUME_KEY = "shorts.lastWatched.v1";
+/**
+ * localStorage key for the set of Shorts already watched TODAY. The feed
+ * is newest-first; on reopen we drop the seen ones and show only the
+ * unseen — still newest-first — so the viewer catches any Shorts that
+ * appeared since (they sit at the top), skips everything already watched
+ * (no duplicates), and works down to the older unseen ones, eventually
+ * seeing every Short of the day exactly once. This supersedes a single
+ * « last position » pointer, which broke as soon as new Shorts shifted
+ * that position's index.
+ */
+export const SHORTS_SEEN_KEY = "shorts.seen.v1";
 
-interface ResumeRecord {
-  /** Local calendar day the Short was watched on (YYYY-MM-DD). */
+/** Safety cap on the stored set — a day's feed is ~100-150 Shorts, so
+ *  this is never hit in practice; it just bounds localStorage if
+ *  something ever loops. Oldest-seen ids are dropped first. */
+export const SHORTS_SEEN_MAX = 600;
+
+interface SeenRecord {
+  /** Local calendar day the ids were collected on (YYYY-MM-DD). */
   date: string;
-  videoId: string;
+  ids: string[];
 }
 
 /**
- * Local calendar day key (YYYY-MM-DD) in the VIEWER's timezone — resume
- * is deliberately scoped to « the same day », matching the feed's own
- * local-day window (`shortsWindowStartIso`). A stored Short from an
- * earlier day is stale and ignored, so each new day starts fresh on the
- * most recent Short.
+ * Local calendar day key (YYYY-MM-DD) in the VIEWER's timezone — seen
+ * tracking is deliberately scoped to « the same day », matching the
+ * feed's own local-day window (`shortsWindowStartIso`). A set from an
+ * earlier day is stale and ignored, so each new day starts fresh.
  */
 export function shortsDayKey(now: Date): string {
   const y = now.getFullYear();
@@ -128,29 +141,51 @@ export function shortsDayKey(now: Date): string {
 }
 
 /**
- * Parse a stored resume record and return its videoId ONLY when it was
- * saved on `todayKey`. Returns null for anything stale, absent or
- * malformed — the caller then falls back to the newest Short.
+ * Parse the stored seen record into a Set — empty unless it is for
+ * `todayKey`. Malformed / absent / stale storage yields an empty set,
+ * so the viewer simply sees the whole day fresh.
  */
-export function parseResumeVideoId(raw: string | null, todayKey: string): string | null {
-  if (!raw) return null;
+export function parseSeenIds(raw: string | null, todayKey: string): Set<string> {
+  if (!raw) return new Set();
   try {
-    const rec = JSON.parse(raw) as Partial<ResumeRecord>;
-    if (
-      rec &&
-      rec.date === todayKey &&
-      typeof rec.videoId === "string" &&
-      rec.videoId.length > 0
-    ) {
-      return rec.videoId;
+    const rec = JSON.parse(raw) as Partial<SeenRecord>;
+    if (rec && rec.date === todayKey && Array.isArray(rec.ids)) {
+      return new Set(
+        rec.ids.filter((x): x is string => typeof x === "string" && x.length > 0),
+      );
     }
   } catch {
-    // malformed JSON — treat as no saved position
+    // malformed JSON — treat as nothing seen
   }
-  return null;
+  return new Set();
 }
 
-/** Serialize the resume record written to localStorage on each slide change. */
-export function serializeResume(videoId: string, todayKey: string): string {
-  return JSON.stringify({ date: todayKey, videoId } satisfies ResumeRecord);
+/**
+ * Serialize the seen set with `videoId` added (idempotent), stamped with
+ * `todayKey` and capped to the most recent `SHORTS_SEEN_MAX` ids
+ * (oldest-seen dropped first).
+ */
+export function serializeSeen(
+  existing: Set<string>,
+  videoId: string,
+  todayKey: string,
+): string {
+  const ids = existing.has(videoId) ? [...existing] : [...existing, videoId];
+  const capped = ids.length > SHORTS_SEEN_MAX ? ids.slice(ids.length - SHORTS_SEEN_MAX) : ids;
+  return JSON.stringify({ date: todayKey, ids: capped } satisfies SeenRecord);
+}
+
+/**
+ * The Shorts the viewer should actually see: the unseen ones, preserving
+ * the API's newest-first order (new arrivals at the top, then older
+ * unseen). When everything has already been seen — the viewer is caught
+ * up for the day — returns the full list so the feed is never a dead
+ * empty screen; the day simply restarts from the newest.
+ */
+export function selectUnseenShorts<T extends { videoId: string }>(
+  list: T[],
+  seen: Set<string>,
+): T[] {
+  const unseen = list.filter((v) => !seen.has(v.videoId));
+  return unseen.length === 0 ? list : unseen;
 }

@@ -44,6 +44,20 @@ export interface RelevantEntry {
   title?: string;
 }
 
+/** Clamp a raw LLM `importance` value to the 1-10 range with one-decimal
+ *  precision (v2.20.7+: the Top 24h prompt asks for scores like 8.4 and
+ *  `summary_bullets.importance_score` is NUMERIC(3,1) since mig 036 —
+ *  the previous integer `Math.round` erased the granularity). Keeps the
+ *  old integer-round tolerance for slight overshoots (10.4 → 10,
+ *  0.5 → 1); anything non-numeric or genuinely out of range (garbage
+ *  like 0.2 or 47) collapses to null. */
+export function clampImportance(raw: unknown): number | null {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return null;
+  const rounded = Math.round(raw * 10) / 10;
+  if (rounded < 0.5 || rounded >= 10.5) return null;
+  return Math.max(1, Math.min(10, rounded));
+}
+
 export async function analyzeWithAI(
   items: ArticleSummary[],
   systemPrompt: string,
@@ -133,10 +147,11 @@ export async function analyzeWithAI(
       title?: string;
       /**
        * Editorial importance 1-10 for the whole group (Top 24h prompt
-       * v2.6.9+). Propagated below to every flattened sub-bullet so the
-       * persistence layer keeps its flat-row shape and the UI can read
-       * the score off the first bullet of each visible group. The LLM
-       * is asked to ground the score on industry impact (see prompt in
+       * v2.6.9+; one-decimal precision v2.20.7+, e.g. 8.4). Propagated
+       * below to every flattened sub-bullet so the persistence layer
+       * keeps its flat-row shape and the UI can read the score off the
+       * first bullet of each visible group. The LLM is asked to ground
+       * the score on industry impact (see prompt in
        * `generate-top-summary.ts`). Anything outside 1-10 is dropped to
        * null at flatten time.
        */
@@ -151,13 +166,6 @@ export async function analyzeWithAI(
         .replace(/^\s*["“«]+|["”»]+\s*$/g, "")
         .replace(/[\.…]+\s*$/u, "")
         .trim();
-
-    const clampImportance = (raw: unknown): number | null => {
-      if (typeof raw !== "number" || !Number.isFinite(raw)) return null;
-      const rounded = Math.round(raw);
-      if (rounded < 1 || rounded > 10) return null;
-      return rounded;
-    };
 
     const buildRefs = (refs: number[] | undefined) =>
       (refs ?? [])

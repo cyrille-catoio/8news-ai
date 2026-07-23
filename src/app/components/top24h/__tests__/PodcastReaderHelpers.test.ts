@@ -1,10 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
   buildReaderPages,
+  buildSlideTtsText,
   clampPageIndex,
   readerCounterLabel,
 } from "../PodcastReaderHelpers";
-import type { Bullet } from "../Top24hHeroHelpers";
+import { TTS_TEXT_MAX_CHARS } from "@/lib/tts";
+import type { Bullet, Group } from "../Top24hHeroHelpers";
 
 function b(partial: Partial<Bullet> & { text: string }): Bullet {
   return { refs: [], ...partial };
@@ -79,5 +81,44 @@ describe("readerCounterLabel", () => {
   it("renders « i / N »", () => {
     expect(readerCounterLabel(3, 8)).toBe("3 / 8");
     expect(readerCounterLabel(1, 1)).toBe("1 / 1");
+  });
+});
+
+describe("buildSlideTtsText", () => {
+  const g = (title: string, bullets: Bullet[]): Group => ({ title, bullets });
+
+  it("announces the title once, then the bullets with ellipsis pauses", () => {
+    const out = buildSlideTtsText(
+      g("Big news", [b({ text: "First." }), b({ text: "Second." })]),
+      "en",
+    );
+    expect(out).toBe("Big news. First. ... Second.");
+  });
+
+  it("omits the header for empty-titled groups", () => {
+    expect(buildSlideTtsText(g("", [b({ text: "Solo." })]), "en")).toBe("Solo.");
+  });
+
+  it("prefixes video groups per lang, like the full-podcast narration", () => {
+    const group = g("Great recap", [b({ text: "Body.", isVideo: true })]);
+    expect(buildSlideTtsText(group, "en")).toBe("Video: Great recap. Body.");
+    expect(buildSlideTtsText(group, "fr")).toBe("Vidéo : Great recap. Body.");
+  });
+
+  it("skips blank bullets and trims whitespace", () => {
+    const out = buildSlideTtsText(
+      g(" T ", [b({ text: "  A  " }), b({ text: "   " }), b({ text: "B" })]),
+      "en",
+    );
+    expect(out).toBe("T. A ... B");
+  });
+
+  it("clamps to TTS_TEXT_MAX_CHARS with an ellipsis", () => {
+    const out = buildSlideTtsText(
+      g("", [b({ text: "x".repeat(TTS_TEXT_MAX_CHARS + 100) })]),
+      "en",
+    );
+    expect(out.length).toBe(TTS_TEXT_MAX_CHARS + 1);
+    expect(out.endsWith("…")).toBe(true);
   });
 });

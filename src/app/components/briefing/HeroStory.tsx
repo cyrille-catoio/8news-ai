@@ -53,7 +53,7 @@ export function HeroStory({
     ?? article.topic;
   return (
     <section style={{ marginBottom: 36 }}>
-      <div style={{ display: "flex", alignItems: "baseline", marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", rowGap: 8, marginBottom: 12 }}>
         <div style={{ ...kicker(color.gold) }}>
           {lang === "fr" ? "Top story · maintenant" : "Top story · now"}
         </div>
@@ -63,6 +63,7 @@ export function HeroStory({
           onPrev={onHistoryPrev}
           onNext={onHistoryNext}
           lang={lang}
+          withLabels
         />
       </div>
       <div

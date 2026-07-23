@@ -5,11 +5,13 @@ import { color } from "@/lib/theme";
 import type { Lang } from "@/lib/i18n";
 
 /**
- * Newer / older history chevrons used on the home Top Story, Top Video
- * and Top 24h (Daily Podcast) heroes. v2.12 extracted from
- * `BriefingPage.tsx`; the Top 24h hero's near-identical copy
+ * Newer / older history chevrons used on the Top Stories page (Top Story,
+ * Top Video) and the home Top 24h (Daily Podcast) hero. v2.12 extracted
+ * from `BriefingPage.tsx`; the Top 24h hero's near-identical copy
  * (`Top24hHistoryArrows`) was merged into this one — pass
  * `newerLabel` / `olderLabel` to override the default aria-labels.
+ * Pass `withLabels` to render visible « Previous / Next » text inside the
+ * buttons (Top Stories page) instead of bare chevrons.
  */
 export function HistoryArrows({
   offset,
@@ -19,6 +21,7 @@ export function HistoryArrows({
   lang,
   newerLabel,
   olderLabel,
+  withLabels,
 }: {
   offset: number;
   canGoOlder: boolean;
@@ -29,8 +32,15 @@ export function HistoryArrows({
   newerLabel?: string;
   /** Optional aria-label override for the « older » chevron. */
   olderLabel?: string;
+  /** Render visible text labels next to the chevrons. */
+  withLabels?: boolean;
 }) {
   const canGoNewer = offset > 0;
+  // Reading direction is « now → past »: the right button advances to the
+  // next (older) pick, the left one walks back toward the live pick.
+  // Wording matches the Daily Podcast fullscreen reader nav.
+  const prevText = lang === "fr" ? "Précédent" : "Previous";
+  const nextText = lang === "fr" ? "Suivant" : "Next";
   // Match the visible "fold/unfold" affordance used elsewhere: bordered
   // hit-targets with gold hover, instead of bare low-contrast glyphs.
   const baseBtn: CSSProperties = {
@@ -38,16 +48,18 @@ export function HistoryArrows({
     border: `1px solid ${color.border}`,
     borderRadius: 6,
     color: color.textDim,
-    fontSize: 20,
+    fontSize: withLabels ? 12 : 20,
     lineHeight: 1,
     fontFamily: "inherit",
-    padding: "4px 8px",
+    padding: withLabels ? "6px 10px" : "4px 8px",
     cursor: "pointer",
     minWidth: 30,
     minHeight: 28,
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
+    gap: 5,
+    whiteSpace: "nowrap",
     transition: "color 120ms ease, opacity 120ms ease, border-color 120ms ease, background 120ms ease",
     // Negative top offset compensates for the chevron glyph's intrinsic
     // top whitespace inside its own line-box, pulling the visible
@@ -55,6 +67,7 @@ export function HistoryArrows({
     position: "relative",
     top: 1,
   };
+  const chevronStyle: CSSProperties = withLabels ? { fontSize: 16, lineHeight: 1 } : {};
   return (
     <div
       style={{
@@ -90,7 +103,8 @@ export function HistoryArrows({
           e.currentTarget.style.background = "rgba(255,255,255,0.02)";
         }}
       >
-        ‹
+        <span aria-hidden="true" style={chevronStyle}>‹</span>
+        {withLabels && <span>{prevText}</span>}
       </button>
       <button
         type="button"
@@ -114,7 +128,8 @@ export function HistoryArrows({
           e.currentTarget.style.background = "rgba(255,255,255,0.02)";
         }}
       >
-        ›
+        {withLabels && <span>{nextText}</span>}
+        <span aria-hidden="true" style={chevronStyle}>›</span>
       </button>
     </div>
   );

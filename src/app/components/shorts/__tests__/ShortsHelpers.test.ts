@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  SHORTS_SEEN_MAX,
   SHORTS_WINDOW_DAYS,
   buildShortsEmbedUrl,
   clampShortsIndex,
   formatShortDuration,
   isShortDuration,
-  parseResumeVideoId,
-  serializeResume,
+  parseSeenIds,
+  selectUnseenShorts,
+  serializeSeen,
   shortsCounterLabel,
   shortsDayKey,
   shortsDayLabel,
@@ -148,30 +150,83 @@ describe("shortsDayKey", () => {
   });
 });
 
-describe("parseResumeVideoId", () => {
+describe("parseSeenIds / serializeSeen", () => {
   const today = "2026-07-23";
 
-  it("returns the videoId when the record is for today", () => {
-    const raw = serializeResume("abc123", today);
-    expect(parseResumeVideoId(raw, today)).toBe("abc123");
+  it("round-trips a growing set for today", () => {
+    let raw = serializeSeen(new Set(), "A", today);
+    expect([...parseSeenIds(raw, today)]).toEqual(["A"]);
+    raw = serializeSeen(parseSeenIds(raw, today), "B", today);
+    raw = serializeSeen(parseSeenIds(raw, today), "C", today);
+    expect([...parseSeenIds(raw, today)]).toEqual(["A", "B", "C"]);
   });
 
-  it("ignores a record saved on a different day", () => {
-    const raw = serializeResume("abc123", "2026-07-22");
-    expect(parseResumeVideoId(raw, today)).toBeNull();
+  it("is idempotent — re-adding a seen id keeps order and count", () => {
+    const raw = serializeSeen(new Set(["A", "B"]), "A", today);
+    expect([...parseSeenIds(raw, today)]).toEqual(["A", "B"]);
   });
 
-  it("returns null for absent, empty or malformed storage", () => {
-    expect(parseResumeVideoId(null, today)).toBeNull();
-    expect(parseResumeVideoId("", today)).toBeNull();
-    expect(parseResumeVideoId("not json", today)).toBeNull();
-    expect(parseResumeVideoId("{}", today)).toBeNull();
-    expect(parseResumeVideoId(JSON.stringify({ date: today }), today)).toBeNull();
-    expect(parseResumeVideoId(JSON.stringify({ date: today, videoId: "" }), today)).toBeNull();
-    expect(parseResumeVideoId(JSON.stringify({ date: today, videoId: 42 }), today)).toBeNull();
+  it("ignores a set saved on a different day", () => {
+    const raw = serializeSeen(new Set(["A", "B"]), "C", "2026-07-22");
+    expect(parseSeenIds(raw, today).size).toBe(0);
   });
 
-  it("round-trips serialize -> parse", () => {
-    expect(parseResumeVideoId(serializeResume("xyz", today), today)).toBe("xyz");
+  it("returns an empty set for absent, empty or malformed storage", () => {
+    expect(parseSeenIds(null, today).size).toBe(0);
+    expect(parseSeenIds("", today).size).toBe(0);
+    expect(parseSeenIds("not json", today).size).toBe(0);
+    expect(parseSeenIds("{}", today).size).toBe(0);
+    expect(parseSeenIds(JSON.stringify({ date: today }), today).size).toBe(0);
+    expect(parseSeenIds(JSON.stringify({ date: today, ids: "nope" }), today).size).toBe(0);
+  });
+
+  it("drops non-string ids defensively", () => {
+    const raw = JSON.stringify({ date: today, ids: ["A", 42, "", "B", null] });
+    expect([...parseSeenIds(raw, today)]).toEqual(["A", "B"]);
+  });
+
+  it("caps the stored set to the most recent SHORTS_SEEN_MAX ids", () => {
+    const big = new Set(Array.from({ length: SHORTS_SEEN_MAX }, (_, i) => `id${i}`));
+    const raw = serializeSeen(big, "newest", today);
+    const parsed = parseSeenIds(raw, today);
+    expect(parsed.size).toBe(SHORTS_SEEN_MAX);
+    expect(parsed.has("newest")).toBe(true);
+    expect(parsed.has("id0")).toBe(false); // oldest dropped
+    expect(parsed.has("id1")).toBe(true);
+  });
+});
+
+describe("selectUnseenShorts", () => {
+  const feed = ["X", "Y", "Z", "A", "B", "Q", "R"].map((videoId) => ({ videoId }));
+
+  it("keeps only unseen Shorts, preserving newest-first order", () => {
+    const seen = new Set(["A", "B"]);
+    expect(selectUnseenShorts(feed, seen).map((v) => v.videoId)).toEqual([
+      "X", "Y", "Z", "Q", "R",
+    ]);
+  });
+
+  it("surfaces newly-arrived Shorts first, then older unseen ones", () => {
+    // Session 1 saw the then-top ["A","B"]; new Shorts X,Y,Z arrived on top.
+    const seen = new Set(["A", "B"]);
+    const result = selectUnseenShorts(feed, seen).map((v) => v.videoId);
+    expect(result[0]).toBe("X"); // newest new arrival, not missed
+    expect(result).not.toContain("A"); // already seen, skipped
+    expect(result).toContain("Q"); // older unseen still reachable
+  });
+
+  it("returns the full list when everything has been seen (caught up)", () => {
+    const seen = new Set(feed.map((v) => v.videoId));
+    expect(selectUnseenShorts(feed, seen)).toEqual(feed);
+  });
+
+  it("returns everything when nothing has been seen (first open)", () => {
+    expect(selectUnseenShorts(feed, new Set()).map((v) => v.videoId)).toEqual(
+      feed.map((v) => v.videoId),
+    );
+  });
+
+  it("handles an empty feed", () => {
+    expect(selectUnseenShorts([], new Set(["A"]))).toEqual([]);
   });
 });

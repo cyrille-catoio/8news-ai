@@ -13,9 +13,11 @@ import {
 } from "@/app/components/top24h/Top24hHeroHelpers";
 import {
   buildReaderPages,
+  buildSlideTtsText,
   clampPageIndex,
   readerCounterLabel,
 } from "@/app/components/top24h/PodcastReaderHelpers";
+import { readTtsSpeed, readTtsVoice } from "@/lib/tts";
 import { trackEvent } from "@/lib/track";
 
 /**
@@ -96,6 +98,106 @@ export function PodcastReader({
       document.body.style.overflow = previous;
     };
   }, []);
+
+  // ─── Per-slide audio (v2.20.7+) ─────────────────────────────────────
+  // A single « Play » / « Pause » button (top right of the slide, under
+  // the score) narrates the news currently ON SCREEN (and only it): the
+  // slide's group is composed by `buildSlideTtsText` and synthesized via
+  // /api/tts with the user's persisted voice / speed preferences.
+  // Changing slide (or closing the reader) stops and discards the audio
+  // — the button is always about the visible news.
+  const [audioState, setAudioState] = useState<
+    "idle" | "loading" | "playing" | "paused"
+  >("idle");
+  const slideAudioRef = useRef<HTMLAudioElement | null>(null);
+  const slideBlobUrlRef = useRef<string | null>(null);
+  /** Generation guard: bumped on every stop/new-load so a stale fetch
+   *  resolving after a slide change can't start playing the wrong news. */
+  const slideAudioGenRef = useRef(0);
+
+  const stopSlideAudio = useCallback(() => {
+    slideAudioGenRef.current++;
+    if (slideAudioRef.current) {
+      slideAudioRef.current.pause();
+      slideAudioRef.current.removeAttribute("src");
+      slideAudioRef.current = null;
+    }
+    if (slideBlobUrlRef.current) {
+      URL.revokeObjectURL(slideBlobUrlRef.current);
+      slideBlobUrlRef.current = null;
+    }
+    setAudioState("idle");
+  }, []);
+
+  // Stop on every slide change AND on unmount (reader closed).
+  useEffect(() => stopSlideAudio, [currentIndex, stopSlideAudio]);
+
+  const handleAudioToggle = useCallback(async () => {
+    if (audioState === "loading") return;
+
+    if (audioState === "playing") {
+      slideAudioRef.current?.pause();
+      setAudioState("paused");
+      trackEvent("audio.pause", {
+        target_id: summaryDate,
+        lang,
+        meta: { context: "top24h_reader", slideIndex: currentIndexRef.current },
+      });
+      return;
+    }
+
+    if (audioState === "paused" && slideAudioRef.current) {
+      try {
+        await slideAudioRef.current.play();
+        setAudioState("playing");
+      } catch {
+        /* resume refused — stay paused, the user can retry */
+      }
+      return;
+    }
+
+    // idle → synthesize the visible slide and play it.
+    const page = pages[clampPageIndex(currentIndexRef.current, pages.length)];
+    if (!page) return;
+    const gen = ++slideAudioGenRef.current;
+    setAudioState("loading");
+    try {
+      const res = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: buildSlideTtsText(page.group, lang),
+          lang,
+          speed: readTtsSpeed(),
+          voice: readTtsVoice(lang),
+        }),
+      });
+      if (!res.ok) throw new Error(`TTS ${res.status}`);
+      const blob = await res.blob();
+      if (gen !== slideAudioGenRef.current) return; // slide changed meanwhile
+      const url = URL.createObjectURL(blob);
+      slideBlobUrlRef.current = url;
+      const audio = new Audio(url);
+      audio.setAttribute("playsinline", "");
+      slideAudioRef.current = audio;
+      audio.addEventListener("ended", () => {
+        if (gen === slideAudioGenRef.current) setAudioState("idle");
+      });
+      await audio.play();
+      if (gen !== slideAudioGenRef.current) {
+        audio.pause();
+        return;
+      }
+      trackEvent("audio.play", {
+        target_id: summaryDate,
+        lang,
+        meta: { context: "top24h_reader", slideIndex: currentIndexRef.current },
+      });
+      setAudioState("playing");
+    } catch {
+      if (gen === slideAudioGenRef.current) stopSlideAudio();
+    }
+  }, [audioState, pages, lang, summaryDate, stopSlideAudio]);
 
   // Keyboard driving (desktop): arrows / PageUp / PageDown navigate,
   // Escape closes. Attached to the document so the reader works
@@ -240,7 +342,50 @@ export function PodcastReader({
       </button>
 
       <div className="top24h-reader-scroll" ref={scrollRef}>
-        {pages.map((page, i) => (
+        {pages.map((page, i) => {
+          // Per-slide Play/Pause — sits on its own row right below the
+          // title, left-aligned (v2.20.7+).
+          const playButton = (
+            <button
+              type="button"
+              onClick={() => void handleAudioToggle()}
+              disabled={audioState === "loading"}
+              aria-label={audioState === "playing" ? "Pause" : "Play"}
+              style={{
+                ...navButtonStyle(audioState === "loading"),
+                padding: "8px 16px",
+                flexShrink: 0,
+                fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+                textTransform: "none",
+                letterSpacing: "0.01em",
+              }}
+            >
+              {audioState === "playing" ? (
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  aria-hidden
+                >
+                  <rect x="6" y="4" width="4" height="16" rx="1" />
+                  <rect x="14" y="4" width="4" height="16" rx="1" />
+                </svg>
+              ) : (
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  aria-hidden
+                >
+                  <polygon points="5,3 19,12 5,21" />
+                </svg>
+              )}
+              {audioState === "playing" ? "Pause" : "Play"}
+            </button>
+          );
+          return (
           <div
             key={i}
             className="top24h-reader-slide"
@@ -250,8 +395,8 @@ export function PodcastReader({
             }}
           >
             <div className="top24h-reader-inner">
-              {/* Kicker row — counter on the left, importance score
-                  pushed to the far right edge of the column. */}
+              {/* Kicker row — counter on the left, labelled extra-large
+                  « Score : 9/10 » pushed to the right edge (v2.20.7+). */}
               <div
                 className="top24h-reader-kicker"
                 style={{
@@ -268,19 +413,32 @@ export function PodcastReader({
                   if (typeof score !== "number") return null;
                   return (
                     <span
-                      style={{ color: scoreTierColor(score) }}
+                      style={{
+                        color: scoreTierColor(score),
+                        fontSize: "clamp(20px, 3vw, 26px)",
+                        lineHeight: 1,
+                        flexShrink: 0,
+                      }}
                       aria-label={`Importance ${score}/10`}
                     >
+                      {lang === "fr" ? "Score : " : "Score: "}
                       {formatScore(score)}/10
                     </span>
                   );
                 })()}
               </div>
               {page.group.title && (
-                <h2 className="top24h-reader-title" style={{ color: color.text }}>
+                <h2
+                  className="top24h-reader-title"
+                  style={{ color: color.text, marginBottom: 14 }}
+                >
                   {page.group.title}
                 </h2>
               )}
+              {/* Play/Pause on its own left-aligned row under the title. */}
+              <div style={{ display: "flex", justifyContent: "flex-start", marginBottom: 26 }}>
+                {playButton}
+              </div>
               {page.group.bullets.map((b, j) => (
                 <div key={j} className="top24h-reader-bullet">
                   <p
@@ -321,7 +479,8 @@ export function PodcastReader({
               ))}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Fixed bottom navigation — Previous / counter / Next. Wanted on

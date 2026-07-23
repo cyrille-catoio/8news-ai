@@ -3,6 +3,7 @@ import {
   extractVideoBulletText,
   stripMarkdownInline,
   selectTopArticleBullets,
+  applySourceCountBonus,
   parseTopSummaryLangsParam,
   generateTopSummaryPrompt,
   buildBulletTranslationPayload,
@@ -203,6 +204,103 @@ describe("generateTopSummaryPrompt", () => {
       expect(p).toContain('"globalSummary"');
       expect(p).toContain('"importance"');
     }
+  });
+
+  it("asks for a one-decimal importance score (v2.19.x+)", () => {
+    expect(generateTopSummaryPrompt("en")).toContain("ONE decimal");
+    expect(generateTopSummaryPrompt("fr")).toContain("UNE décimale");
+    for (const lang of ["en", "fr"] as const) {
+      expect(generateTopSummaryPrompt(lang)).toContain('"importance":8.4');
+    }
+  });
+});
+
+describe("applySourceCountBonus", () => {
+  const ref = (source: string, link = `https://x.test/${source}`) => ({
+    title: `Ref ${source}`,
+    link,
+    source,
+  });
+  const bullet = (
+    title: string | null,
+    importance: number | null,
+    refs: SummaryBullet["refs"],
+    text = "body",
+  ): SummaryBullet => ({ text, title, importance, refs });
+
+  it("adds +0.1 for a single-outlet group", () => {
+    const out = applySourceCountBonus([bullet("A", 7, [ref("TechCrunch")])]);
+    expect(out[0].importance).toBe(7.1);
+  });
+
+  it("caps the bonus at +0.5 for 5+ distinct outlets", () => {
+    const refs = ["S1", "S2", "S3", "S4", "S5", "S6", "S7"].map((s) => ref(s));
+    const out = applySourceCountBonus([bullet("A", 7, refs)]);
+    expect(out[0].importance).toBe(7.5);
+  });
+
+  it("dedups outlets by source name, case-insensitively", () => {
+    // Two TechCrunch articles = ONE outlet → +0.1, not +0.2.
+    const out = applySourceCountBonus([
+      bullet("A", 7, [
+        ref("TechCrunch", "https://x.test/a"),
+        ref("techcrunch", "https://x.test/b"),
+      ]),
+    ]);
+    expect(out[0].importance).toBe(7.1);
+  });
+
+  it("counts the UNION of refs across a same-title run and boosts every bullet of the group", () => {
+    const out = applySourceCountBonus([
+      bullet("Nvidia", 8.4, [ref("TechCrunch"), ref("The Verge")]),
+      bullet("Nvidia", 8.4, [ref("The Verge"), ref("Ars Technica")]),
+      bullet("Solo", 6, [ref("Wired")]),
+    ]);
+    // 3 distinct outlets for the Nvidia group → +0.3 on BOTH bullets.
+    expect(out.map((b) => b.importance)).toEqual([8.7, 8.7, 6.1]);
+  });
+
+  it("does not merge non-consecutive same-title runs", () => {
+    const out = applySourceCountBonus([
+      bullet("A", 7, [ref("S1")]),
+      bullet("B", 7, [ref("S2")]),
+      bullet("A", 7, [ref("S3")]),
+    ]);
+    expect(out.map((b) => b.importance)).toEqual([7.1, 7.1, 7.1]);
+  });
+
+  it("clamps the boosted score at 10", () => {
+    const refs = ["S1", "S2", "S3", "S4", "S5"].map((s) => ref(s));
+    const out = applySourceCountBonus([bullet("A", 9.8, refs)]);
+    expect(out[0].importance).toBe(10);
+  });
+
+  it("rounds the boosted score to one decimal", () => {
+    // 7.4 + 0.3 can drift to 7.700000000000001 in floats.
+    const out = applySourceCountBonus([
+      bullet("A", 7.4, [ref("S1"), ref("S2"), ref("S3")]),
+    ]);
+    expect(out[0].importance).toBe(7.7);
+  });
+
+  it("leaves unscored bullets and no-ref bullets untouched", () => {
+    const out = applySourceCountBonus([
+      bullet("NoScore", null, [ref("S1")]),
+      bullet("NoRefs", 7, []),
+    ]);
+    expect(out.map((b) => b.importance)).toEqual([null, 7]);
+  });
+
+  it("preserves order, texts, titles and refs", () => {
+    const input = [
+      bullet("A", 7, [ref("S1")], "first"),
+      bullet("A", 7, [ref("S2")], "second"),
+      bullet(null, 5, [ref("S3")], "solo"),
+    ];
+    const out = applySourceCountBonus(input);
+    expect(out.map((b) => b.text)).toEqual(["first", "second", "solo"]);
+    expect(out.map((b) => b.title)).toEqual(["A", "A", null]);
+    expect(out.map((b) => b.refs)).toEqual(input.map((b) => b.refs));
   });
 });
 

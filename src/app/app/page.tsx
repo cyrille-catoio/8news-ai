@@ -58,7 +58,7 @@ import { CryptoChartPage, type CryptoChartTarget } from "@/app/components/Crypto
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.20.6";
+const APP_VERSION = "2.20.7";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 // Daily Podcast chat panel width bounds (desktop). The panel is

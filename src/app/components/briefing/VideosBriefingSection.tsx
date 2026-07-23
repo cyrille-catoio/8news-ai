@@ -55,7 +55,7 @@ export function VideosBriefingSection({
 }) {
   return (
     <section style={{ marginBottom: 36 }}>
-      <div style={{ display: "flex", alignItems: "baseline", marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", rowGap: 8, marginBottom: 12 }}>
         <div style={{ ...kicker(color.gold) }}>
           {lang === "fr" ? "TOP VIDEO · MAINTENANT" : "TOP VIDEO · NOW"}
         </div>
@@ -65,6 +65,7 @@ export function VideosBriefingSection({
           onPrev={onHistoryPrev}
           onNext={onHistoryNext}
           lang={lang}
+          withLabels
         />
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>

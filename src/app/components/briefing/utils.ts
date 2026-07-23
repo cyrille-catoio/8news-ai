@@ -73,30 +73,26 @@ export interface DailySummaryBullet {
   text: string;
 }
 
-/** Builds a ~10-line teaser by concatenating the first bullet texts
- *  (each one is ~80-150 chars on average) and capping at 840 chars so
- *  the card stays bounded (doubled from the original 3-bullet / 420-char
- *  budget — owner asked for a 2× longer teaser, v2.20.6+). Falls back
- *  to a single bullet if the array is shorter; returns the raw
- *  `seo_description` when the bullets payload is missing entirely
- *  (legacy rows). */
-const TEASER_MAX_BULLETS = 6;
-const TEASER_MAX_CHARS = 840;
-/** Word-boundary cut is only honored when it doesn't discard too much
- *  of the budget; otherwise we hard-cut mid-word. */
-const TEASER_MIN_CUT = 640;
+/** How many summary bullets the home teaser shows. The card mirrors the
+ *  « Points clés » list of the full summary page instead of a joined
+ *  paragraph (owner request, replaces the 840-char `buildSummaryTeaser`
+ *  concatenation). */
+const TEASER_BULLET_COUNT = 2;
 
-export function buildSummaryTeaser(
+/** Returns the first bullet texts to render as the home teaser list.
+ *  Falls back to the raw `seo_description` as a single entry when the
+ *  bullets payload is missing entirely (legacy rows); empty array when
+ *  there is nothing to show. */
+export function buildTeaserBullets(
   bullets: DailySummaryBullet[],
   seoDescription: string,
-): string {
+): string[] {
   const cleanBullets = (bullets ?? [])
     .map((b) => (typeof b?.text === "string" ? b.text.trim() : ""))
     .filter(Boolean);
-  if (cleanBullets.length === 0) return seoDescription.trim();
-  const joined = cleanBullets.slice(0, TEASER_MAX_BULLETS).join(" ");
-  if (joined.length <= TEASER_MAX_CHARS) return joined;
-  const cut = joined.slice(0, TEASER_MAX_CHARS);
-  const lastSpace = cut.lastIndexOf(" ");
-  return (lastSpace > TEASER_MIN_CUT ? cut.slice(0, lastSpace) : cut).trimEnd() + "…";
+  if (cleanBullets.length === 0) {
+    const seo = seoDescription.trim();
+    return seo ? [seo] : [];
+  }
+  return cleanBullets.slice(0, TEASER_BULLET_COUNT);
 }

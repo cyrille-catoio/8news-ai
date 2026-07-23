@@ -646,7 +646,10 @@ export function Top24hHero({
           date={snap.summaryDate}
         />
 
-        <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none", borderTop: `1px solid ${color.border}` }}>
+        {/* No borderTop here: the AudioPlayer's full-width progress bar
+            right above already draws a horizontal line — a top border
+            would read as a weird double rule. */}
+        <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none" }}>
           {groups.map((g, i) => {
             const collapsible = g.title.length > 0;
             const open = openIdx.has(i);
@@ -698,7 +701,8 @@ export function Top24hHero({
                         value (propagated by `analyzeWithAI` flatten).
                         Hidden when the legacy column is missing or the
                         LLM omitted the score. Plain tier-colored « 9/10 »
-                        text, homogeneous with the other home boxes. */}
+                        text; the first row spells out « Score : » so the
+                        number is self-explanatory (v2.20.6). */}
                     {(() => {
                       const score = g.bullets[0]?.importanceScore;
                       if (typeof score !== "number") return null;
@@ -707,13 +711,14 @@ export function Top24hHero({
                           style={{
                             flexShrink: 0,
                             fontFamily: "ui-monospace, Menlo, monospace",
-                            fontSize: 13,
+                            fontSize: 16,
                             fontWeight: 700,
                             letterSpacing: "0.02em",
                             color: scoreTierColor(score),
                           }}
                           aria-label={`Importance ${score}/10`}
                         >
+                          {i === 0 && (lang === "fr" ? "Score : " : "Score: ")}
                           {formatScore(score)}/10
                         </span>
                       );

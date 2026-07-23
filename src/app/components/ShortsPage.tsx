@@ -8,13 +8,14 @@ import type { VideoItem } from "@/lib/types";
 import { FavoriteButton } from "@/app/components/FavoriteButton";
 import { formatViews, stripEmojis } from "@/app/components/video-card/VideoCardHelpers";
 import {
-  SHORTS_RESUME_KEY,
+  SHORTS_SEEN_KEY,
   SHORTS_WINDOW_DAYS,
   buildShortsEmbedUrl,
   clampShortsIndex,
   formatShortDuration,
-  parseResumeVideoId,
-  serializeResume,
+  parseSeenIds,
+  selectUnseenShorts,
+  serializeSeen,
   shortsCounterLabel,
   shortsDayKey,
   shortsDayLabel,
@@ -85,31 +86,29 @@ function postToPlayer(
   );
 }
 
-/** Read the Short to resume at — only if one was saved earlier TODAY.
- *  localStorage is wrapped: SSR has no window, and Safari private mode
- *  throws on access. Any failure just means « start from the newest ». */
-function readResumeVideoId(): string | null {
-  if (typeof window === "undefined") return null;
+/** Read the set of Shorts already watched TODAY. localStorage is
+ *  wrapped: SSR has no window, and Safari private mode throws on access.
+ *  Any failure just means « nothing seen » — the viewer sees the day
+ *  fresh. */
+function readShortsSeen(): Set<string> {
+  if (typeof window === "undefined") return new Set();
   try {
-    return parseResumeVideoId(
-      window.localStorage.getItem(SHORTS_RESUME_KEY),
-      shortsDayKey(new Date()),
-    );
+    return parseSeenIds(window.localStorage.getItem(SHORTS_SEEN_KEY), shortsDayKey(new Date()));
   } catch {
-    return null;
+    return new Set();
   }
 }
 
-/** Persist the currently watched Short (with today's local day key). */
-function writeResumeVideoId(videoId: string): void {
+/** Mark a Short as watched today (idempotent, no write if already seen). */
+function markShortSeen(videoId: string): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(
-      SHORTS_RESUME_KEY,
-      serializeResume(videoId, shortsDayKey(new Date())),
-    );
+    const todayKey = shortsDayKey(new Date());
+    const seen = parseSeenIds(window.localStorage.getItem(SHORTS_SEEN_KEY), todayKey);
+    if (seen.has(videoId)) return;
+    window.localStorage.setItem(SHORTS_SEEN_KEY, serializeSeen(seen, videoId, todayKey));
   } catch {
-    // private mode / quota exceeded — non-critical, resume just won't stick
+    // private mode / quota exceeded — non-critical, seen just won't stick
   }
 }
 
@@ -201,11 +200,6 @@ export function ShortsPage({
     active: false,
     index: 0,
   });
-  /** Index to jump to on the initial feed load — the Short the user left
-   *  off on earlier today (resume). Non-null suppresses the
-   *  IntersectionObserver until the one-shot resume scroll lands, so the
-   *  briefly-visible first slide isn't committed over the resume target. */
-  const resumeScrollRef = useRef<number | null>(null);
   /** Mirrors for the document-level keydown listener (stable binding). */
   const currentIndexRef = useRef(0);
   const mutedRef = useRef(false);
@@ -235,31 +229,26 @@ export function ShortsPage({
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = (await res.json()) as { shorts?: VideoItem[] };
-      const list = json.shorts ?? [];
+      const raw = json.shorts ?? [];
+      // Show only the Shorts NOT yet watched today, keeping the API's
+      // newest-first order: any Shorts that appeared since last time sit
+      // at the top (never missed), everything already watched is dropped
+      // (no duplicates), and the older unseen ones follow — so the day is
+      // seen in full, once each. Caught up → the full day is shown again.
+      const list = selectUnseenShorts(raw, readShortsSeen());
       const isInitial = lastLoadedIdRef.current === null;
-      // On the first load, resume the Short last watched earlier today
-      // (localStorage); otherwise, and for retries, start on the newest.
-      let startIdx = 0;
-      if (isInitial && list.length > 0) {
-        const resumeId = readResumeVideoId();
-        const resumeIdx = resumeId ? list.findIndex((v) => v.videoId === resumeId) : -1;
-        if (resumeIdx > 0) startIdx = resumeIdx;
-      }
       setShorts(list);
-      setCurrentIndex(startIdx);
+      setCurrentIndex(0);
       navTargetRef.current = null;
       if (isInitial && list.length > 0) {
         // First successful load: boot the persistent player directly on
-        // the start Short (resume target or newest) so it autoplays it —
-        // no loadVideoById round-trip. Later refetches reuse the hot
-        // player via the [shorts, currentIndex] effect below.
-        const startVideoId = list[startIdx].videoId;
+        // the newest unseen Short so it autoplays — no loadVideoById
+        // round-trip. Later refetches reuse the hot player via the
+        // [shorts, currentIndex] effect below.
+        const startVideoId = list[0].videoId;
         lastLoadedIdRef.current = startVideoId;
         bootVideoIdRef.current = startVideoId;
         setBootVideoId(startVideoId);
-        // Non-zero start needs a one-shot scroll to that slide once the
-        // deck renders (see the resume effect); guards the IO meanwhile.
-        resumeScrollRef.current = startIdx > 0 ? startIdx : null;
       }
     } catch (err) {
       console.warn("[ShortsPage] feed fetch failed", err);
@@ -272,30 +261,12 @@ export function ShortsPage({
     fetchShorts();
   }, [fetchShorts]);
 
-  // Resume scroll: on the initial load, jump the deck to the Short the
-  // user left off on today (index set by fetchShorts). One-shot, in a
-  // rAF so the slides have laid out; clearing the ref re-enables the
-  // IntersectionObserver, which then settles on the resume slide.
-  useEffect(() => {
-    if (shorts === null || resumeScrollRef.current === null) return;
-    const container = scrollRef.current;
-    const slide = slideRefs.current[resumeScrollRef.current];
-    if (!container || !slide) {
-      resumeScrollRef.current = null;
-      return;
-    }
-    const raf = requestAnimationFrame(() => {
-      container.scrollTop = slide.offsetTop;
-      resumeScrollRef.current = null;
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [shorts]);
-
-  // Persist the watched Short (with today's local day key) on every slide
-  // change, so reopening Shorts the same day resumes here.
+  // Mark the on-screen Short as watched today, so reopening the feed the
+  // same day drops it and surfaces the still-unseen ones. Fires on every
+  // slide change (and on load for the first slide).
   useEffect(() => {
     const active = shorts?.[currentIndex];
-    if (active) writeResumeVideoId(active.videoId);
+    if (active) markShortSeen(active.videoId);
   }, [currentIndex, shorts]);
 
   // Lock the page scroll behind the overlay while the feed is open.
@@ -605,11 +576,10 @@ export function ShortsPage({
     if (!container || total === 0) return;
     const observer = new IntersectionObserver(
       (entries) => {
-        // A resize (rotation) is re-pinning the feed, or the initial
-        // resume scroll hasn't landed yet — ignore the transient
-        // intersections either produces so we don't commit a phantom
-        // Next/Prev (or the first slide over the resume target).
-        if (resizePinRef.current.active || resumeScrollRef.current !== null) return;
+        // A resize (rotation) is re-pinning the feed — ignore the
+        // transient intersections it produces so we don't commit the
+        // drift as a phantom Next/Prev.
+        if (resizePinRef.current.active) return;
         for (const entry of entries) {
           if (!entry.isIntersecting) continue;
           const raw = (entry.target as HTMLElement).dataset.shortsIndex;

@@ -6,7 +6,7 @@ import type { Lang } from "@/lib/i18n";
 import type { TopicLabel } from "@/lib/types";
 import { summaryPath } from "@/lib/summary-routes";
 import { kicker, ctaLink } from "@/app/components/briefing/styles";
-import { buildSummaryTeaser, type DailySummaryBullet } from "@/app/components/briefing/utils";
+import { buildTeaserBullets, type DailySummaryBullet } from "@/app/components/briefing/utils";
 
 /** Routing tuple identifying one daily summary. Mirror of the row
  *  returned by `GET /api/summaries/routes`. */
@@ -41,12 +41,12 @@ export function DailySummaryTeaser({
   });
   const href = summaryPath(route);
 
-  // Lazy-fetch the actual summary body so the teaser shows the
-  // opening lines of the editorial bullets instead of a generic « AI
-  // bullet-point summary… » placeholder. The route already serves
-  // `seo_description` + structured `bullets`, both 1 h CDN-cached, so
-  // a re-render of the home page costs at most one fast roundtrip.
-  const [teaser, setTeaser] = useState<string | null>(null);
+  // Lazy-fetch the actual summary body so the teaser shows the first
+  // editorial bullets instead of a generic « AI bullet-point summary… »
+  // placeholder. The route already serves `seo_description` + structured
+  // `bullets`, both 1 h CDN-cached, so a re-render of the home page costs
+  // at most one fast roundtrip.
+  const [teaserBullets, setTeaserBullets] = useState<string[] | null>(null);
   useEffect(() => {
     let cancelled = false;
     const qs = route.lang === "fr" ? "?lang=fr" : "";
@@ -54,22 +54,21 @@ export function DailySummaryTeaser({
       .then((r) => (r.ok ? r.json() : null))
       .then((json: { bullets?: DailySummaryBullet[]; seoDescription?: string } | null) => {
         if (cancelled || !json) return;
-        const built = buildSummaryTeaser(json.bullets ?? [], json.seoDescription ?? "");
-        if (built) setTeaser(built);
+        const built = buildTeaserBullets(json.bullets ?? [], json.seoDescription ?? "");
+        if (built.length > 0) setTeaserBullets(built);
       })
-      .catch(() => { /* silent — keep teaser null, fallback below */ });
+      .catch(() => { /* silent — keep teaserBullets null, fallback below */ });
     return () => { cancelled = true; };
   }, [route.topic_id, route.summary_date, route.lang]);
 
   const fallback = lang === "fr"
     ? "Résumé IA en bullet points avec sources, scoré sur les meilleurs articles du jour."
     : "AI bullet-point summary with sources, scored on the day's top articles.";
-  const teaserText = teaser ?? fallback;
 
   return (
     <section style={{ marginBottom: 36 }}>
       <div style={{ ...kicker(color.gold), marginBottom: 12 }}>
-        {lang === "fr" ? "Votre topic · résumé du jour" : "Your topic · daily summary"}
+        {lang === "fr" ? "Votre topic favori · actu du jour" : "Your favorite topic · daily news"}
       </div>
       <a href={href} style={{ textDecoration: "none", color: "inherit", display: "block" }}>
         <div
@@ -87,24 +86,40 @@ export function DailySummaryTeaser({
               · {dateLabel}
             </span>
           </h3>
-          <p
-            className="app-paragraph-lg"
-            style={{
-              color: color.articleSnippet,
-              marginTop: 10,
-              marginBottom: 16,
-              // Clamp to ~10 lines (doubled from 5 in v2.20.6+, along
-              // with the 840-char budget in buildSummaryTeaser) so the
-              // teaser stays bounded — anything past the clamp hides
-              // under the « Lire la suite » CTA, which is the user goal.
-              display: "-webkit-box",
-              WebkitLineClamp: 10,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-            }}
-          >
-            {teaserText}
-          </p>
+          {teaserBullets ? (
+            // First bullets of the summary, rendered as the same gold-dot
+            // list the full summary page uses for « Points clés » — same
+            // home description scale (`app-paragraph-lg`) as the previous
+            // paragraph teaser.
+            <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 16px" }}>
+              {teaserBullets.map((text, i) => (
+                <li
+                  key={i}
+                  className="app-paragraph-lg"
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    color: color.articleSnippet,
+                    marginBottom: i < teaserBullets.length - 1 ? 10 : 0,
+                  }}
+                >
+                  <span style={{ color: color.gold, fontWeight: 700, flexShrink: 0 }}>•</span>
+                  <span>{text}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p
+              className="app-paragraph-lg"
+              style={{
+                color: color.articleSnippet,
+                marginTop: 10,
+                marginBottom: 16,
+              }}
+            >
+              {fallback}
+            </p>
+          )}
           {/* CTA kept INSIDE the box, bottom-right — rendered as a span
               (not an anchor) since the whole card is already a link, so we
               avoid nesting <a> inside <a>. Mirrors the Daily Podcast. */}

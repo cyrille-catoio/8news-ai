@@ -120,16 +120,18 @@ export function generateTopSummaryPrompt(lang: Lang): string {
       "9. N'inclus JAMAIS de références aux articles, noms de sources ou numéros d'index dans le texte des bullet points (pas de citations entre parenthèses comme \"(Source)\", \"(Article 3)\", \"[TechCrunch]\", etc.). Les références sont gérées séparément via le tableau \"refs\".",
       "10. Pour CHAQUE groupe, produis un \"title\" : un titre court de 3 à 8 mots, accroche journalistique, ancré sur un nom propre, un produit ou un chiffre clé (ex : « OpenAI lève 40 Md$ », « Nvidia frôle les 4 000 Md$ », « Meta licencie 5 % de ses équipes IA »). Pas de guillemets, pas de ponctuation finale (ni point, ni « … »). Pas de chevrons. Le titre doit être informatif à lui seul (pas de teaser flou type « Une journée mouvementée pour la tech »).",
       "11. Si plusieurs bullets sont dans le même groupe, ils doivent vraiment partager un thème central et apporter chacun un angle différent (ex : « Nvidia frôle les 4 000 Md$ » avec un bullet sur la valorisation, un bullet sur les contrats data center, un bullet sur la réaction des concurrents). Si tu hésites, fais plutôt un groupe d'un seul bullet plutôt qu'un groupe artificiel.",
-      "12. Pour CHAQUE groupe, produis un score d'importance éditoriale entier de 1 à 10 dans le champ \"importance\". Échelle calibrée comme le scoring article :",
+      "12. Pour CHAQUE groupe, produis un score d'importance éditoriale de 1 à 10 avec UNE décimale (ex : 7.4, 8.6) dans le champ \"importance\". Échelle calibrée comme le scoring article :",
       "    - 10 : breaking news majeure (régulation historique, M&A > 10 Md$, événement de marché > 5 %, crash, AGI/AGR notable, IPO emblématique)",
       "    - 9  : signal fort (lancement produit phare d'un acteur majeur, partenariat structurant, levée > 1 Md$, benchmark record d'un modèle frontier)",
       "    - 7-8: développement notable (release importante, levée 100 M-1 Md$, mouvement marché significatif, partenariat sourcé)",
       "    - 5-6: intéressant mais sans urgence (mise à jour produit, analyse sourcée, mouvement de fonds notable)",
       "    - 3-4: peu important (opinion sans faits nouveaux, analyse sans data)",
       "    - 1-2: anecdotique (rumeur, content marketing, top-list, contenu promotionnel)",
+      "    Utilise la décimale pour départager finement deux sujets d'un même palier : un 8.7 est nettement plus marquant qu'un 8.2. Ne mets pas systématiquement .0 ou .5 — exploite toute la granularité.",
       "    Le score reflète l'importance d'aujourd'hui pour un lecteur tech professionnel. Sois exigeant : ne donne 9-10 que si l'événement est vraiment marquant à l'échelle de l'industrie.",
+      "    Ne fais PAS varier le score selon le nombre d'articles ou de sources qui couvrent le sujet : la couverture presse est bonifiée séparément en aval. Juge uniquement l'impact de la nouvelle elle-même.",
       "",
-      "Réponds en JSON : {\"globalSummary\":[{\"title\":\"titre court accrocheur\",\"importance\":8,\"bullets\":[{\"text\":\"premier angle détaillé\",\"refs\":[0,1]},{\"text\":\"second angle détaillé\",\"refs\":[2]}]}]}. Ne renvoie AUCUN autre champ de premier niveau.",
+      "Réponds en JSON : {\"globalSummary\":[{\"title\":\"titre court accrocheur\",\"importance\":8.4,\"bullets\":[{\"text\":\"premier angle détaillé\",\"refs\":[0,1]},{\"text\":\"second angle détaillé\",\"refs\":[2]}]}]}. Ne renvoie AUCUN autre champ de premier niveau.",
     ].join("\n");
   }
   return [
@@ -150,16 +152,18 @@ export function generateTopSummaryPrompt(lang: Lang): string {
     "9. NEVER include article references, source names, or index numbers inside the bullet text (no parenthetical citations like \"(Source)\", \"(Article 3)\", \"[TechCrunch]\", etc.). References are handled separately via the \"refs\" array.",
     "10. For EACH group, produce a \"title\": a short 3-8 word journalistic headline, anchored on a proper noun, product or key figure (e.g. \"OpenAI raises $40B\", \"Nvidia nears $4T market cap\", \"Meta cuts 5% of AI staff\"). No quotes, no trailing punctuation (no period, no ellipsis), no angle brackets. The title must be informative on its own (no vague teaser like \"A busy day in tech\").",
     "11. When a group has multiple bullets, they must genuinely share a central theme and each must bring a distinct angle (e.g. \"Nvidia nears $4T\" with one bullet on valuation, one on data-center contracts, one on competitor reaction). If in doubt, prefer a single-bullet group over an artificial multi-bullet one.",
-    "12. For EACH group, produce an editorial importance integer score 1-10 in the \"importance\" field. Scale calibrated like article scoring:",
+    "12. For EACH group, produce an editorial importance score 1-10 with ONE decimal (e.g. 7.4, 8.6) in the \"importance\" field. Scale calibrated like article scoring:",
     "    - 10: major breaking news (historic regulation, M&A > $10B, market move > 5%, crash, notable AGI/AGR step, landmark IPO)",
     "    - 9 : strong signal (flagship product launch from a major player, structuring partnership, raise > $1B, frontier-model benchmark record)",
     "    - 7-8: notable development (significant release, $100M-$1B raise, meaningful market move, sourced partnership)",
     "    - 5-6: interesting but not urgent (product update, sourced analysis, notable fund flow)",
     "    - 3-4: low value (opinion without new facts, analysis without data)",
     "    - 1-2: anecdotal (rumor, content marketing, listicle, promotional content)",
+    "    Use the decimal to finely rank stories within the same tier: an 8.7 is clearly more significant than an 8.2. Do not default to .0 or .5 — use the full granularity.",
     "    The score reflects how important THIS news is TODAY for a professional tech reader. Be demanding: only award 9-10 when the event is genuinely industry-defining.",
+    "    Do NOT vary the score based on how many articles or outlets cover the story: press coverage is rewarded separately downstream. Judge only the impact of the news itself.",
     "",
-    "Respond with JSON: {\"globalSummary\":[{\"title\":\"short punchy headline\",\"importance\":8,\"bullets\":[{\"text\":\"first angle, detailed\",\"refs\":[0,1]},{\"text\":\"second angle, detailed\",\"refs\":[2]}]}]}. Do NOT return any other top-level field.",
+    "Respond with JSON: {\"globalSummary\":[{\"title\":\"short punchy headline\",\"importance\":8.4,\"bullets\":[{\"text\":\"first angle, detailed\",\"refs\":[0,1]},{\"text\":\"second angle, detailed\",\"refs\":[2]}]}]}. Do NOT return any other top-level field.",
   ].join("\n");
 }
 
@@ -305,6 +309,69 @@ function buildVideoBulletRows(
     });
   }
   return rows;
+}
+
+/** Press-coverage bonus: +0.1 per distinct source outlet cited by a
+ *  group, capped at +0.5 (5 outlets or more). */
+const SOURCE_BONUS_PER_OUTLET = 0.1;
+const SOURCE_BONUS_MAX = 0.5;
+
+/**
+ * Reward press coverage breadth with a deterministic score bonus
+ * (v2.20.7+): the more distinct outlets cover a story, the more the
+ * press considers it important, so its group's LLM importance score
+ * gets +0.1 per distinct source outlet, capped at +0.5.
+ *
+ * Bullets are folded into their thematic group (consecutive same-title
+ * runs, same logic as `selectTopArticleBullets`) and the outlet count
+ * is the UNION of the group's refs, deduplicated by source name
+ * (case-insensitive) — two TechCrunch articles count as ONE outlet.
+ * Every bullet of a group receives the same boosted score, preserving
+ * the "UI reads the score off the first bullet" contract. The result
+ * is clamped to 10 and rounded to one decimal (the
+ * `summary_bullets.importance_score` NUMERIC(3,1) range, mig 036).
+ *
+ * Applied ONCE, on the EN editorial pass output (and on the FR native
+ * fallback): the FR-from-pivot translation copies `importance`
+ * verbatim, so the bonus carries over without double application.
+ * Bullets without a score (`importance` null) are left untouched.
+ */
+export function applySourceCountBonus(bullets: SummaryBullet[]): SummaryBullet[] {
+  const groups: SummaryBullet[][] = [];
+  for (const b of bullets) {
+    const t = (b.title ?? "").trim();
+    const last = groups[groups.length - 1];
+    if (t && last && (last[0].title ?? "").trim() === t) {
+      last.push(b);
+    } else {
+      groups.push([b]);
+    }
+  }
+
+  const out: SummaryBullet[] = [];
+  for (const g of groups) {
+    const outlets = new Set<string>();
+    for (const b of g) {
+      for (const ref of b.refs ?? []) {
+        const s = (ref.source ?? "").trim().toLowerCase();
+        if (s) outlets.add(s);
+      }
+    }
+    const bonus = Math.min(
+      SOURCE_BONUS_MAX,
+      outlets.size * SOURCE_BONUS_PER_OUTLET,
+    );
+    for (const b of g) {
+      if (typeof b.importance === "number" && bonus > 0) {
+        const boosted =
+          Math.round(Math.min(10, b.importance + bonus) * 10) / 10;
+        out.push({ ...b, importance: boosted });
+      } else {
+        out.push(b);
+      }
+    }
+  }
+  return out;
 }
 
 /**
@@ -679,7 +746,11 @@ export async function generateTopSummary(
         expectRelevant: false,
       });
       summaryMd = result.summary;
-      bullets = result.bullets;
+      // Press-coverage bonus applied on the editorial pass output, BEFORE
+      // the 8-bullet selection and persistence — so it influences both
+      // the pick and the score-DESC ordering everywhere. The FR-from-
+      // pivot path above inherits it via the pivot bullets.
+      bullets = applySourceCountBonus(result.bullets);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "unknown";
       console.error(`[generateTopSummary] analyzeWithAI failed (lang=${lang}, date=${summaryDate}): ${msg}`);

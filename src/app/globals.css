@@ -444,14 +444,21 @@ body.podcast-chat-resizing .podcast-chat-resize::after {
 }
 
 /* Centered reading column. Long groups (many wrapped lines on phones)
-   scroll INSIDE their slide — the snap container only moves once the
-   inner column reaches its end, which is the expected feed behavior. */
+   scroll INSIDE their slide; the outer snap container only advances
+   once the inner column reaches its end — the expected feed behavior. */
 .top24h-reader-inner {
   width: 100%;
   max-width: 720px;
   max-height: 100%;
   overflow-y: auto;
-  overscroll-behavior: contain;
+  /* `auto`, NOT `contain`: on a long article the first swipe scrolls the
+     text; once it hits the bottom, the next swipe must CHAIN to the
+     outer `.top24h-reader-scroll` so it snaps to the following news.
+     `contain` severed that chain — you could scroll the article but
+     never swipe past it (the reported "second swipe does nothing" on
+     tall slides). The outer keeps `contain`, so the chain stops there
+     and the locked page behind the overlay never scrolls. */
+  overscroll-behavior: auto;
   scrollbar-width: none;
 }
 

@@ -134,20 +134,33 @@ export function PodcastReader({
 
   // Track the visible slide (swipe AND programmatic scrolls end up
   // here) so the counter, progress bar and button disabled states
-  // follow whatever is actually on screen.
+  // follow whatever is actually on screen. A second job: once a slide
+  // is FULLY off-screen, rewind its inner article to the top.
   useEffect(() => {
     const container = scrollRef.current;
     if (!container) return;
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          const raw = (entry.target as HTMLElement).dataset.readerIndex;
-          const idx = raw === undefined ? NaN : Number(raw);
-          if (!Number.isNaN(idx)) setCurrentIndex(idx);
+          const slide = entry.target as HTMLElement;
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+            const raw = slide.dataset.readerIndex;
+            const idx = raw === undefined ? NaN : Number(raw);
+            if (!Number.isNaN(idx)) setCurrentIndex(idx);
+          } else if (!entry.isIntersecting) {
+            // Slide fully scrolled off-screen — rewind its article to the
+            // top so returning to this news lands on the headline, not
+            // where the reader was left. The chaining fix (globals.css)
+            // forces a long article to be scrolled to its bottom before
+            // you can swipe past it, which would otherwise leave it
+            // pinned at the end on return. Safe here: the slide is
+            // invisible, so no visible jump and no live gesture to fight.
+            const inner = slide.querySelector<HTMLElement>(".top24h-reader-inner");
+            if (inner) inner.scrollTop = 0;
+          }
         }
       },
-      { root: container, threshold: 0.6 },
+      { root: container, threshold: [0, 0.6] },
     );
     for (const el of slideRefs.current) {
       if (el) observer.observe(el);

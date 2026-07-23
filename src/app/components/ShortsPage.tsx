@@ -8,11 +8,15 @@ import type { VideoItem } from "@/lib/types";
 import { FavoriteButton } from "@/app/components/FavoriteButton";
 import { formatViews, stripEmojis } from "@/app/components/video-card/VideoCardHelpers";
 import {
+  SHORTS_RESUME_KEY,
   SHORTS_WINDOW_DAYS,
   buildShortsEmbedUrl,
   clampShortsIndex,
   formatShortDuration,
+  parseResumeVideoId,
+  serializeResume,
   shortsCounterLabel,
+  shortsDayKey,
   shortsDayLabel,
   shortsWindowStartIso,
 } from "@/app/components/shorts/ShortsHelpers";
@@ -79,6 +83,34 @@ function postToPlayer(
     JSON.stringify({ event: "command", func, args }),
     "*",
   );
+}
+
+/** Read the Short to resume at — only if one was saved earlier TODAY.
+ *  localStorage is wrapped: SSR has no window, and Safari private mode
+ *  throws on access. Any failure just means « start from the newest ». */
+function readResumeVideoId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return parseResumeVideoId(
+      window.localStorage.getItem(SHORTS_RESUME_KEY),
+      shortsDayKey(new Date()),
+    );
+  } catch {
+    return null;
+  }
+}
+
+/** Persist the currently watched Short (with today's local day key). */
+function writeResumeVideoId(videoId: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      SHORTS_RESUME_KEY,
+      serializeResume(videoId, shortsDayKey(new Date())),
+    );
+  } catch {
+    // private mode / quota exceeded — non-critical, resume just won't stick
+  }
 }
 
 export function ShortsPage({
@@ -160,6 +192,20 @@ export function ShortsPage({
    *  scroll — chaining clicks from this ref keeps rapid inputs additive
    *  instead of swallowed. Cleared whenever the observer commits. */
   const navTargetRef = useRef<number | null>(null);
+  /** While a viewport resize (phone rotation, above all) is settling:
+   *  `active` suppresses IntersectionObserver index commits and `index`
+   *  is the Short to keep pinned. Slides are height:100% of the scroll
+   *  container, so a height change makes the browser's scroll-snap
+   *  re-snap drift to an adjacent Short — this keeps the user put. */
+  const resizePinRef = useRef<{ active: boolean; index: number }>({
+    active: false,
+    index: 0,
+  });
+  /** Index to jump to on the initial feed load — the Short the user left
+   *  off on earlier today (resume). Non-null suppresses the
+   *  IntersectionObserver until the one-shot resume scroll lands, so the
+   *  briefly-visible first slide isn't committed over the resume target. */
+  const resumeScrollRef = useRef<number | null>(null);
   /** Mirrors for the document-level keydown listener (stable binding). */
   const currentIndexRef = useRef(0);
   const mutedRef = useRef(false);
@@ -190,16 +236,30 @@ export function ShortsPage({
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = (await res.json()) as { shorts?: VideoItem[] };
       const list = json.shorts ?? [];
+      const isInitial = lastLoadedIdRef.current === null;
+      // On the first load, resume the Short last watched earlier today
+      // (localStorage); otherwise, and for retries, start on the newest.
+      let startIdx = 0;
+      if (isInitial && list.length > 0) {
+        const resumeId = readResumeVideoId();
+        const resumeIdx = resumeId ? list.findIndex((v) => v.videoId === resumeId) : -1;
+        if (resumeIdx > 0) startIdx = resumeIdx;
+      }
       setShorts(list);
-      setCurrentIndex(0);
+      setCurrentIndex(startIdx);
       navTargetRef.current = null;
-      if (list.length > 0 && lastLoadedIdRef.current === null) {
-        // First successful load: boot the persistent player on the
-        // newest Short. Later refetches reuse the hot player via
-        // loadVideoById (the [shorts, currentIndex] effect below).
-        lastLoadedIdRef.current = list[0].videoId;
-        bootVideoIdRef.current = list[0].videoId;
-        setBootVideoId(list[0].videoId);
+      if (isInitial && list.length > 0) {
+        // First successful load: boot the persistent player directly on
+        // the start Short (resume target or newest) so it autoplays it —
+        // no loadVideoById round-trip. Later refetches reuse the hot
+        // player via the [shorts, currentIndex] effect below.
+        const startVideoId = list[startIdx].videoId;
+        lastLoadedIdRef.current = startVideoId;
+        bootVideoIdRef.current = startVideoId;
+        setBootVideoId(startVideoId);
+        // Non-zero start needs a one-shot scroll to that slide once the
+        // deck renders (see the resume effect); guards the IO meanwhile.
+        resumeScrollRef.current = startIdx > 0 ? startIdx : null;
       }
     } catch (err) {
       console.warn("[ShortsPage] feed fetch failed", err);
@@ -211,6 +271,32 @@ export function ShortsPage({
   useEffect(() => {
     fetchShorts();
   }, [fetchShorts]);
+
+  // Resume scroll: on the initial load, jump the deck to the Short the
+  // user left off on today (index set by fetchShorts). One-shot, in a
+  // rAF so the slides have laid out; clearing the ref re-enables the
+  // IntersectionObserver, which then settles on the resume slide.
+  useEffect(() => {
+    if (shorts === null || resumeScrollRef.current === null) return;
+    const container = scrollRef.current;
+    const slide = slideRefs.current[resumeScrollRef.current];
+    if (!container || !slide) {
+      resumeScrollRef.current = null;
+      return;
+    }
+    const raf = requestAnimationFrame(() => {
+      container.scrollTop = slide.offsetTop;
+      resumeScrollRef.current = null;
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [shorts]);
+
+  // Persist the watched Short (with today's local day key) on every slide
+  // change, so reopening Shorts the same day resumes here.
+  useEffect(() => {
+    const active = shorts?.[currentIndex];
+    if (active) writeResumeVideoId(active.videoId);
+  }, [currentIndex, shorts]);
 
   // Lock the page scroll behind the overlay while the feed is open.
   useEffect(() => {
@@ -519,6 +605,11 @@ export function ShortsPage({
     if (!container || total === 0) return;
     const observer = new IntersectionObserver(
       (entries) => {
+        // A resize (rotation) is re-pinning the feed, or the initial
+        // resume scroll hasn't landed yet — ignore the transient
+        // intersections either produces so we don't commit a phantom
+        // Next/Prev (or the first slide over the resume target).
+        if (resizePinRef.current.active || resumeScrollRef.current !== null) return;
         for (const entry of entries) {
           if (!entry.isIntersecting) continue;
           const raw = (entry.target as HTMLElement).dataset.shortsIndex;
@@ -565,6 +656,51 @@ export function ShortsPage({
     };
     container.addEventListener("scroll", onScroll, { passive: true });
     return () => container.removeEventListener("scroll", onScroll);
+  }, [total]);
+
+  // Keep the current Short pinned across viewport resizes — phone
+  // rotation above all. Each slide is height:100% of the scroll
+  // container, so when the viewport height changes the browser's
+  // scroll-snap re-snap is unreliable and lands on an ADJACENT Short,
+  // which then reads as a phantom Next/Prev. We snapshot the Short the
+  // user is on at the first resize of a burst (before any drift-driven
+  // IntersectionObserver commit — those fire after this synchronous
+  // event), re-align the scroll to it on each frame, and hold the
+  // suppression lock until the viewport settles.
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container || total === 0) return;
+    let clearTimer: ReturnType<typeof setTimeout> | null = null;
+    let rafId = 0;
+    const repin = () => {
+      rafId = 0;
+      const slide = slideRefs.current[resizePinRef.current.index];
+      // Direct scrollTop assignment is instant (not animated by the
+      // container's `scroll-behavior: smooth`, which only affects the
+      // scrollTo/scrollIntoView APIs).
+      if (slide) container.scrollTop = slide.offsetTop;
+    };
+    const onResize = () => {
+      if (!resizePinRef.current.active) {
+        resizePinRef.current = { active: true, index: currentIndexRef.current };
+      }
+      if (!rafId) rafId = requestAnimationFrame(repin);
+      if (clearTimer) clearTimeout(clearTimer);
+      clearTimer = setTimeout(() => {
+        const slide = slideRefs.current[resizePinRef.current.index];
+        if (slide) container.scrollTop = slide.offsetTop;
+        resizePinRef.current = { active: false, index: resizePinRef.current.index };
+      }, 300);
+    };
+    window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
+      if (clearTimer) clearTimeout(clearTimer);
+      if (rafId) cancelAnimationFrame(rafId);
+      resizePinRef.current = { active: false, index: 0 };
+    };
   }, [total]);
 
   // Keyboard driving: arrows / PageUp / PageDown navigate, Space

@@ -70,38 +70,18 @@ export function Top24hHero({
   defaultOpen = false,
   title,
   appendSummaryDateToTitle = false,
-  isRead,
-  onToggleRead,
   onOpenChat,
   showHistoryControls = false,
   showHomeRefresh = false,
-  onSnapshotChange,
   kickerLabel,
   hideTitlePrefix = false,
-  readReady = true,
   showReaderButton = false,
 }: {
   lang: Lang;
-  /** Controlled « read » state of the hero. When `onToggleRead` is
-   *  also provided (parent-controlled, v2.6.15+), the bottom-left of
-   *  the card renders a compact « Lue / Read » checkbox. Currently
-   *  driven by `BriefingPage` so it can demote the hero below the
-   *  transcribed-videos list once the user checks it; other consumers
-   *  (`/top-articles`, archive pages) leave both props undefined and
-   *  the checkbox stays hidden. */
-  isRead?: boolean;
-  onToggleRead?: () => void;
-  /** When provided, renders an « Ask the AI » button at the bottom-left
-   *  of the card that opens the Daily Podcast chat grounded in today's
-   *  briefing. Home use case only. */
+  /** When provided, renders an « Ask the AI » button in the heading row
+   *  that opens the Daily Podcast chat grounded in today's briefing.
+   *  Home use case only. */
   onOpenChat?: () => void;
-  /** Gate for the initial render: while `false`, the hero keeps showing
-   *  its loading skeleton instead of the body, so the parent can wait
-   *  until the per-user « read » state is known before deciding whether
-   *  the briefing renders expanded or collapsed. Prevents the
-   *  expand→collapse flash for already-read podcasts. Defaults to `true`
-   *  so non-home consumers are unaffected. */
-  readReady?: boolean;
   /** When provided (even as `null`), the component skips its self-fetch
    *  and uses the parent's snapshot directly. Lets the /top-articles
    *  page pass its own already-fetched snapshot so we don't duplicate
@@ -142,12 +122,6 @@ export function Top24hHero({
    *  the card heading instead of `{title} — {date}`. Home uses this so
    *  « Podcast du jour » appears only once, as the section kicker. */
   hideTitlePrefix?: boolean;
-  /** Notifies the parent each time the visible snapshot changes
-   *  (initial load + every history-arrow navigation). v2.8.2+ used by
-   *  `<HomeTop24hHero>` to know which `summaryDate` to look up in the
-   *  per-user « Lu » DB-backed state, so the checkbox + collapse mirror
-   *  the date currently on screen rather than always today's. */
-  onSnapshotChange?: (snapshot: Snapshot) => void;
   /** Home-only (v2.19+): renders a fullscreen-reader button in the
    *  heading row (next to the expand/collapse toggle) that opens the
    *  immersive `PodcastReader` — one news per screen, large type,
@@ -181,16 +155,8 @@ export function Top24hHero({
    *  pattern could read `false` from the initial render and never
    *  increment even when the latest API said `hasOlder: true`). */
   const historyHasOlderRef = useRef(false);
-  /** Latest `onSnapshotChange` callback. Kept in a ref so the fetch
-   *  effect below doesn't need it as a dep — otherwise an unstable
-   *  parent callback would re-trigger the network request on every
-   *  parent render, which would also clobber the historyOffset state. */
-  const onSnapshotChangeRef = useRef(onSnapshotChange);
   /** Avoid re-fetch loops when the API legitimately still serves yesterday. */
   const staleRefetchKeyRef = useRef<string | null>(null);
-  useEffect(() => {
-    onSnapshotChangeRef.current = onSnapshotChange;
-  }, [onSnapshotChange]);
   const snap = isSelfFetched ? snapInternal : externalData ?? null;
 
   // Reset the open-index set whenever the snapshot or `defaultOpen`
@@ -239,7 +205,6 @@ export function Top24hHero({
       historyHasOlderRef.current = Boolean(cached.hasOlder);
       setSnapInternal(cached);
       setHistoryHasOlder(Boolean(cached.hasOlder));
-      onSnapshotChangeRef.current?.(cached);
       setLoadingInternal(false);
     } else {
       setLoadingInternal(true);
@@ -269,7 +234,6 @@ export function Top24hHero({
         historyHasOlderRef.current = older;
         setSnapInternal(json);
         setHistoryHasOlder(older);
-        onSnapshotChangeRef.current?.(json);
         writeCachedSnapshot<Snapshot>(lang, offsetRequested, json);
       })
       .catch(() => {
@@ -331,12 +295,7 @@ export function Top24hHero({
   // remaining unobtrusive when the cron has nothing to show yet. Only
   // shown when self-fetching — when the parent drives `data`, it
   // owns its own loading skeleton.
-  //
-  // `!readReady` keeps the skeleton up until the parent knows the
-  // per-user « read » state, so an already-read podcast never flashes
-  // fully expanded before collapsing (the snapshot fetch and the read
-  // fetch race, and the snapshot often wins).
-  if (isSelfFetched && (loadingInternal || !readReady)) {
+  if (isSelfFetched && loadingInternal) {
     return (
       <section style={{ marginBottom: 36 }}>
         <div style={kickerStyle(color.gold)}>{kickerLabel ?? t("top24hHeroKicker", lang)}</div>
@@ -391,7 +350,7 @@ export function Top24hHero({
     : baseTitle;
 
   return (
-    <section style={{ marginBottom: isRead ? 16 : 36 }}>
+    <section style={{ marginBottom: 36 }}>
       <div
         style={{
           display: "flex",
@@ -504,64 +463,22 @@ export function Top24hHero({
       <div
         style={{
           ...card,
-          padding: isRead ? "8px 14px" : "22px 22px 16px",
+          padding: "22px 22px 16px",
           background: color.surface,
-          transition: "padding 280ms ease",
         }}
       >
-        <div className="top24h-hero-header" style={{ marginBottom: isRead ? 0 : 14, transition: "margin-bottom 280ms ease" }}>
-          <div
-            className="top24h-hero-heading-row"
-            style={{
-              alignItems: isRead ? "center" : undefined,
-              flexWrap: isRead ? "nowrap" : undefined,
-              gap: isRead ? 10 : undefined,
-            }}
-          >
-            {onToggleRead && isRead && (
-              <label
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  flexShrink: 0,
-                  cursor: "pointer",
-                  color: color.gold,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  lineHeight: 1,
-                  userSelect: "none",
-                  transition: "color 140ms ease",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked
-                  onChange={onToggleRead}
-                  style={{
-                    width: 13,
-                    height: 13,
-                    margin: 0,
-                    accentColor: color.gold,
-                    cursor: "pointer",
-                  }}
-                />
-                {t("top24hHeroReadLabel", lang)}
-              </label>
-            )}
+        <div className="top24h-hero-header" style={{ marginBottom: 14 }}>
+          <div className="top24h-hero-heading-row">
           <h2
             className="top24h-hero-title"
             style={{
               fontFamily: "ui-serif, Georgia, serif",
-              fontSize: isRead ? "clamp(15px, 2vw, 18px)" : "clamp(20px, 2.6vw, 26px)",
-              lineHeight: isRead ? 1.15 : 1.2,
+              fontSize: "clamp(20px, 2.6vw, 26px)",
+              lineHeight: 1.2,
               color: color.text,
               margin: 0,
               fontWeight: 400,
               letterSpacing: "-0.01em",
-              overflow: isRead ? "hidden" : undefined,
-              textOverflow: isRead ? "ellipsis" : undefined,
-              whiteSpace: isRead ? "nowrap" : undefined,
             }}
           >
             {headingTitle}
@@ -571,20 +488,18 @@ export function Top24hHero({
                 toggle so the card opens with a tighter header. v2.18.2+
                 time-only (no date, no seconds) since the date is already
                 the H2 title; hidden entirely on phones via CSS. */}
-            {!isRead && (
-              <div
-                className="top24h-hero-generated"
-                style={{ color: color.textDim, fontSize: 12, letterSpacing: "0.02em" }}
-              >
-                {t("topSummaryGeneratedAt", lang).replace(
-                  "{time}",
-                  new Date(snap.generatedAt).toLocaleTimeString(locale, {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  }),
-                )}
-              </div>
-            )}
+            <div
+              className="top24h-hero-generated"
+              style={{ color: color.textDim, fontSize: 12, letterSpacing: "0.02em" }}
+            >
+              {t("topSummaryGeneratedAt", lang).replace(
+                "{time}",
+                new Date(snap.generatedAt).toLocaleTimeString(locale, {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
+              )}
+            </div>
             {/* Fullscreen reader button (v2.19+, home only via
                 `showReaderButton`). Sits immediately left of the master
                 toggle with the same chrome so the header buttons read
@@ -594,7 +509,7 @@ export function Top24hHero({
             {/* « Ask the AI » — moved from the card footer into the
                 heading row (next to « Plein écran ») so the two podcast
                 actions sit together at the top. Same gold pill. */}
-            {onOpenChat && !isRead && (
+            {onOpenChat && (
               <button
                 type="button"
                 className="top24h-hero-reader-btn"
@@ -620,7 +535,7 @@ export function Top24hHero({
                 {t("homeAskAiButton", lang)}
               </button>
             )}
-            {showReaderButton && !isRead && (
+            {showReaderButton && (
               <button
                 type="button"
                 className="top24h-hero-reader-btn"
@@ -666,7 +581,6 @@ export function Top24hHero({
                 same gold hover treatment as the per-row chevrons so
                 the affordance reads as a single interaction family. */}
             {(() => {
-              if (isRead) return null;
               const allOpen = groups.length > 0 && groups.every((_, i) => openIdx.has(i));
               const label = allOpen
                 ? t("top24hHeroCollapseAll", lang)
@@ -726,30 +640,6 @@ export function Top24hHero({
           </div>
         </div>
 
-        {/* Collapsible body — audio player + bullet list. v2.7.7+ when
-            `isRead` is true the wrapper collapses to `max-height: 0` so
-            the « Lu » checkbox demotes the briefing in place rather than
-            being re-positioned somewhere else on the page. Audio stays
-            mounted so an ongoing playback isn't interrupted; `aria-hidden`
-            is set so screen-readers skip the stale content while hidden.
-
-            IMPORTANT: when NOT read we must NOT cap the height. A fixed
-            `max-height` + `overflow: hidden` previously clipped long
-            briefings (notably on mobile where bullets wrap to many lines
-            and the expanded content easily exceeds the old 4000px cap),
-            cutting off the text. So the cap (and clipping) only apply in
-            the read/collapsing state; open state is unconstrained. */}
-        <div
-          aria-hidden={isRead ? true : undefined}
-          style={{
-            maxHeight: isRead ? 0 : "none",
-            opacity: isRead ? 0 : 1,
-            overflow: isRead ? "hidden" : "visible",
-            visibility: isRead ? "hidden" : "visible",
-            transition:
-              "opacity 240ms ease, visibility 0s linear " + (isRead ? "240ms" : "0s"),
-          }}
-        >
         <Top24hAudio
           bullets={snap.bullets}
           lang={lang}
@@ -784,10 +674,14 @@ export function Top24hHero({
                       cursor: "pointer",
                       textAlign: "left",
                       color: open ? color.gold : color.text,
-                      fontSize: 15,
-                      fontWeight: 600,
-                      letterSpacing: "-0.005em",
-                      lineHeight: 1.35,
+                      // Group headlines are the section's real titles (gold
+                      // when expanded — always the case on the home where
+                      // the accordion opens by default): heading-scale type,
+                      // responsive between phone and desktop.
+                      fontSize: "clamp(17px, 2.2vw, 20px)",
+                      fontWeight: 700,
+                      letterSpacing: "-0.01em",
+                      lineHeight: 1.3,
                       transition: "color 160ms ease",
                     }}
                   >
@@ -940,57 +834,6 @@ export function Top24hHero({
             );
           })}
         </ul>
-        </div>
-
-        {/* Bottom action row: the « Lue / Read » checkbox, right-aligned
-            (when the parent passes `onToggleRead`). The « Ask the AI »
-            button moved up into the heading row next to « Plein écran »;
-            the former « See all articles → » link was removed in v2.19. */}
-        {!isRead && onToggleRead && (
-          <div
-            style={{
-              marginTop: 14,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "flex-end",
-              gap: 12,
-              flexWrap: "wrap",
-            }}
-          >
-            {onToggleRead && (
-              <label
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8,
-                  cursor: "pointer",
-                  color: isRead ? color.gold : color.textMuted,
-                  fontSize: 13,
-                  fontWeight: 500,
-                  userSelect: "none",
-                  transition: "color 140ms ease",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={isRead ?? false}
-                  onChange={onToggleRead}
-                  // Pure native checkbox with the gold tint via
-                  // `accentColor` — keeps the OS focus ring + a11y
-                  // semantics without re-implementing a custom toggle.
-                  style={{
-                    width: 14,
-                    height: 14,
-                    margin: 0,
-                    accentColor: color.gold,
-                    cursor: "pointer",
-                  }}
-                />
-                {t("top24hHeroReadLabel", lang)}
-              </label>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Immersive fullscreen reader (v2.19+). Mounted on demand so its

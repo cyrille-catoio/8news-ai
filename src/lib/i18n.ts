@@ -1151,14 +1151,6 @@ const strings = {
     en: "See all articles →",
     fr: "Voir tous les articles →",
   },
-  /** v2.6.15+ — label of the bottom-left « lue » checkbox on the home
-   *  `Top24hHero` card. When checked, BriefingPage demotes the hero
-   *  below the transcribed-videos list so the visitor can keep reading
-   *  the rest of the home without the briefing crowding the top. */
-  top24hHeroReadLabel: {
-    en: "Read",
-    fr: "Lu",
-  },
   // Master « expand / collapse all » toggle pinned at the top-right
   // of the Top 24h hero (home + /top-articles + /{date}). v2.6.13+.
   // Label is short on purpose so the button fits next to the H2 on
@@ -1520,6 +1512,13 @@ const strings = {
     en: "Today",
     fr: "Aujourd'hui",
   },
+  /** General menu pill for `/app/top-stories` — the dedicated page hosting
+   *  the TOP VIDEO + TOP STORY cards moved off the home briefing. FR uses
+   *  the idiomatic « À la une » rather than a literal translation. */
+  topStoriesBtn: {
+    en: "Top Stories",
+    fr: "À la une",
+  },
   /**
    * General menu pill for the legacy `/briefings` route. **Removed
    * from the visible nav in v2.7.0** — the unified `/archives` hub
@@ -1536,8 +1535,8 @@ const strings = {
   },
   /** General menu pill for `/app/videos` — today's videos feed. */
   videosBtn: {
-    en: "Videos",
-    fr: "Vidéos",
+    en: "All videos",
+    fr: "Toutes les vidéos",
   },
   /** General menu pill for `/app/shorts` — the vertical Shorts feed (v2.20+).
    *  Same word in both languages (proper noun of the YouTube format). */

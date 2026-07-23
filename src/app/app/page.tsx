@@ -43,6 +43,7 @@ import { VideosPage } from "@/app/components/VideosPage";
 import { ShortsPage } from "@/app/components/ShortsPage";
 import { YouTubeChannelsPage } from "@/app/components/YouTubeChannelsPage";
 import { BriefingPage } from "@/app/components/BriefingPage";
+import { TopStoriesPage } from "@/app/components/TopStoriesPage";
 import { ChannelsPage } from "@/app/components/ChannelsPage";
 import { useSpaNavigation } from "@/lib/spa-navigation";
 import { fetchNewsApi, PERIODS } from "@/lib/news-fetch";
@@ -56,7 +57,7 @@ import { CryptoChartPage, type CryptoChartTarget } from "@/app/components/Crypto
 
 // ── Constants ─────────────────────────────────────────────────────────
 
-const APP_VERSION = "2.20.4";
+const APP_VERSION = "2.20.5";
 const VERSION_CHECK_INTERVAL_MS = 5 * 60_000;
 
 // Daily Podcast chat panel width bounds (desktop). The panel is
@@ -686,6 +687,7 @@ export default function Home() {
           currentPage={currentPage}
           isAuthenticated={isAuthenticated}
           onNavigateBriefing={() => { setCurrentPage("briefing"); handleReset(); }}
+          onNavigateTopStories={() => setCurrentPage("topStories")}
           onNavigateHome={() => { setCurrentPage("home"); handleReset(); }}
           onNavigateFavorites={() => setCurrentPage("favorites")}
           onNavigateCrypto={() => {
@@ -706,17 +708,25 @@ export default function Home() {
           <BriefingPage
             lang={lang}
             isAuthenticated={isAuthenticated}
-            favoriteUrls={favoriteUrls}
-            onToggleFavorite={toggleFavorite}
             onRequestAuth={() => setAuthModalOpen(true)}
             onNavigate={(page) => setCurrentPage(page)}
             onOpenTopicArticles={openArticlesForTopic}
             topicLabels={topicLabels}
             preferredTopicIds={preferredTopicIds}
             preferredTopicId={validPreferredTopicId}
+            onOpenChat={() => handleChatOpenChange(true)}
+          />
+        ) : currentPage === "topStories" ? (
+          <TopStoriesPage
+            lang={lang}
+            isAuthenticated={isAuthenticated}
+            favoriteUrls={favoriteUrls}
+            onToggleFavorite={toggleFavorite}
+            onRequestAuth={() => setAuthModalOpen(true)}
+            onNavigate={(page) => setCurrentPage(page)}
+            topicLabels={topicLabels}
             ttsSpeed={ttsSpeed}
             ttsVoice={lang === "fr" ? ttsVoiceFr : ttsVoice}
-            onOpenChat={() => handleChatOpenChange(true)}
           />
         ) : currentPage === "stats" ? (
           <StatsPage

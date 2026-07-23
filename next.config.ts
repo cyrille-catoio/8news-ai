@@ -6,6 +6,7 @@ import type { NextConfig } from "next";
 // paths like /app/videos would hit a 404 since there is no [...] catch-all).
 const SPA_ROUTES = [
   "/app",
+  "/app/top-stories",
   "/app/articles",
   "/app/videos",
   "/app/shorts",

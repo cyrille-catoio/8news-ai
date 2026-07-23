@@ -101,3 +101,56 @@ export function formatShortDuration(sec: number): string {
   const s = safe % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
 }
+
+/* ── Resume-where-you-left-off (localStorage, scoped to the day) ────── */
+
+/** localStorage key holding the last-watched Short for the current day. */
+export const SHORTS_RESUME_KEY = "shorts.lastWatched.v1";
+
+interface ResumeRecord {
+  /** Local calendar day the Short was watched on (YYYY-MM-DD). */
+  date: string;
+  videoId: string;
+}
+
+/**
+ * Local calendar day key (YYYY-MM-DD) in the VIEWER's timezone — resume
+ * is deliberately scoped to « the same day », matching the feed's own
+ * local-day window (`shortsWindowStartIso`). A stored Short from an
+ * earlier day is stale and ignored, so each new day starts fresh on the
+ * most recent Short.
+ */
+export function shortsDayKey(now: Date): string {
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Parse a stored resume record and return its videoId ONLY when it was
+ * saved on `todayKey`. Returns null for anything stale, absent or
+ * malformed — the caller then falls back to the newest Short.
+ */
+export function parseResumeVideoId(raw: string | null, todayKey: string): string | null {
+  if (!raw) return null;
+  try {
+    const rec = JSON.parse(raw) as Partial<ResumeRecord>;
+    if (
+      rec &&
+      rec.date === todayKey &&
+      typeof rec.videoId === "string" &&
+      rec.videoId.length > 0
+    ) {
+      return rec.videoId;
+    }
+  } catch {
+    // malformed JSON — treat as no saved position
+  }
+  return null;
+}
+
+/** Serialize the resume record written to localStorage on each slide change. */
+export function serializeResume(videoId: string, todayKey: string): string {
+  return JSON.stringify({ date: todayKey, videoId } satisfies ResumeRecord);
+}

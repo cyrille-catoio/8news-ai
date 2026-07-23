@@ -55,6 +55,7 @@ const activeStyle: CSSProperties = {
  *  missing « Chaînes YT » pill on SEO article pages). */
 type GeneralMenuItemId =
   | "briefing"
+  | "topStories"
   | "home"
   | "videos"
   | "shorts"
@@ -67,6 +68,7 @@ type GeneralMenuItem = {
   id: GeneralMenuItemId;
   labelKey:
     | "briefingBtn"
+    | "topStoriesBtn"
     | "generalMenuArticlesBtn"
     | "videosBtn"
     | "shortsBtn"
@@ -80,9 +82,10 @@ type GeneralMenuItem = {
 
 const GENERAL_MENU_ITEMS: readonly GeneralMenuItem[] = [
   { id: "briefing", labelKey: "briefingBtn", href: "/app" },
+  { id: "topStories", labelKey: "topStoriesBtn", href: "/app/top-stories" },
+  { id: "shorts", labelKey: "shortsBtn", href: "/app/shorts" },
   { id: "home", labelKey: "generalMenuArticlesBtn", href: "/app/articles" },
   { id: "videos", labelKey: "videosBtn", href: "/app/videos" },
-  { id: "shorts", labelKey: "shortsBtn", href: "/app/shorts" },
   { id: "channels", labelKey: "channelsBtn", href: "/app/channels" },
   { id: "cryptoChart", labelKey: "cryptoMenuBtn", href: "/app/crypto-chart?coin=bitcoin&symbol=btc" },
   // Archives: SSR points at the public hub; SPA navigates in-app via callback.
@@ -97,6 +100,7 @@ export function GeneralMenu({
   currentPage,
   isAuthenticated,
   onNavigateBriefing,
+  onNavigateTopStories,
   onNavigateHome,
   onNavigateFavorites,
   onNavigateCrypto,
@@ -110,6 +114,7 @@ export function GeneralMenu({
   currentPage: AppNavPage;
   isAuthenticated: boolean;
   onNavigateBriefing: () => void;
+  onNavigateTopStories: () => void;
   onNavigateHome: () => void;
   onNavigateFavorites: () => void;
   onNavigateCrypto: () => void;
@@ -121,6 +126,7 @@ export function GeneralMenu({
 }) {
   const navigateById: Record<GeneralMenuItemId, () => void> = {
     briefing: onNavigateBriefing,
+    topStories: onNavigateTopStories,
     home: onNavigateHome,
     videos: onNavigateVideos,
     shorts: onNavigateShorts,

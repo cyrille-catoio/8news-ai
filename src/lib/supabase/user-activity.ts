@@ -3,8 +3,8 @@ import { withClient } from "./client";
 /**
  * Service-role helpers around the `user_activity` table (mig. 029+).
  *
- * Stores per-user UI interaction state — currently the home Top 24h
- * podcast « Lu / Read » checkbox, keyed by snapshot date. The schema is
+ * Stores per-user UI interaction state — currently the home
+ * « new since your last visit » cutoff (`home_visit`). The schema is
  * intentionally generic (`activity_type` + `target_id` + `value` +
  * `last_action`) so future client-side toggles (e.g. « mark video as
  * watched », « hide topic from briefing ») can share the same table

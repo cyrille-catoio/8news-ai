@@ -4,10 +4,12 @@ import { getUserActivity, upsertUserActivity } from "@/lib/supabase";
 import { NO_STORE_HEADERS } from "@/lib/api-helpers";
 
 /**
- * Generic per-user UI activity log. v2.8.2+ first consumer is the
- * home Top 24h podcast « Lu / Read » checkbox.
+ * Generic per-user UI activity log. Current consumer is the home
+ * « new since your last visit » cutoff (`home_visit` in BriefingPage);
+ * the former podcast « Lu / Read » checkbox (v2.8.2 → v2.20) also
+ * stored its state here.
  *
- * GET  /api/user/activity?type=podcast_read
+ * GET  /api/user/activity?type=home_visit
  *   → { entries: [{ target_id, value, last_action, last_clicked_at, created_at }, …] }
  *
  * POST /api/user/activity
@@ -15,9 +17,8 @@ import { NO_STORE_HEADERS } from "@/lib/api-helpers";
  *   → { ok: true }
  *
  * Both endpoints require an authenticated session — anonymous visitors
- * persist their toggles via a client-side cookie instead (handled in
- * `HomeTop24hHero`). The route always returns `no-store` headers to
- * keep the per-user payload off any CDN.
+ * fall back to client-side storage. The route always returns `no-store`
+ * headers to keep the per-user payload off any CDN.
  */
 
 const MAX_ACTIVITY_TYPE_LEN = 64;

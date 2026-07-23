@@ -5,7 +5,10 @@ import {
   clampShortsIndex,
   formatShortDuration,
   isShortDuration,
+  parseResumeVideoId,
+  serializeResume,
   shortsCounterLabel,
+  shortsDayKey,
   shortsDayLabel,
   shortsWindowStartIso,
 } from "../ShortsHelpers";
@@ -134,5 +137,41 @@ describe("formatShortDuration", () => {
   it("floors fractional and negative inputs", () => {
     expect(formatShortDuration(61.9)).toBe("1:01");
     expect(formatShortDuration(-3)).toBe("0:00");
+  });
+});
+
+describe("shortsDayKey", () => {
+  it("formats the local calendar day as YYYY-MM-DD", () => {
+    expect(shortsDayKey(new Date(2026, 6, 23, 15, 30))).toBe("2026-07-23");
+    expect(shortsDayKey(new Date(2026, 0, 5, 0, 0))).toBe("2026-01-05");
+    expect(shortsDayKey(new Date(2026, 11, 31, 23, 59))).toBe("2026-12-31");
+  });
+});
+
+describe("parseResumeVideoId", () => {
+  const today = "2026-07-23";
+
+  it("returns the videoId when the record is for today", () => {
+    const raw = serializeResume("abc123", today);
+    expect(parseResumeVideoId(raw, today)).toBe("abc123");
+  });
+
+  it("ignores a record saved on a different day", () => {
+    const raw = serializeResume("abc123", "2026-07-22");
+    expect(parseResumeVideoId(raw, today)).toBeNull();
+  });
+
+  it("returns null for absent, empty or malformed storage", () => {
+    expect(parseResumeVideoId(null, today)).toBeNull();
+    expect(parseResumeVideoId("", today)).toBeNull();
+    expect(parseResumeVideoId("not json", today)).toBeNull();
+    expect(parseResumeVideoId("{}", today)).toBeNull();
+    expect(parseResumeVideoId(JSON.stringify({ date: today }), today)).toBeNull();
+    expect(parseResumeVideoId(JSON.stringify({ date: today, videoId: "" }), today)).toBeNull();
+    expect(parseResumeVideoId(JSON.stringify({ date: today, videoId: 42 }), today)).toBeNull();
+  });
+
+  it("round-trips serialize -> parse", () => {
+    expect(parseResumeVideoId(serializeResume("xyz", today), today)).toBe("xyz");
   });
 });

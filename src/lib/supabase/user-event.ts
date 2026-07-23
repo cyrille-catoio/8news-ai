@@ -22,8 +22,6 @@ import { toUtcDateString } from "@/lib/dates-utc";
  * simpler than 12 round-trips with bespoke `group by` queries.
  */
 
-import type { UserActivityRow } from "./user-activity";
-
 /** Single row written to `user_event`. The `id` and `created_at`
  *  columns are filled by Postgres defaults. */
 export interface UserEventInsert {
@@ -80,7 +78,6 @@ export interface ActivityStats {
   /** `heatmap[dayOfWeek 0=Sun..6=Sat][hour 0..23]` = event count. */
   heatmap: number[][];
   topContent: {
-    podcasts: Array<{ targetId: string; reads: number }>;
     favorites: Array<{ url: string; netAdds: number }>;
     videos: Array<{ videoId: string; plays: number }>;
   };
@@ -167,41 +164,6 @@ async function fetchEvents(sinceISO: string | null): Promise<RawEventRow[]> {
   return out;
 }
 
-/** Pulls every `user_activity` row with the given activity_type. Used
- *  for the « top podcasts read » table — those rows live in the
- *  toggle-state companion table, not in `user_event`. */
-async function fetchActivityRows(
-  activityType: string,
-): Promise<Array<UserActivityRow & { user_id: string; target_id: string }>> {
-  const clientP = getServerClient();
-  if (!clientP) return [];
-  const supabase = await clientP;
-  const out: Array<UserActivityRow & { user_id: string; target_id: string }> = [];
-  const PAGE = 1000;
-  let offset = 0;
-  while (true) {
-    const { data, error } = await supabase
-      .from("user_activity")
-      .select("user_id, target_id, value, last_action, last_clicked_at, created_at")
-      .eq("activity_type", activityType)
-      .order("last_clicked_at", { ascending: false })
-      .range(offset, offset + PAGE - 1);
-    if (error) {
-      console.warn("[fetchActivityRows] page query failed — stats truncated:", error.message);
-      break;
-    }
-    if (!data) break;
-    const batch = data as unknown as Array<
-      UserActivityRow & { user_id: string; target_id: string }
-    >;
-    out.push(...batch);
-    if (batch.length < PAGE) break;
-    offset += PAGE;
-    if (offset > 200_000) break;
-  }
-  return out;
-}
-
 /** Pulls auth.users via the admin API. Pages through 1000 at a time.
  *  Returns the minimal projection needed by the leaderboard + cohort
  *  chart (id, email, signup timestamp). */
@@ -232,7 +194,7 @@ async function fetchUsers(): Promise<RawAuthUser[]> {
  *  `user_id`s that emitted at least one matching event. The set of
  *  `event_type` strings per feature is small and explicit so the chart
  *  rows stay stable even as we add new event types. */
-const FEATURE_SIGNALS: Array<{ key: string; label: string; eventTypes: string[]; activityType?: string }> = [
+const FEATURE_SIGNALS: Array<{ key: string; label: string; eventTypes: string[] }> = [
   { key: "lang_switch", label: "Language switch", eventTypes: ["settings.lang_switch"] },
   { key: "tts_speed", label: "TTS speed change", eventTypes: ["settings.tts_speed_change"] },
   { key: "tts_voice", label: "TTS voice change", eventTypes: ["settings.tts_voice_change"] },
@@ -241,19 +203,17 @@ const FEATURE_SIGNALS: Array<{ key: string; label: string; eventTypes: string[];
   { key: "audio_play", label: "Played audio (TTS)", eventTypes: ["audio.play"] },
   { key: "video_play", label: "Played a video", eventTypes: ["top_video.play_start"] },
   { key: "topic_perso", label: "Personalized topics", eventTypes: ["topic.preference_toggle"] },
-  { key: "podcast_read", label: "Marked podcast as read", eventTypes: [], activityType: "podcast_read" },
   { key: "outbound", label: "Clicked an article link", eventTypes: ["article.link_click", "top24h.ref_click"] },
 ];
 
-/** Funnel definition — five canonical conversion stages. Each step's
+/** Funnel definition — canonical conversion stages. Each step's
  *  population is "distinct (user_id || visitor_id) that emitted any of
  *  the matching events in the period". `rate` is computed against the
  *  PREVIOUS step (not the top), so each row shows the step-to-step
  *  drop. The first step's rate is 100% by definition. */
-const FUNNEL_STEPS: Array<{ key: string; label: string; eventTypes: string[]; activityType?: string }> = [
+const FUNNEL_STEPS: Array<{ key: string; label: string; eventTypes: string[] }> = [
   { key: "visit", label: "Page view", eventTypes: ["page.view"] },
   { key: "podcast_open", label: "Top 24h group expanded", eventTypes: ["top24h.group_expand"] },
-  { key: "podcast_read", label: "Marked podcast as read", eventTypes: [], activityType: "podcast_read" },
   { key: "favorite", label: "Favorited an item", eventTypes: ["favorite.add"] },
   { key: "newsletter", label: "Subscribed to newsletter", eventTypes: ["newsletter.subscribe"] },
 ];
@@ -265,10 +225,9 @@ export async function getActivityStats(period: Period): Promise<ActivityStats> {
       ? null
       : new Date(now.getTime() - PERIOD_DAYS[period] * 86_400_000).toISOString();
 
-  // Three independent fetches kicked off in parallel.
-  const [events, activityRows, users] = await Promise.all([
+  // Two independent fetches kicked off in parallel.
+  const [events, users] = await Promise.all([
     fetchEvents(sinceISO),
-    fetchActivityRows("podcast_read"),
     fetchUsers(),
   ]);
 
@@ -361,24 +320,11 @@ export async function getActivityStats(period: Period): Promise<ActivityStats> {
   // ───── Funnel ────────────────────────────────────────────────
   const funnelCounts = FUNNEL_STEPS.map((step) => {
     const set = new Set<string>();
-    if (step.eventTypes.length > 0) {
-      const typeSet = new Set(step.eventTypes);
-      for (const e of events) {
-        if (typeSet.has(e.event_type)) {
-          const k = dauKey(e);
-          if (k) set.add(k);
-        }
-      }
-    }
-    if (step.activityType === "podcast_read") {
-      // For podcast_read we rely on the toggle-state table, not events.
-      // Count distinct user_ids that have at least one value=1 row
-      // matching the period (last_clicked_at-based filter).
-      const cut = sinceISO ? new Date(sinceISO).getTime() : 0;
-      for (const r of activityRows) {
-        if (r.value !== 1) continue;
-        if (cut > 0 && new Date(r.last_clicked_at).getTime() < cut) continue;
-        set.add(r.user_id);
+    const typeSet = new Set(step.eventTypes);
+    for (const e of events) {
+      if (typeSet.has(e.event_type)) {
+        const k = dauKey(e);
+        if (k) set.add(k);
       }
     }
     return { ...step, count: set.size };
@@ -405,18 +351,6 @@ export async function getActivityStats(period: Period): Promise<ActivityStats> {
   }
 
   // ───── Top content ──────────────────────────────────────────
-  // Most-read podcasts: aggregate user_activity rows with value=1
-  // (currently read state).
-  const podcastReads = new Map<string, number>();
-  for (const r of activityRows) {
-    if (r.value !== 1) continue;
-    podcastReads.set(r.target_id, (podcastReads.get(r.target_id) ?? 0) + 1);
-  }
-  const topPodcasts = Array.from(podcastReads.entries())
-    .map(([targetId, reads]) => ({ targetId, reads }))
-    .sort((a, b) => b.reads - a.reads)
-    .slice(0, 10);
-
   // Top favorited URLs: net (add - remove) across the period.
   const favoriteNet = new Map<string, number>();
   for (const e of events) {
@@ -458,16 +392,9 @@ export async function getActivityStats(period: Period): Promise<ActivityStats> {
   const totalAuthUsers = users.length;
   const featureAdoption = FEATURE_SIGNALS.map((sig) => {
     const set = new Set<string>();
-    if (sig.eventTypes.length > 0) {
-      const typeSet = new Set(sig.eventTypes);
-      for (const e of events) {
-        if (e.user_id && typeSet.has(e.event_type)) set.add(e.user_id);
-      }
-    }
-    if (sig.activityType === "podcast_read") {
-      for (const r of activityRows) {
-        if (r.value === 1) set.add(r.user_id);
-      }
+    const typeSet = new Set(sig.eventTypes);
+    for (const e of events) {
+      if (e.user_id && typeSet.has(e.event_type)) set.add(e.user_id);
     }
     return {
       feature: sig.label,
@@ -562,7 +489,6 @@ export async function getActivityStats(period: Period): Promise<ActivityStats> {
     funnel,
     heatmap,
     topContent: {
-      podcasts: topPodcasts,
       favorites: topFavorites,
       videos: topVideos,
     },

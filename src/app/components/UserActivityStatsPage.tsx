@@ -35,7 +35,6 @@ interface ActivityStats {
   funnel: Array<{ key: string; label: string; count: number; rate: number }>;
   heatmap: number[][];
   topContent: {
-    podcasts: Array<{ targetId: string; reads: number }>;
     favorites: Array<{ url: string; netAdds: number }>;
     videos: Array<{ videoId: string; plays: number }>;
   };
@@ -436,31 +435,6 @@ function TopContentTables({ data, lang, locale }: { data: ActivityStats; lang: L
     <div style={sectionCard}>
       <h3 style={formSectionTitle}>{lang === "fr" ? "Contenus les plus consommés" : "Top content"}</h3>
       <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
-        <div>
-          <h4 style={{ color: color.text, fontSize: 13, fontWeight: 600, margin: "0 0 8px" }}>
-            {lang === "fr" ? "Podcasts marqués lus" : "Podcasts marked read"}
-          </h4>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                <th style={thStyle}>{lang === "fr" ? "Date" : "Date"}</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>{lang === "fr" ? "Lus" : "Reads"}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.topContent.podcasts.length === 0 ? (
-                <tr><td style={tdStyle} colSpan={2}><span style={{ color: color.textMuted }}>—</span></td></tr>
-              ) : (
-                data.topContent.podcasts.map((r) => (
-                  <tr key={r.targetId}>
-                    <td style={{ ...tdStyle, fontFamily: "ui-monospace, Menlo, monospace" }}>{r.targetId}</td>
-                    <td style={{ ...tdStyle, textAlign: "right", color: color.gold, fontWeight: 600 }}>{fmtNum(r.reads, locale)}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
         <div>
           <h4 style={{ color: color.text, fontSize: 13, fontWeight: 600, margin: "0 0 8px" }}>
             {lang === "fr" ? "Articles favoris (net)" : "Favorited articles (net)"}

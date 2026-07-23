@@ -20,6 +20,9 @@ import {
 
 export type AppNavPage =
   | "briefing"
+  /** v2.20.x+ — dedicated Top Stories page (`TopStoriesPage.tsx`) hosting
+   *  the TOP VIDEO + TOP STORY cards that used to open the home briefing. */
+  | "topStories"
   | "home"
   | "stats"
   | "crons"
